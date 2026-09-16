@@ -28,6 +28,7 @@ public enum BrowApp {
         let controller = BrowAppController()
         Self.controller = controller
         app.delegate = controller
+        app.mainMenu = controller.makeMainMenu()
         app.setActivationPolicy(.accessory)
         app.run()
     }
@@ -88,7 +89,49 @@ final class BrowAppController: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// A non-nib app gets NO main menu of its own, and Brow has no Dock icon
+    /// (`LSUIElement` + `.accessory`), no status item and no window at launch —
+    /// so without this menu `Cmd-Q` is inert and the only way out of a running
+    /// Brow is `pkill`. Grove reaches `NSApp.terminate` from its panel footer
+    /// (`ProjectsFooter.swift`); Brow's panel is a hover strip with no room for
+    /// a Quit button, so the menu carries it — and hands the settings window
+    /// back its standard `Cmd-,` and `Cmd-W`.
+    func makeMainMenu() -> NSMenu {
+        let main = NSMenu()
+
+        // The first submenu is the application menu; macOS titles it from
+        // CFBundleName ("Brow") whatever this menu's own title says.
+        let appMenu = NSMenu(title: "Brow")
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettingsMenuItem(_:)), keyEquivalent: ",")
+        settings.target = self
+        appMenu.addItem(settings)
+        appMenu.addItem(.separator())
+        // nil target: the action walks the responder chain up to NSApp, which
+        // implements `terminate:` — the same exit Grove's footer button takes.
+        appMenu.addItem(NSMenuItem(title: "Quit Brow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        let appItem = NSMenuItem()
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+
+        return main
+    }
+
+    @objc private func openSettingsMenuItem(_ sender: Any?) { showSettings() }
+
     func showSettings() {
+        // `Cmd-,` is live from the moment the menu is installed, which is before
+        // the launch Task has built the store — and both are implicitly
+        // unwrapped, so an early hit would trap instead of doing nothing.
+        guard let store, let addFlow else {
+            BrowLog.panel.error("settings opened before the accounts finished loading; ignoring")
+            return
+        }
         if settingsWindow == nil {
             let view = SettingsView(store: store, addFlow: addFlow, claudeDetected: claudePath)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 460),

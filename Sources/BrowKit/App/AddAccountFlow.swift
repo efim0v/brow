@@ -46,6 +46,10 @@ public final class AddAccountFlow: ObservableObject {
                 // hidden is still "already known", and must not read as a timeout.
                 let known = self.store.allRows.map(\.id)
                 await self.store.refresh(force: false)
+                // The refresh is the loop's other suspension point: cancellation
+                // can land here too, and a superseded run must not report its own
+                // dir's outcome over the status the run that replaced it just set.
+                if Task.isCancelled { return }
                 let found = self.store.allRows.first { $0.account.configDir == dir || $0.account.aliasDirs.contains(dir) }
                 if let found {
                     self.status = known.contains(found.id)
@@ -54,7 +58,11 @@ public final class AddAccountFlow: ObservableObject {
                     return
                 }
             }
-            self?.status = "No sign-in detected in 10 minutes. Run `claude auth login` in that folder and refresh."
+            // Only a real 10-minute timeout writes the failure line; a loop that
+            // exited because it was cancelled leaves the live run's status alone.
+            if !Task.isCancelled {
+                self?.status = "No sign-in detected in 10 minutes. Run `claude auth login` in that folder and refresh."
+            }
         }
     }
 

@@ -300,11 +300,14 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertNil(store.configError)
     }
 
-    /// The footer has room for ONE line and used to render `configError ?? footerError`,
-    /// with a `configError` that was set once at launch and never cleared: a single
-    /// "`claude` not found" hid every fetch error — offline, sign-in expired, rate
-    /// limited — for the life of the process, even after the path was fixed.
-    func testFooterShowsTheMostRecentErrorAndClearingConfigErrorRestoresTheFetchError() async throws {
+    /// The footer has room for ONE line, and while `claude` is missing that line is
+    /// "`claude` not found": the cause, not the fetch failures it produces. Ranking the
+    /// two errors by recency made the config error structurally unreachable — detection
+    /// stamps it before the first refresh cycle can run, so any live fetch error was
+    /// always newer and the user never saw the one thing they could act on. The config
+    /// error can no longer go stale (BrowAppController.applyClaudeSettings clears it
+    /// when a path is typed or detection lands late), so config-wins is safe.
+    func testFooterShowsTheConfigErrorWhileItIsLiveAndTheFetchErrorOnceItClears() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
         let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
         let fetcher = Fetcher()
@@ -312,18 +315,19 @@ final class LimitsStoreTests: XCTestCase {
         let store = makeStore(fetcher: fetcher, creds: creds)
         await store.refresh(force: false)
         XCTAssertEqual(store.footerError, "Claude sign-in expired")
-        XCTAssertEqual(store.panelError, "Claude sign-in expired")
+        XCTAssertEqual(store.panelError, "Claude sign-in expired", "with no config error, the fetch error shows")
 
         let notFound = "`claude` not found — set the path in Settings › General"
         store.setConfigError(notFound)
-        XCTAssertEqual(store.panelError, notFound, "the cause outranks a symptom raised at the same instant")
+        XCTAssertEqual(store.panelError, notFound, "the cause outranks the symptom")
 
-        // A fetch error raised AFTER the config error is the news the user has not
-        // seen yet, and it is the one they can act on.
+        // A NEWER fetch error is still only the symptom: `claude` is missing, and that
+        // is what the user has to fix.
         now = t0.addingTimeInterval(600)
         fetcher.responses["Bearer tok-\(a)"] = (Data(), 503)
         await store.refresh(force: true)
-        XCTAssertEqual(store.panelError, "Anthropic returned HTTP 503")
+        XCTAssertEqual(store.footerError, "Anthropic returned HTTP 503")
+        XCTAssertEqual(store.panelError, notFound, "a newer fetch error must not bury the config error")
 
         // Clearing the config error (a path typed in Settings, or a detection that
         // landed late) must leave the fetch error visible, not blank the footer.

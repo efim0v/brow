@@ -84,24 +84,17 @@ public final class LimitsStore: ObservableObject {
         return nil
     }
 
-    /// The single line the panel footer has room for: the more RECENT of the two
-    /// errors, the configuration error winning a tie because it is the cause rather
-    /// than the symptom. `configError ?? footerError` made "`claude` not found" —
-    /// set once at launch, and until this wave never cleared — hide every fetch
-    /// error ("Offline", "sign-in expired", "rate limited") for the life of the
-    /// process.
-    public var panelError: String? {
-        guard let config = configError else { return footerError }
-        guard let footer = footerError else { return config }
-        return (footerErrorAt ?? .distantPast) > (configErrorAt ?? .distantPast) ? footer : config
-    }
+    /// The single line the panel footer has room for: the configuration error while it
+    /// is set, the fetch error otherwise. The config error is the CAUSE — with `claude`
+    /// missing, every fetch error is a symptom of it, and the missing binary is the one
+    /// thing the user can act on. Ranking the two by recency instead made the config
+    /// error unreachable: detection stamps it before the first refresh cycle can run,
+    /// so a live fetch error was always newer. This ordering is only safe because the
+    /// config error can no longer go stale — `BrowAppController.applyClaudeSettings`
+    /// clears it when a path is typed into Settings or detection lands late.
+    public var panelError: String? { configError ?? footerError }
 
     private let deps: Dependencies
-    /// When each error's TEXT last changed — not when it was last re-asserted, so a
-    /// fetch error repeating every 120 s cannot out-rank a config error that arrived
-    /// after it.
-    private var configErrorAt: Date?
-    private var footerErrorAt: Date?
     private var accounts: [DiscoveredAccount] = []
     private var snapshots: [String: LimitSnapshot]
     private var lastError: [String: String] = [:]
@@ -144,7 +137,6 @@ public final class LimitsStore: ObservableObject {
     public func setConfigError(_ text: String?) {
         guard text != configError else { return }
         configError = text
-        configErrorAt = text == nil ? nil : deps.now()
     }
 
     /// The result of auto-detection, once it has one.
@@ -258,7 +250,6 @@ public final class LimitsStore: ObservableObject {
     private func setFooterError(_ text: String?) {
         guard text != footerError else { return }
         footerError = text
-        footerErrorAt = text == nil ? nil : deps.now()
     }
 
     private func recompute() {

@@ -192,6 +192,17 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertTrue(fetcher.calls.isEmpty, "nothing is sent without a bearer")
     }
 
+    /// Settings must be able to un-hide an account, so it lists `allRows` — every
+    /// discovered account — while the ears and the panel keep using `rows`.
+    func testAllRowsIncludesHiddenAccounts() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let store = makeStore(fetcher: Fetcher(), creds: creds)
+        store.settings.accounts["org-a"] = AccountOverride(name: nil, hidden: true)
+        XCTAssertEqual(store.rows.map(\.id), [])
+        XCTAssertEqual(store.allRows.map(\.id), ["org-a"])
+    }
+
     func testErrorTextMapping() {
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(401)), "Claude sign-in expired")
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(403)), "Claude sign-in expired")
@@ -201,6 +212,96 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.malformed), "Unexpected response from Anthropic")
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(503)), "Anthropic returned HTTP 503")
         XCTAssertEqual(LimitsStore.errorText(URLError(.notConnectedToInternet)), "Offline")
+    }
+}
+
+/// `ClaudePathResolver` + `AddAccountFlow`'s pure parts. They live in this file
+/// because Task 14's commit step names only `LimitsStoreTests.swift`.
+@MainActor
+final class ClaudePathAndAddAccountTests: XCTestCase {
+    func testResolveAsksTheLoginShellAndTrimsThePath() async throws {
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "/opt/homebrew/bin/claude \n", stderr: "")])
+        let path = await ClaudePathResolver.resolve(runner: runner)
+        XCTAssertEqual(path, "/opt/homebrew/bin/claude")
+        XCTAssertEqual(runner.invocations.map(\.executable), ["/bin/zsh"])
+        XCTAssertEqual(runner.invocations.map(\.args), [["-lic", "command -v claude"]])
+        XCTAssertEqual(ClaudePathResolver.detectionCommand, "/bin/zsh -lic 'command -v claude'")
+    }
+
+    /// A login shell prints its own noise first; the path is the LAST line.
+    func testResolveTakesTheLastLine() async throws {
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "nvm: loaded\n/usr/local/bin/claude\n", stderr: "")])
+        let path = await ClaudePathResolver.resolve(runner: runner)
+        XCTAssertEqual(path, "/usr/local/bin/claude")
+    }
+
+    func testResolveIsNilWhenNotFound() async throws {
+        let notFound = MockRunnerBK(results: [ProcessResult(exitCode: 1, stdout: "", stderr: "")])
+        let nonPath = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "claude: aliased to foo\n", stderr: "")])
+        let empty = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let thrown = ThrowingRunnerBK()
+        var results: [String?] = []
+        for runner in [notFound, nonPath, empty] as [CommandRunning] { results.append(await ClaudePathResolver.resolve(runner: runner)) }
+        results.append(await ClaudePathResolver.resolve(runner: thrown))
+        XCTAssertEqual(results.compactMap { $0 }, [], "non-zero exit, non-path output, empty output and a thrown error all read as 'not found'")
+    }
+
+    func testTerminalCommandQuotesDirAndPath() {
+        XCTAssertEqual(
+            AddAccountFlow.terminalCommand(dir: "/Users/a/.claude-accounts/my work", claudePath: "/opt/homebrew/bin/claude", subcommand: "auth login"),
+            "CLAUDE_CONFIG_DIR='/Users/a/.claude-accounts/my work' '/opt/homebrew/bin/claude' auth login")
+        XCTAssertEqual(
+            AddAccountFlow.terminalCommand(dir: "/Users/a/.claude", claudePath: "/bin/claude"),
+            "CLAUDE_CONFIG_DIR='/Users/a/.claude' '/bin/claude'", "no subcommand → no trailing space")
+    }
+
+    func testAppleScriptQuoteEscapesQuotesAndBackslashes() {
+        XCTAssertEqual(AddAccountFlow.appleScriptQuote(#"a"b\c"#), #""a\"b\\c""#)
+    }
+
+    /// A name with a path separator would escape ~/.claude-accounts; the flow
+    /// must refuse it instead of creating a directory somewhere else.
+    func testBeginRejectsNamesThatAreNotASinglePathComponent() throws {
+        let home = try Fixture.tempDir("addflow")
+        let flow = AddAccountFlow(store: makeEmptyStore(home: home), home: home.path)
+        for bad in ["", "   ", "../evil", "a/b"] {
+            flow.begin(folderName: bad, claudePath: "/bin/claude")
+            XCTAssertEqual(flow.status, "Folder name must be a single path component", "rejected: \(bad)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.path + "/.claude-accounts"),
+                       "nothing is created for a rejected name")
+    }
+
+    private func makeEmptyStore(home: URL) -> LimitsStore {
+        let creds = NoCredsBK()
+        let appDir = home.appendingPathComponent("app").path
+        return LimitsStore(deps: .init(directory: AccountDirectory(home: home.path, credentials: creds),
+                                       keeper: TokenKeeper(runner: MockRunnerBK(results: []), credentials: creds,
+                                                           claudePath: "/x/claude", allowPromptFallback: { false },
+                                                           now: { Date() }),
+                                       client: OAuthUsageClient(fetcher: NeverFetchBK(), appVersion: "t",
+                                                                cacheSeconds: 30, backoffCap: 300, credentials: creds),
+                                       snapshotStore: LimitSnapshotStore(directory: appDir),
+                                       settingsStore: BrowSettingsStore(directory: appDir),
+                                       now: { Date() }))
+    }
+}
+
+private final class NoCredsBK: CredentialsReading, @unchecked Sendable {
+    func token(configDir: String) -> ClaudeToken? { nil }
+    func invalidate(configDir: String) {}
+}
+
+private final class NeverFetchBK: UsageFetching, @unchecked Sendable {
+    func fetch(_ request: URLRequest) async throws -> (Data, Int) {
+        XCTFail("no network in unit tests")
+        return (Data(), 500)
+    }
+}
+
+private final class ThrowingRunnerBK: CommandRunning, @unchecked Sendable {
+    func run(_ executable: String, _ args: [String], cwd: String?, env: [String: String]?, timeout: TimeInterval) async throws -> ProcessResult {
+        throw GroveError.processFailed(command: executable, exitCode: -1, stderr: "boom")
     }
 }
 

@@ -37,7 +37,11 @@ public final class LimitsStore: ObservableObject {
         }
     }
 
+    /// Visible accounts only — what the ears and the panel show.
     @Published public private(set) var rows: [AccountRow] = []
+    /// Every discovered account, hidden ones included. Settings lists these, so a
+    /// hidden account can be un-hidden again.
+    @Published public private(set) var allRows: [AccountRow] = []
     @Published public private(set) var aggregate: LimitsAggregate
     /// Newest `fetchedAt` across visible accounts; nil until any fetch succeeded.
     @Published public private(set) var dataAsOf: Date?
@@ -132,19 +136,22 @@ public final class LimitsStore: ObservableObject {
     private func recompute() {
         let now = deps.now()
         let visible = accounts.filter { !settings.isHidden($0.organizationUuid) }
-        rows = visible.map { account in
-            let snap = snapshots[account.organizationUuid]
-            let status: AccountStatus
-            if let err = lastError[account.organizationUuid] { status = .error(err) }
-            else if let snap, !snap.isStale(now: now) { status = .ok }
-            else { status = .stale }
-            return AccountRow(account: account, name: settings.displayName(for: account),
-                              snapshot: snap, status: status,
-                              tokenStatus: Self.tokenStatus(account, outcome: tokenOutcome[account.organizationUuid],
-                                                            error: lastError[account.organizationUuid], now: now))
-        }
+        rows = visible.map { row(for: $0, now: now) }
+        allRows = accounts.map { row(for: $0, now: now) }
         aggregate = LimitsAggregate.compute(accounts: visible, snapshots: snapshots, now: now)
         dataAsOf = visible.compactMap { snapshots[$0.organizationUuid]?.fetchedAt }.max()
+    }
+
+    private func row(for account: DiscoveredAccount, now: Date) -> AccountRow {
+        let snap = snapshots[account.organizationUuid]
+        let status: AccountStatus
+        if let err = lastError[account.organizationUuid] { status = .error(err) }
+        else if let snap, !snap.isStale(now: now) { status = .ok }
+        else { status = .stale }
+        return AccountRow(account: account, name: settings.displayName(for: account),
+                          snapshot: snap, status: status,
+                          tokenStatus: Self.tokenStatus(account, outcome: tokenOutcome[account.organizationUuid],
+                                                        error: lastError[account.organizationUuid], now: now))
     }
 
     /// The account row's token slot. "no token" comes FIRST: when the Keychain

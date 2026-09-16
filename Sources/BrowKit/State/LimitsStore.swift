@@ -47,7 +47,15 @@ public final class LimitsStore: ObservableObject {
     @Published public private(set) var dataAsOf: Date?
     /// Set only when NO visible account succeeded in the last cycle.
     @Published public private(set) var footerError: String?
+    /// A configuration problem that no fetch can fix — today only "`claude` not
+    /// found", which the spec's error table puts in BOTH settings and the panel
+    /// footer. Outranks `footerError`: it is the cause, not the symptom.
+    @Published public private(set) var configError: String?
+    /// Any cycle is running. Disables the ⟳ button; does NOT drive the spinner.
     @Published public private(set) var isRefreshing = false
+    /// A FORCED fetch is running. The spec's spinner rule (design.md) is about this
+    /// one only — a background poll must not take the refresh button away.
+    @Published public private(set) var isForcing = false
     @Published public var settings: BrowSettings {
         didSet {
             do { try deps.settingsStore.save(settings) }
@@ -61,15 +69,40 @@ public final class LimitsStore: ObservableObject {
     private var snapshots: [String: LimitSnapshot]
     private var lastError: [String: String] = [:]
     private var tokenOutcome: [String: TokenRefreshOutcome] = [:]
+    /// The one cycle allowed to be in flight. Overlapping cycles let an older
+    /// capture overwrite a newer one (dataAsOf walking backwards, a cleared
+    /// footerError resurrecting) and clear the spinner while a fetch is still out.
+    private var inFlight: Task<Void, Never>?
+    /// Bumped at the top of every cycle; a cycle whose generation has moved on drops
+    /// its results instead of writing them.
+    private var generation = 0
 
+    /// NO I/O beyond the persisted snapshot file: `AccountDirectory.scan` reads one
+    /// Keychain item per config dir, and on a new bundle id macOS puts a modal prompt
+    /// in front of each one. Doing that here parked the main thread before the panel
+    /// existed — no ears, no footer error slot, no working Cmd-Q. Discovery happens in
+    /// `bootstrap()`, after the first frame is on screen.
     public init(deps: Dependencies) {
         self.deps = deps
         self.settings = deps.settingsStore.load()
         self.snapshots = deps.snapshotStore.load()
         self.aggregate = LimitsAggregate.compute(accounts: [], snapshots: [:], now: deps.now())
-        self.accounts = deps.directory.scan(extraDirs: settings.extraDirs)
         recompute()
     }
+
+    /// First account discovery. Call AFTER the panel is visible: the persisted
+    /// snapshots are already on screen, so the Keychain prompts are answered by a
+    /// user who can see the app they belong to.
+    public func bootstrap() async {
+        let discovered = await Self.scan(deps.directory, extraDirs: settings.extraDirs)
+        accounts = discovered
+        recompute()
+        BrowLog.limits.info("discovered \(discovered.count, privacy: .public) account(s)")
+    }
+
+    /// The `claude` binary could not be found (or the configured path is wrong).
+    /// Shown in the panel footer as well as Settings › General (spec, Error handling).
+    public func setConfigError(_ text: String?) { configError = text }
 
     public func refreshIfOlderThan(_ seconds: TimeInterval) async {
         let now = deps.now()
@@ -77,11 +110,46 @@ public final class LimitsStore: ObservableObject {
         await refresh(force: false)
     }
 
+    /// One cycle at a time. A `force: false` caller joins the cycle already running
+    /// instead of starting a second; a `force: true` caller queues behind it, so the
+    /// newest data always wins the write. A full cycle can take 210 s (doctor 90 s +
+    /// `-p` 120 s) while the 60 s expanded timer keeps firing — overlap is the normal
+    /// case, not a coincidence.
     public func refresh(force: Bool) async {
+        if !force, let running = inFlight {
+            await running.value
+            return
+        }
+        let previous = inFlight
+        let task = Task { @MainActor in
+            _ = await previous?.value
+            await self.runCycle(force: force)
+        }
+        inFlight = task
+        await task.value
+        if inFlight == task { inFlight = nil }
+    }
+
+    /// `AccountDirectory.scan` blocks on the Keychain; it must never run on the main
+    /// actor, where a modal prompt would freeze the whole UI.
+    private static func scan(_ directory: AccountDirectory, extraDirs: [String]) async -> [DiscoveredAccount] {
+        await Task.detached { directory.scan(extraDirs: extraDirs) }.value
+    }
+
+    private func runCycle(force: Bool) async {
+        generation += 1
+        let cycle = generation
         isRefreshing = true
-        defer { isRefreshing = false }
-        let now = deps.now()
-        accounts = deps.directory.scan(extraDirs: settings.extraDirs)
+        if force { isForcing = true }
+        defer {
+            isRefreshing = false
+            if force { isForcing = false }
+        }
+        accounts = await Self.scan(deps.directory, extraDirs: settings.extraDirs)
+        guard cycle == generation else { return }
+        // The rows (names, tiers, persisted values with their real age) are worth
+        // showing before the network answers.
+        recompute()
         let visible = accounts.filter { !settings.isHidden($0.organizationUuid) }
 
         struct FetchResult: Sendable {
@@ -94,9 +162,14 @@ public final class LimitsStore: ObservableObject {
             for account in visible {
                 group.addTask { [deps] in
                     let token = await deps.keeper.ensureFresh(configDir: account.configDir)
+                    // Sampled AFTER the token work: `claude doctor` (90 s) plus
+                    // `claude -p` (120 s) can sit between the top of the cycle and
+                    // this request, and the reading must be stamped with the instant
+                    // it was really taken — that stamp is the panel's "Updated …".
+                    let at = deps.now()
                     do {
-                        let usage = try await deps.client.usage(configDir: account.configDir, now: now, force: force)
-                        let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: now)
+                        let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
+                        let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
                         return FetchResult(org: account.organizationUuid, snapshot: snap,
                                            error: snap == nil ? "No limit windows in response" : nil, token: token)
                     } catch {
@@ -109,6 +182,9 @@ public final class LimitsStore: ObservableObject {
             for await r in group { out[r.org] = r }
             return out
         }
+        // A superseded cycle drops its whole result set rather than writing older
+        // numbers over newer ones.
+        guard cycle == generation else { return }
 
         var anySucceeded = false
         var firstError: String?
@@ -165,8 +241,13 @@ public final class LimitsStore: ObservableObject {
         case .refreshedByDoctor?: return "refreshing (doctor)"
         case .refreshedByPrompt?: return "refreshing (-p)"
         case .failed(let why)?: return "token refresh failed: \(why)"
+        // The keeper's throttle, NOT a healthy token: falling through to the fresh
+        // branch made an 18-day-dead token read "fresh · 0 min" for the rest of every
+        // throttle window, one cycle after the honest failure.
+        case .skippedRateLimited?: return "token refresh failed (retrying)"
         default: break
         }
+        guard exp > now else { return "expired \(Formatting.age(exp, now: now))" }
         let h = Int(max(0, exp.timeIntervalSince(now)) / 3600)
         return h >= 1 ? "fresh · \(h) h" : "fresh · \(Int(max(0, exp.timeIntervalSince(now)) / 60)) min"
     }

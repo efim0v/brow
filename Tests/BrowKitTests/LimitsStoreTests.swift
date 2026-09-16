@@ -21,25 +21,52 @@ final class LimitsStoreTests: XCTestCase {
     }
 
     /// Scripted fetcher keyed by bearer: each configDir's token is "tok-<dir>".
+    ///
+    /// Lock-guarded, like `MockRunnerBK` below. `UsageFetching.fetch` is a nonisolated
+    /// async requirement, so `OAuthUsageClient` releases its executor at the await and
+    /// this body runs off-actor — and `LimitsStore.refresh` runs one child task per
+    /// account, so two accounts would otherwise mutate the same Array on two threads.
     private final class Fetcher: UsageFetching, @unchecked Sendable {
-        var responses: [String: (Data, Int)] = [:]   // bearer → response
-        var calls: [String] = []
+        private let lock = NSLock()
+        private var scripted: [String: (Data, Int)] = [:]   // bearer → response
+        private var recorded: [String] = []
+        var responses: [String: (Data, Int)] {
+            get { lock.withLock { scripted } }
+            set { lock.withLock { scripted = newValue } }
+        }
+        var calls: [String] { lock.withLock { recorded } }
         func fetch(_ request: URLRequest) async throws -> (Data, Int) {
             let bearer = request.value(forHTTPHeaderField: "Authorization") ?? ""
-            calls.append(bearer)
-            return responses[bearer] ?? (Data("{}".utf8), 500)
+            return lock.withLock {
+                recorded.append(bearer)
+                return scripted[bearer] ?? (Data("{}".utf8), 500)
+            }
         }
     }
     private final class Creds: CredentialsReading, @unchecked Sendable {
-        var expiry: [String: Date] = [:]
+        private let lock = NSLock()
+        private var expiries: [String: Date] = [:]
+        private var reads = 0
+        var expiry: [String: Date] {
+            get { lock.withLock { expiries } }
+            set { lock.withLock { expiries = newValue } }
+        }
+        /// How many times the "Keychain" was really consulted — the count the panel's
+        /// prompt behaviour depends on.
+        var readCount: Int { lock.withLock { reads } }
         func token(configDir: String) -> ClaudeToken? {
-            expiry[configDir].map { ClaudeToken(value: "tok-\(configDir)", expiresAt: $0) }
+            lock.withLock {
+                reads += 1
+                return expiries[configDir].map { ClaudeToken(value: "tok-\(configDir)", expiresAt: $0) }
+            }
         }
         /// Stands in for the real CLI: re-reading after `claude doctor` sees a token
         /// whose expiry moved forward, which is how TokenKeeper judges success.
         func invalidate(configDir: String) {
-            if let current = expiry[configDir] {
-                expiry[configDir] = current.addingTimeInterval(8 * 3600)
+            lock.withLock {
+                if let current = expiries[configDir] {
+                    expiries[configDir] = current.addingTimeInterval(8 * 3600)
+                }
             }
         }
     }
@@ -157,15 +184,135 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(fetcher.calls.count, 2)
     }
 
-    func testLoadsPersistedSnapshotsAtInit() async throws {
+    /// The first frame shows last-known values with their real age — before any fetch,
+    /// and (see `testInitTouchesNoCredentials`) before any Keychain read.
+    func testBootstrapShowsPersistedSnapshotsBeforeAnyFetch() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
         let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
         let old = LimitSnapshot(organizationUuid: "org-a", fetchedAt: t0.addingTimeInterval(-86400),
                                 fiveHour: CapturedWindow(usedPercentage: 7, resetsAt: nil), sevenDay: nil, weeklyScoped: nil, weeklyScopedModel: nil)
         try LimitSnapshotStore(directory: appDir).save(["org-a": old])
-        let store = makeStore(fetcher: Fetcher(), creds: creds)
+        let fetcher = Fetcher()
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.bootstrap()
         XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 7)
         XCTAssertEqual(store.rows.first?.status, .stale)
+        XCTAssertTrue(fetcher.calls.isEmpty, "bootstrap discovers accounts; it does not fetch")
+    }
+
+    /// The C2 freeze: `LimitsStore.init` used to run `AccountDirectory.scan` — one
+    /// `SecItemCopyMatching` per config dir — synchronously on the main actor, inside
+    /// `applicationDidFinishLaunching`, BEFORE the panel was ever shown. On a new
+    /// bundle id macOS parks the main thread in a modal prompt per account, so nothing
+    /// was drawn, nothing was logged and Cmd-Q was inert.
+    func testInitTouchesNoCredentials() async throws {
+        _ = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry["/anything"] = t0
+        let store = makeStore(fetcher: Fetcher(), creds: creds)
+        XCTAssertEqual(creds.readCount, 0, "no Keychain read before the panel is on screen")
+        XCTAssertTrue(store.rows.isEmpty)
+        await store.bootstrap()
+        XCTAssertGreaterThan(creds.readCount, 0, "discovery happens in bootstrap, off the main actor")
+        XCTAssertEqual(store.rows.map(\.id), ["org-a"])
+    }
+
+    /// Six triggers call `refresh`, a cycle can be in flight for 210 s (doctor 90 s +
+    /// `-p` 120 s), and the 60 s expanded timer keeps firing: overlap is the normal
+    /// case. Overlapping cycles let an older capture overwrite a newer one and cleared
+    /// the spinner while a fetch was still out.
+    func testConcurrentRefreshesRunASingleCycle() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)   // fresh: keeper does one read
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.bootstrap()
+
+        // Measure one cycle (scan + TokenKeeper + the bearer read), then run two
+        // callers at once and require the SAME cost.
+        let baseline = creds.readCount
+        await store.refresh(force: false)
+        let perCycle = creds.readCount - baseline
+        XCTAssertGreaterThan(perCycle, 0)
+        let afterOne = creds.readCount
+        now = t0.addingTimeInterval(60)          // past the client's 30 s cache
+
+        async let first: Void = store.refresh(force: false)
+        async let second: Void = store.refresh(force: false)
+        _ = await (first, second)
+
+        XCTAssertEqual(creds.readCount - afterOne, perCycle, "the second caller joins the running cycle")
+        XCTAssertEqual(fetcher.calls.count, 2, "one request per cycle, not one per caller")
+        XCTAssertFalse(store.isRefreshing)
+        XCTAssertFalse(store.isForcing)
+    }
+
+    /// Spec, Testing: "force bypasses cache but not backoff" — at the store level,
+    /// where the refresh button actually lives.
+    func testForceBypassesTheCacheButNotTheBackoff() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.refresh(force: false)
+        XCTAssertEqual(fetcher.calls.count, 1)
+        now = t0.addingTimeInterval(5)                    // well inside the 30 s cache
+        await store.refresh(force: false)
+        XCTAssertEqual(fetcher.calls.count, 1, "a background poll is served from the cache")
+        await store.refresh(force: true)
+        XCTAssertEqual(fetcher.calls.count, 2, "force refetches inside the cache window")
+
+        // Now a 429 puts the account in backoff; hammering ⟳ must not punch through it.
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 429)
+        now = t0.addingTimeInterval(60)
+        await store.refresh(force: true)
+        XCTAssertEqual(fetcher.calls.count, 3)
+        let afterBackoff = fetcher.calls.count
+        now = t0.addingTimeInterval(61)
+        await store.refresh(force: true)
+        XCTAssertEqual(fetcher.calls.count, afterBackoff, "force must not punch through the 429 backoff")
+        XCTAssertEqual(store.rows[0].status, .error("Rate limited — waiting to retry"))
+    }
+
+    /// Spec: the spinner shows "while a FORCED fetch is in flight". A 120 s background
+    /// poll (or AddAccountFlow's poll) must not take the ⟳ button off the screen.
+    func testIsForcingIsSetOnlyByAForcedRefresh() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+
+        async let background: Void = store.refresh(force: false)
+        XCTAssertFalse(store.isForcing, "a background poll never spins the footer")
+        await background
+        XCTAssertFalse(store.isForcing)
+        XCTAssertFalse(store.isRefreshing)
+    }
+
+    func testConfigErrorIsPublishedForThePanelFooter() async throws {
+        let store = makeStore(fetcher: Fetcher(), creds: Creds())
+        XCTAssertNil(store.configError)
+        store.setConfigError("`claude` not found — set the path in Settings › General")
+        XCTAssertEqual(store.configError, "`claude` not found — set the path in Settings › General")
+        store.setConfigError(nil)
+        XCTAssertNil(store.configError)
+    }
+
+    /// `skippedRateLimited` is TokenKeeper's throttle, not a healthy token: falling
+    /// through to the "fresh" branch made a long-dead token read "fresh · 0 min".
+    func testTokenStatusNeverCallsADeadTokenFresh() {
+        let account = DiscoveredAccount(organizationUuid: "org", email: nil, tier: nil,
+                                        configDir: "/d", aliasDirs: [],
+                                        tokenExpiresAt: t0.addingTimeInterval(-18 * 86400))
+        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: .skippedRateLimited, error: nil, now: t0),
+                       "token refresh failed (retrying)")
+        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: nil, error: nil, now: t0),
+                       "expired 18 d ago")
+        let live = DiscoveredAccount(organizationUuid: "org", email: nil, tier: nil, configDir: "/d",
+                                     aliasDirs: [], tokenExpiresAt: t0.addingTimeInterval(7200))
+        XCTAssertEqual(LimitsStore.tokenStatus(live, outcome: nil, error: nil, now: t0), "fresh · 2 h")
     }
 
     func testTokenKeeperRunsForExpiringAccount() async throws {
@@ -198,6 +345,7 @@ final class LimitsStoreTests: XCTestCase {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
         let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
         let store = makeStore(fetcher: Fetcher(), creds: creds)
+        await store.bootstrap()
         store.settings.accounts["org-a"] = AccountOverride(name: nil, hidden: true)
         XCTAssertEqual(store.rows.map(\.id), [])
         XCTAssertEqual(store.allRows.map(\.id), ["org-a"])
@@ -261,15 +409,32 @@ final class ClaudePathAndAddAccountTests: XCTestCase {
 
     /// A name with a path separator would escape ~/.claude-accounts; the flow
     /// must refuse it instead of creating a directory somewhere else.
+    ///
+    /// `.` and `..` are single path components and used to pass: `..` made the dir
+    /// `$HOME`, `createDirectory` succeeded on it, and Terminal was handed
+    /// `CLAUDE_CONFIG_DIR=$HOME claude auth login`. A dot-prefixed name passed too and
+    /// then could never be discovered (`candidateDirs` skips dot-names), so a real
+    /// sign-in reported "No sign-in detected in 10 minutes".
     func testBeginRejectsNamesThatAreNotASinglePathComponent() throws {
         let home = try Fixture.tempDir("addflow")
         let flow = AddAccountFlow(store: makeEmptyStore(home: home), home: home.path)
-        for bad in ["", "   ", "../evil", "a/b"] {
+        for bad in ["", "   ", "../evil", "a/b", ".", "..", " .. ", ".work", "./x"] {
             flow.begin(folderName: bad, claudePath: "/bin/claude")
-            XCTAssertEqual(flow.status, "Folder name must be a single path component", "rejected: \(bad)")
+            XCTAssertEqual(flow.status, "Folder name must be a single path component and must not start with a dot",
+                           "rejected: \(bad)")
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.path + "/.claude-accounts"),
                        "nothing is created for a rejected name")
+    }
+
+    /// The same guard, without going near Terminal: a rejected name resolves to no
+    /// directory at all, and an accepted one always lands under ~/.claude-accounts.
+    func testAccountDirResolvesOnlyUnderTheAccountsRoot() {
+        for bad in ["", "   ", "..", ".", "../evil", "a/b", ".hidden", "/etc"] {
+            XCTAssertNil(AddAccountFlow.accountDir(forName: bad, home: "/Users/x"), "rejected: \(bad)")
+        }
+        XCTAssertEqual(AddAccountFlow.accountDir(forName: " work ", home: "/Users/x"),
+                       "/Users/x/.claude-accounts/work")
     }
 
     private func makeEmptyStore(home: URL) -> LimitsStore {

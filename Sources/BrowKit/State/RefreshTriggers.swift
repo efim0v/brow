@@ -15,18 +15,24 @@ public final class RefreshTriggers {
     private let store: LimitsStore
     private var timer: Timer?
     private var wakeObserver: (any NSObjectProtocol)?
-    private let pathMonitor = NWPathMonitor()
+    /// Built inside `start()`: `NWPathMonitor.cancel()` is terminal, so a monitor
+    /// created once could never survive a stop()/start() round trip.
+    private var pathMonitor: NWPathMonitor?
     private var pathWasSatisfied = true
 
     public init(store: LimitsStore) { self.store = store }
 
+    /// Idempotent: a second call used to add a second wake observer (leaking the
+    /// first), so every wake then fired N cache-bypassing refreshes.
     public func start() {
+        guard timer == nil else { return }
         schedule(Self.backgroundInterval)
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in await self?.store.refresh(force: true) }
             }
-        pathMonitor.pathUpdateHandler = { [weak self] path in
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
                 guard let self else { return }
                 let satisfied = path.status == .satisfied
@@ -38,7 +44,8 @@ public final class RefreshTriggers {
                 if returned { await self.store.refresh(force: true) }
             }
         }
-        pathMonitor.start(queue: .main)
+        monitor.start(queue: .main)
+        pathMonitor = monitor
         Task { await store.refresh(force: false) }
     }
 
@@ -47,10 +54,15 @@ public final class RefreshTriggers {
         if expanded { Task { await store.refreshIfOlderThan(60) } }
     }
 
+    /// Fully reversible: `start()` after `stop()` rebuilds every trigger.
     public func stop() {
         timer?.invalidate(); timer = nil
-        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
-        pathMonitor.cancel()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
+        pathMonitor?.cancel(); pathMonitor = nil
+        pathWasSatisfied = true
     }
 
     private func schedule(_ interval: TimeInterval) {

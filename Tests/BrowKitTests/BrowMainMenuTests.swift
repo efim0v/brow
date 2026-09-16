@@ -32,6 +32,23 @@ final class BrowMainMenuTests: XCTestCase {
         XCTAssertTrue(settings.target is BrowAppController)
     }
 
+    /// Without an Edit menu, Cmd-C/Cmd-V/Cmd-A are dead in the settings text fields —
+    /// in the window whose main job is pasting a path.
+    func testMainMenuCarriesEditForTheSettingsTextFields() throws {
+        let main = controller.makeMainMenu()
+        let edit = try XCTUnwrap(main.items.first { $0.title == "Edit" }?.submenu)
+        let items = Dictionary(uniqueKeysWithValues: edit.items.filter { !$0.isSeparatorItem }.map { ($0.title, $0) })
+        XCTAssertEqual(items["Cut"]?.keyEquivalent, "x")
+        XCTAssertEqual(items["Copy"]?.keyEquivalent, "c")
+        XCTAssertEqual(items["Paste"]?.keyEquivalent, "v")
+        XCTAssertEqual(items["Select All"]?.keyEquivalent, "a")
+        XCTAssertEqual(items["Undo"]?.keyEquivalent, "z")
+        XCTAssertEqual(items["Copy"]?.action, #selector(NSText.copy(_:)))
+        for item in edit.items where !item.isSeparatorItem {
+            XCTAssertNil(item.target, "\(item.title) must walk the responder chain to the focused field")
+        }
+    }
+
     func testMainMenuCarriesCloseOnCommandW() throws {
         let main = controller.makeMainMenu()
         let window = try XCTUnwrap(main.items.first { $0.title == "Window" }?.submenu)

@@ -82,9 +82,11 @@ public struct PanelView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            // `claude` not found outranks a fetch error: it is the cause, and the spec's
-            // error table names the panel footer as one of its two slots.
-            if let err = store.configError ?? store.footerError {
+            // The most RECENT of the configuration error and the fetch error (spec's
+            // error table names the panel footer as one of the two slots for "`claude`
+            // not found"). Taking `configError` unconditionally hid every fetch error
+            // behind a cause the user may already have fixed.
+            if let err = store.panelError {
                 Label(err, systemImage: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange).lineLimit(1)
             } else {
                 Text(store.dataAsOf.map { "Updated \(Formatting.age($0, now: clock.now))" } ?? "No data yet")

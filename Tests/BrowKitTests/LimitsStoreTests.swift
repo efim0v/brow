@@ -300,6 +300,39 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertNil(store.configError)
     }
 
+    /// The footer has room for ONE line and used to render `configError ?? footerError`,
+    /// with a `configError` that was set once at launch and never cleared: a single
+    /// "`claude` not found" hid every fetch error — offline, sign-in expired, rate
+    /// limited — for the life of the process, even after the path was fixed.
+    func testFooterShowsTheMostRecentErrorAndClearingConfigErrorRestoresTheFetchError() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.footerError, "Claude sign-in expired")
+        XCTAssertEqual(store.panelError, "Claude sign-in expired")
+
+        let notFound = "`claude` not found — set the path in Settings › General"
+        store.setConfigError(notFound)
+        XCTAssertEqual(store.panelError, notFound, "the cause outranks a symptom raised at the same instant")
+
+        // A fetch error raised AFTER the config error is the news the user has not
+        // seen yet, and it is the one they can act on.
+        now = t0.addingTimeInterval(600)
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 503)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.panelError, "Anthropic returned HTTP 503")
+
+        // Clearing the config error (a path typed in Settings, or a detection that
+        // landed late) must leave the fetch error visible, not blank the footer.
+        store.setConfigError(nil)
+        XCTAssertNil(store.configError)
+        XCTAssertEqual(store.panelError, "Anthropic returned HTTP 503")
+        XCTAssertEqual(store.panelError, store.footerError)
+    }
+
     /// `skippedRateLimited` is TokenKeeper's throttle, not a healthy token: falling
     /// through to the "fresh" branch made a long-dead token read "fresh · 0 min".
     func testTokenStatusNeverCallsADeadTokenFresh() {
@@ -435,6 +468,62 @@ final class ClaudePathAndAddAccountTests: XCTestCase {
         }
         XCTAssertEqual(AddAccountFlow.accountDir(forName: " work ", home: "/Users/x"),
                        "/Users/x/.claude-accounts/work")
+    }
+
+    /// Detection is STATE, not a value captured when the settings window was built.
+    /// `Cmd-,` and the panel's ⚙ are live from the first frame while detection runs a
+    /// `/bin/zsh -lic` login shell (10 s timeout), and the window is built once and
+    /// cached — so Settings opened during that window showed the orange "Not found.
+    /// Ran: …" for the rest of the session even though detection succeeded.
+    func testDetectedPathIsObservableStateAndClearsTheConfigError() throws {
+        let home = try Fixture.tempDir("detect")
+        let store = makeEmptyStore(home: home)
+        let notFound = "`claude` not found — set the path in Settings › General"
+
+        XCTAssertEqual(store.claudeDetection, .pending)
+        XCTAssertNil(store.claudeDetected)
+        XCTAssertNil(BrowAppController.configError(override: nil, detection: store.claudeDetection),
+                     "nothing is claimed while the login shell is still running")
+
+        store.setClaudeDetection(.notFound)
+        XCTAssertEqual(BrowAppController.configError(override: nil, detection: store.claudeDetection), notFound)
+
+        // Detection lands late: Settings and the footer both follow it.
+        store.setClaudeDetection(.found("/opt/homebrew/bin/claude"))
+        XCTAssertEqual(store.claudeDetected, "/opt/homebrew/bin/claude")
+        XCTAssertNil(BrowAppController.configError(override: nil, detection: store.claudeDetection))
+
+        // …or the user sets the path by hand, which also clears the banner.
+        XCTAssertNil(BrowAppController.configError(override: "/usr/local/bin/claude", detection: .notFound))
+        XCTAssertEqual(BrowAppController.configError(override: "   ", detection: .notFound), notFound,
+                       "blank is not a path")
+    }
+
+    /// A rename typed and then "finished" by closing the settings window was silently
+    /// discarded: the field committed on Return or focus loss only, and the window's
+    /// SwiftUI tree — holding the typed text in `@State` — is torn down on close.
+    func testPendingNameDraftSurvivesTheWindowTeardown() throws {
+        let home = try Fixture.tempDir("drafts")
+        let appDir = home.appendingPathComponent("app").path
+        let store = makeEmptyStore(home: home)
+        let drafts = SettingsDrafts()
+
+        for keystroke in ["W", "Wo", "Wor", "Work"] { drafts.record(keystroke, for: "org-a") }
+        XCTAssertNil(store.settings.accounts["org-a"]?.name, "nothing is written per keystroke")
+
+        // What `windowWillClose` does before the teardown.
+        XCTAssertTrue(drafts.flush(into: store))
+        XCTAssertEqual(store.settings.accounts["org-a"]?.name, "Work")
+        XCTAssertEqual(BrowSettingsStore(directory: appDir).load().accounts["org-a"]?.name, "Work",
+                       "the persisted name is the last typed value")
+        XCTAssertTrue(drafts.isEmpty)
+        XCTAssertFalse(drafts.flush(into: store), "a second close writes nothing")
+
+        // Clearing the field back to blank removes the override rather than storing "".
+        drafts.record("  ", for: "org-a")
+        XCTAssertTrue(drafts.flush(into: store))
+        XCTAssertNil(store.settings.accounts["org-a"]?.name)
+        XCTAssertNil(BrowSettingsStore(directory: appDir).load().accounts["org-a"]?.name)
     }
 
     private func makeEmptyStore(home: URL) -> LimitsStore {

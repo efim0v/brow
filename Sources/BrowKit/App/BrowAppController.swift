@@ -55,12 +55,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     private var addFlow: AddAccountFlow!
     private let clock = PanelClock()
     private var settingsWindow: NSWindow?
-    /// The path everything actually runs: the user's override, else what detection
-    /// found. NOT what Settings shows as "Detected".
-    private var claudePath: String?
-    /// The raw auto-detection result — the only honest input for Settings' "Detected:"
-    /// vs "Not found. Ran: …" line.
-    private var detectedPath: String?
+    /// Names typed into Settings but not committed yet. Owned here, not by the
+    /// window's SwiftUI tree, because that tree is destroyed when the window closes.
+    private let drafts = SettingsDrafts()
     private var screenObserver: (any NSObjectProtocol)?
     private let promptFallback = SendableFlag(true)
     private let claudePathBox = SendableText("claude")
@@ -92,14 +89,11 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                             now: { Date() }))
         self.store = store
         // Settings can change either of these at any time; keep the boxes the keeper
-        // reads in step with the store's live values.
+        // reads — and the "`claude` not found" banner — in step with the live values.
+        // `@Published` fires in `willSet`, so `store.settings` is still the OLD value
+        // inside this closure: the new one arrives as the argument.
         store.$settings
-            .sink { [weak self, promptFallback, claudePathBox] updated in
-                promptFallback.set(updated.allowPromptFallback)
-                let effective = updated.claudePath ?? self?.detectedPath
-                self?.claudePath = effective
-                claudePathBox.set(effective ?? "claude")
-            }
+            .sink { [weak self] updated in self?.applyClaudeSettings(updated) }
             .store(in: &cancellables)
         self.addFlow = AddAccountFlow(store: store)
         self.triggers = RefreshTriggers(store: store)
@@ -115,21 +109,48 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         // Everything past here can block on the Keychain or on a login shell.
         Task { @MainActor [self] in
             let detected = await ClaudePathResolver.resolve(runner: runner)
-            self.detectedPath = detected
-            let effective = store.settings.claudePath ?? detected
-            self.claudePath = effective
-            self.claudePathBox.set(effective ?? "claude")
-            if effective == nil {
+            if detected == nil {
                 BrowLog.tokens.error("claude not found via \(ClaudePathResolver.detectionCommand, privacy: .public)")
-                // Spec, Error handling: `claude` not found belongs in BOTH slots.
-                store.setConfigError("`claude` not found — set the path in Settings › General")
             }
+            // Published on the store, NOT captured by the settings window: Settings can
+            // be opened (⚙, or Cmd-, — live from the first frame) while this login
+            // shell is still running, and the window is built once and cached.
+            store.setClaudeDetection(detected.map(ClaudeDetection.found) ?? .notFound)
+            applyClaudeSettings(store.settings)
             await store.bootstrap()
             self.triggers.start()
         }
     }
 
+    /// The one place that turns "what the user typed" plus "what detection found" into
+    /// the path the keeper runs and the banner the footer shows. Called from the
+    /// settings sink AND when detection lands, so a path typed into Settings clears a
+    /// banner detection raised, and a detection that finishes after the banner went up
+    /// clears it too. It used to be a one-shot at launch with no path back off the
+    /// screen — and since the footer preferred it, one "`claude` not found" suppressed
+    /// every fetch error for the life of the process.
+    private func applyClaudeSettings(_ settings: BrowSettings) {
+        guard let store else { return }
+        promptFallback.set(settings.allowPromptFallback)
+        claudePathBox.set(settings.claudePath ?? store.claudeDetected ?? "claude")
+        // Spec, Error handling: `claude` not found belongs in BOTH slots.
+        store.setConfigError(Self.configError(override: settings.claudePath, detection: store.claudeDetection))
+    }
+
+    /// Pure: what the "`claude` not found" slot should say. Nothing while detection is
+    /// still running (the panel and Cmd-, are live long before a `/bin/zsh -lic` login
+    /// shell answers), and nothing once a path exists — detected or typed.
+    static func configError(override: String?, detection: ClaudeDetection) -> String? {
+        if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+        switch detection {
+        case .found, .pending: return nil
+        case .notFound: return "`claude` not found — set the path in Settings › General"
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        // Cmd-Q with the settings window still open never reaches `windowWillClose`.
+        if let store { drafts.flush(into: store) }
         triggers?.stop()
         panel?.hide()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver); self.screenObserver = nil }
@@ -138,8 +159,14 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
 
     /// The settings window is `isReleasedWhenClosed = false` so it can be reopened;
     /// without this it would keep its SwiftUI tree rendering after every close.
+    ///
+    /// That teardown takes the name field's `@State` with it, and SwiftUI does not
+    /// promise to deliver the focus-loss commit first — so a name typed and then
+    /// "finished" by closing the window is written HERE, before anything is released.
     func windowWillClose(_ notification: Notification) {
-        if (notification.object as? NSWindow) === settingsWindow { settingsWindow = nil }
+        guard (notification.object as? NSWindow) === settingsWindow else { return }
+        if let store { drafts.flush(into: store) }
+        settingsWindow = nil
     }
 
     /// A non-nib app gets NO main menu of its own, and Brow has no Dock icon
@@ -202,10 +229,10 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             return
         }
         if settingsWindow == nil {
-            // `detectedPath`, NOT the effective path: with an override set, passing the
-            // effective value hid a failed detection and claimed the override had been
-            // auto-detected.
-            let view = SettingsView(store: store, addFlow: addFlow, claudeDetected: detectedPath)
+            // The detected path is NOT passed in: the window is built once and cached,
+            // and detection can still be running. `SettingsView` reads it live off the
+            // store instead (`store.claudeDetection`).
+            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 460),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Brow Settings"

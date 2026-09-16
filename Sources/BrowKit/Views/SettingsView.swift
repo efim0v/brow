@@ -4,19 +4,27 @@ import SwiftUI
 public struct SettingsView: View {
     @ObservedObject var store: LimitsStore
     @ObservedObject var addFlow: AddAccountFlow
-    /// The RAW auto-detection result, never the effective path: this field's only job
-    /// is to choose between "Detected: X" and the "Not found. Ran: …" diagnostic, and
-    /// passing the effective value hid a failed detection behind the user's own
-    /// override — the UI then claimed the override had been auto-detected.
-    let claudeDetected: String?
+    /// Names typed but not committed yet. Held outside the view tree so closing the
+    /// window cannot discard them — see `SettingsDrafts`.
+    let drafts: SettingsDrafts
     @State private var newFolder = ""
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
-    public init(store: LimitsStore, addFlow: AddAccountFlow, claudeDetected: String?) {
+    public init(store: LimitsStore, addFlow: AddAccountFlow, drafts: SettingsDrafts) {
         self.store = store
         self.addFlow = addFlow
-        self.claudeDetected = claudeDetected
+        self.drafts = drafts
     }
+
+    /// The RAW auto-detection result, never the effective path: its only job is to
+    /// choose between "Detected: X" and the "Not found. Ran: …" diagnostic, and using
+    /// the effective value hid a failed detection behind the user's own override — the
+    /// UI then claimed the override had been auto-detected.
+    ///
+    /// Read LIVE from the store, never captured: this window is built once and cached,
+    /// and `Cmd-,` is live long before the `/bin/zsh -lic` detection returns, so a
+    /// captured value stayed nil ("Not found. Ran: …") for the rest of the session.
+    private var claudeDetected: String? { store.claudeDetected }
 
     private var claudePath: String { store.settings.claudePath ?? claudeDetected ?? "claude" }
 
@@ -35,12 +43,12 @@ public struct SettingsView: View {
         Form {
             ForEach(store.allRows) { row in
                 Section {
-                    // Committed on Return / focus loss, not on every keystroke: each
-                    // write of `store.settings` is a synchronous atomic JSON write plus
-                    // a full recompute plus a panel re-render with a 0.18 s animation.
-                    AccountNameField(initial: store.settings.accounts[row.id]?.name ?? "") { name in
-                        store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].name = name
-                    }
+                    // Committed on Return / focus loss / window close, not on every
+                    // keystroke: each write of `store.settings` is a synchronous atomic
+                    // JSON write plus a full recompute plus a panel re-render with a
+                    // 0.18 s animation.
+                    AccountNameField(accountID: row.id, initial: store.settings.accounts[row.id]?.name ?? "",
+                                     drafts: drafts, store: store)
                     LabeledContent("Email", value: row.account.email ?? "—")
                     LabeledContent("Tier", value: AccountBlockView.tierLabel(row.account.tier))
                     LabeledContent("Folder") {
@@ -76,24 +84,34 @@ public struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    /// A name field whose edits stay local until the user is done with them.
+    /// A name field whose edits stay local until the user is done with them — but
+    /// every keystroke is recorded in `drafts`, which outlives this view. Closing the
+    /// window destroys the SwiftUI tree and this `@State` with it, and the focus-loss
+    /// change is not guaranteed to be delivered first, so a rename typed and then
+    /// "finished" with Cmd-W used to be silently discarded. `drafts` is what
+    /// `windowWillClose` flushes.
     private struct AccountNameField: View {
+        let accountID: String
         let initial: String
-        let commit: (String) -> Void
+        let drafts: SettingsDrafts
+        let store: LimitsStore
         @State private var text: String
         @FocusState private var focused: Bool
 
-        init(initial: String, commit: @escaping (String) -> Void) {
+        init(accountID: String, initial: String, drafts: SettingsDrafts, store: LimitsStore) {
+            self.accountID = accountID
             self.initial = initial
-            self.commit = commit
+            self.drafts = drafts
+            self.store = store
             _text = State(initialValue: initial)
         }
 
         var body: some View {
             TextField("Name", text: $text)
                 .focused($focused)
-                .onSubmit { commit(text) }
-                .onChange(of: focused) { _, isFocused in if !isFocused, text != initial { commit(text) } }
+                .onChange(of: text) { _, value in drafts.record(value, for: accountID) }
+                .onSubmit { drafts.flush(into: store) }
+                .onChange(of: focused) { _, isFocused in if !isFocused { drafts.flush(into: store) } }
                 .onChange(of: initial) { _, value in if !focused { text = value } }
         }
     }
@@ -109,9 +127,15 @@ public struct SettingsView: View {
                 TextField("Auto-detected", text: Binding(
                     get: { store.settings.claudePath ?? "" },
                     set: { store.settings.claudePath = $0.isEmpty ? nil : $0 }))
-                if let claudeDetected {
-                    Text("Detected: \(claudeDetected)").font(.caption).foregroundStyle(.secondary)
-                } else {
+                // Three states, not two: while the login shell is still running this
+                // said "Not found. Ran: …" in orange, and — the window being built once
+                // and cached — kept saying it after detection had succeeded.
+                switch store.claudeDetection {
+                case .found(let path):
+                    Text("Detected: \(path)").font(.caption).foregroundStyle(.secondary)
+                case .pending:
+                    Text("Detecting… (\(ClaudePathResolver.detectionCommand))").font(.caption).foregroundStyle(.secondary)
+                case .notFound:
                     Text("Not found. Ran: \(ClaudePathResolver.detectionCommand)").font(.caption).foregroundStyle(.orange)
                 }
             }

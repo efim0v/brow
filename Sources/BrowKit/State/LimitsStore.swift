@@ -18,6 +18,16 @@ public struct AccountRow: Sendable, Equatable, Identifiable {
     public let tokenStatus: String
 }
 
+/// What auto-detection has to say about the `claude` binary. Three states, not an
+/// optional: "still looking" and "looked, and it is not there" must not render the
+/// same. Detection runs a `/bin/zsh -lic` login shell with a 10 s timeout, while
+/// `Cmd-,` and the panel's ⚙ are live from the first frame.
+public enum ClaudeDetection: Sendable, Equatable {
+    case pending
+    case found(String)
+    case notFound
+}
+
 /// Single source of truth for everything the ears, the panel and the settings
 /// window show. One refresh cycle, several triggers (see RefreshTriggers).
 @MainActor
@@ -49,8 +59,12 @@ public final class LimitsStore: ObservableObject {
     @Published public private(set) var footerError: String?
     /// A configuration problem that no fetch can fix — today only "`claude` not
     /// found", which the spec's error table puts in BOTH settings and the panel
-    /// footer. Outranks `footerError`: it is the cause, not the symptom.
+    /// footer. See `panelError` for which of the two the one-line footer shows.
     @Published public private(set) var configError: String?
+    /// What auto-detection found. Published, because Settings can be opened before
+    /// detection returns and that window is built once and cached — a detected path
+    /// captured at construction stayed nil for the life of the process.
+    @Published public private(set) var claudeDetection: ClaudeDetection = .pending
     /// Any cycle is running. Disables the ⟳ button; does NOT drive the spinner.
     @Published public private(set) var isRefreshing = false
     /// A FORCED fetch is running. The spec's spinner rule (design.md) is about this
@@ -64,7 +78,30 @@ public final class LimitsStore: ObservableObject {
         }
     }
 
+    /// The path auto-detection found, or nil while it is pending / found nothing.
+    public var claudeDetected: String? {
+        if case .found(let path) = claudeDetection { return path }
+        return nil
+    }
+
+    /// The single line the panel footer has room for: the more RECENT of the two
+    /// errors, the configuration error winning a tie because it is the cause rather
+    /// than the symptom. `configError ?? footerError` made "`claude` not found" —
+    /// set once at launch, and until this wave never cleared — hide every fetch
+    /// error ("Offline", "sign-in expired", "rate limited") for the life of the
+    /// process.
+    public var panelError: String? {
+        guard let config = configError else { return footerError }
+        guard let footer = footerError else { return config }
+        return (footerErrorAt ?? .distantPast) > (configErrorAt ?? .distantPast) ? footer : config
+    }
+
     private let deps: Dependencies
+    /// When each error's TEXT last changed — not when it was last re-asserted, so a
+    /// fetch error repeating every 120 s cannot out-rank a config error that arrived
+    /// after it.
+    private var configErrorAt: Date?
+    private var footerErrorAt: Date?
     private var accounts: [DiscoveredAccount] = []
     private var snapshots: [String: LimitSnapshot]
     private var lastError: [String: String] = [:]
@@ -102,7 +139,16 @@ public final class LimitsStore: ObservableObject {
 
     /// The `claude` binary could not be found (or the configured path is wrong).
     /// Shown in the panel footer as well as Settings › General (spec, Error handling).
-    public func setConfigError(_ text: String?) { configError = text }
+    /// Passing nil clears it — a path typed into Settings, or a detection that lands
+    /// after the banner went up, has to take the banner back off the screen.
+    public func setConfigError(_ text: String?) {
+        guard text != configError else { return }
+        configError = text
+        configErrorAt = text == nil ? nil : deps.now()
+    }
+
+    /// The result of auto-detection, once it has one.
+    public func setClaudeDetection(_ detection: ClaudeDetection) { claudeDetection = detection }
 
     public func refreshIfOlderThan(_ seconds: TimeInterval) async {
         let now = deps.now()
@@ -203,10 +249,16 @@ public final class LimitsStore: ObservableObject {
                 BrowLog.limits.error("fetch failed for \(r.org, privacy: .public): \(r.error ?? "?", privacy: .public)")
             }
         }
-        footerError = anySucceeded ? nil : firstError
+        setFooterError(anySucceeded ? nil : firstError)
         do { try deps.snapshotStore.save(snapshots) }
         catch { BrowLog.limits.error("snapshot save failed: \(String(describing: error), privacy: .public)") }
         recompute()
+    }
+
+    private func setFooterError(_ text: String?) {
+        guard text != footerError else { return }
+        footerError = text
+        footerErrorAt = text == nil ? nil : deps.now()
     }
 
     private func recompute() {

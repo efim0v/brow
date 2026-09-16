@@ -19,7 +19,9 @@ public struct EarsView: View {
             if hasNotch { Spacer(minLength: 0) }
             ear(aggregate.rightEar, leading: false).frame(width: earWidth)
         }
-        .padding(.horizontal, hasNotch ? 0 : 10)
+        // Two fixed-width ears cannot compress, so the padding has to be paid for out
+        // of the ear width (NotchGeometry.pillPadding), not added on top of it.
+        .padding(.horizontal, hasNotch ? 0 : NotchGeometry.pillPadding)
         .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: hasNotch ? 0 : 12, style: .continuous))
     }

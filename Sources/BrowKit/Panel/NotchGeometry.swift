@@ -27,6 +27,11 @@ public enum NotchGeometry {
     public static let pillWidth: CGFloat = 180
     public static let pillHeight: CGFloat = 24
     public static let earWidth: CGFloat = 96
+    /// `EarsView` insets the pill by this much on each side (there is no notch to
+    /// fill), so the two ears have `pillWidth - 2 * pillPadding` between them. Taking
+    /// `pillWidth / 2` per ear asked for 200 pt inside a 180 pt window and clipped
+    /// ~10 pt off each edge — exactly where the two status dots sit.
+    public static let pillPadding: CGFloat = 10
 
     public static func frames(for screen: ScreenMetrics, expandedHeight: CGFloat) -> NotchFrames {
         let top = screen.frame.maxY
@@ -42,7 +47,8 @@ public enum NotchGeometry {
         let collapsed = CGRect(x: midX - pillWidth / 2, y: top - pillHeight, width: pillWidth, height: pillHeight)
         let expanded = clamp(CGRect(x: midX - expandedWidth / 2, y: top - expandedHeight,
                                     width: expandedWidth, height: expandedHeight), in: screen.frame)
-        return NotchFrames(collapsed: collapsed, expanded: expanded, hasNotch: false, earWidth: pillWidth / 2)
+        return NotchFrames(collapsed: collapsed, expanded: expanded, hasNotch: false,
+                           earWidth: (pillWidth - 2 * pillPadding) / 2)
     }
 
     private static func clamp(_ rect: CGRect, in bounds: CGRect) -> CGRect {

@@ -48,15 +48,20 @@ public struct AccountBlockView: View {
         }
     }
 
+    /// A row whose snapshot is past `staleAfter` shows grey bars, the same signal the
+    /// ears carry; the age itself is already in the tag.
+    private var isStale: Bool { row.status == .stale }
+
     private func bar(_ title: String, _ window: CapturedWindow?) -> some View {
         let used = window?.usedPercentage ?? 0
+        let stale = isStale
         return HStack(spacing: 8) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.12))
                     Capsule().fill(EarsView.color(for: EarReadout(usedPercentage: used, modelInitial: nil,
-                                                                 severity: LimitsAggregate.severity(used), stale: false)))
+                                                                 severity: LimitsAggregate.severity(used), stale: stale)))
                         .frame(width: max(0, geo.size.width * used / 100))
                 }
             }

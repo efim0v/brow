@@ -8,6 +8,13 @@ final class BrowPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// The panel never becomes key, so every click in it is a "first mouse" — which a
+/// plain `NSHostingView` declines, leaving the ⟳ and ⚙ buttons (the only route to
+/// Settings, and through `NSApp.activate` the only route to the Quit menu item) dead.
+final class FirstMouseHostingView<V: View>: NSHostingView<V> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 /// Owns the panel, swaps collapsed ↔ expanded content on hover, and keeps its
 /// frame in sync with the main screen. All state changes go through `expanded`.
 @MainActor
@@ -20,7 +27,7 @@ public final class NotchPanelController {
     private let onExpandedChange: (Bool) -> Void
     private let onSettings: () -> Void
     private let panel: BrowPanel
-    private let host: NSHostingView<AnyView>
+    private let host: FirstMouseHostingView<AnyView>
     private var frames: NotchFrames
     private var expanded = false
     private var collapseWork: DispatchWorkItem?
@@ -44,10 +51,17 @@ public final class NotchPanelController {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.hidesOnDeactivate = false
         panel.isMovable = false
+        // Collapsed, the panel is an opaque strip lying over the menu bar (the notch
+        // ± 96 pt, or a 180 pt pill) at `.statusBar + 1`, and it can never become key:
+        // any click it receives does nothing AND never reaches the menu bar under it.
+        // Spec: "ignoring mouse events except on its own content". Hover detection is
+        // a global monitor reading `NSEvent.mouseLocation`, so expansion still works
+        // with hit-testing off; `setExpanded` turns it back on for the real content.
+        panel.ignoresMouseEvents = true
         // The ears and the panel are drawn on black; `.secondary` text only reads
         // as light grey in a dark appearance, so the host never inherits a light one.
         panel.appearance = NSAppearance(named: .darkAqua)
-        host = NSHostingView(rootView: AnyView(EmptyView()))
+        host = FirstMouseHostingView(rootView: AnyView(EmptyView()))
         panel.contentView = host
         store.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.render() }
@@ -66,9 +80,19 @@ public final class NotchPanelController {
         }
     }
 
+    /// Tears down the global monitors and any pending collapse. Without this the two
+    /// `NSEvent` monitors installed by `show()` outlive the controller.
+    public func hide() {
+        collapseWork?.cancel(); collapseWork = nil
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
+        if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
+        panel.orderOut(nil)
+    }
+
+    /// The display changed: re-render, don't just move the window. The hosted view
+    /// carries the previous screen's `earWidth`/`hasNotch` until it is rebuilt.
     public func relayout() {
-        frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: expandedHeight())
-        applyFrame(animated: false)
+        render()
     }
 
     private func mouseMoved() {
@@ -88,6 +112,9 @@ public final class NotchPanelController {
         guard expanded != value else { return }
         expanded = value
         collapseWork = nil
+        // Expanded, the panel owns its clicks (⟳ and ⚙); collapsed, it must let the
+        // menu bar underneath have them.
+        panel.ignoresMouseEvents = !value
         if value { clock.start() } else { clock.stop() }
         onExpandedChange(value)
         render()
@@ -95,6 +122,11 @@ public final class NotchPanelController {
     }
 
     private func render() {
+        // Geometry FIRST: the content is built from `frames`, so recomputing after
+        // the fact left the hosted view carrying the previous screen's earWidth and
+        // hasNotch until a later publish — two store publishes (~240 s) behind.
+        let metrics = Self.metrics()
+        frames = NotchGeometry.frames(for: metrics, expandedHeight: frames.expanded.height)
         if expanded {
             host.rootView = AnyView(PanelView(store: store, clock: clock, onSettings: onSettings,
                                               onRefresh: { [store] in Task { await store.refresh(force: true) } })
@@ -103,14 +135,34 @@ public final class NotchPanelController {
             host.rootView = AnyView(EarsView(aggregate: store.aggregate, earWidth: frames.earWidth, hasNotch: frames.hasNotch)
                 .frame(width: frames.collapsed.width, height: frames.collapsed.height))
         }
-        frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: expandedHeight())
+        // …then size the window to the tree that was just installed.
+        frames = NotchGeometry.frames(for: metrics, expandedHeight: expandedHeight())
         applyFrame(animated: true)
     }
 
     private func expandedHeight() -> CGFloat {
-        guard expanded else { return 200 }
-        let size = host.fittingSize
-        return max(120, size.height)
+        guard expanded else { return frames.expanded.height }
+        // `fittingSize` read in the same turn `rootView` was assigned reports the OLD
+        // tree, which opened the first hover at the 120 pt floor and cut off the
+        // footer — the only ⟳ and ⚙ buttons there are.
+        host.layoutSubtreeIfNeeded()
+        let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount))
+        return max(120, max(modelled, host.fittingSize.height))
+    }
+
+    /// A layout-independent floor for the expanded panel, from the model PanelView
+    /// draws: 14 pt padding twice, the Overall line, one block per account (header +
+    /// bars) each followed by a divider, and the footer, with 10 pt stack spacing.
+    static func estimatedExpandedHeight(barCounts: [Int]) -> CGFloat {
+        let padding: CGFloat = 28, overall: CGFloat = 20, footer: CGFloat = 20
+        let spacing: CGFloat = 10, divider: CGFloat = 1
+        let blocks = barCounts.reduce(CGFloat(0)) { $0 + 18 + CGFloat($1) * 19 + spacing + divider + spacing }
+        return padding + overall + spacing + divider + spacing + blocks + footer
+    }
+
+    /// 5h and Weekly always; the model-scoped weekly only when the snapshot has one.
+    static func barCount(_ row: AccountRow) -> Int {
+        row.snapshot?.weeklyScoped == nil ? 2 : 3
     }
 
     private func applyFrame(animated: Bool) {

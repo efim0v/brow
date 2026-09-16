@@ -4,6 +4,10 @@ import SwiftUI
 public struct SettingsView: View {
     @ObservedObject var store: LimitsStore
     @ObservedObject var addFlow: AddAccountFlow
+    /// The RAW auto-detection result, never the effective path: this field's only job
+    /// is to choose between "Detected: X" and the "Not found. Ran: …" diagnostic, and
+    /// passing the effective value hid a failed detection behind the user's own
+    /// override — the UI then claimed the override had been auto-detected.
     let claudeDetected: String?
     @State private var newFolder = ""
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -31,9 +35,12 @@ public struct SettingsView: View {
         Form {
             ForEach(store.allRows) { row in
                 Section {
-                    TextField("Name", text: Binding(
-                        get: { store.settings.accounts[row.id]?.name ?? "" },
-                        set: { store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].name = $0 }))
+                    // Committed on Return / focus loss, not on every keystroke: each
+                    // write of `store.settings` is a synchronous atomic JSON write plus
+                    // a full recompute plus a panel re-render with a 0.18 s animation.
+                    AccountNameField(initial: store.settings.accounts[row.id]?.name ?? "") { name in
+                        store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].name = name
+                    }
                     LabeledContent("Email", value: row.account.email ?? "—")
                     LabeledContent("Tier", value: AccountBlockView.tierLabel(row.account.tier))
                     LabeledContent("Folder") {
@@ -67,6 +74,28 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// A name field whose edits stay local until the user is done with them.
+    private struct AccountNameField: View {
+        let initial: String
+        let commit: (String) -> Void
+        @State private var text: String
+        @FocusState private var focused: Bool
+
+        init(initial: String, commit: @escaping (String) -> Void) {
+            self.initial = initial
+            self.commit = commit
+            _text = State(initialValue: initial)
+        }
+
+        var body: some View {
+            TextField("Name", text: $text)
+                .focused($focused)
+                .onSubmit { commit(text) }
+                .onChange(of: focused) { _, isFocused in if !isFocused, text != initial { commit(text) } }
+                .onChange(of: initial) { _, value in if !focused { text = value } }
+        }
     }
 
     private var general: some View {

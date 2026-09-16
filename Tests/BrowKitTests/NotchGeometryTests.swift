@@ -38,6 +38,17 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(f.expanded.midX, 1280)
     }
 
+    /// The pill exists FOR external displays, and it was the one place the readouts
+    /// were clipped: two fixed `earWidth` ears plus `EarsView`'s 10 pt horizontal
+    /// padding needed 200 pt inside a 180 pt window, cutting ~10 pt off each edge —
+    /// exactly where the two status dots sit. Fixed-width children cannot compress, so
+    /// the padding has to come out of the ear width.
+    func testPillEarsPlusPaddingFitInsideThePill() {
+        let f = NotchGeometry.frames(for: plain, expandedHeight: 300)
+        XCTAssertEqual(2 * f.earWidth + 2 * NotchGeometry.pillPadding, f.collapsed.width)
+        XCTAssertEqual(f.earWidth, 80)
+    }
+
     func testExpandedIsClampedInsideNarrowScreen() {
         let narrow = ScreenMetrics(frame: CGRect(x: 100, y: 0, width: 400, height: 800),
                                    topLeftArea: nil, topRightArea: nil, menuBarHeight: 24)

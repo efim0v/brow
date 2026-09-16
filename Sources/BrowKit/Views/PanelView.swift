@@ -11,7 +11,13 @@ public final class PanelClock: ObservableObject {
         self.source = now
         self.now = now()
     }
+    /// Samples `now` immediately: the controller stops the clock on collapse, so
+    /// without this the first rendered frame of every expand computed its countdowns
+    /// and ages against the instant the panel last CLOSED ("resets in 2 h 10 min" for
+    /// a window resetting in 40 min). It self-corrected after a second — about as long
+    /// as a hover panel is looked at.
     public func start() {
+        now = source()
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.now = self?.source() ?? Date() }
@@ -56,6 +62,8 @@ public struct PanelView: View {
         HStack(spacing: 14) {
             Text("Overall").font(.system(size: 12, weight: .semibold))
             Spacer()
+            // Greyed out when the aggregate is stale: a three-day-old 32 % must not
+            // render as confident green (spec, Staleness).
             stat("5h", store.aggregate.fiveHour)
             stat("Weekly", store.aggregate.weekly)
             if let s = store.aggregate.weeklyScoped { stat(s.model, s.percentage) }
@@ -67,25 +75,33 @@ public struct PanelView: View {
             Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
             Text(Formatting.percent(value)).font(.system(size: 12, weight: .semibold)).monospacedDigit()
                 .foregroundStyle(EarsView.color(for: EarReadout(usedPercentage: value, modelInitial: nil,
-                                                               severity: LimitsAggregate.severity(value), stale: false)))
+                                                               severity: LimitsAggregate.severity(value),
+                                                               stale: store.aggregate.stale)))
         }
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
-            if let err = store.footerError {
+            // `claude` not found outranks a fetch error: it is the cause, and the spec's
+            // error table names the panel footer as one of its two slots.
+            if let err = store.configError ?? store.footerError {
                 Label(err, systemImage: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange).lineLimit(1)
             } else {
                 Text(store.dataAsOf.map { "Updated \(Formatting.age($0, now: clock.now))" } ?? "No data yet")
                     .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
             }
             Spacer()
-            if store.isRefreshing {
-                ProgressView().controlSize(.mini).frame(width: 20, height: 20)
-            } else {
-                Button(action: onRefresh) { Image(systemName: "arrow.clockwise").frame(width: 20, height: 20).contentShape(Rectangle()) }
-                    .buttonStyle(.plain).help("Refresh now")
+            // The button STAYS: a background poll (every 120 s, or every 60 s while the
+            // panel is open) must not take the only manual refresh off the screen. The
+            // spinner marks a forced fetch only.
+            Button(action: onRefresh) {
+                ZStack {
+                    Image(systemName: "arrow.clockwise").opacity(store.isForcing ? 0 : 1)
+                    if store.isForcing { ProgressView().controlSize(.mini) }
+                }
+                .frame(width: 20, height: 20).contentShape(Rectangle())
             }
+            .buttonStyle(.plain).disabled(store.isRefreshing).help("Refresh now")
             Button(action: onSettings) { Image(systemName: "gearshape").frame(width: 20, height: 20).contentShape(Rectangle()) }
                 .buttonStyle(.plain).help("Settings")
         }

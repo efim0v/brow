@@ -11,8 +11,18 @@ public enum Formatting {
         return "\(Int(s / 86400)) d ago"
     }
 
+    /// A window's reset instant, to the nearest minute. The endpoint dates a reset a
+    /// fraction of a second BEFORE the boundary it means — `18:59:59.641069+00:00` for a
+    /// window claude.ai itself shows as "Wednesday 12:00 AM" — and one account's Weekly
+    /// and Fable windows can differ by that fraction (`19:59:58.96` next to `20:00:00`).
+    /// Shown raw that was "Tue 23:59" beside "Wed 00:00" for the same reset.
+    public static func resetInstant(_ resetsAt: String?) -> Date? {
+        guard let raw = resetsAt, let reset = parseISODate(raw) else { return nil }
+        return Date(timeIntervalSince1970: (reset.timeIntervalSince1970 / 60).rounded() * 60)
+    }
+
     public static func countdown(_ resetsAt: String?, now: Date) -> String {
-        guard let raw = resetsAt, let reset = parseISODate(raw) else { return "not started" }
+        guard let reset = resetInstant(resetsAt) else { return "not started" }
         let remaining = reset.timeIntervalSince(now)
         if remaining <= 0 { return "resets now" }
         if remaining < 86400 {

@@ -37,9 +37,9 @@ public enum ResetCalendar {
                 guard let at else { return }
                 marks.append(CalendarMark(accountID: row.id, accountName: row.name, colorIndex: index, kind: kind, at: at))
             }
-            add(.weekly("Weekly"), row.snapshot?.sevenDay?.resetsAt.flatMap(parseISODate))
+            add(.weekly("Weekly"), Formatting.resetInstant(row.snapshot?.sevenDay?.resetsAt))
             if let scoped = row.snapshot?.weeklyScoped {
-                add(.weekly(row.snapshot?.weeklyScopedModel ?? "Model"), scoped.resetsAt.flatMap(parseISODate))
+                add(.weekly(row.snapshot?.weeklyScopedModel ?? "Model"), Formatting.resetInstant(scoped.resetsAt))
             }
             add(.renewal, row.renewsAt)
         }

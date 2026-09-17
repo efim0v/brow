@@ -79,6 +79,20 @@ final class ResetCalendarTests: XCTestCase {
         XCTAssertEqual(day.accounts[0].rows, [.init(label: "Renewal", time: "~14:31", remaining: "in 22 d 14 h", estimated: true)])
     }
 
+    /// The endpoint's `18:59:59.641069+00:00` is the 19:00 boundary claude.ai shows; a
+    /// mark a fraction before midnight belongs to the day it is really about.
+    func testResetInstantsRoundToTheMinuteTheyMean() {
+        XCTAssertEqual(Formatting.resetInstant("2026-09-22T18:59:59.641069+00:00"), date("2026-09-22T19:00:00Z"))
+        XCTAssertEqual(Formatting.resetInstant("2026-09-20T19:59:58.959273+00:00"), date("2026-09-20T20:00:00Z"))
+        XCTAssertEqual(Formatting.resetInstant("2026-09-22T11:00:00+00:00"), date("2026-09-22T11:00:00Z"))
+        XCTAssertNil(Formatting.resetInstant(nil))
+        let rows = [row("a", name: "icloud", weekly: "2026-09-22T23:59:59.641069+00:00", fable: "2026-09-22T23:59:59.641268+00:00")]
+        let marks = ResetCalendar.marks(rows: rows)
+        XCTAssertEqual(marks.map(\.at), [date("2026-09-23T00:00:00Z"), date("2026-09-23T00:00:00Z")])
+        XCTAssertEqual(ResetCalendar.dots(on: date("2026-09-23T12:00:00Z"), marks: marks, calendar: utc).count, 1)
+        XCTAssertTrue(ResetCalendar.dots(on: date("2026-09-22T12:00:00Z"), marks: marks, calendar: utc).isEmpty)
+    }
+
     func testNextRenewalIsTheFirstMonthlyAnniversaryAfterNow() {
         let info = SubscriptionInfo(organizationUuid: "a", status: "active", billingType: "stripe_subscription",
                                     createdAt: date("2026-09-10T14:31:29Z"), fetchedAt: now)

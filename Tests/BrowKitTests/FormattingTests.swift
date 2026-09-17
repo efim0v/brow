@@ -13,8 +13,11 @@ final class FormattingTests: XCTestCase {
     }
 
     func testCountdownUnderADay() {
-        let iso = ISO8601DateFormatter().string(from: t0.addingTimeInterval(2 * 3600 + 10 * 60 + 30))
+        let iso = ISO8601DateFormatter().string(from: t0.addingTimeInterval(2 * 3600 + 10 * 60 + 20))
         XCTAssertEqual(Formatting.countdown(iso, now: t0), "resets in 2 h 10 min")
+        // The endpoint's "one second before the boundary" is the boundary.
+        let boundary = ISO8601DateFormatter().string(from: t0.addingTimeInterval(3 * 3600 - 1))
+        XCTAssertEqual(Formatting.countdown(boundary, now: t0), "resets in 3 h 0 min")
         let soon = ISO8601DateFormatter().string(from: t0.addingTimeInterval(45 * 60))
         XCTAssertEqual(Formatting.countdown(soon, now: t0), "resets in 45 min")
         let past = ISO8601DateFormatter().string(from: t0.addingTimeInterval(-5))

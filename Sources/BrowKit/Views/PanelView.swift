@@ -71,26 +71,33 @@ public struct PanelView: View {
     }
 
     private func stat(_ label: String, _ value: Double) -> some View {
-        HStack(spacing: 4) {
+        let readout = EarReadout(usedPercentage: value, modelInitial: nil,
+                                 severity: LimitsAggregate.severity(value), stale: store.aggregate.stale)
+        // Same rule as the ears, one inch away from them: with no snapshot behind it the
+        // aggregate is 0, and the panel must not contradict the `—` in the notch.
+        return HStack(spacing: 4) {
             Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(Formatting.percent(value)).font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(EarsView.color(for: EarReadout(usedPercentage: value, modelInitial: nil,
-                                                               severity: LimitsAggregate.severity(value),
-                                                               stale: store.aggregate.stale)))
+            Text(PanelText.earsText(readout, hasData: store.aggregate.hasData))
+                .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(store.aggregate.hasData ? EarsView.color(for: readout) : Color.gray)
         }
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
-            // The most RECENT of the configuration error and the fetch error (spec's
-            // error table names the panel footer as one of the two slots for "`claude`
-            // not found"). Taking `configError` unconditionally hid every fetch error
-            // behind a cause the user may already have fixed.
-            if let err = store.panelError {
-                Label(err, systemImage: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange).lineLimit(1)
-            } else {
-                Text(store.dataAsOf.map { "Updated \(Formatting.age($0, now: clock.now))" } ?? "No data yet")
-                    .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
+            // One line, the age first and an error only after it (spec, What the user
+            // sees). The error used to take the whole line, which hid the one fact that
+            // decides whether the numbers above it can be trusted. `panelError` is the
+            // configuration error while it is live, the fetch error otherwise — the
+            // spec's error table names this footer as one of the two slots for
+            // "`claude` not found".
+            HStack(spacing: 4) {
+                if store.panelError != nil {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                }
+                Text(PanelText.footer(dataAsOf: store.dataAsOf, error: store.panelError, now: clock.now))
+                    .font(.system(size: 10)).monospacedDigit().lineLimit(1)
+                    .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
             Spacer()
             // The button STAYS: a background poll (every 120 s, or every 60 s while the

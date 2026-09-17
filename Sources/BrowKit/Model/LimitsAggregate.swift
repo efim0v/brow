@@ -19,6 +19,10 @@ public struct LimitsAggregate: Sendable, Equatable {
     public let weekly: Double
     public let weeklyScoped: ScopedWeekly?
     public let stale: Bool
+    /// True when at least one visible account has a snapshot. `stale` cannot stand in
+    /// for it: a three-day-old capture and no capture at all are both stale, but only
+    /// one of them has a percentage worth printing (spec, "never a fabricated 0 %").
+    public let hasData: Bool
     public let leftEar: EarReadout
     public let rightEar: EarReadout
 
@@ -64,7 +68,8 @@ public struct LimitsAggregate: Sendable, Equatable {
         } else {
             right = EarReadout(usedPercentage: weekly, modelInitial: nil, severity: severity(weekly), stale: stale)
         }
+        let hasData = accounts.contains { snapshots[$0.organizationUuid] != nil }
         return LimitsAggregate(fiveHour: five, weekly: weekly, weeklyScoped: scoped, stale: stale,
-                               leftEar: left, rightEar: right)
+                               hasData: hasData, leftEar: left, rightEar: right)
     }
 }

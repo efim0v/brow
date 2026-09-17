@@ -50,7 +50,7 @@ public struct SettingsView: View {
                     AccountNameField(accountID: row.id, initial: store.settings.accounts[row.id]?.name ?? "",
                                      drafts: drafts, store: store)
                     LabeledContent("Email", value: row.account.email ?? "—")
-                    LabeledContent("Tier", value: AccountBlockView.tierLabel(row.account.tier))
+                    LabeledContent("Tier", value: PanelText.tierLabel(row.account.tier))
                     LabeledContent("Folder") {
                         Text(row.account.configDir + (row.account.aliasDirs.isEmpty ? "" : " (+\(row.account.aliasDirs.count) alias)"))
                             .font(.caption).textSelection(.enabled)

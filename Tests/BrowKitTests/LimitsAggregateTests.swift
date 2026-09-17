@@ -85,6 +85,17 @@ final class LimitsAggregateTests: XCTestCase {
         XCTAssertEqual(LimitsAggregate.severity(90), .critical)
     }
 
+    func testNoSnapshotsMeansNoData() {
+        // The ears show "—" off this flag: an account we have never fetched must not
+        // read as a confident 0 %.
+        XCTAssertFalse(LimitsAggregate.compute(accounts: [acct("a", tier: nil)], snapshots: [:], now: t0).hasData)
+        XCTAssertFalse(LimitsAggregate.compute(accounts: [], snapshots: [:], now: t0).hasData)
+        // One snapshot among several accounts is still data — a very old one included.
+        XCTAssertTrue(LimitsAggregate.compute(accounts: [acct("a", tier: nil), acct("b", tier: nil)],
+                                              snapshots: ["b": snap("b", five: 1, seven: 1, at: t0.addingTimeInterval(-86400))],
+                                              now: t0).hasData)
+    }
+
     func testNoAccountsIsZeroAndStale() {
         let agg = LimitsAggregate.compute(accounts: [], snapshots: [:], now: t0)
         XCTAssertEqual(agg.fiveHour, 0)

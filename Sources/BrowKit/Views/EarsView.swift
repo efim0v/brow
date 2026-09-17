@@ -34,7 +34,7 @@ public struct EarsView: View {
                 if let initial = r.modelInitial {
                     Text(initial).font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
                 }
-                Text(Formatting.percent(r.usedPercentage))
+                Text(PanelText.earsText(r, hasData: aggregate.hasData))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white)
@@ -45,8 +45,9 @@ public struct EarsView: View {
         .padding(.horizontal, 8)
     }
 
+    /// Grey next to the `—`: the severity of a reading we do not have is not `.ok`.
     private func dot(_ r: EarReadout) -> some View {
-        Circle().fill(color(for: r)).frame(width: 7, height: 7)
+        Circle().fill(aggregate.hasData ? color(for: r) : Color.gray).frame(width: 7, height: 7)
     }
 
     static func color(for r: EarReadout) -> Color {

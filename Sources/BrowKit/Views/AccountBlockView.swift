@@ -27,30 +27,17 @@ public struct AccountBlockView: View {
     }
 
     private var tag: String {
-        let tier = Self.tierLabel(row.account.tier)
-        switch row.status {
-        case .ok: return tier
-        case .stale: return row.snapshot.map { "\(tier) · \(Formatting.age($0.fetchedAt, now: now))" } ?? "\(tier) · no data"
-        case .error(let text): return "\(tier) · \(text)"
-        }
+        PanelText.accountTag(tier: row.account.tier, snapshot: row.snapshot, status: row.status, now: now)
     }
     private var tagColor: Color {
         switch row.status { case .ok: return .secondary; case .stale: return .secondary; case .error: return .orange }
     }
 
-    static func tierLabel(_ tier: String?) -> String {
-        switch tier {
-        case "default_claude_max_20x": return "Max 20x"
-        case "default_claude_max_5x":  return "Max 5x"
-        case "default_claude_pro":     return "Pro"
-        case nil: return "—"
-        case let t?: return t
-        }
-    }
-
     /// A row whose snapshot is past `staleAfter` shows grey bars, the same signal the
-    /// ears carry; the age itself is already in the tag.
-    private var isStale: Bool { row.status == .stale }
+    /// ears carry; the age itself is already in the tag. Asking the SNAPSHOT, not the
+    /// status: `.error` outranks `.stale` in `LimitsStore.row(for:)`, so a failed fetch
+    /// over a three-day-old capture used to paint it confident green.
+    private var isStale: Bool { row.snapshot?.isStale(now: now) ?? true }
 
     private func bar(_ title: String, _ window: CapturedWindow?) -> some View {
         let used = window?.usedPercentage ?? 0

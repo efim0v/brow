@@ -57,16 +57,46 @@ struct CalendarView: View {
                 }
             }
             if let detailDay {
-                Text(ResetCalendar.detail(for: detailDay, marks: marks, now: now, calendar: calendar))
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 2)
+                detail(ResetCalendar.dayDetail(for: detailDay, marks: marks, now: now, calendar: calendar))
             } else {
                 Text("No weekly resets known yet").font(.system(size: 10)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 2)
             }
         }
+    }
+
+    /// The day as a table, one card per account: window · time · countdown.
+    private func detail(_ day: ResetCalendar.DayDetail) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(day.title).font(.system(size: 11, weight: .semibold))
+            if day.accounts.isEmpty {
+                Text("No resets").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            ForEach(day.accounts, id: \.accountID) { account in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Circle().fill(Self.color(account.colorIndex)).frame(width: 5, height: 5)
+                        Text(account.name).font(.system(size: 10, weight: .semibold))
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 2) {
+                        ForEach(Array(account.rows.enumerated()), id: \.offset) { _, row in
+                            GridRow {
+                                Text(row.label).foregroundStyle(.secondary)
+                                Text(row.time).monospacedDigit()
+                                Text(row.remaining).foregroundStyle(.secondary)
+                                if row.estimated { Text("estimate").foregroundStyle(.tertiary).italic() }
+                            }
+                        }
+                    }
+                    .font(.system(size: 10))
+                }
+                .padding(EdgeInsets(top: 5, leading: 7, bottom: 5, trailing: 7))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.07)))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func arrow(_ symbol: String, _ action: @escaping () -> Void) -> some View {
@@ -79,18 +109,18 @@ struct CalendarView: View {
 
     private func cell(_ day: Date) -> some View {
         let today = calendar.isDate(day, inSameDayAs: now)
-        let dayMarks = ResetCalendar.marks(marks, on: day, calendar: calendar)
+        let dots = ResetCalendar.dots(on: day, marks: marks, calendar: calendar)
         let isHovered = hovered.map { calendar.isDate($0, inSameDayAs: day) } ?? false
         return VStack(spacing: 2) {
             Text("\(calendar.component(.day, from: day))")
                 .font(.system(size: 10, weight: today ? .bold : .regular)).monospacedDigit()
                 .foregroundStyle(today ? Color.white : Color.white.opacity(0.75))
             HStack(spacing: 2) {
-                ForEach(Array(dayMarks.prefix(4).enumerated()), id: \.offset) { _, mark in
-                    if mark.kind == .renewal {
-                        Rectangle().fill(Self.color(mark.colorIndex)).frame(width: 4, height: 4).rotationEffect(.degrees(45))
+                ForEach(Array(dots.prefix(5).enumerated()), id: \.offset) { _, dot in
+                    if dot.renewal {
+                        Rectangle().fill(Self.color(dot.colorIndex)).frame(width: 4, height: 4).rotationEffect(.degrees(45))
                     } else {
-                        Circle().fill(Self.color(mark.colorIndex)).frame(width: 4, height: 4)
+                        Circle().fill(Self.color(dot.colorIndex)).frame(width: 4, height: 4)
                     }
                 }
             }

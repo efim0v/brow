@@ -75,43 +75,67 @@ public enum ResetCalendar {
         marks.map(\.at).filter { $0 >= now || calendar.isDate($0, inSameDayAs: now) }.min()
     }
 
-    /// `Tue 22 Sep — 900tr345: Weekly & Fable reset 02:00 (in 3 d 4 h) · artem: Weekly resets 00:00 (in 3 d 2 h)`
-    /// One entry per account, in row order; a renewal reads as what it is, an estimate.
-    public static func detail(for day: Date, marks: [CalendarMark], now: Date, calendar: Calendar) -> String {
-        let dayLabel = formatter("EEE d MMM", calendar).string(from: day)
-        let today = Self.marks(marks, on: day, calendar: calendar)
-        guard !today.isEmpty else { return "\(dayLabel) — no resets" }
+    /// One dot per ACCOUNT per day — two windows resetting the same day are one
+    /// event to the eye — plus a diamond when its renewal falls there. Row order.
+    public struct Dot: Equatable, Sendable {
+        public let colorIndex: Int
+        public let renewal: Bool
+    }
+    public static func dots(on day: Date, marks: [CalendarMark], calendar: Calendar) -> [Dot] {
+        var dots: [Dot] = []
+        for mark in Self.marks(marks, on: day, calendar: calendar) {
+            let dot = Dot(colorIndex: mark.colorIndex, renewal: mark.kind == .renewal)
+            if !dots.contains(dot) { dots.append(dot) }
+        }
+        return dots.sorted { ($0.colorIndex, $0.renewal ? 1 : 0) < ($1.colorIndex, $1.renewal ? 1 : 0) }
+    }
+
+    /// One line of the day's table: `Weekly · 02:00 · in 4 d 1 h`. A renewal row is
+    /// marked as the estimate it is.
+    public struct DayRow: Equatable, Sendable {
+        public let label: String
+        public let time: String
+        public let remaining: String
+        public let estimated: Bool
+    }
+    /// One account's card for the day.
+    public struct AccountDay: Equatable, Sendable {
+        public let accountID: String
+        public let name: String
+        public let colorIndex: Int
+        public let rows: [DayRow]
+    }
+    /// The hovered day, structured: a title (`Tuesday 22 September`) and a card per
+    /// account in row order, each with one row per window resetting that day.
+    public struct DayDetail: Equatable, Sendable {
+        public let title: String
+        public let accounts: [AccountDay]
+    }
+
+    public static func dayDetail(for day: Date, marks: [CalendarMark], now: Date, calendar: Calendar) -> DayDetail {
+        let title = formatter("EEEE d MMMM", calendar).string(from: day)
         let time = formatter("HH:mm", calendar)
         var order: [String] = []
         var byAccount: [String: [CalendarMark]] = [:]
-        for mark in today {
+        for mark in Self.marks(marks, on: day, calendar: calendar) {
             if byAccount[mark.accountID] == nil { order.append(mark.accountID) }
             byAccount[mark.accountID, default: []].append(mark)
         }
-        let parts = order.map { id -> String in
-            let ms = byAccount[id] ?? []
-            var pieces: [String] = []
-            let resets = ms.compactMap { m -> (label: String, at: Date)? in
-                if case .weekly(let label) = m.kind { return (label, m.at) }
-                return nil
-            }
-            if let first = resets.first {
-                let times = Set(resets.map { time.string(from: $0.at) })
-                if times.count == 1 {
-                    let labels = resets.map(\.label).joined(separator: " & ")
-                    pieces.append("\(labels) reset \(time.string(from: first.at)) (\(Formatting.remaining(first.at, now: now)))")
-                } else {
-                    pieces.append(contentsOf: resets.map {
-                        "\($0.label) resets \(time.string(from: $0.at)) (\(Formatting.remaining($0.at, now: now)))"
-                    })
+        let accounts = order.compactMap { id -> AccountDay? in
+            guard let ms = byAccount[id], let first = ms.first else { return nil }
+            let rows = ms.map { m -> DayRow in
+                switch m.kind {
+                case .weekly(let label):
+                    return DayRow(label: label, time: time.string(from: m.at),
+                                  remaining: Formatting.remaining(m.at, now: now), estimated: false)
+                case .renewal:
+                    return DayRow(label: "Renewal", time: "~" + time.string(from: m.at),
+                                  remaining: Formatting.remaining(m.at, now: now), estimated: true)
                 }
             }
-            if let renewal = ms.first(where: { $0.kind == .renewal }) {
-                pieces.append("subscription renews ~\(time.string(from: renewal.at)) (\(Formatting.remaining(renewal.at, now: now)), estimated from the start date)")
-            }
-            return "\(ms.first?.accountName ?? id): \(pieces.joined(separator: ", "))"
+            return AccountDay(accountID: id, name: first.accountName, colorIndex: first.colorIndex, rows: rows)
         }
-        return "\(dayLabel) — " + parts.joined(separator: " · ")
+        return DayDetail(title: title, accounts: accounts)
     }
 
     public static func monthTitle(_ date: Date, calendar: Calendar) -> String {

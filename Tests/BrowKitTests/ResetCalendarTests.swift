@@ -44,21 +44,39 @@ final class ResetCalendarTests: XCTestCase {
         XCTAssertEqual(ResetCalendar.nextMarkedDay(marks, now: now, calendar: utc), date("2026-09-22T02:00:00Z"))
     }
 
-    func testDetailNamesEachAccountAndFoldsSameTimeWindows() {
+    func testDayDetailIsOneCardPerAccountWithARowPerWindow() {
         let rows = [row("a", name: "gmail", weekly: "2026-09-22T02:00:00Z", fable: "2026-09-22T02:00:00Z"),
                     row("b", name: "icloud", weekly: "2026-09-22T05:30:00Z", fable: "2026-09-22T07:00:00Z")]
         let marks = ResetCalendar.marks(rows: rows)
-        let text = ResetCalendar.detail(for: date("2026-09-22T00:00:00Z"), marks: marks, now: now, calendar: utc)
-        XCTAssertEqual(text, "Tue 22 Sep — gmail: Weekly & Fable reset 02:00 (in 4 d 2 h) · icloud: Weekly resets 05:30 (in 4 d 5 h), Fable resets 07:00 (in 4 d 7 h)")
-        XCTAssertEqual(ResetCalendar.detail(for: date("2026-09-25T00:00:00Z"), marks: marks, now: now, calendar: utc),
-                       "Fri 25 Sep — no resets")
+        let day = ResetCalendar.dayDetail(for: date("2026-09-22T00:00:00Z"), marks: marks, now: now, calendar: utc)
+        XCTAssertEqual(day.title, "Tuesday 22 September")
+        XCTAssertEqual(day.accounts.map(\.name), ["gmail", "icloud"])
+        XCTAssertEqual(day.accounts[0].rows, [
+            .init(label: "Weekly", time: "02:00", remaining: "in 4 d 2 h", estimated: false),
+            .init(label: "Fable", time: "02:00", remaining: "in 4 d 2 h", estimated: false)])
+        XCTAssertEqual(day.accounts[1].rows.map(\.time), ["05:30", "07:00"])
+        let empty = ResetCalendar.dayDetail(for: date("2026-09-25T00:00:00Z"), marks: marks, now: now, calendar: utc)
+        XCTAssertEqual(empty.title, "Friday 25 September")
+        XCTAssertTrue(empty.accounts.isEmpty)
     }
 
-    func testDetailReadsARenewalAsAnEstimate() {
+    /// Two windows of one account resetting the same day are ONE dot; the renewal is
+    /// its own diamond.
+    func testOneDotPerAccountPerDay() {
+        let rows = [row("a", name: "gmail", weekly: "2026-09-22T02:00:00Z", fable: "2026-09-22T02:00:00Z",
+                        renews: date("2026-09-22T14:31:29Z")),
+                    row("b", name: "icloud", weekly: "2026-09-22T05:30:00Z", fable: nil)]
+        let dots = ResetCalendar.dots(on: date("2026-09-22T00:00:00Z"), marks: ResetCalendar.marks(rows: rows), calendar: utc)
+        XCTAssertEqual(dots, [.init(colorIndex: 0, renewal: false), .init(colorIndex: 0, renewal: true),
+                              .init(colorIndex: 1, renewal: false)])
+    }
+
+    func testDayDetailReadsARenewalAsAnEstimate() {
         let rows = [row("a", name: "gmail", weekly: nil, fable: nil, renews: date("2026-10-10T14:31:29Z"))]
-        let text = ResetCalendar.detail(for: date("2026-10-10T00:00:00Z"), marks: ResetCalendar.marks(rows: rows),
-                                        now: now, calendar: utc)
-        XCTAssertEqual(text, "Sat 10 Oct — gmail: subscription renews ~14:31 (in 22 d 14 h, estimated from the start date)")
+        let day = ResetCalendar.dayDetail(for: date("2026-10-10T00:00:00Z"), marks: ResetCalendar.marks(rows: rows),
+                                          now: now, calendar: utc)
+        XCTAssertEqual(day.title, "Saturday 10 October")
+        XCTAssertEqual(day.accounts[0].rows, [.init(label: "Renewal", time: "~14:31", remaining: "in 22 d 14 h", estimated: true)])
     }
 
     func testNextRenewalIsTheFirstMonthlyAnniversaryAfterNow() {

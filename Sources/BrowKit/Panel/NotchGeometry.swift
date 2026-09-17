@@ -52,7 +52,9 @@ public enum NotchGeometry {
     /// `flare` on each side so the concave flares have room to be drawn; the visible
     /// black still starts at the notch/wing edge.
     public static let flare: CGFloat = 6
-    public static let collapsedBottomRadius: CGFloat = 12
+    /// 14, the value boring.notch settled on against the physical bezel (its
+    /// `NotchShape` defaults: top 6, bottom 14).
+    public static let collapsedBottomRadius: CGFloat = 14
     public static let expandedBottomRadius: CGFloat = 18
     /// `EarsView` insets the pill by this much on each side (there is no notch to
     /// fill), so the two ears have `pillWidth - 2 * pillPadding` between them. Taking

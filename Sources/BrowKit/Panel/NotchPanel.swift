@@ -15,8 +15,39 @@ final class FirstMouseHostingView<V: View>: NSHostingView<V> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// What the hosting view shows: the collapsed strip or the expanded panel, both hung
+/// from the top edge of a window that never moves. Only the CONTENT changes on hover
+/// — a crossfade — so the black can never be seen detaching from the notch, dropping
+/// down, or sliding sideways, which is exactly what animating the window's frame
+/// from the strip's rect to the panel's rect used to do.
+struct NotchRootView: View {
+    let expanded: Bool
+    let ears: AnyView
+    let panel: AnyView
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            if expanded {
+                panel.transition(.opacity)
+            } else {
+                ears.transition(.opacity)
+            }
+        }
+        .frame(width: width, height: height, alignment: .top)
+        .animation(.easeInOut(duration: NotchPanelController.animation), value: expanded)
+    }
+}
+
 /// Owns the panel, swaps collapsed ↔ expanded content on hover, and keeps its
 /// frame in sync with the main screen. All state changes go through `expanded`.
+///
+/// The window is ALWAYS the expanded frame — as tall as the panel, hung from the
+/// screen's top edge, centred on the notch — and it is put into a SkyLight space of
+/// its own so it stays welded to the notch across Spaces switches. Collapsed, the
+/// window is transparent below the strip and ignores mouse events, so the menu bar
+/// and whatever is under the invisible part get every click.
 @MainActor
 public final class NotchPanelController {
     public static let collapseDelay: TimeInterval = 0.5
@@ -28,6 +59,9 @@ public final class NotchPanelController {
     private let onSettings: () -> Void
     private let panel: BrowPanel
     private let host: FirstMouseHostingView<AnyView>
+    /// The space above every user Space that keeps the panel out of the Spaces
+    /// transition; nil when the private API is unavailable (logged once).
+    private let space: SkyLightSpace?
     private var frames: NotchFrames
     private var expanded = false
     private var collapseWork: DispatchWorkItem?
@@ -41,12 +75,9 @@ public final class NotchPanelController {
         self.clock = clock
         self.onExpandedChange = onExpandedChange
         self.onSettings = onSettings
-        // The placement from the first frame on: the panel's contentRect is built from
-        // this, and a `below` user would otherwise see one beside-shaped strip flash
-        // before the first render().
         self.frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: 200,
                                            placement: store.settings.earsPlacement)
-        panel = BrowPanel(contentRect: frames.collapsed,
+        panel = BrowPanel(contentRect: frames.expanded,
                           styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .statusBar + 1
         panel.isOpaque = false
@@ -55,18 +86,20 @@ public final class NotchPanelController {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.hidesOnDeactivate = false
         panel.isMovable = false
-        // Collapsed, the panel is an opaque strip lying over the menu bar (the notch
-        // ± 96 pt, or a 180 pt pill) at `.statusBar + 1`, and it can never become key:
-        // any click it receives does nothing AND never reaches the menu bar under it.
-        // Spec: "ignoring mouse events except on its own content". Hover detection is
-        // a global monitor reading `NSEvent.mouseLocation`, so expansion still works
-        // with hit-testing off; `setExpanded` turns it back on for the real content.
+        // Collapsed, everything under the strip is transparent and must let the menu
+        // bar have its clicks; the strip itself has nothing to click. Hover detection
+        // is a global monitor reading `NSEvent.mouseLocation`, so expansion still
+        // works with hit-testing off; `setExpanded` turns it back on for the panel.
         panel.ignoresMouseEvents = true
         // The ears and the panel are drawn on black; `.secondary` text only reads
         // as light grey in a dark appearance, so the host never inherits a light one.
         panel.appearance = NSAppearance(named: .darkAqua)
         host = FirstMouseHostingView(rootView: AnyView(EmptyView()))
         panel.contentView = host
+        space = SkyLightSpace()
+        if space == nil {
+            BrowLog.panel.error("SkyLight space unavailable; the strip will move with Spaces transitions")
+        }
         store.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.render() }
         }.store(in: &cancellables)
@@ -75,6 +108,8 @@ public final class NotchPanelController {
     public func show() {
         render()
         panel.orderFrontRegardless()
+        // Only once the window is ordered in does it have a window number to add.
+        space?.add(panel)
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
             Task { @MainActor in self?.mouseMoved() }
         }
@@ -90,6 +125,7 @@ public final class NotchPanelController {
         collapseWork?.cancel(); collapseWork = nil
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
         if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
+        space?.remove(panel)
         panel.orderOut(nil)
     }
 
@@ -126,42 +162,40 @@ public final class NotchPanelController {
     }
 
     private func render() {
-        // Geometry FIRST: the content is built from `frames`, so recomputing after
-        // the fact left the hosted view carrying the previous screen's earWidth and
-        // hasNotch until a later publish — two store publishes (~240 s) behind.
         let metrics = Self.metrics()
         // Read LIVE, every render: the store publishes on every settings write, and this
         // is what turns the Ears picker into a reshaped strip without a relaunch.
         let placement = store.settings.earsPlacement
         frames = NotchGeometry.frames(for: metrics, expandedHeight: frames.expanded.height, placement: placement)
-        if expanded {
-            host.rootView = AnyView(PanelView(store: store, clock: clock, topInset: frames.contentTopInset,
-                                              // The frame's OWN flare, not the constant: an
-                                              // external display's frame carries none.
-                                              flare: frames.flare,
-                                              onSettings: onSettings,
-                                              onRefresh: { [store] in Task { await store.refresh(force: true) } })
-                // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
-                // concave corners in those 6 pt, and the visible black still starts at
-                // the notch edge.
-                .frame(width: frames.expanded.width))
-        } else {
-            host.rootView = AnyView(EarsView(aggregate: store.aggregate, frames: frames)
-                .frame(width: frames.collapsed.width, height: frames.collapsed.height))
-        }
-        // …then size the window to the tree that was just installed.
-        frames = NotchGeometry.frames(for: metrics, expandedHeight: expandedHeight(), placement: placement)
-        applyFrame(animated: true)
+        let ears = EarsView(aggregate: store.aggregate, frames: frames)
+            .frame(width: frames.collapsed.width, height: frames.collapsed.height)
+        let panelView = PanelView(store: store, clock: clock, topInset: frames.contentTopInset,
+                                  // The frame's OWN flare, not the constant: an
+                                  // external display's frame carries none.
+                                  flare: frames.flare,
+                                  onSettings: onSettings,
+                                  onRefresh: { [store] in Task { await store.refresh(force: true) } })
+            // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
+            // concave corners in those 6 pt, and the visible black still starts at
+            // the notch edge.
+            .frame(width: frames.expanded.width)
+        // Size the window to the panel it would show expanded — whether or not it is
+        // expanded right now — so the frame never has to change on hover.
+        let height = expandedHeight()
+        frames = NotchGeometry.frames(for: metrics, expandedHeight: height, placement: placement)
+        host.rootView = AnyView(NotchRootView(expanded: expanded, ears: AnyView(ears), panel: AnyView(panelView),
+                                              width: frames.expanded.width, height: frames.expanded.height))
+        applyFrame()
     }
 
+    /// The height the expanded panel needs. The model floor is always available; the
+    /// laid-out tree is consulted only while the panel is up, since a collapsed host
+    /// holds the strip, not the panel.
     private func expandedHeight() -> CGFloat {
-        guard expanded else { return frames.expanded.height }
-        // `fittingSize` read in the same turn `rootView` was assigned reports the OLD
-        // tree, which opened the first hover at the 120 pt floor and cut off the
-        // footer — the only ⟳ and ⚙ buttons there are.
-        host.layoutSubtreeIfNeeded()
         let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount),
                                                     topInset: frames.contentTopInset)
+        guard expanded else { return max(120, modelled) }
+        host.layoutSubtreeIfNeeded()
         return max(120, max(modelled, host.fittingSize.height))
     }
 
@@ -187,16 +221,12 @@ public final class NotchPanelController {
         row.snapshot?.weeklyScoped == nil ? 2 : 3
     }
 
-    private func applyFrame(animated: Bool) {
-        let target = expanded ? frames.expanded : frames.collapsed
-        if animated {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = Self.animation
-                panel.animator().setFrame(target, display: true)
-            }
-        } else {
-            panel.setFrame(target, display: true)
-        }
+    /// The window frame is the expanded frame, always, and it is never animated: a
+    /// change here is a screen or content-height change, not a hover.
+    private func applyFrame() {
+        let target = frames.expanded
+        guard panel.frame != target else { return }
+        panel.setFrame(target, display: true)
     }
 
     /// The screen that carries the menu bar is `NSScreen.screens[0]`.

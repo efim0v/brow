@@ -195,7 +195,10 @@ final class LimitsStoreTests: XCTestCase {
 
     private func makeStore(fetcher: Fetcher, creds: Creds, runner: CommandRunning = MockRunnerBK(results: []),
                            sleeper: Sleeper? = nil) -> LimitsStore {
-        let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300, credentials: creds)
+        let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300,
+                                      // No endpoint pacing here: these tests pin the CYCLE mechanics (one
+                                      // cycle at a time, force vs cache vs backoff), not the 100 s refill.
+                                      minInterval: 0, burstCapacity: 100, credentials: creds)
         let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
                                  allowPromptFallback: { true }, now: { [clock] in clock.date })
         var deps = LimitsStore.Dependencies(directory: AccountDirectory(home: home.path, credentials: creds),

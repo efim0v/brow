@@ -127,7 +127,8 @@ final class PanelRefreshGateTests: XCTestCase {
                                 claudePath: "/x/claude", allowPromptFallback: { false },
                                 now: { [clock] in clock.date }),
             client: OAuthUsageClient(fetcher: fetcher, appVersion: "t",
-                                     cacheSeconds: 30, backoffCap: 300, credentials: creds),
+                                     cacheSeconds: 30, backoffCap: 300,
+                                     minInterval: 0, burstCapacity: 100, credentials: creds),
             snapshotStore: LimitSnapshotStore(directory: appDir),
             settingsStore: BrowSettingsStore(directory: appDir),
             now: { [clock] in clock.date }))

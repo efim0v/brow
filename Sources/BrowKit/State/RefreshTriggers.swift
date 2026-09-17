@@ -19,7 +19,12 @@ public final class RefreshTriggers {
     /// One interval, whatever the panel is doing. Restarting the timer on expand
     /// pushed the next poll a full interval into the future every time the pointer
     /// crossed the notch, so the most attentive user got the stalest numbers.
-    public static let pollInterval: TimeInterval = 60
+    ///
+    /// 30 s, not 60: the endpoint refills one request per ~100 s per account and
+    /// `OAuthUsageClient` paces to that, answering an early poll from its cache at no
+    /// network cost — so a short tick only decides how soon after the window opens the
+    /// next reading is taken (≤ 30 s late instead of ≤ 60).
+    public static let pollInterval: TimeInterval = 30
     /// Clock-only: re-evaluates ages and the stale flag, never the network.
     public static let tickerInterval: TimeInterval = 5
 

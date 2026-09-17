@@ -12,7 +12,19 @@ public enum PanelText {
     /// that decides whether the numbers above it can be trusted.
     /// `"Updated 3 h ago"` / `"Updated 3 h ago · Offline"` / `"No data yet · Offline"` / `"No data yet"`.
     public static func footer(dataAsOf: Date?, error: String?, now: Date) -> String {
+        footer(dataAsOf: dataAsOf, error: error, retryAt: nil, now: now)
+    }
+
+    /// With a refresh queued behind the endpoint's rate limit, the line says WHEN
+    /// instead of just "rate limited": `Updated 2 min ago · retrying in 47 s`. The
+    /// countdown replaces the rate-limit error text (it is the same fact, with a time
+    /// on it); any other error still follows the age.
+    public static func footer(dataAsOf: Date?, error: String?, retryAt: Date?, now: Date) -> String {
         let age = dataAsOf.map { "Updated \(Formatting.age($0, now: now))" } ?? "No data yet"
+        if let retryAt {
+            let seconds = max(0, Int(retryAt.timeIntervalSince(now).rounded(.up)))
+            return "\(age) · retrying in \(seconds) s"
+        }
         guard let error, !error.isEmpty else { return age }
         return "\(age) · \(error)"
     }

@@ -36,6 +36,55 @@ public final class AddAccountFlow: ObservableObject {
         return dir
     }
 
+    /// The folder the "+" flow is waiting on, with the command the user runs to sign
+    /// in there. Shown as a card in Settings until the account appears.
+    @Published public private(set) var pendingDir: String?
+
+    /// The one line a user pastes into any terminal to run Claude Code as this
+    /// account. Plain `claude`, not the resolved binary path: this is what people
+    /// type, and `claude` in a fresh config dir walks them through sign-in itself.
+    public static func launchCommand(dir: String) -> String {
+        "CLAUDE_CONFIG_DIR=\(shellQuote(dir)) claude"
+    }
+
+    public static func copyToPasteboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    /// "+" in Settings: a standard folder picker rooted at `~/.claude-accounts`
+    /// (created on demand). Returns the chosen folder, or nil if cancelled.
+    public func chooseFolder() -> String? {
+        let root = home + "/.claude-accounts"
+        try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: root, isDirectory: true)
+        panel.prompt = "Use This Folder"
+        panel.message = "Choose (or create) a folder for the new account's Claude Code config."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return url.path
+    }
+
+    /// Start waiting for a sign-in in `dir`: Brow shows the launch command (copy it or
+    /// open it in Terminal), and polls the folder until Claude Code has written an
+    /// organisation into it. Folders outside `~/.claude-accounts` are remembered in the
+    /// settings so the account scan finds them.
+    public func begin(dir: String) {
+        let root = home + "/.claude-accounts/"
+        if !dir.hasPrefix(root), !store.settings.extraDirs.contains(dir) {
+            store.settings.extraDirs.append(dir)
+        }
+        pendingDir = dir
+        status = "Run the command below in a terminal and sign in; Brow picks the account up automatically."
+        startPolling(dir: dir)
+    }
+
     public func begin(folderName: String, claudePath: String) {
         guard let dir = Self.accountDir(forName: folderName, home: home) else {
             status = "Folder name must be a single path component and must not start with a dot"
@@ -55,6 +104,10 @@ public final class AddAccountFlow: ObservableObject {
             return
         }
         status = "Waiting for sign-in in Terminal…"
+        startPolling(dir: dir)
+    }
+
+    private func startPolling(dir: String) {
         pollTask?.cancel()
         pollTask = Task { [weak self, home] in
             let deadline = Date().addingTimeInterval(Self.pollLimit)
@@ -87,6 +140,7 @@ public final class AddAccountFlow: ObservableObject {
                     self.status = known.contains(found.id)
                         ? "Same account as \(found.name) — folder recorded as an alias"
                         : "Added \(found.name)"
+                    self.pendingDir = nil
                     return
                 }
                 // The dir carries an organizationUuid but the scan did not surface it:

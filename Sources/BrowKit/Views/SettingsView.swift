@@ -7,7 +7,6 @@ public struct SettingsView: View {
     /// Names typed but not committed yet. Held outside the view tree so closing the
     /// window cannot discard them — see `SettingsDrafts`.
     let drafts: SettingsDrafts
-    @State private var newFolder = ""
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     public init(store: LimitsStore, addFlow: AddAccountFlow, drafts: SettingsDrafts) {
@@ -61,18 +60,41 @@ public struct SettingsView: View {
                             get: { !store.settings.isHidden(row.id) },
                             set: { store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].hidden = !$0 }))
                         Spacer()
+                        // The command to run Claude Code as this account. Copying is the
+                        // primary action — it works in any terminal the user already has
+                        // open; "Open in Terminal" is the shortcut.
+                        Button {
+                            AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
+                        } label: { Label("Copy command", systemImage: "doc.on.doc") }
+                            .help(AddAccountFlow.launchCommand(dir: row.account.configDir))
                         Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: row.account.configDir, claudePath: claudePath) }
                     }
                 }
             }
-            Section("Add account") {
+            Section {
                 HStack {
-                    TextField("Folder name (e.g. work)", text: $newFolder)
-                    Button("Add…") { addFlow.begin(folderName: newFolder, claudePath: claudePath); newFolder = "" }
-                        .disabled(newFolder.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Text("Add an account").font(.headline)
+                    Spacer()
+                    // A folder picker, not a name field: pick or create the folder the new
+                    // account's Claude Code config will live in (default: ~/.claude-accounts).
+                    Button {
+                        if let dir = addFlow.chooseFolder() { addFlow.begin(dir: dir) }
+                    } label: { Label("Add…", systemImage: "plus") }
                 }
-                Text("Opens Terminal with `claude auth login` for a new folder under ~/.claude-accounts. Sign-in happens in Anthropic's own flow; Brow never sees your password.")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let dir = addFlow.pendingDir {
+                    let command = AddAccountFlow.launchCommand(dir: dir)
+                    Text("Run this in a terminal and sign in; Brow picks the account up automatically:")
+                        .font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Text(command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                        Spacer()
+                        Button { AddAccountFlow.copyToPasteboard(command) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                        Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: dir, claudePath: claudePath) }
+                    }
+                } else {
+                    Text("Sign-in happens in Anthropic's own flow (`claude` in the chosen folder); Brow never sees your password.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if let s = addFlow.status { Text(s).font(.caption) }
             }
             Section {

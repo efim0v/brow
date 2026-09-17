@@ -123,6 +123,12 @@ public final class LimitsStore: ObservableObject {
     @Published public private(set) var keychainState: KeychainState = .ok
     /// Network reachability as `RefreshTriggers`' path monitor sees it.
     @Published public private(set) var isOnline = true
+    /// When the forced refresh the user asked for will actually be sent, while the
+    /// endpoint's rate limit holds it back; nil when nothing is queued. The footer
+    /// counts down to it and the ⟳ button shows its spinner until then.
+    @Published public private(set) var pendingRetryAt: Date?
+    private var retryTask: Task<Void, Never>?
+    private var retryRounds = 0
     @Published public var settings: BrowSettings {
         didSet {
             do { try deps.settingsStore.save(settings) }
@@ -424,11 +430,12 @@ public final class LimitsStore: ObservableObject {
                         let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
                         return FetchResult(org: account.organizationUuid, snapshot: snap,
                                            error: snap == nil ? "No limit windows in response" : nil,
-                                           token: token, rejected: false)
+                                           token: token, rejected: false, rateLimited: false)
                     } catch {
                         return FetchResult(org: account.organizationUuid, snapshot: nil,
                                            error: Self.errorText(error), token: token,
-                                           rejected: Self.isAuthRejection(error))
+                                           rejected: Self.isAuthRejection(error),
+                                           rateLimited: Self.isRateLimit(error))
                     }
                 }
             }
@@ -447,6 +454,14 @@ public final class LimitsStore: ObservableObject {
             }
         }
         guard cycle == generation else { return }
+        // A forced cycle the rate limit held back re-queues itself for the moment the
+        // client says a request will go through; one that got everything it asked for
+        // clears any countdown.
+        if force {
+            let limited = visible.filter { cycleResults[$0.organizationUuid]?.rateLimited == true }
+            await scheduleRetry(after: limited, now: deps.now())
+            guard cycle == generation else { return }
+        }
         updateFooter()
         persist(visible: visible)
         recompute()
@@ -569,6 +584,52 @@ public final class LimitsStore: ObservableObject {
         let token: TokenRefreshOutcome
         /// The server rejected the bearer (401/403), whatever `expiresAt` claims.
         let rejected: Bool
+        /// The endpoint's rate limit (a 429, or the client's own pacing) held this
+        /// request back. A forced cycle re-queues itself for these — see `scheduleRetry`.
+        let rateLimited: Bool
+    }
+
+    /// How many times a forced refresh re-queues itself behind the rate limit before
+    /// it gives up and leaves the row's error where the user can read it.
+    static let maxRetryRounds = 3
+
+    nonisolated static func isRateLimit(_ error: Error) -> Bool {
+        switch error {
+        case OAuthUsageError.tooManyRequests, OAuthUsageError.backoff: return true
+        default: return false
+        }
+    }
+
+    /// A forced refresh that the endpoint held back is not over: it is queued for the
+    /// instant the client says a request will go through, and the footer counts down
+    /// to it. That is what makes ⟳ "work" under a rate limit — it can neither punch
+    /// through the window (that earns a longer one) nor silently do nothing.
+    private func scheduleRetry(after limited: [DiscoveredAccount], now: Date) async {
+        guard !limited.isEmpty, retryRounds < Self.maxRetryRounds else {
+            clearRetry()
+            return
+        }
+        var earliest: Date?
+        for account in limited {
+            let at = await deps.client.nextAllowedAt(configDir: account.configDir, force: true, now: now)
+            earliest = earliest.map { min($0, at) } ?? at
+        }
+        guard let retryAt = earliest else { clearRetry(); return }
+        retryRounds += 1
+        pendingRetryAt = retryAt
+        retryTask?.cancel()
+        retryTask = Task { [weak self, deps] in
+            await deps.sleep(max(0.5, retryAt.timeIntervalSince(now)))
+            guard !Task.isCancelled, let self else { return }
+            await self.refresh(force: true)
+        }
+    }
+
+    private func clearRetry() {
+        retryTask?.cancel()
+        retryTask = nil
+        retryRounds = 0
+        if pendingRetryAt != nil { pendingRetryAt = nil }
     }
 
     private enum CyclePhase: Sendable, Equatable {

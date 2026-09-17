@@ -86,8 +86,11 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                  isOnline: { [online] in online.current },
                                  stateDirectory: BrowSettingsStore.defaultDirectory)
         // `userAgent: nil` — Brow sends no `claude-code/…` User-Agent (spec, Risks).
+        // Pacing measured against the live endpoint (OAuthUsageClient, `minInterval`):
+        // one reading per ~100 s per account, a burst of five for the refresh button.
         let client = OAuthUsageClient(fetcher: URLSessionUsageFetcher(), userAgent: nil,
-                                      cacheSeconds: 30, backoffCap: 300, credentials: credentials)
+                                      cacheSeconds: 30, backoffCap: 300, minInterval: 100, burstCapacity: 5,
+                                      credentials: credentials)
         let store = LimitsStore(deps: .init(directory: AccountDirectory(credentials: credentials),
                                             keeper: keeper, client: client,
                                             snapshotStore: LimitSnapshotStore(), settingsStore: settingsStore,

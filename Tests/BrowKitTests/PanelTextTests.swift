@@ -84,4 +84,18 @@ final class PanelTextTests: XCTestCase {
         let ear = EarReadout(usedPercentage: 27.4, modelInitial: nil, severity: .ok, stale: false)
         XCTAssertEqual(PanelText.earsText(ear, hasData: true), "27%")
     }
+
+    /// A refresh queued behind the rate limit says WHEN, in place of the bare error;
+    /// the age keeps its slot in front of it.
+    func testFooterCountsDownToAQueuedRefresh() {
+        let t0 = Date(timeIntervalSince1970: 1_758_000_000)
+        let twoMinutesAgo = t0.addingTimeInterval(-120)
+        XCTAssertEqual(PanelText.footer(dataAsOf: twoMinutesAgo, error: "Rate limited — waiting to retry",
+                                        retryAt: t0.addingTimeInterval(47), now: t0),
+                       "Updated 2 min ago · retrying in 47 s")
+        XCTAssertEqual(PanelText.footer(dataAsOf: nil, error: nil, retryAt: t0.addingTimeInterval(0.2), now: t0),
+                       "No data yet · retrying in 1 s")
+        XCTAssertEqual(PanelText.footer(dataAsOf: twoMinutesAgo, error: nil, retryAt: t0.addingTimeInterval(-5), now: t0),
+                       "Updated 2 min ago · retrying in 0 s", "a countdown never goes negative")
+    }
 }

@@ -132,7 +132,8 @@ public struct PanelView: View {
                 if store.panelError != nil {
                     Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
                 }
-                Text(PanelText.footer(dataAsOf: store.dataAsOf, error: store.panelError, now: clock.now))
+                Text(PanelText.footer(dataAsOf: store.dataAsOf, error: store.panelError,
+                                      retryAt: store.pendingRetryAt, now: clock.now))
                     .font(.system(size: 10)).monospacedDigit().lineLimit(1)
                     .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
@@ -143,14 +144,18 @@ public struct PanelView: View {
             // to fix. `isForcing` is the ONLY gate (spec, The cycle §7): `isRefreshing`
             // is true for every background cycle and must never reach `.disabled`.
             // Pinned by PanelRefreshGateTests.
+            // A refresh queued behind the rate limit (`pendingRetryAt`) is a forced
+            // refresh that has not finished: same spinner, same gate, and the footer
+            // says when it will go out.
+            let busy = store.isForcing || store.pendingRetryAt != nil
             Button(action: onRefresh) {
                 ZStack {
-                    Image(systemName: "arrow.clockwise").opacity(store.isForcing ? 0 : 1)
-                    if store.isForcing { ProgressView().controlSize(.mini) }
+                    Image(systemName: "arrow.clockwise").opacity(busy ? 0 : 1)
+                    if busy { ProgressView().controlSize(.mini) }
                 }
                 .frame(width: 20, height: 20).contentShape(Rectangle())
             }
-            .buttonStyle(.plain).disabled(store.isForcing).help("Refresh now")
+            .buttonStyle(.plain).disabled(busy).help("Refresh now")
             Button(action: onSettings) { Image(systemName: "gearshape").frame(width: 20, height: 20).contentShape(Rectangle()) }
                 .buttonStyle(.plain).help("Settings")
         }

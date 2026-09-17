@@ -23,6 +23,13 @@ public struct EarsView: View {
 
     public var body: some View {
         content
+            // The frame `NotchPanelController` proposes IS the notch, and `.background`
+            // paints behind whatever `content` *measures*, not behind the proposal. Without
+            // this, the `beside` branch (an HStack of Texts nothing pins to a height) took
+            // its intrinsic ~15 pt and was centred, so the black strip was drawn 15 pt tall
+            // floating 8.5 pt below the screen edge — the pill the same way. `below` was
+            // immune only because its VStack pins both children explicitly.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(background)
     }
 

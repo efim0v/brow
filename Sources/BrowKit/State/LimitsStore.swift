@@ -39,22 +39,52 @@ public final class LimitsStore: ObservableObject {
         public var snapshotStore: LimitSnapshotStore
         public var settingsStore: BrowSettingsStore
         public var now: @Sendable () -> Date
+        /// The cycle's two deadlines (watchdog, Keychain patience) go through here so
+        /// tests reach 240 s and 5 s in microseconds and never sleep for real.
+        public var sleep: @Sendable (TimeInterval) async -> Void
         public init(directory: AccountDirectory, keeper: TokenKeeper, client: OAuthUsageClient,
                     snapshotStore: LimitSnapshotStore, settingsStore: BrowSettingsStore,
-                    now: @escaping @Sendable () -> Date) {
+                    now: @escaping @Sendable () -> Date,
+                    sleep: @escaping @Sendable (TimeInterval) async -> Void = Dependencies.realSleep) {
             self.directory = directory; self.keeper = keeper; self.client = client
             self.snapshotStore = snapshotStore; self.settingsStore = settingsStore; self.now = now
+            self.sleep = sleep
+        }
+
+        /// Cancellation is how the winner of a race stops the loser, and it is not a
+        /// failure: the deadline simply stops mattering.
+        public static let realSleep: @Sendable (TimeInterval) async -> Void = { seconds in
+            try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
         }
     }
 
+    /// What the Keychain is doing to us right now. Three states, not a flag: "still
+    /// waiting for the prompt" and "the prompt was refused" are different problems with
+    /// different fixes, and neither of them is "this account has no token".
+    public enum KeychainState: Sendable, Equatable { case ok, waiting, denied }
+
+    /// A cycle still running after this is abandoned (spec, The cycle §1).
+    public static let cycleWatchdog: TimeInterval = 240
+    /// How long a cycle waits for `AccountDirectory.scan` before carrying on with the
+    /// accounts it already knows (spec, The cycle §3).
+    public static let keychainPatience: TimeInterval = 5
+
+    static let waitingMessage = "Waiting for Keychain access…"
+    static let deniedMessage = "Keychain access denied — grant it in Keychain Access"
+    static let timedOutMessage = "Refresh timed out"
+
+    // The four derived values are published BY HAND (`recompute`), not with `@Published`:
+    // the 5 s staleness ticker recomputes all four on every tick, and a per-property
+    // publisher would send one notification per assignment — three per changed tick and
+    // one per unchanged one — while the panel re-renders on every notification.
     /// Visible accounts only — what the ears and the panel show.
-    @Published public private(set) var rows: [AccountRow] = []
+    public private(set) var rows: [AccountRow] = []
     /// Every discovered account, hidden ones included. Settings lists these, so a
     /// hidden account can be un-hidden again.
-    @Published public private(set) var allRows: [AccountRow] = []
-    @Published public private(set) var aggregate: LimitsAggregate
+    public private(set) var allRows: [AccountRow] = []
+    public private(set) var aggregate: LimitsAggregate
     /// Newest `fetchedAt` across visible accounts; nil until any fetch succeeded.
-    @Published public private(set) var dataAsOf: Date?
+    public private(set) var dataAsOf: Date?
     /// Set only when NO visible account succeeded in the last cycle.
     @Published public private(set) var footerError: String?
     /// A configuration problem that no fetch can fix — today only "`claude` not
@@ -70,6 +100,11 @@ public final class LimitsStore: ObservableObject {
     /// A FORCED fetch is running. The spec's spinner rule (design.md) is about this
     /// one only — a background poll must not take the refresh button away.
     @Published public private(set) var isForcing = false
+    /// What the last scan learned about the Keychain. Drives the account rows' token
+    /// slot and, when no account can fetch, the footer.
+    @Published public private(set) var keychainState: KeychainState = .ok
+    /// Network reachability as `RefreshTriggers`' path monitor sees it.
+    @Published public private(set) var isOnline = true
     @Published public var settings: BrowSettings {
         didSet {
             do { try deps.settingsStore.save(settings) }
@@ -106,17 +141,31 @@ public final class LimitsStore: ObservableObject {
     /// Bumped at the top of every cycle; a cycle whose generation has moved on drops
     /// its results instead of writing them.
     private var generation = 0
+    /// Accounts the server answered 401/403 for. The NEXT cycle spends one forced
+    /// refresh attempt on them (spec, The cycle §4) and the flag is cleared there.
+    private var authRejected: [String: Bool] = [:]
+    /// What the cycle currently in flight has heard back, keyed by organisation. Reset
+    /// at the top of each cycle; the footer is computed from it in DISCOVERY order.
+    private var cycleResults: [String: FetchResult] = [:]
+    /// What the cycle is waiting on, for the watchdog's log line.
+    private var phase: CyclePhase = .idle
 
     /// NO I/O beyond the persisted snapshot file: `AccountDirectory.scan` reads one
     /// Keychain item per config dir, and on a new bundle id macOS puts a modal prompt
     /// in front of each one. Doing that here parked the main thread before the panel
     /// existed — no ears, no footer error slot, no working Cmd-Q. Discovery happens in
     /// `bootstrap()`, after the first frame is on screen.
+    ///
+    /// The accounts saved beside the snapshots ARE read here: they cost no Keychain
+    /// access, and without them the first frame has numbers it cannot label, so the
+    /// panel came up blank until the scan returned (spec, The cycle §5).
     public init(deps: Dependencies) {
         self.deps = deps
         self.settings = deps.settingsStore.load()
-        self.snapshots = deps.snapshotStore.load()
+        let file = deps.snapshotStore.loadFile()
+        self.snapshots = file.snapshots
         self.aggregate = LimitsAggregate.compute(accounts: [], snapshots: [:], now: deps.now())
+        self.accounts = file.accounts.sorted { $0.order < $1.order }.map(\.discovered)
         recompute()
     }
 
@@ -125,9 +174,21 @@ public final class LimitsStore: ObservableObject {
     /// user who can see the app they belong to.
     public func bootstrap() async {
         let discovered = await Self.scan(deps.directory, extraDirs: settings.extraDirs)
-        accounts = discovered
-        recompute()
+        applyScan(discovered)
         BrowLog.limits.info("discovered \(discovered.count, privacy: .public) account(s)")
+    }
+
+    /// The clock-driven half of freshness: ages, the stale flag and the grey dot follow
+    /// the 5 s ticker, with no network and no Keychain. Publishes only when something
+    /// actually moved, so a panel that is up all day re-renders when the numbers change
+    /// and not twelve times a minute (spec, The cycle §6).
+    public func tick() { recompute() }
+
+    /// Reachability, pushed in by `RefreshTriggers`' path monitor.
+    public func markOnline(_ online: Bool) {
+        guard online != isOnline else { return }
+        isOnline = online
+        BrowLog.limits.info("network is \(online ? "up" : "down", privacy: .public)")
     }
 
     /// The `claude` binary could not be found (or the configured path is wrong).
@@ -170,36 +231,85 @@ public final class LimitsStore: ObservableObject {
 
     /// `AccountDirectory.scan` blocks on the Keychain; it must never run on the main
     /// actor, where a modal prompt would freeze the whole UI.
-    private static func scan(_ directory: AccountDirectory, extraDirs: [String]) async -> [DiscoveredAccount] {
-        await Task.detached { directory.scan(extraDirs: extraDirs) }.value
+    private static func scanTask(_ directory: AccountDirectory, extraDirs: [String]) -> Task<[DiscoveredAccount], Never> {
+        Task.detached { directory.scan(extraDirs: extraDirs) }
     }
 
+    private static func scan(_ directory: AccountDirectory, extraDirs: [String]) async -> [DiscoveredAccount] {
+        await scanTask(directory, extraDirs: extraDirs).value
+    }
+
+    /// One bounded cycle. The body runs as its own task and is raced against the
+    /// watchdog; when the watchdog wins, the generation is retired (everything the body
+    /// still writes is dropped), the flags come off and the footer says so. The body is
+    /// NOT cancelled: a `claude doctor` we cannot interrupt safely is left to unwind on
+    /// its own, it simply stops being able to speak for the app.
     private func runCycle(force: Bool) async {
         generation += 1
         let cycle = generation
         isRefreshing = true
         if force { isForcing = true }
-        defer {
-            isRefreshing = false
-            if force { isForcing = false }
+        phase = .scanning
+        let body = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.cycleBody(cycle: cycle, force: force)
         }
-        accounts = await Self.scan(deps.directory, extraDirs: settings.extraDirs)
-        guard cycle == generation else { return }
+        if await firstResult(of: body, within: Self.cycleWatchdog) == nil {
+            BrowLog.limits.error("""
+                refresh timed out after \(Self.cycleWatchdog, privacy: .public) s, \
+                waiting on \(self.phase.text, privacy: .public)
+                """)
+            generation += 1                     // retire it: its late writes are dropped
+            setFooterError(Self.timedOutMessage)
+        }
+        phase = .idle
+        isRefreshing = false
+        if force { isForcing = false }
+    }
+
+    private func cycleBody(cycle: Int, force: Bool) async {
+        // 1. Discovery. The Keychain can hold this behind a modal prompt for minutes;
+        //    after `keychainPatience` the cycle says so and carries on with what it has.
+        let scan = Self.scanTask(deps.directory, extraDirs: settings.extraDirs)
+        if let scanned = await firstResult(of: scan, within: Self.keychainPatience) {
+            guard cycle == generation else { return }
+            applyScan(scanned)
+        } else {
+            guard cycle == generation else { return }
+            setKeychainState(.waiting)
+            setFooterError(Self.waitingMessage)
+            BrowLog.limits.error("""
+                account scan still blocked after \(Self.keychainPatience, privacy: .public) s — \
+                continuing with \(self.accounts.count, privacy: .public) known account(s)
+                """)
+            // Not abandoned: when the Keychain finally answers, the result is applied
+            // (if this cycle is still the current one) and the message goes.
+            Task { @MainActor [weak self] in
+                let late = await scan.value
+                guard let self, cycle == self.generation else { return }
+                self.applyScan(late)
+                self.updateFooter()
+            }
+        }
         // The rows (names, tiers, persisted values with their real age) are worth
         // showing before the network answers.
         recompute()
-        let visible = accounts.filter { !settings.isHidden($0.organizationUuid) }
 
-        struct FetchResult: Sendable {
-            let org: String
-            let snapshot: LimitSnapshot?
-            let error: String?
-            let token: TokenRefreshOutcome
-        }
-        let results = await withTaskGroup(of: FetchResult.self, returning: [String: FetchResult].self) { group in
+        // 2. Fetch. Every account's result is applied the moment it lands: one
+        //    account's `doctor` (90 s) plus `-p` (120 s) must not hold another
+        //    account's number off the screen.
+        let visible = accounts.filter { !settings.isHidden($0.organizationUuid) }
+        let rejected = authRejected
+        authRejected.removeAll()
+        cycleResults = [:]
+        var outstanding = visible.map(\.organizationUuid)
+        phase = .fetching(outstanding)
+        await withTaskGroup(of: FetchResult.self) { group in
             for account in visible {
+                let forceAttempt = rejected[account.organizationUuid] ?? false
                 group.addTask { [deps] in
-                    let token = await deps.keeper.ensureFresh(configDir: account.configDir)
+                    let token = await deps.keeper.ensureFresh(configDir: account.configDir,
+                                                              authRejected: forceAttempt)
                     // Sampled AFTER the token work: `claude doctor` (90 s) plus
                     // `claude -p` (120 s) can sit between the top of the cycle and
                     // this request, and the reading must be stamped with the instant
@@ -209,42 +319,116 @@ public final class LimitsStore: ObservableObject {
                         let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
                         let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
                         return FetchResult(org: account.organizationUuid, snapshot: snap,
-                                           error: snap == nil ? "No limit windows in response" : nil, token: token)
+                                           error: snap == nil ? "No limit windows in response" : nil,
+                                           token: token, rejected: false)
                     } catch {
                         return FetchResult(org: account.organizationUuid, snapshot: nil,
-                                           error: Self.errorText(error), token: token)
+                                           error: Self.errorText(error), token: token,
+                                           rejected: Self.isAuthRejection(error))
                     }
                 }
             }
-            var out: [String: FetchResult] = [:]
-            for await r in group { out[r.org] = r }
-            return out
-        }
-        // A superseded cycle drops its whole result set rather than writing older
-        // numbers over newer ones.
-        guard cycle == generation else { return }
-
-        var anySucceeded = false
-        var firstError: String?
-        // Discovery order, not completion order: the footer must not flip between
-        // two accounts' errors from one cycle to the next.
-        for account in visible {
-            guard let r = results[account.organizationUuid] else { continue }
-            tokenOutcome[r.org] = r.token
-            if let snap = r.snapshot {
-                snapshots[r.org] = snap
-                lastError[r.org] = nil
-                anySucceeded = true
-            } else {
-                lastError[r.org] = r.error
-                if firstError == nil { firstError = r.error }
-                BrowLog.limits.error("fetch failed for \(r.org, privacy: .public): \(r.error ?? "?", privacy: .public)")
+            for await result in group {
+                // A superseded cycle drops the rest of its results rather than writing
+                // older numbers over newer ones.
+                guard cycle == generation else { continue }
+                apply(result)
+                outstanding.removeAll { $0 == result.org }
+                phase = .fetching(outstanding)
+                // Errors wait for the end of the cycle — an account that failed while
+                // another is still out is not yet "nothing worked". A success is
+                // published immediately, message and all.
+                if result.snapshot != nil { updateFooter() }
+                recompute()
             }
         }
-        setFooterError(anySucceeded ? nil : firstError)
-        do { try deps.snapshotStore.save(snapshots) }
-        catch { BrowLog.limits.error("snapshot save failed: \(String(describing: error), privacy: .public)") }
+        guard cycle == generation else { return }
+        updateFooter()
+        persist(visible: visible)
         recompute()
+    }
+
+    /// One account's answer, as it lands.
+    private func apply(_ result: FetchResult) {
+        cycleResults[result.org] = result
+        tokenOutcome[result.org] = result.token
+        if let snapshot = result.snapshot {
+            snapshots[result.org] = snapshot
+            lastError[result.org] = nil
+        } else {
+            lastError[result.org] = result.error
+            BrowLog.limits.error("fetch failed for \(result.org, privacy: .public): \(result.error ?? "?", privacy: .public)")
+        }
+        // 401/403 is the server's word on the token and it outranks `expiresAt`: the
+        // next cycle spends one forced refresh attempt on this account.
+        if result.rejected { authRejected[result.org] = true }
+    }
+
+    /// The scan's answer, whenever it arrives. The Keychain verdict is read off the
+    /// tokens: a scan that came back empty-handed for every account that HAD a token is
+    /// the Keychain refusing us, not every account signing out at once.
+    private func applyScan(_ scanned: [DiscoveredAccount]) {
+        let hadTokens = accounts.filter { $0.tokenExpiresAt != nil }
+        let lost = hadTokens.filter { previous in
+            guard let now = scanned.first(where: { $0.organizationUuid == previous.organizationUuid })
+            else { return false }               // gone from disk is not "denied"
+            return now.tokenExpiresAt == nil
+        }
+        accounts = scanned
+        setKeychainState(!hadTokens.isEmpty && lost.count == hadTokens.count ? .denied : .ok)
+        recompute()
+    }
+
+    /// The accounts go to disk WITH the snapshots: without them the first frame after a
+    /// relaunch has numbers it cannot label (spec, The cycle §5).
+    private func persist(visible: [DiscoveredAccount]) {
+        // A cycle that discovered nothing must not erase the seed — it is the only
+        // reason the next launch has anything to show.
+        let stored = visible.isEmpty
+            ? deps.snapshotStore.loadFile().accounts
+            : visible.enumerated().map { PersistedAccount(from: $1, order: $0) }
+        do { try deps.snapshotStore.saveFile(LimitsFile(snapshots: snapshots, accounts: stored)) }
+        catch { BrowLog.limits.error("snapshot save failed: \(String(describing: error), privacy: .public)") }
+    }
+
+    /// The one footer line for the state we are in right now. A Keychain problem
+    /// outranks a fetch error (it is the cause of it), and any account that answered
+    /// takes the whole line back off the screen.
+    private func updateFooter() {
+        let visible = accounts.filter { !settings.isHidden($0.organizationUuid) }
+        if visible.contains(where: { cycleResults[$0.organizationUuid]?.snapshot != nil }) {
+            setFooterError(nil)
+            return
+        }
+        switch keychainState {
+        case .waiting: setFooterError(Self.waitingMessage)
+        case .denied:  setFooterError(Self.deniedMessage)
+        // Discovery order, not completion order: the footer must not flip between two
+        // accounts' errors from one cycle to the next.
+        case .ok:      setFooterError(visible.compactMap { cycleResults[$0.organizationUuid]?.error }.first)
+        }
+    }
+
+    /// Races `work` against `deps.sleep(seconds)` and returns whichever came first —
+    /// nil when the clock won. Cancelling the LOSER never cancels `work` itself: a
+    /// timed-out cycle keeps running (its writes gated by `cycle == generation`), and a
+    /// blocked Keychain read cannot be interrupted at all.
+    private func firstResult<T: Sendable>(of work: Task<T, Never>, within seconds: TimeInterval) async -> T? {
+        // `bufferingOldest(1)`, so a work task and a deadline that land in the same
+        // instant still resolve as "the work got there first".
+        let (stream, continuation) = AsyncStream<T?>.makeStream(of: T?.self, bufferingPolicy: .bufferingOldest(1))
+        let watcher = Task { continuation.yield(await work.value) }
+        let deadline = Task { [deps] in
+            await deps.sleep(seconds)
+            continuation.yield(nil)
+        }
+        defer {
+            watcher.cancel()
+            deadline.cancel()
+            continuation.finish()
+        }
+        for await first in stream { return first }
+        return nil
     }
 
     private func setFooterError(_ text: String?) {
@@ -252,13 +436,60 @@ public final class LimitsStore: ObservableObject {
         footerError = text
     }
 
+    private func setKeychainState(_ state: KeychainState) {
+        guard state != keychainState else { return }
+        keychainState = state
+        if state != .ok {
+            BrowLog.limits.error("keychain state: \(String(describing: state), privacy: .public)")
+        }
+        recompute()                             // every row's token slot follows this
+    }
+
+    private struct FetchResult: Sendable {
+        let org: String
+        let snapshot: LimitSnapshot?
+        let error: String?
+        let token: TokenRefreshOutcome
+        /// The server rejected the bearer (401/403), whatever `expiresAt` claims.
+        let rejected: Bool
+    }
+
+    private enum CyclePhase: Sendable, Equatable {
+        case idle
+        case scanning
+        case fetching([String])
+        var text: String {
+            switch self {
+            case .idle: return "nothing"
+            case .scanning: return "the account scan"
+            case .fetching(let orgs):
+                return orgs.isEmpty ? "the last results" : "fetches for \(orgs.joined(separator: ", "))"
+            }
+        }
+    }
+
+    nonisolated static func isAuthRejection(_ error: Error) -> Bool {
+        guard let usage = error as? OAuthUsageError else { return false }
+        return usage == .http(401) || usage == .http(403)
+    }
+
+    /// Recomputes the four derived values and publishes ONCE, only if one of them
+    /// moved. Called on every 5 s tick as well as on every landed result, so "nothing
+    /// changed" has to cost nothing.
     private func recompute() {
         let now = deps.now()
         let visible = accounts.filter { !settings.isHidden($0.organizationUuid) }
-        rows = visible.map { row(for: $0, now: now) }
-        allRows = accounts.map { row(for: $0, now: now) }
-        aggregate = LimitsAggregate.compute(accounts: visible, snapshots: snapshots, now: now)
-        dataAsOf = visible.compactMap { snapshots[$0.organizationUuid]?.fetchedAt }.max()
+        let newRows = visible.map { row(for: $0, now: now) }
+        let newAllRows = accounts.map { row(for: $0, now: now) }
+        let newAggregate = LimitsAggregate.compute(accounts: visible, snapshots: snapshots, now: now)
+        let newDataAsOf = visible.compactMap { snapshots[$0.organizationUuid]?.fetchedAt }.max()
+        guard newRows != rows || newAllRows != allRows
+                || newAggregate != aggregate || newDataAsOf != dataAsOf else { return }
+        objectWillChange.send()
+        rows = newRows
+        allRows = newAllRows
+        aggregate = newAggregate
+        dataAsOf = newDataAsOf
     }
 
     private func row(for account: DiscoveredAccount, now: Date) -> AccountRow {
@@ -270,15 +501,25 @@ public final class LimitsStore: ObservableObject {
         return AccountRow(account: account, name: settings.displayName(for: account),
                           snapshot: snap, status: status,
                           tokenStatus: Self.tokenStatus(account, outcome: tokenOutcome[account.organizationUuid],
-                                                        error: lastError[account.organizationUuid], now: now))
+                                                        error: lastError[account.organizationUuid],
+                                                        keychain: keychainState, now: now))
     }
 
-    /// The account row's token slot. "no token" comes FIRST: when the Keychain
+    /// The account row's token slot. The missing token comes FIRST: when the Keychain
     /// gives us nothing, that — not the refresh attempt it made impossible — is
-    /// what the user has to fix (spec, Error handling table).
+    /// what the user has to fix (spec, Error handling table). And WHY it gave us
+    /// nothing decides what the user can do about it: a prompt that has not been
+    /// answered yet, a prompt that was refused, and an account that really has no
+    /// token are three different problems.
     nonisolated static func tokenStatus(_ account: DiscoveredAccount, outcome: TokenRefreshOutcome?,
-                                        error: String?, now: Date) -> String {
-        guard let exp = account.tokenExpiresAt else { return "no token" }
+                                        error: String?, keychain: KeychainState = .ok, now: Date) -> String {
+        guard let exp = account.tokenExpiresAt else {
+            switch keychain {
+            case .waiting: return "waiting for Keychain access"
+            case .denied:  return "Keychain access denied"
+            case .ok:      return "no token"
+            }
+        }
         if error == "Claude sign-in expired" { return "sign-in revoked" }
         switch outcome {
         case .refreshedByDoctor?: return "refreshing (doctor)"
@@ -288,6 +529,11 @@ public final class LimitsStore: ObservableObject {
         // branch made an 18-day-dead token read "fresh · 0 min" for the rest of every
         // throttle window, one cycle after the honest failure.
         case .skippedRateLimited?: return "token refresh failed (retrying)"
+        // Neither of these is evidence about the token either: the CLI never ran. The
+        // fresh branch would have called a dead token healthy for as long as the
+        // network (or the `claude` path) stayed broken.
+        case .skippedOffline?: return "offline"
+        case .couldNotAttempt(let why)?: return "token refresh not attempted: \(why)"
         default: break
         }
         guard exp > now else { return "expired \(Formatting.age(exp, now: now))" }

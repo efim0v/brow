@@ -1,9 +1,13 @@
+import Combine
 import XCTest
 import GroveCore
 @testable import BrowKit
 
 @MainActor
 final class LimitsStoreTests: XCTestCase {
+    /// `sink` cannot mutate a captured local, and the count has to survive the closure.
+    private final class Counter { var value = 0 }
+
     private var home: URL!
     private var appDir: String!
     private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
@@ -30,23 +34,94 @@ final class LimitsStoreTests: XCTestCase {
         private let lock = NSLock()
         private var scripted: [String: (Data, Int)] = [:]   // bearer → response
         private var recorded: [String] = []
+        /// Bearers whose NEXT request parks until `releaseAll()`. One account's fetch is
+        /// held while the other lands (per-account publication), and a whole cycle is
+        /// hung on it for the watchdog.
+        private var heldBearers: Set<String> = []
+        private var parked: [CheckedContinuation<Void, Never>] = []
         var responses: [String: (Data, Int)] {
             get { lock.withLock { scripted } }
             set { lock.withLock { scripted = newValue } }
         }
         var calls: [String] { lock.withLock { recorded } }
+        /// Requests sitting in the gate right now — what a test waits on before it
+        /// asserts "this cycle is still out".
+        var parkedCalls: Int { lock.withLock { parked.count } }
+
+        func holdNextCall(for bearer: String) { lock.withLock { _ = heldBearers.insert(bearer) } }
+
+        /// Lets every parked request through and disarms the gate. Every test that holds
+        /// one calls this: a continuation destroyed without a resume prints a runtime
+        /// "leaked its continuation" warning and the output stops being pristine.
+        func releaseAll() {
+            let waiting = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+                heldBearers.removeAll()
+                let all = parked
+                parked = []
+                return all
+            }
+            waiting.forEach { $0.resume() }
+        }
+
         func fetch(_ request: URLRequest) async throws -> (Data, Int) {
             let bearer = request.value(forHTTPHeaderField: "Authorization") ?? ""
-            return lock.withLock {
+            // The answer is picked the moment the request goes out, not when the gate
+            // opens: a held call has to come back with what the server would have said
+            // then, which is what makes "a late result must not overwrite a newer one"
+            // observable at all.
+            let (park, response) = lock.withLock { () -> (Bool, (Data, Int)) in
                 recorded.append(bearer)
-                return scripted[bearer] ?? (Data("{}".utf8), 500)
+                return (heldBearers.remove(bearer) != nil, scripted[bearer] ?? (Data("{}".utf8), 500))
             }
+            if park {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    lock.withLock { parked.append(continuation) }
+                }
+            }
+            return response
+        }
+    }
+
+    /// Drives `LimitsStore.Dependencies.sleep`: every sleeper parks until the test fires
+    /// its exact interval, so the 240 s watchdog and the 5 s Keychain patience are
+    /// reached in microseconds and no test depends on the wall clock.
+    private final class Sleeper: @unchecked Sendable {
+        private let lock = NSLock()
+        private var waiters: [(seconds: TimeInterval, continuation: CheckedContinuation<Void, Never>)] = []
+
+        var pending: [TimeInterval] { lock.withLock { waiters.map(\.seconds) } }
+
+        var closure: @Sendable (TimeInterval) async -> Void {
+            { [self] seconds in
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    lock.withLock { waiters.append((seconds, continuation)) }
+                }
+            }
+        }
+
+        func fire(_ seconds: TimeInterval) { resume { $0.seconds == seconds } }
+        /// Whatever the test did not fire — an unresumed continuation is a runtime
+        /// warning in the test log.
+        func drain() { resume { _ in true } }
+
+        private func resume(_ matches: ((seconds: TimeInterval, continuation: CheckedContinuation<Void, Never>)) -> Bool) {
+            let hit = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+                let matched = waiters.filter(matches).map(\.continuation)
+                waiters.removeAll(where: matches)
+                return matched
+            }
+            hit.forEach { $0.resume() }
         }
     }
     private final class Creds: CredentialsReading, @unchecked Sendable {
         private let lock = NSLock()
         private var expiries: [String: Date] = [:]
         private var reads = 0
+        /// The real Keychain blocks the calling thread behind a modal prompt; `holdReads`
+        /// reproduces exactly that, synchronously, for the scan's `Task.detached`.
+        private let gate = NSCondition()
+        private var closed = false
+        private var waiting = 0
         var expiry: [String: Date] {
             get { lock.withLock { expiries } }
             set { lock.withLock { expiries = newValue } }
@@ -54,8 +129,21 @@ final class LimitsStoreTests: XCTestCase {
         /// How many times the "Keychain" was really consulted — the count the panel's
         /// prompt behaviour depends on.
         var readCount: Int { lock.withLock { reads } }
+        /// Reads blocked in the gate right now.
+        var parkedReads: Int { gate.lock(); defer { gate.unlock() }; return waiting }
+
+        func holdReads() { gate.lock(); closed = true; gate.unlock() }
+        func releaseReads() { gate.lock(); closed = false; gate.broadcast(); gate.unlock() }
+
         func token(configDir: String) -> ClaudeToken? {
-            lock.withLock {
+            gate.lock()
+            if closed {
+                waiting += 1
+                while closed { gate.wait() }
+                waiting -= 1
+            }
+            gate.unlock()
+            return lock.withLock {
                 reads += 1
                 return expiries[configDir].map { ClaudeToken(value: "tok-\(configDir)", expiresAt: $0) }
             }
@@ -87,15 +175,40 @@ final class LimitsStoreTests: XCTestCase {
         return dir.path
     }
 
-    private func makeStore(fetcher: Fetcher, creds: Creds, runner: CommandRunning = MockRunnerBK(results: [])) -> LimitsStore {
+    private func makeStore(fetcher: Fetcher, creds: Creds, runner: CommandRunning = MockRunnerBK(results: []),
+                           sleeper: Sleeper? = nil) -> LimitsStore {
         let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300, credentials: creds)
         let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
                                  allowPromptFallback: { true }, now: { [clock] in clock.date })
-        return LimitsStore(deps: .init(directory: AccountDirectory(home: home.path, credentials: creds),
-                                       keeper: keeper, client: client,
-                                       snapshotStore: LimitSnapshotStore(directory: appDir),
-                                       settingsStore: BrowSettingsStore(directory: appDir),
-                                       now: { [clock] in clock.date }))
+        var deps = LimitsStore.Dependencies(directory: AccountDirectory(home: home.path, credentials: creds),
+                                            keeper: keeper, client: client,
+                                            snapshotStore: LimitSnapshotStore(directory: appDir),
+                                            settingsStore: BrowSettingsStore(directory: appDir),
+                                            now: { [clock] in clock.date })
+        if let sleeper { deps.sleep = sleeper.closure }
+        return LimitsStore(deps: deps)
+    }
+
+    /// Polls a main-actor condition on the REAL clock (the injected one is frozen by
+    /// design) while the store's tasks run. Every wait has a reason, so a timeout names
+    /// what never happened instead of failing on an assertion three lines later.
+    private func waitUntil(_ what: String, timeout: TimeInterval = 10,
+                           file: StaticString = #filePath, line: UInt = #line,
+                           _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            if Date() > deadline {
+                XCTFail("timed out waiting for \(what)", file: file, line: line)
+                return
+            }
+            try await Task.sleep(nanoseconds: 2_000_000)
+        }
+    }
+
+    /// Gives an abandoned cycle every chance to write before asserting that it did not.
+    private func settle() async {
+        for _ in 0..<10 { await Task.yield() }
+        try? await Task.sleep(nanoseconds: 30_000_000)
     }
 
     override func setUpWithError() throws {
@@ -386,6 +499,238 @@ final class LimitsStoreTests: XCTestCase {
         store.settings.accounts["org-a"] = AccountOverride(name: nil, hidden: true)
         XCTAssertEqual(store.rows.map(\.id), [])
         XCTAssertEqual(store.allRows.map(\.id), ["org-a"])
+    }
+
+    // MARK: - the bounded cycle
+
+    /// A cycle that never comes back must not own the app. After `cycleWatchdog` the
+    /// generation is retired, the flags clear, the footer says so — and the next trigger
+    /// runs a clean cycle whose numbers the abandoned one can no longer overwrite.
+    func testWatchdogAbandonsAHungCycleAndTheNextTriggerStartsFresh() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        let bearer = "Bearer tok-\(a)"
+        fetcher.responses[bearer] = (body(five: 11, seven: 11), 200)
+        let sleeper = Sleeper()
+        addTeardownBlock { sleeper.drain(); fetcher.releaseAll() }
+        let store = makeStore(fetcher: fetcher, creds: creds, sleeper: sleeper)
+
+        fetcher.holdNextCall(for: bearer)
+        let hung = Task { await store.refresh(force: true) }
+        try await waitUntil("the cycle to park in the fetch") { fetcher.parkedCalls == 1 }
+        XCTAssertTrue(store.isRefreshing)
+        XCTAssertTrue(store.isForcing)
+        try await waitUntil("the watchdog to be armed") { sleeper.pending.contains(LimitsStore.cycleWatchdog) }
+        sleeper.fire(LimitsStore.cycleWatchdog)
+        await hung.value
+
+        XCTAssertEqual(store.footerError, "Refresh timed out")
+        XCTAssertFalse(store.isRefreshing, "the abandoned cycle no longer holds the flags")
+        XCTAssertFalse(store.isForcing)
+        XCTAssertNil(store.rows.first?.snapshot, "it published nothing")
+
+        // The next trigger is not queued behind the cycle that timed out.
+        fetcher.responses[bearer] = (body(five: 77, seven: 77), 200)
+        now = t0.addingTimeInterval(60)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 77)
+        XCTAssertNil(store.footerError)
+
+        // The abandoned fetch finally returns: its generation is retired, so its 11 must
+        // not land on top of the 77 the live cycle published.
+        fetcher.releaseAll()
+        try await waitUntil("the abandoned fetch to unwind") { fetcher.parkedCalls == 0 }
+        await settle()
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 77,
+                       "a retired generation writes nothing")
+        XCTAssertEqual(store.dataAsOf, t0.addingTimeInterval(60), "and the age does not walk backwards")
+    }
+
+    /// One account's `doctor`/`-p` can take 210 s; the other account's number must not
+    /// wait for it. Each result is applied the moment it lands.
+    func testResultsArePublishedPerAccountAsTheyLand() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let b = try makeAccount(".claude-accounts/b", org: "org-b", email: "b@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600); creds.expiry[b] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60), 200)
+        fetcher.responses["Bearer tok-\(b)"] = (body(five: 10, seven: 20), 200)
+        addTeardownBlock { fetcher.releaseAll() }
+        let store = makeStore(fetcher: fetcher, creds: creds)
+
+        fetcher.holdNextCall(for: "Bearer tok-\(b)")
+        let cycle = Task { await store.refresh(force: false) }
+        try await waitUntil("account A's number to reach the panel") {
+            store.rows.first { $0.id == "org-a" }?.snapshot != nil
+        }
+        XCTAssertTrue(store.isRefreshing, "B is still out")
+        XCTAssertEqual(store.rows.first { $0.id == "org-a" }?.snapshot?.fiveHour?.usedPercentage, 40)
+        XCTAssertNil(store.rows.first { $0.id == "org-b" }?.snapshot, "B has not landed yet")
+        XCTAssertEqual(store.dataAsOf, t0, "the age counts from the result that DID land")
+
+        fetcher.releaseAll()
+        await cycle.value
+        XCTAssertEqual(store.rows.first { $0.id == "org-b" }?.snapshot?.fiveHour?.usedPercentage, 10)
+        XCTAssertFalse(store.isRefreshing)
+    }
+
+    /// The Keychain can park a scan behind a modal prompt for as long as it likes. After
+    /// `keychainPatience` the cycle says so and carries on with the accounts it already
+    /// knows; when the scan lands, its result is applied and the message goes.
+    func testScanPatienceSurfacesWaitingAndContinuesWithLastAccounts() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60), 200)
+        let sleeper = Sleeper()
+        addTeardownBlock { sleeper.drain(); creds.releaseReads() }
+        let store = makeStore(fetcher: fetcher, creds: creds, sleeper: sleeper)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40)
+        XCTAssertEqual(store.keychainState, .ok)
+
+        creds.holdReads()
+        now = t0.addingTimeInterval(300)
+        let blocked = Task { await store.refresh(force: false) }
+        try await waitUntil("the scan to park in the Keychain") { creds.parkedReads > 0 }
+        try await waitUntil("the patience timer to be armed") { sleeper.pending.contains(LimitsStore.keychainPatience) }
+        sleeper.fire(LimitsStore.keychainPatience)
+        try await waitUntil("the wait to reach the panel") { store.keychainState == .waiting }
+
+        XCTAssertEqual(store.footerError, "Waiting for Keychain access…")
+        XCTAssertEqual(store.rows.map(\.id), ["org-a"], "the cycle continues with the last known accounts")
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40, "with their last numbers")
+
+        creds.releaseReads()
+        await blocked.value
+        try await waitUntil("the late scan to be applied") { store.keychainState == .ok }
+        XCTAssertNil(store.footerError, "the message clears when the scan returns")
+        XCTAssertEqual(store.rows.first?.tokenStatus, "fresh · 55 min")
+    }
+
+    /// A scan that comes back with no token for every account that had one is the
+    /// Keychain refusing us — not every account signing out at once.
+    func testAScanThatLosesEveryTokenReadsAsKeychainDenied() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.keychainState, .ok)
+
+        creds.expiry = [:]                                  // every read now comes back empty
+        now = t0.addingTimeInterval(300)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.keychainState, .denied)
+        XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
+        XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40, "the last numbers stay on screen")
+    }
+
+    /// 401/403 is the server's word on the token and it outranks `expiresAt`: a token
+    /// with five hours of nominal life left still gets one forced `doctor` on the cycle
+    /// after the rejection.
+    func testAuthRejectionForcesAKeeperAttemptNextCycle() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(5 * 3600)
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner)
+
+        await store.refresh(force: false)
+        XCTAssertEqual(store.footerError, "Claude sign-in expired")
+        XCTAssertTrue(runner.invocations.isEmpty, "a token with 5 h of life is not refreshed on its own")
+
+        now = t0.addingTimeInterval(60)
+        await store.refresh(force: true)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "the rejection forced one attempt")
+        XCTAssertEqual(store.rows.first?.tokenStatus, "sign-in revoked")
+    }
+
+    /// The first frame after a relaunch shows the last real numbers, labelled with the
+    /// right account and in the order the user last saw — before the scan's Keychain
+    /// reads have returned anything.
+    func testInitSeedsAccountsFromThePersistedFile() async throws {
+        let old = LimitSnapshot(organizationUuid: "org-a", fetchedAt: t0.addingTimeInterval(-7200),
+                                fiveHour: CapturedWindow(usedPercentage: 33, resetsAt: nil),
+                                sevenDay: nil, weeklyScoped: nil, weeklyScopedModel: nil)
+        let first = DiscoveredAccount(organizationUuid: "org-a", email: "a@x", tier: "default_claude_max_20x",
+                                      configDir: "/dir-a", aliasDirs: [], tokenExpiresAt: t0)
+        let second = DiscoveredAccount(organizationUuid: "org-b", email: "b@x", tier: nil,
+                                       configDir: "/dir-b", aliasDirs: [], tokenExpiresAt: t0)
+        try LimitSnapshotStore(directory: appDir).saveFile(
+            LimitsFile(snapshots: ["org-a": old],
+                       accounts: [PersistedAccount(from: second, order: 1), PersistedAccount(from: first, order: 0)]))
+
+        let creds = Creds()
+        let store = makeStore(fetcher: Fetcher(), creds: creds)
+        XCTAssertEqual(store.rows.map(\.name), ["a@x", "b@x"], "seeded in the persisted display order")
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 33)
+        XCTAssertEqual(store.rows.first?.status, .stale, "with their real age, not a pretend-fresh one")
+        XCTAssertEqual(store.dataAsOf, t0.addingTimeInterval(-7200))
+        XCTAssertEqual(creds.readCount, 0, "the seed costs no Keychain read")
+        XCTAssertEqual(store.rows.first?.tokenStatus, "no token",
+                       "the seed carries no token facts; the scan fills them in")
+    }
+
+    /// The 5 s ticker runs forever. A tick that changes nothing must publish nothing, or
+    /// the panel re-renders twelve times a minute for no reason.
+    func testTickPublishesOnlyOnChange() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.refresh(force: false)
+
+        let counter = Counter()
+        let subscription = store.objectWillChange.sink { _ in counter.value += 1 }
+        defer { subscription.cancel() }
+
+        store.tick(); store.tick(); store.tick()
+        XCTAssertEqual(counter.value, 0, "a frozen clock changes nothing")
+
+        now = t0.addingTimeInterval(LimitSnapshot.staleAfter + 1)
+        store.tick()
+        XCTAssertEqual(counter.value, 1, "the stale flip publishes once")
+        XCTAssertEqual(store.rows.first?.status, .stale)
+        XCTAssertTrue(store.aggregate.stale)
+
+        store.tick()
+        XCTAssertEqual(counter.value, 1, "and nothing more while nothing moves")
+    }
+
+    /// Spec: ⟳ is disabled only while a FORCED fetch is running. A background poll is in
+    /// flight for most of every minute; it must never take the button away.
+    func testIsForcingIsTheOnlyRefreshGate() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        let bearer = "Bearer tok-\(a)"
+        fetcher.responses[bearer] = (body(five: 1, seven: 1), 200)
+        addTeardownBlock { fetcher.releaseAll() }
+        let store = makeStore(fetcher: fetcher, creds: creds)
+
+        fetcher.holdNextCall(for: bearer)
+        let background = Task { await store.refresh(force: false) }
+        try await waitUntil("the background cycle to be out") { fetcher.parkedCalls == 1 }
+        XCTAssertTrue(store.isRefreshing, "a cycle IS running")
+        XCTAssertFalse(store.isForcing, "…and the ⟳ button stays live")
+        fetcher.releaseAll()
+        await background.value
+
+        now = t0.addingTimeInterval(60)
+        fetcher.holdNextCall(for: bearer)
+        let forced = Task { await store.refresh(force: true) }
+        try await waitUntil("the forced cycle to be out") { fetcher.parkedCalls == 1 }
+        XCTAssertTrue(store.isForcing, "only the forced one gates the button")
+        fetcher.releaseAll()
+        await forced.value
+        XCTAssertFalse(store.isForcing)
+        XCTAssertFalse(store.isRefreshing)
     }
 
     func testErrorTextMapping() {

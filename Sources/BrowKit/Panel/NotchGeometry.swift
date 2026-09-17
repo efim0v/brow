@@ -37,6 +37,23 @@ public struct NotchFrames: Sendable, Equatable {
     /// How much of each side of the frame `NotchShape`'s concave flares occupy; 0 for
     /// the pill, which is drawn square.
     public let flare: CGFloat
+    /// The physical notch itself, in screen coordinates; nil without one. The hover
+    /// hot-rect when the readouts are hidden, and the size the outline shrinks to.
+    public let notch: CGRect?
+
+    public init(collapsed: CGRect, expanded: CGRect, hasNotch: Bool, earWidth: CGFloat,
+                placement: EarsPlacement, notchHeight: CGFloat, contentTopInset: CGFloat,
+                flare: CGFloat, notch: CGRect? = nil) {
+        self.collapsed = collapsed
+        self.expanded = expanded
+        self.hasNotch = hasNotch
+        self.earWidth = earWidth
+        self.placement = placement
+        self.notchHeight = notchHeight
+        self.contentTopInset = contentTopInset
+        self.flare = flare
+        self.notch = notch
+    }
 }
 
 /// Pure frame math (Cocoa coordinates: origin bottom-left, y grows upward).
@@ -113,7 +130,8 @@ public enum NotchGeometry {
                                         width: width, height: expandedHeight), in: screen.frame)
             return NotchFrames(collapsed: collapsed, expanded: expanded, hasNotch: true, earWidth: earWidth,
                                placement: placement, notchHeight: notchHeight,
-                               contentTopInset: notchHeight + contentGap, flare: flare)
+                               contentTopInset: notchHeight + contentGap, flare: flare,
+                               notch: CGRect(x: notchMinX, y: top - notchHeight, width: notchWidth, height: notchHeight))
         }
         // No notch: the pill, unchanged and square — `below` has nothing to sit below.
         let midX = screen.frame.midX

@@ -116,6 +116,15 @@ public struct SettingsView: View {
                         } label: { Label("Sign in again", systemImage: "person.badge.key") }
                             .help("Opens Terminal with `claude auth login` for this account; the browser window is this account's own profile.")
                     }
+                    HStack {
+                        Text("Browser profile: signed-in Google/claude.ai sessions persist here, like any Chrome profile.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            AddAccountFlow.openBrowserProfile(dir: row.account.configDir)
+                        } label: { Label("Open browser profile", systemImage: "globe") }
+                            .help("Open this account's own Chrome profile on claude.ai — sign into Google/claude.ai there once and every later `claude auth login` is one click.")
+                    }
                 }
             }
             Section {
@@ -167,6 +176,9 @@ public struct SettingsView: View {
                     catch { BrowLog.panel.error("launch at login: \(error.localizedDescription, privacy: .public)") }
                 }
             Section {
+                Toggle("Show readouts next to the notch", isOn: $store.settings.showEars)
+                Text("Off: nothing is drawn until the pointer reaches the notch itself; the panel then opens with its animation.")
+                    .font(.caption).foregroundStyle(.secondary)
                 // The store writes config.json and publishes on every change, and the
                 // panel re-reads `earsPlacement` on every render — so the strip reshapes
                 // as the segment is clicked, with no relaunch.
@@ -175,6 +187,7 @@ public struct SettingsView: View {
                     Text("Below the notch").tag(EarsPlacement.below)
                 }
                 .pickerStyle(.segmented)
+                .disabled(!store.settings.showEars)
                 Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
                     .font(.caption).foregroundStyle(.secondary)
             }

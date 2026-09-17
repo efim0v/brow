@@ -108,14 +108,21 @@ public final class RefreshTriggers {
     }
 
     /// One path update. Synchronous, and the new state is recorded before anything is
-    /// awaited: a second update arriving while the forced refresh is in flight must
-    /// not see the stale `false` and fire a second forced fetch.
+    /// awaited: a second update arriving while the refresh is in flight must not see
+    /// the stale `false` and fire a second fetch.
+    ///
+    /// The down → up edge polls, it does not FORCE: `NWPathMonitor.currentPath` is
+    /// still unevaluated when `start()` seeds from it, so the monitor's first callback
+    /// reads as "came back online" on every launch — and a forced cycle at launch
+    /// spent a burst token per account each time (three relaunches, three 429s). A
+    /// plain poll fetches whenever the reading is older than the endpoint's window and
+    /// is silently held otherwise, which is all a reconnect needs.
     func pathChanged(satisfied: Bool) {
         let returned = satisfied && !pathWasSatisfied
         pathWasSatisfied = satisfied
         if isOnline != satisfied { isOnline = satisfied }
         store.markOnline(satisfied)
-        if returned { Task { await store.refresh(force: true) } }
+        if returned { Task { await store.refresh(force: false) } }
     }
 
     /// Fully reversible: `start()` after `stop()` rebuilds every trigger.

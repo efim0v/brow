@@ -74,6 +74,17 @@ public struct AccountBlockView: View {
             }
             .buttonStyle(.plain)
             .help("Sign in again (opens this account's own browser profile)")
+            // Just the browser, as this account: claude.ai in the profile that holds
+            // its Google/claude.ai session — no Terminal, no sign-in flow.
+            Button {
+                _ = AddAccountFlow.openBrowserProfile(dir: row.account.configDir)
+            } label: {
+                Image(systemName: "globe")
+                    .font(.system(size: 11)).foregroundStyle(Color.secondary)
+                    .frame(width: 18, height: 18).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open claude.ai in this account's own browser profile")
         }
     }
 

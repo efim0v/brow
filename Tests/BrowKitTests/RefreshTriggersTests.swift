@@ -111,8 +111,8 @@ final class RefreshTriggersTests: XCTestCase {
 
     /// `isOnline` is read by two consumers that cannot see `NWPathMonitor`: the panel's
     /// footer (through the store) and `TokenKeeper`, which must not spend its attempt
-    /// floor on refreshes that cannot reach the network. Only the down → up edge forces
-    /// a fetch; a repeated "satisfied" must not.
+    /// floor on refreshes that cannot reach the network. Only the down → up edge polls;
+    /// a repeated "satisfied" must not.
     func testPathChangeMirrorsOnlineStateIntoTheStore() {
         let store = makeStore()
         let triggers = RefreshTriggers(store: store)

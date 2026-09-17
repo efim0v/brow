@@ -25,11 +25,18 @@ final class FirstMouseHostingView<V: View>: NSHostingView<V> {
 struct NotchRootView: View {
     let expanded: Bool
     let frames: NotchFrames
+    /// False: collapsed, the outline shrinks to the physical notch (invisible under
+    /// it) and nothing is drawn — the panel is all there is, on hover.
+    let showEars: Bool
     let ears: AnyView
     let panel: AnyView
 
     private var shapeSize: CGSize {
-        expanded ? frames.expanded.size : frames.collapsed.size
+        if expanded { return frames.expanded.size }
+        if !showEars, let notch = frames.notch {
+            return CGSize(width: notch.width + 2 * frames.flare, height: notch.height)
+        }
+        return frames.collapsed.size
     }
 
     private var outline: AnyShape {
@@ -48,7 +55,7 @@ struct NotchRootView: View {
             ZStack(alignment: .top) {
                 if expanded {
                     panel.transition(.opacity)
-                } else {
+                } else if showEars {
                     ears.transition(.opacity)
                 }
             }
@@ -56,7 +63,10 @@ struct NotchRootView: View {
             .clipShape(outline)
         }
         .frame(width: frames.expanded.width, height: frames.expanded.height, alignment: .top)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
+        // Opening springs a little; closing is quicker and settles without a bounce —
+        // a strip that overshoots into the notch reads as a glitch.
+        .animation(expanded ? .spring(response: 0.32, dampingFraction: 0.86)
+                            : .spring(response: 0.26, dampingFraction: 1.0), value: expanded)
     }
 }
 
@@ -157,7 +167,10 @@ public final class NotchPanelController {
 
     private func mouseMoved() {
         let point = NSEvent.mouseLocation
-        let hot = expanded ? frames.expanded : frames.collapsed
+        // With the readouts hidden there is nothing beside the notch to hover: the
+        // pointer has to reach the notch itself.
+        let collapsedHot = store.settings.showEars ? frames.collapsed : (frames.notch ?? frames.collapsed)
+        let hot = expanded ? frames.expanded : collapsedHot
         if hot.contains(point) {
             collapseWork?.cancel(); collapseWork = nil
             if !expanded { setExpanded(true) }
@@ -205,10 +218,17 @@ public final class NotchPanelController {
             // concave corners in those 6 pt, and the visible black still starts at
             // the notch edge.
             .frame(width: frames.expanded.width)
-        host.rootView = AnyView(NotchRootView(expanded: expanded, frames: frames,
+        host.rootView = AnyView(NotchRootView(expanded: expanded, frames: frames, showEars: store.settings.showEars,
                                               ears: AnyView(ears), panel: AnyView(panelView)))
         applyFrame()
     }
+
+    /// The height the laid-out panel last needed. Kept across a collapse: shrinking the
+    /// window to the model's estimate the instant the panel closed re-laid the whole
+    /// tree out mid-animation, which is why closing looked like a cut and opening like
+    /// an animation. The window only ever grows on hover; it shrinks when the content
+    /// itself does (an account gone), at the next render with the panel closed.
+    private var measuredHeight: CGFloat = 0
 
     /// The height the expanded panel needs. The model floor is always available; the
     /// laid-out tree is consulted only while the panel is up, since a collapsed host
@@ -216,9 +236,10 @@ public final class NotchPanelController {
     private func expandedHeight() -> CGFloat {
         let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount),
                                                     topInset: frames.contentTopInset)
-        guard expanded else { return max(120, modelled) }
+        guard expanded else { return max(120, modelled, measuredHeight) }
         host.layoutSubtreeIfNeeded()
-        return max(120, max(modelled, host.fittingSize.height))
+        measuredHeight = max(modelled, host.fittingSize.height)
+        return max(120, measuredHeight)
     }
 
     /// A layout-independent floor for the expanded panel, from the model PanelView

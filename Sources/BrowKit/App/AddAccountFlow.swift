@@ -73,6 +73,26 @@ public final class AddAccountFlow: ObservableObject {
         browserHelperPath.map { "export BROWSER=\(shellQuote($0))" }
     }
 
+    /// Open this account's browser profile on claude.ai without a sign-in in
+    /// progress — to log the profile into Google/claude.ai once, so the next
+    /// `claude auth login` is a single "Authorize" click. Goes through the router
+    /// exactly like Claude Code does, so the profile is the same one.
+    @discardableResult
+    public static func openBrowserProfile(dir: String, url: String = "https://claude.ai/") -> String? {
+        guard let helper = browserHelperPath else { return "the browser router is missing from this build" }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: helper)
+        process.arguments = [url]
+        var env = ProcessInfo.processInfo.environment
+        env["CLAUDE_CONFIG_DIR"] = dir
+        process.environment = env
+        do { try process.run() } catch {
+            BrowLog.tokens.error("open browser profile failed for \(dir, privacy: .public): \(String(describing: error), privacy: .public)")
+            return error.localizedDescription
+        }
+        return nil
+    }
+
     /// Sign this account in again, in its own browser profile: Terminal runs
     /// `claude auth login` for `dir`. The account keeps its folder and its row; only
     /// the token changes.

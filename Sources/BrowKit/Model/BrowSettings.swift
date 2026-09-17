@@ -23,16 +23,20 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     public var allowPromptFallback: Bool = true
     public var claudePath: String? = nil
     public var earsPlacement: EarsPlacement = .beside
+    /// False: nothing is drawn while collapsed — the notch is just the notch — and the
+    /// panel appears only when the pointer reaches the notch itself.
+    public var showEars: Bool = true
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         accounts = try c.decodeIfPresent([String: AccountOverride].self, forKey: .accounts) ?? [:]
         extraDirs = try c.decodeIfPresent([String].self, forKey: .extraDirs) ?? []
         allowPromptFallback = try c.decodeIfPresent(Bool.self, forKey: .allowPromptFallback) ?? true
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
+        showEars = (try? c.decodeIfPresent(Bool.self, forKey: .showEars)) ?? true
         // Decoded through its raw value, not as the enum, and never allowed to throw.
         // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT
         // with an unmatched value (a hand-edited config — the plan's own Task 10 asks

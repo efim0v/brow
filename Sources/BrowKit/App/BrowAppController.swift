@@ -90,6 +90,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         // one reading per ~100 s per account, a burst of five for the refresh button.
         let client = OAuthUsageClient(fetcher: URLSessionUsageFetcher(), userAgent: nil,
                                       cacheSeconds: 30, backoffCap: 300, minInterval: 100, burstCapacity: 5,
+                                      // Shared with Grove: whichever app fetched last, the other
+                                      // sees the reading and the bucket it left behind.
+                                      ledger: FileUsagePacingLedger(),
                                       credentials: credentials)
         let store = LimitsStore(deps: .init(directory: AccountDirectory(credentials: credentials),
                                             keeper: keeper, client: client,

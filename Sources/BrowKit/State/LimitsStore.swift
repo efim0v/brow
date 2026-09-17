@@ -391,7 +391,21 @@ public final class LimitsStore: ObservableObject {
         if force { isForcing = false }
     }
 
+    /// Once per process: hand the client the persisted readings' timestamps so a
+    /// relaunch inside the endpoint's refill window does not spend a request per
+    /// account on numbers it already has.
+    private var clientSeeded = false
+    private func seedClientIfNeeded() async {
+        guard !clientSeeded else { return }
+        clientSeeded = true
+        for account in accounts {
+            guard let snap = snapshots[account.organizationUuid] else { continue }
+            await deps.client.seedLastSuccess(configDir: account.configDir, at: snap.fetchedAt)
+        }
+    }
+
     private func cycleBody(cycle: Int, force: Bool) async {
+        await seedClientIfNeeded()
         // 0. A forced cycle means the user just did something — pressed ⟳, woke the
         //    Mac, came back on to Wi-Fi, finished `claude auth login`. That is the only
         //    moment a credential the Keychain refused us ten minutes ago can plausibly
@@ -484,6 +498,13 @@ public final class LimitsStore: ObservableObject {
                                           force: Bool, forceAttempt: Bool) async -> FetchResult {
         let token = await deps.keeper.ensureFresh(configDir: account.configDir, authRejected: forceAttempt)
         let at = deps.now()
+        // A background poll inside the endpoint's window is not sent and not an error:
+        // the reading on screen is the freshest one there can be. (A forced refresh
+        // goes on to the client, which throws so the store can queue it.)
+        if !force, await deps.client.nextAllowedAt(configDir: account.configDir, force: false, now: at) > at {
+            return FetchResult(org: account.organizationUuid, snapshot: nil, error: nil,
+                               token: token, rejected: false, rateLimited: false)
+        }
         do {
             let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
             let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
@@ -513,6 +534,9 @@ public final class LimitsStore: ObservableObject {
     private func apply(_ result: FetchResult) {
         cycleResults[result.org] = result
         tokenOutcome[result.org] = result.token
+        // Neither a reading nor an error: the poll was held back by the endpoint's
+        // window. The row keeps what it had — status, error and all.
+        if result.snapshot == nil && result.error == nil { return }
         if let snapshot = result.snapshot {
             snapshots[result.org] = snapshot
             lastError[result.org] = nil

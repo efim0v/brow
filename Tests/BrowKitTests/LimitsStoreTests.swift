@@ -660,10 +660,52 @@ final class LimitsStoreTests: XCTestCase {
     }
 
     /// `BrowAppController` arms the poll timer BEFORE it calls `bootstrap`, so
-    /// bootstrap's scan and a cycle's scan can sit in the Keychain at the same time —
-    /// and bootstrap's is the one parked behind the first-run prompt. Its answer is then
-    /// the OLDER one: applying it would restore a stale account list and judge the
-    /// Keychain against a baseline the cycle has already replaced.
+    /// bootstrap's scan and the first cycle's scan overlap by design — and they must be
+    /// ONE scan. Every scan reads one Keychain item per config dir, and on a new bundle
+    /// id macOS puts a modal prompt in front of each read: a second scan issued while
+    /// the first is parked on that prompt asks the user a second time for every account,
+    /// which is exactly the first-run freeze the launch order exists to prevent.
+    /// `CachingCredentialsReader` cannot prevent it either — it fills its cache when a
+    /// read RETURNS, and a read parked on a prompt has not returned.
+    func testBootstrapAndACycleShareOneAccountScan() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let b = try makeAccount(".claude-accounts/b", org: "org-b", email: "b@x")
+        let creds = Creds()
+        creds.expiry[a] = t0.addingTimeInterval(3600)
+        creds.expiry[b] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60), 200)
+        fetcher.responses["Bearer tok-\(b)"] = (body(five: 10, seven: 20), 200)
+        let sleeper = Sleeper()
+        addTeardownBlock { sleeper.drain(); creds.releaseReads() }
+        let store = makeStore(fetcher: fetcher, creds: creds, sleeper: sleeper)
+
+        // The first-run prompt, standing in front of the very first item the scan asks
+        // for: every read parks until the user answers it.
+        creds.holdReads()
+        let boot = Task { await store.bootstrap() }
+        try await waitUntil("bootstrap's scan to park in the Keychain") { creds.parkedReads == 1 }
+
+        // The poll timer fires while the prompt is still up.
+        let cycle = Task { await store.refresh(force: false) }
+        try await waitUntil("the cycle to start") { store.isRefreshing }
+        await settle()
+        XCTAssertEqual(creds.parkedReads, 1, "the cycle joins the scan in flight instead of starting a second one")
+
+        creds.releaseReads()
+        await boot.value
+        await cycle.value
+        XCTAssertEqual(store.rows.map(\.id), ["org-a", "org-b"], "both callers get the one scan's answer")
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40)
+        XCTAssertEqual(store.keychainState, .ok)
+        XCTAssertNil(store.footerError)
+    }
+
+    /// Two scans still overlap when the second asks about a DIFFERENT set of dirs — a
+    /// path typed into Settings while the first scan is parked — because a scan can only
+    /// answer for the dirs it looked at. Bootstrap's answer is then the OLDER one:
+    /// applying it would restore a stale account list and judge the Keychain against a
+    /// baseline the cycle has already replaced.
     func testBootstrapDropsItsScanWhenACycleHasMovedOn() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
         let b = try makeAccount(".claude-accounts/b", org: "org-b", email: "b@x")
@@ -684,6 +726,12 @@ final class LimitsStoreTests: XCTestCase {
         creds.holdNextRead(for: b)
         let boot = Task { await store.bootstrap() }
         try await waitUntil("bootstrap's scan to park in the Keychain") { creds.parkedReads == 1 }
+
+        // A dir typed into Settings while bootstrap's scan is parked. `b` is already in
+        // the scan set (dirs are deduped), so the accounts found do not change — what
+        // changes is that the cycle is now asking a question bootstrap's scan cannot
+        // answer, so it runs a second scan of its own instead of joining that one.
+        store.settings.extraDirs = [b]
 
         // A whole cycle runs to completion while bootstrap is parked, and reads a's
         // token as it is NOW.

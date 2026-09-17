@@ -138,6 +138,12 @@ public final class LimitsStore: ObservableObject {
     /// capture overwrite a newer one (dataAsOf walking backwards, a cleared
     /// footerError resurrecting) and clear the spinner while a fetch is still out.
     private var inFlight: Task<Void, Never>?
+    /// The one account scan allowed to be in flight, with the `extraDirs` it was started
+    /// for and an id the task uses to clear this slot only if it is still its own. See
+    /// `liveScan()`: two overlapping scans are two Keychain prompts per account.
+    private var scanInFlight: (extraDirs: [String], id: Int, task: Task<[DiscoveredAccount], Never>)?
+    /// Scans started, ever — the id `scanInFlight` is stamped with.
+    private var scanCount = 0
     /// Bumped at the top of every cycle; a cycle whose generation has moved on drops
     /// its results instead of writing them.
     private var generation = 0
@@ -180,10 +186,11 @@ public final class LimitsStore: ObservableObject {
     /// user who can see the app they belong to.
     ///
     /// This is the scan most likely to be parked behind a prompt (it is the first one),
-    /// and the poll timer is already armed by the time it runs — so it is bounded by the
-    /// same patience as a cycle's scan, and its answer is dropped if a cycle has since
-    /// scanned. Writing an older account list over a newer one would also judge the
-    /// Keychain against the wrong baseline.
+    /// and the poll timer is already armed by the time it runs — so it SHARES that
+    /// cycle's scan (`liveScan`) rather than issuing a second set of Keychain reads, it
+    /// is bounded by the same patience as a cycle's scan, and its answer is dropped if a
+    /// cycle has since scanned. Writing an older account list over a newer one would
+    /// also judge the Keychain against the wrong baseline.
     public func bootstrap() async {
         let gate = generation
         let discovered = await scanWithPatience(gate: gate)
@@ -253,13 +260,45 @@ public final class LimitsStore: ObservableObject {
         Task.detached { directory.scan(extraDirs: extraDirs) }
     }
 
+    /// The scan already in flight for these dirs, or a new one. Discovery is
+    /// single-flight because every scan reads one Keychain item per config dir, and on a
+    /// new bundle id macOS puts a modal prompt in front of each read: the poll timer is
+    /// armed before `bootstrap()` runs (spec, The cycle §8), so those two overlap by
+    /// design, and a second scan issued while the first is parked on that prompt asks
+    /// the user a second time for every account. `CachingCredentialsReader` cannot
+    /// dedupe them — it fills its cache when a read RETURNS, and a read parked on a
+    /// prompt has not returned.
+    ///
+    /// Keyed on `extraDirs`: a scan started before a dir was typed into Settings never
+    /// looked at that dir and cannot answer for it.
+    private func liveScan() -> Task<[DiscoveredAccount], Never> {
+        let dirs = settings.extraDirs
+        if let live = scanInFlight, live.extraDirs == dirs {
+            BrowLog.limits.info("joining the account scan already in flight")
+            return live.task
+        }
+        scanCount += 1
+        let id = scanCount
+        let directory = deps.directory
+        // The slot is emptied by the task ITSELF, before it publishes its value, so a
+        // caller that arrives after the scan finished starts a fresh one rather than
+        // joining a task whose accounts are already history.
+        let task = Task { @MainActor [weak self] in
+            let scanned = await Self.scanTask(directory, extraDirs: dirs).value
+            if let self, self.scanInFlight?.id == id { self.scanInFlight = nil }
+            return scanned
+        }
+        scanInFlight = (dirs, id, task)
+        return task
+    }
+
     /// One discovery scan, bounded by `keychainPatience` (spec, The cycle §3). Returns
     /// the accounts when the Keychain answers in time. When it does not, the caller is
     /// released with nil — the wait is on screen and the caller carries on with the
     /// accounts it already has — and the late answer is applied here, once, if `gate` is
     /// still the current generation when it lands.
     private func scanWithPatience(gate: Int) async -> [DiscoveredAccount]? {
-        let scan = Self.scanTask(deps.directory, extraDirs: settings.extraDirs)
+        let scan = liveScan()
         if let scanned = await firstResult(of: scan, within: Self.keychainPatience) { return scanned }
         guard gate == generation else { return nil }
         setKeychainState(.waiting)

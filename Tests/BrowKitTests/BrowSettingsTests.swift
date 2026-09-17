@@ -13,6 +13,28 @@ final class BrowSettingsTests: XCTestCase {
         XCTAssertNil(s.claudePath)
         XCTAssertTrue(s.accounts.isEmpty)
         XCTAssertTrue(s.extraDirs.isEmpty)
+        XCTAssertEqual(s.earsPlacement, .beside)
+    }
+
+    /// The picker's order is the setting's order.
+    func testEarsPlacementCases() {
+        XCTAssertEqual(EarsPlacement.allCases, [.beside, .below])
+        XCTAssertEqual(EarsPlacement(rawValue: "below"), .below)
+    }
+
+    func testEarsPlacementIsAbsentInOlderFilesAndRoundTrips() throws {
+        let dir = try Fixture.tempDir("settings-ears").path
+        let store = BrowSettingsStore(directory: dir)
+        // A config written before the setting existed.
+        try #"{"accounts":{},"allowPromptFallback":false}"#.write(toFile: dir + "/config.json", atomically: true, encoding: .utf8)
+        XCTAssertEqual(store.load().earsPlacement, .beside)
+        XCTAssertFalse(store.load().allowPromptFallback, "the rest of the file still decodes")
+
+        var s = BrowSettings()
+        s.earsPlacement = .below
+        try store.save(s)
+        XCTAssertEqual(store.load().earsPlacement, .below)
+        XCTAssertEqual(store.load(), s)
     }
 
     func testDisplayNamePrecedence() {

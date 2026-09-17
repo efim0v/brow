@@ -1,6 +1,12 @@
 import Foundation
 import GroveCore
 
+/// Where the two ear readouts sit on a notched screen: in the wings on either side of
+/// the notch, or in a strip under it.
+public enum EarsPlacement: String, Codable, Sendable, CaseIterable {
+    case beside, below
+}
+
 public struct AccountOverride: Codable, Sendable, Equatable {
     public var name: String?
     public var hidden: Bool
@@ -16,16 +22,18 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     /// sliver of that account's limit and starts its 5-hour window.
     public var allowPromptFallback: Bool = true
     public var claudePath: String? = nil
+    public var earsPlacement: EarsPlacement = .beside
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         accounts = try c.decodeIfPresent([String: AccountOverride].self, forKey: .accounts) ?? [:]
         extraDirs = try c.decodeIfPresent([String].self, forKey: .extraDirs) ?? []
         allowPromptFallback = try c.decodeIfPresent(Bool.self, forKey: .allowPromptFallback) ?? true
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
+        earsPlacement = try c.decodeIfPresent(EarsPlacement.self, forKey: .earsPlacement) ?? .beside
     }
 
     /// Override → email → last path component of the config dir.

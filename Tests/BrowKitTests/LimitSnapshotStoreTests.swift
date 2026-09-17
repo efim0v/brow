@@ -57,3 +57,68 @@ final class LimitSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(LimitSnapshotStore(directory: dir).load(), [:])
     }
 }
+
+// MARK: - Persisted accounts
+
+extension LimitSnapshotStoreTests {
+    private var accountA: DiscoveredAccount {
+        DiscoveredAccount(organizationUuid: "org-a", email: "a@example.com", tier: "default_claude_max_20x",
+                          configDir: "/tmp/a", aliasDirs: ["/tmp/a-alias"], tokenExpiresAt: t0)
+    }
+
+    func testFileRoundTripWithAccounts() throws {
+        let dir = try Fixture.tempDir("limits-file").path + "/nested"   // store must create it
+        let store = LimitSnapshotStore(directory: dir)
+        XCTAssertEqual(store.loadFile(), LimitsFile(snapshots: [:], accounts: []), "missing file → empty file, not an error")
+
+        let snap = LimitSnapshot(organizationUuid: "org-a", fetchedAt: t0,
+                                 fiveHour: CapturedWindow(usedPercentage: 41, resetsAt: "2026-09-16T20:00:00Z"),
+                                 sevenDay: nil, weeklyScoped: nil, weeklyScopedModel: nil)
+        let accounts = [
+            PersistedAccount(from: accountA, order: 0),
+            PersistedAccount(from: DiscoveredAccount(organizationUuid: "org-b", email: nil, tier: nil,
+                                                     configDir: "/tmp/b", aliasDirs: [], tokenExpiresAt: nil), order: 1),
+        ]
+        try store.saveFile(LimitsFile(snapshots: ["org-a": snap], accounts: accounts))
+
+        XCTAssertEqual(store.loadFile(), LimitsFile(snapshots: ["org-a": snap], accounts: accounts))
+        XCTAssertEqual(store.load(), ["org-a": snap], "the snapshot-only wrapper reads the new shape")
+
+        try store.save(["org-a": snap])
+        XCTAssertEqual(store.loadFile().accounts, accounts, "saving snapshots alone must not drop the accounts")
+    }
+
+    func testLegacySnapshotMapStillLoads() throws {
+        let dir = try Fixture.tempDir("limits-legacy").path
+        let legacy = """
+        {
+          "org-a" : {
+            "fetchedAt" : "2023-11-14T22:13:20Z",
+            "fiveHour" : { "resetsAt" : "2026-09-16T20:00:00Z", "usedPercentage" : 41 },
+            "organizationUuid" : "org-a"
+          }
+        }
+        """
+        try legacy.write(toFile: dir + "/limits.json", atomically: true, encoding: .utf8)
+
+        let loaded = LimitSnapshotStore(directory: dir).loadFile()
+        XCTAssertEqual(loaded.snapshots["org-a"]?.fetchedAt, t0)
+        XCTAssertEqual(loaded.snapshots["org-a"]?.fiveHour,
+                       CapturedWindow(usedPercentage: 41, resetsAt: "2026-09-16T20:00:00Z"))
+        XCTAssertEqual(loaded.accounts, [], "an old file names no accounts")
+    }
+
+    func testPersistedAccountRoundTripsToDiscovered() {
+        let persisted = PersistedAccount(from: accountA, order: 3)
+        XCTAssertEqual(persisted.order, 3, "display order survives the file")
+        XCTAssertEqual(persisted.organizationUuid, "org-a")
+
+        let back = persisted.discovered
+        XCTAssertEqual(back.organizationUuid, "org-a")
+        XCTAssertEqual(back.email, "a@example.com")
+        XCTAssertEqual(back.tier, "default_claude_max_20x")
+        XCTAssertEqual(back.configDir, "/tmp/a")
+        XCTAssertEqual(back.aliasDirs, [], "alias dirs come from the scan, never from the seed")
+        XCTAssertNil(back.tokenExpiresAt, "a persisted expiry would be a lie about a live token")
+    }
+}

@@ -62,6 +62,33 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(f.collapsed.height, 32)
     }
 
+    /// The `beside` collapsed height IS the notch height, so a degenerate report — a
+    /// screen that hands back auxiliary areas but no safe-area inset and no area height —
+    /// used to produce a zero-height, invisible window: the app looked like it had failed
+    /// to launch, with nothing in the log to say otherwise. `NotchPanel.metrics()` has
+    /// always floored the menu-bar height for the same reason; this is the other half.
+    func testADegenerateNotchHeightFallsBackToTheMenuBarRatherThanVanishing() {
+        let degenerate = ScreenMetrics(frame: notched.frame,
+                                       topLeftArea: CGRect(x: 0, y: 982, width: 663.5, height: 0),
+                                       topRightArea: CGRect(x: 848.5, y: 982, width: 663.5, height: 0),
+                                       menuBarHeight: 33, notchHeight: 0)
+        let f = NotchGeometry.frames(for: degenerate, expandedHeight: 300)
+        XCTAssertEqual(f.notchHeight, 33, "wrong by one point beats invisible")
+        XCTAssertEqual(f.collapsed.height, 33)
+        XCTAssertEqual(f.contentTopInset, 41)
+    }
+
+    /// …and if even the menu bar is 0, a constant rather than nothing.
+    func testAScreenWithNoHeightsAtAllStillGetsAVisibleStrip() {
+        let nothing = ScreenMetrics(frame: notched.frame,
+                                    topLeftArea: CGRect(x: 0, y: 982, width: 663.5, height: 0),
+                                    topRightArea: CGRect(x: 848.5, y: 982, width: 663.5, height: 0),
+                                    menuBarHeight: 0, notchHeight: 0)
+        let f = NotchGeometry.frames(for: nothing, expandedHeight: 300)
+        XCTAssertEqual(f.notchHeight, NotchGeometry.fallbackNotchHeight)
+        XCTAssertGreaterThan(f.collapsed.height, 0)
+    }
+
     // MARK: expanded
 
     func testExpandedIsCentredOnTheNotchFlushTopAndFlareWidened() {

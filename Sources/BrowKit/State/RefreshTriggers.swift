@@ -78,6 +78,16 @@ public final class RefreshTriggers {
             }
             monitor.start(queue: .main)
             pathMonitor = monitor
+            // Seeded SYNCHRONOUSLY, before the first cycle is queued below.
+            // `isOnline` starts optimistic and `pathUpdateHandler` is asynchronous, so a
+            // launch made with no network could run its first cycle believing it was
+            // online: `TokenKeeper.ensureFresh` then skips `.skippedOffline`, runs
+            // `claude doctor`, and — a plain non-zero exit not being `cliNeverRan` —
+            // falls through to `claude -p`, which spends the account's limit and starts
+            // its 5-hour window for a refresh that could never have worked, and counts
+            // a failure that walks the breaker up. `pathChanged` records before it acts
+            // and is idempotent, so seeding it costs nothing when the path is fine.
+            pathChanged(satisfied: monitor.currentPath.status == .satisfied)
         }
         // Only on the call that armed the poll: `start()` is now safe to call twice
         // and must not spend a cycle for it.

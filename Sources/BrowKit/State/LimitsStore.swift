@@ -64,7 +64,25 @@ public final class LimitsStore: ObservableObject {
     public enum KeychainState: Sendable, Equatable { case ok, waiting, denied }
 
     /// A cycle still running after this is abandoned (spec, The cycle §1).
-    public static let cycleWatchdog: TimeInterval = 240
+    ///
+    /// It has to be strictly LARGER than everything one account's turn can legitimately
+    /// spend, or a slow-but-working account is abandoned every cycle forever: the
+    /// watchdog retires the generation, every result of that cycle is dropped by
+    /// `cycle == generation`, and the panel shows "Refresh timed out" over ageing
+    /// numbers with no way out. The spec's table says 240 s from `doctor` 90 + `-p` 120;
+    /// the real worst case has four more terms in it:
+    ///
+    ///     keychainPatience                       5
+    ///     doctor  (timeout + SIGKILL + drain)   90 + 0.5 + 2
+    ///     -p      (timeout + SIGKILL + drain)  120 + 0.5 + 2
+    ///     usage   (request timeout, ×2 — the client retries once on 401/403)  2 × 15
+    ///     ------------------------------------------------------------------------
+    ///                                                                        250
+    ///
+    /// 270 leaves 20 s of scheduling slack on top. `testTheCycleWatchdogOutlastsEveryDeadlineInsideIt`
+    /// recomputes this sum from the constants themselves, so no later timeout change can
+    /// quietly reintroduce the gap.
+    public static let cycleWatchdog: TimeInterval = 270
     /// How long a cycle waits for `AccountDirectory.scan` before carrying on with the
     /// accounts it already knows (spec, The cycle §3).
     public static let keychainPatience: TimeInterval = 5
@@ -178,6 +196,17 @@ public final class LimitsStore: ObservableObject {
         self.snapshots = file.snapshots
         self.aggregate = LimitsAggregate.compute(accounts: [], snapshots: [:], now: deps.now())
         self.accounts = file.accounts.sorted { $0.order < $1.order }.map(\.discovered)
+        // The Keychain verdict needs evidence that OUTLIVES the process. `everHadTokens`
+        // is filled by successful scans, and a denial already in force at launch makes
+        // every scan of that process tokenless — so without this seed `.denied` needed a
+        // successful scan earlier in the SAME run, and a relaunch under a standing denial
+        // (Brow ships with Launch at login: the normal way the user meets this state)
+        // showed "no token" plus a generic fetch error instead of the one message that
+        // says what to do. The trade-off is deliberate and one-sided: an account that
+        // genuinely signed out but left its dir on disk reads `.denied` until the first
+        // scan that answers for some other account, which is a wrong sentence; showing
+        // nothing actionable while the Keychain is refusing us is a wrong app.
+        self.everHadTokens = Set(file.accounts.filter(\.hadToken).map(\.organizationUuid))
         recompute()
     }
 
@@ -339,7 +368,12 @@ public final class LimitsStore: ObservableObject {
                 waiting on \(self.phase.text, privacy: .public)
                 """)
             generation += 1                     // retire it: its late writes are dropped
-            setFooterError(Self.timedOutMessage)
+            // "Refresh timed out" is the right sentence only when nothing better is
+            // known. A cycle parked behind an UNANSWERED Keychain dialog times out by
+            // construction, and overwriting "Waiting for Keychain access…" with a
+            // timeout tells the user the wrong thing — permanently, if the dialog is
+            // never answered, since every later cycle times out the same way.
+            if keychainState == .ok { setFooterError(Self.timedOutMessage) } else { updateFooter() }
         }
         phase = .idle
         isRefreshing = false
@@ -347,6 +381,15 @@ public final class LimitsStore: ObservableObject {
     }
 
     private func cycleBody(cycle: Int, force: Bool) async {
+        // 0. A forced cycle means the user just did something — pressed ⟳, woke the
+        //    Mac, came back on to Wi-Fi, finished `claude auth login`. That is the only
+        //    moment a credential the Keychain refused us ten minutes ago can plausibly
+        //    have changed, and `CachingCredentialsReader`'s nil floor answers "nothing
+        //    here" for 600 s BEFORE any request — so without this the footer's own
+        //    advice ("grant it in Keychain Access") did nothing for up to ten minutes
+        //    and ⟳ was, by the user's reckoning, dead. The 60 s background poll is
+        //    untouched: it still never re-raises a prompt the user declined.
+        if force { invalidateCredentials() }
         // 1. Discovery. The Keychain can hold this behind a modal prompt for minutes;
         //    after `keychainPatience` the cycle says so and carries on with what it has.
         let scanned = await scanWithPatience(gate: cycle)
@@ -407,6 +450,18 @@ public final class LimitsStore: ObservableObject {
         updateFooter()
         persist(visible: visible)
         recompute()
+    }
+
+    /// Every dir a forced cycle is about to read: the known accounts AND their aliases
+    /// (an alias dir is where a re-signed-in account's new token appears first), plus the
+    /// dirs the next scan will walk — an account that was never discoverable because its
+    /// token read was floored has no row to take a configDir from.
+    private func invalidateCredentials() {
+        for account in accounts {
+            deps.directory.invalidate(configDir: account.configDir)
+            for alias in account.aliasDirs { deps.directory.invalidate(configDir: alias) }
+        }
+        deps.directory.invalidateCandidates(extraDirs: settings.extraDirs)
     }
 
     /// One account's answer, as it lands.

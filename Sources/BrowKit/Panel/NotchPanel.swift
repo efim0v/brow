@@ -136,6 +136,9 @@ public final class NotchPanelController {
         frames = NotchGeometry.frames(for: metrics, expandedHeight: frames.expanded.height, placement: placement)
         if expanded {
             host.rootView = AnyView(PanelView(store: store, clock: clock, topInset: frames.contentTopInset,
+                                              // The frame's OWN flare, not the constant: an
+                                              // external display's frame carries none.
+                                              flare: frames.flare,
                                               onSettings: onSettings,
                                               onRefresh: { [store] in Task { await store.refresh(force: true) } })
                 // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
@@ -167,6 +170,11 @@ public final class NotchPanelController {
     /// padding, the Overall line, one block per account (header + bars) each followed
     /// by a divider, and the footer, with 10 pt stack spacing. The inset is PanelView's
     /// whole top padding, so it is added, not stacked on a second 14.
+    ///
+    /// Deliberately WITHOUT `PanelView`'s `max(topInset, 14)` floor: this is a floor,
+    /// and `expandedHeight()` takes `max(modelled, fittingSize)`, so the laid-out tree —
+    /// which does carry the floor — wins on the only path where the two differ (a screen
+    /// with no notch, inset 8).
     static func estimatedExpandedHeight(barCounts: [Int], topInset: CGFloat) -> CGFloat {
         let bottomPadding: CGFloat = 14, overall: CGFloat = 20, footer: CGFloat = 20
         let spacing: CGFloat = 10, divider: CGFloat = 1

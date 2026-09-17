@@ -59,8 +59,16 @@ public enum NotchGeometry {
     /// `pillWidth / 2` per ear asked for 200 pt inside a 180 pt window and clipped
     /// ~10 pt off each edge — exactly where the two status dots sit.
     public static let pillPadding: CGFloat = 10
+    /// Last-resort notch height, for a screen that reports auxiliary areas but neither a
+    /// safe-area inset, nor an area height, nor a menu bar. Same number `NotchPanel`
+    /// floors the menu bar at.
+    public static let fallbackNotchHeight: CGFloat = 24
     /// Breathing room between the notch and the first row of the expanded panel.
     private static let contentGap: CGFloat = 8
+    /// One log line per process for the degenerate-screen fallback: `frames(for:)` runs
+    /// on every render (every hover), and an error repeated at that rate is noise, not a
+    /// signal.
+    private static let degenerateReport = OneShot()
 
     public static func frames(for screen: ScreenMetrics, expandedHeight: CGFloat,
                               placement: EarsPlacement = .beside) -> NotchFrames {
@@ -68,7 +76,22 @@ public enum NotchGeometry {
         if let left = screen.topLeftArea, let right = screen.topRightArea {
             let notchMinX = left.maxX, notchMaxX = right.minX
             let notchWidth = notchMaxX - notchMinX
-            let notchHeight = screen.notchHeight > 0 ? screen.notchHeight : max(left.height, right.height)
+            // Floored, like `NotchPanel.metrics()` floors the menu bar: the `beside`
+            // collapsed height IS the notch height, so a screen that reports auxiliary
+            // areas of height 0 (and no safe-area inset) gave a zero-height — invisible —
+            // collapsed window. "The app did not launch" with nothing in the log to say
+            // why is a far worse answer than a height that is wrong by a point.
+            let reported = screen.notchHeight > 0 ? screen.notchHeight : max(left.height, right.height)
+            let notchHeight = reported > 0
+                ? reported
+                : (screen.menuBarHeight > 0 ? screen.menuBarHeight : fallbackNotchHeight)
+            if reported <= 0, Self.degenerateReport.fire() {
+                BrowLog.panel.error("""
+                    screen reports no notch height and auxiliary areas of height \
+                    \(max(left.height, right.height), privacy: .public); \
+                    falling back to \(notchHeight, privacy: .public) pt
+                    """)
+            }
             let collapsed: CGRect
             let earWidth: CGFloat
             switch placement {

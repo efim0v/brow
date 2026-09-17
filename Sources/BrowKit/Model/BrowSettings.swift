@@ -33,7 +33,30 @@ public struct BrowSettings: Codable, Sendable, Equatable {
         extraDirs = try c.decodeIfPresent([String].self, forKey: .extraDirs) ?? []
         allowPromptFallback = try c.decodeIfPresent(Bool.self, forKey: .allowPromptFallback) ?? true
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
-        earsPlacement = try c.decodeIfPresent(EarsPlacement.self, forKey: .earsPlacement) ?? .beside
+        // Decoded through its raw value, not as the enum, and never allowed to throw.
+        // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT
+        // with an unmatched value (a hand-edited config — the plan's own Task 10 asks
+        // the owner to edit this very key with `plutil` — or a third case written by a
+        // later build) throws `dataCorrupted`, which fails `init(from:)`, which makes
+        // `load()` fall back to a fresh `BrowSettings`. One typo would take the account
+        // names, the alias dirs, the `claude` path and `allowPromptFallback` with it —
+        // against this file's own "every field has a default" contract — and the next
+        // settings write would make the loss permanent.
+        // `String??`: the outer nil is "the value is not even a string", the inner one
+        // "the key is absent or null".
+        let rawPlacement: String?? = try? c.decodeIfPresent(String.self, forKey: .earsPlacement)
+        switch rawPlacement {
+        case .some(.some(let raw)):
+            earsPlacement = EarsPlacement(rawValue: raw) ?? .beside
+            if EarsPlacement(rawValue: raw) == nil {
+                BrowLog.panel.error("config.json: unknown earsPlacement \"\(raw, privacy: .public)\"; using beside")
+            }
+        case .some(.none):
+            earsPlacement = .beside                 // absent (an older file) or null
+        case .none:
+            BrowLog.panel.error("config.json: earsPlacement is not a string; using beside")
+            earsPlacement = .beside
+        }
     }
 
     /// Override → email → last path component of the config dir.

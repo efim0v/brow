@@ -160,10 +160,16 @@ final class LimitsStoreTests: XCTestCase {
                 return expiries[configDir].map { ClaudeToken(value: "tok-\(configDir)", expiresAt: $0) }
             }
         }
+        /// Every dir `invalidate` was called for, in order — how a test sees that a
+        /// forced cycle really does go back to the Keychain.
+        var invalidated: [String] { lock.withLock { invalidations } }
+        private var invalidations: [String] = []
+
         /// Stands in for the real CLI: re-reading after `claude doctor` sees a token
         /// whose expiry moved forward, which is how TokenKeeper judges success.
         func invalidate(configDir: String) {
             lock.withLock {
+                invalidations.append(configDir)
                 if let current = expiries[configDir] {
                     expiries[configDir] = current.addingTimeInterval(8 * 3600)
                 }
@@ -657,6 +663,130 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.keychainState, .ok)
         XCTAssertEqual(store.rows.first?.tokenStatus, "fresh · 1 h")
         XCTAssertNil(store.footerError)
+    }
+
+    /// A denial that is ALREADY in force when the process starts — the normal way a
+    /// login-item app meets this state — never reached `.denied`: `everHadTokens` began
+    /// empty each launch and only a scan that actually handed a token back could fill
+    /// it, so the one actionable message the app has ("grant it in Keychain Access") was
+    /// unreachable in the common case and the user saw "no token" plus a generic fetch
+    /// error instead. The evidence therefore travels with the persisted accounts.
+    func testAStandingKeychainDenialIsRecognisedOnTheVeryFirstScanAfterARelaunch() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        // What the last run wrote: an account we HAD a token for.
+        let lastRun = DiscoveredAccount(organizationUuid: "org-a", email: "a@x", tier: nil,
+                                        configDir: a, aliasDirs: [], tokenExpiresAt: t0)
+        let snapshot = LimitSnapshot(organizationUuid: "org-a", fetchedAt: t0.addingTimeInterval(-600),
+                                     fiveHour: CapturedWindow(usedPercentage: 40, resetsAt: nil),
+                                     sevenDay: nil, weeklyScoped: nil, weeklyScopedModel: nil)
+        try LimitSnapshotStore(directory: appDir).saveFile(
+            LimitsFile(snapshots: ["org-a": snapshot], accounts: [PersistedAccount(from: lastRun, order: 0)]))
+
+        // This run: the Keychain refuses every read from the very first one.
+        let creds = Creds()
+        let store = makeStore(fetcher: Fetcher(), creds: creds)
+        await store.refresh(force: false)
+
+        XCTAssertEqual(store.keychainState, .denied,
+                       "the first scan of the process is the one that has to say so")
+        XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
+        XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
+        XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40,
+                       "and the last numbers stay on screen, dated")
+    }
+
+    /// The seed is evidence, not a token: an account the last run could not read either
+    /// is not proof of a denial, so it must not manufacture one.
+    func testAPersistedAccountThatNeverHadATokenDoesNotFakeADenial() async throws {
+        _ = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let never = DiscoveredAccount(organizationUuid: "org-a", email: "a@x", tier: nil,
+                                      configDir: "/dir-a", aliasDirs: [], tokenExpiresAt: nil)
+        try LimitSnapshotStore(directory: appDir).saveFile(
+            LimitsFile(snapshots: [:], accounts: [PersistedAccount(from: never, order: 0)]))
+
+        let store = makeStore(fetcher: Fetcher(), creds: Creds())
+        await store.refresh(force: false)
+        XCTAssertEqual(store.keychainState, .ok)
+        XCTAssertEqual(store.rows.first?.tokenStatus, "no token")
+    }
+
+    /// "Refresh timed out" is the right sentence only when nothing better is known. A
+    /// cycle parked behind an UNANSWERED Keychain dialog times out by construction, and
+    /// telling that user their refresh timed out is both wrong and permanent — every
+    /// later cycle times out the same way for as long as the dialog stands.
+    func testTheWatchdogKeepsTheKeychainMessageRatherThanSayingTimedOut() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        // A seeded account, so the cycle has someone to fetch for after the patience
+        // releases it — and every read that fetch needs is behind the same unanswered
+        // dialog, which is how a real cycle reaches the watchdog in this state.
+        let seed = DiscoveredAccount(organizationUuid: "org-a", email: "a@x", tier: nil,
+                                     configDir: a, aliasDirs: [], tokenExpiresAt: t0)
+        try LimitSnapshotStore(directory: appDir).saveFile(
+            LimitsFile(snapshots: [:], accounts: [PersistedAccount(from: seed, order: 0)]))
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        let sleeper = Sleeper()
+        addTeardownBlock { sleeper.drain(); creds.releaseReads() }
+        let store = makeStore(fetcher: Fetcher(), creds: creds, sleeper: sleeper)
+
+        creds.holdReads()
+        let hung = Task { await store.refresh(force: false) }
+        try await waitUntil("the scan to park in the Keychain") { creds.parkedReads > 0 }
+        try await waitUntil("the patience timer to be armed") { sleeper.pending.contains(LimitsStore.keychainPatience) }
+        sleeper.fire(LimitsStore.keychainPatience)
+        try await waitUntil("the wait to reach the panel") { store.keychainState == .waiting }
+        XCTAssertEqual(store.footerError, LimitsStore.waitingMessage)
+
+        try await waitUntil("the cycle to park again in the fetch's own Keychain read") {
+            creds.parkedReads > 1
+        }
+        try await waitUntil("the watchdog to be armed") { sleeper.pending.contains(LimitsStore.cycleWatchdog) }
+        sleeper.fire(LimitsStore.cycleWatchdog)
+        await hung.value
+
+        XCTAssertEqual(store.footerError, LimitsStore.waitingMessage,
+                       "the user is still waiting on a dialog; that is what the footer must say")
+        XCTAssertFalse(store.isRefreshing, "the cycle is still abandoned")
+        creds.releaseReads()
+    }
+
+    /// The watchdog has to OUTLAST every deadline one account's turn can legitimately
+    /// spend, or a slow-but-working account is abandoned every cycle forever: the
+    /// generation is retired, every result is dropped, and the panel shows "Refresh
+    /// timed out" over ageing numbers with no way out. The spec's 240 s came from
+    /// `doctor` 90 + `-p` 120 alone and left out the Keychain patience, the two
+    /// SIGTERM→SIGKILL steps, the two drain graces and the usage request — which the
+    /// client makes TWICE, retrying once on 401/403. Computed from the constants, so a
+    /// later timeout change cannot quietly reintroduce the gap.
+    func testTheCycleWatchdogOutlastsEveryDeadlineInsideIt() {
+        let oneCommand = { (timeout: TimeInterval) in timeout + ProcessRunner.killGrace + ProcessRunner.drainGrace }
+        let worstCase = LimitsStore.keychainPatience
+            + oneCommand(TokenKeeper.doctorTimeout)
+            + oneCommand(TokenKeeper.promptTimeout)
+            + 2 * OAuthUsageClient.requestTimeout
+        XCTAssertGreaterThan(LimitsStore.cycleWatchdog, worstCase,
+                             "a cycle that can legitimately take \(worstCase) s must not be abandoned at \(LimitsStore.cycleWatchdog) s")
+    }
+
+    /// The nil-credential floor is ten minutes and is consulted BEFORE any request, so
+    /// nothing downstream can clear it: `OAuthUsageClient` throws `noCredentials` before
+    /// it fetches (no 401, no invalidate) and `TokenKeeper` returns "no readable token"
+    /// before its post-CLI re-read. Granting Keychain access, or finishing `claude auth
+    /// login`, therefore did nothing for up to 600 s — with a ⟳ that did nothing either.
+    /// A forced cycle is by definition "the user just did something", so it is the one
+    /// that goes back to the Keychain.
+    func testAForcedCycleGoesBackToTheKeychainAndABackgroundOneDoesNot() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds()                                  // nothing readable yet
+        let store = makeStore(fetcher: Fetcher(), creds: creds)
+
+        await store.refresh(force: false)
+        XCTAssertTrue(creds.invalidated.isEmpty,
+                      "the 60 s poll must never re-raise a prompt the user declined")
+
+        now = t0.addingTimeInterval(60)
+        await store.refresh(force: true)
+        XCTAssertTrue(creds.invalidated.contains(a),
+                      "⟳ / wake / network-return clear the floor for every dir the scan will walk")
     }
 
     /// `BrowAppController` arms the poll timer BEFORE it calls `bootstrap`, so

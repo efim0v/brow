@@ -36,14 +36,26 @@ public struct PanelView: View {
     /// behind the camera. The black fills the inset too: this is one continuous shape
     /// growing out of the notch, not a card floating below it.
     let topInset: CGFloat
+    /// How much of each side of the window `NotchShape`'s concave flares occupy —
+    /// `NotchFrames.flare`, NOT the constant. On a screen with no notch the frame is
+    /// the un-widened 460 pt and `frames.flare` is 0: clipping that with a 6 pt flare
+    /// nicked ~6 pt of black out of each top corner of a panel that has no notch to
+    /// match, above a collapsed pill whose corners are square.
+    let flare: CGFloat
     let onSettings: () -> Void
     let onRefresh: () -> Void
 
-    public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat,
+    /// The panel's own top/bottom/side padding. `topInset` is the notch clearance and
+    /// REPLACES the top padding, so on a screen with no notch to clear (inset 8) it
+    /// has to be floored here or the panel reads 8 pt top against 14 pt bottom.
+    static let padding: CGFloat = 14
+
+    public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat, flare: CGFloat,
                 onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
         self.store = store
         self.clock = clock
         self.topInset = topInset
+        self.flare = flare
         self.onSettings = onSettings
         self.onRefresh = onRefresh
     }
@@ -64,14 +76,23 @@ public struct PanelView: View {
         // The inset REPLACES the top padding rather than stacking on it: `contentTopInset`
         // is already "notch + 8 pt of breathing room", and the height model below is
         // sized from the same two numbers.
-        .padding(EdgeInsets(top: topInset, leading: 14, bottom: 14, trailing: 14))
+        .padding(EdgeInsets(top: max(topInset, Self.padding), leading: Self.padding,
+                            bottom: Self.padding, trailing: Self.padding))
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
         .background(Color.black)
         // Same outline as the collapsed strip, with the wider bottom radius the spec
         // gives the panel; the fill is behind the clip, so the black — inset included —
         // is what gets the flared top corners.
-        .clipShape(NotchShape(topFlare: NotchGeometry.flare, bottomRadius: NotchGeometry.expandedBottomRadius))
+        .clipShape(outline)
+    }
+
+    /// The notch outline where there is a notch; the pill's rounded rectangle — the very
+    /// shape `EarsView` draws collapsed — where there is not.
+    private var outline: AnyShape {
+        flare > 0
+            ? AnyShape(NotchShape(topFlare: flare, bottomRadius: NotchGeometry.expandedBottomRadius))
+            : AnyShape(RoundedRectangle(cornerRadius: NotchGeometry.collapsedBottomRadius, style: .continuous))
     }
 
     private var overall: some View {
@@ -116,9 +137,12 @@ public struct PanelView: View {
                     .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
             Spacer()
-            // The button STAYS: a background poll (every 120 s, or every 60 s while the
-            // panel is open) must not take the only manual refresh off the screen. The
-            // spinner marks a forced fetch only.
+            // The button STAYS: the 60 s background poll must not take the only manual
+            // refresh off the screen — a cycle is budgeted at up to 210 s of CLI work,
+            // and a dead ⟳ for minutes at a time is the failure this whole spec exists
+            // to fix. `isForcing` is the ONLY gate (spec, The cycle §7): `isRefreshing`
+            // is true for every background cycle and must never reach `.disabled`.
+            // Pinned by PanelRefreshGateTests.
             Button(action: onRefresh) {
                 ZStack {
                     Image(systemName: "arrow.clockwise").opacity(store.isForcing ? 0 : 1)
@@ -126,7 +150,7 @@ public struct PanelView: View {
                 }
                 .frame(width: 20, height: 20).contentShape(Rectangle())
             }
-            .buttonStyle(.plain).disabled(store.isRefreshing).help("Refresh now")
+            .buttonStyle(.plain).disabled(store.isForcing).help("Refresh now")
             Button(action: onSettings) { Image(systemName: "gearshape").frame(width: 20, height: 20).contentShape(Rectangle()) }
                 .buttonStyle(.plain).help("Settings")
         }

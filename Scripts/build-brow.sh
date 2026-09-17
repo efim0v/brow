@@ -18,6 +18,11 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/BrowApp "$APP/Contents/MacOS/Brow"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The browser router Claude Code is pointed at via BROWSER= (see Resources/brow-browser.sh).
+# Under Resources, not MacOS: codesign treats anything in MacOS/ as a nested code
+# object that needs its own signature; a resource is simply sealed with the bundle.
+cp Resources/brow-browser.sh "$APP/Contents/Resources/brow-browser"
+chmod +x "$APP/Contents/Resources/brow-browser"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

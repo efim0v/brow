@@ -40,11 +40,45 @@ public final class AddAccountFlow: ObservableObject {
     /// in there. Shown as a card in Settings until the account appears.
     @Published public private(set) var pendingDir: String?
 
+    /// Brow's browser router, shipped inside the bundle (`Resources/brow-browser.sh`
+    /// → `Contents/Resources/brow-browser`; a script in `MacOS/` would need its own
+    /// code signature). Claude Code honours `BROWSER=` for the sign-in it opens, and
+    /// the router sends that URL to a Chrome profile dedicated to
+    /// `$CLAUDE_CONFIG_DIR` — one browser session per account, so signing one
+    /// account in never signs another out. nil when not running from the bundle
+    /// (tests), in which case the commands below fall back to the default browser.
+    public static var browserHelperPath: String? {
+        let path = Bundle.main.bundlePath + "/Contents/Resources/brow-browser"
+        return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+    }
+
+    /// `CLAUDE_CONFIG_DIR='…' BROWSER='…'` — the environment every command for
+    /// `dir` starts with.
+    public static func environmentPrefix(dir: String) -> String {
+        var prefix = "CLAUDE_CONFIG_DIR=\(shellQuote(dir))"
+        if let helper = browserHelperPath { prefix += " BROWSER=\(shellQuote(helper))" }
+        return prefix
+    }
+
     /// The one line a user pastes into any terminal to run Claude Code as this
     /// account. Plain `claude`, not the resolved binary path: this is what people
     /// type, and `claude` in a fresh config dir walks them through sign-in itself.
     public static func launchCommand(dir: String) -> String {
-        "CLAUDE_CONFIG_DIR=\(shellQuote(dir)) claude"
+        "\(environmentPrefix(dir: dir)) claude"
+    }
+
+    /// The line for a shell profile (`~/.zshrc`): with it, a sign-in started from
+    /// ANY terminal or from cmux goes to the account's own browser profile.
+    public static var shellProfileLine: String? {
+        browserHelperPath.map { "export BROWSER=\(shellQuote($0))" }
+    }
+
+    /// Sign this account in again, in its own browser profile: Terminal runs
+    /// `claude auth login` for `dir`. The account keeps its folder and its row; only
+    /// the token changes.
+    @discardableResult
+    public static func login(dir: String, claudePath: String) -> String? {
+        openInTerminal(dir: dir, claudePath: claudePath, subcommand: "auth login")
     }
 
     public static func copyToPasteboard(_ text: String) {
@@ -192,9 +226,9 @@ public final class AddAccountFlow: ObservableObject {
         }
     }
 
-    /// `CLAUDE_CONFIG_DIR=<dir> <claude> <subcommand>` via Terminal.app.
+    /// `CLAUDE_CONFIG_DIR=<dir> [BROWSER=<router>] <claude> <subcommand>` via Terminal.app.
     public static func terminalCommand(dir: String, claudePath: String, subcommand: String = "") -> String {
-        "CLAUDE_CONFIG_DIR=\(shellQuote(dir)) \(shellQuote(claudePath)) \(subcommand)".trimmingCharacters(in: .whitespaces)
+        "\(environmentPrefix(dir: dir)) \(shellQuote(claudePath)) \(subcommand)".trimmingCharacters(in: .whitespaces)
     }
 
     /// nil when Terminal really was asked to run the command; otherwise the reason,

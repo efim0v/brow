@@ -111,6 +111,10 @@ public struct SettingsView: View {
                             AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
                         } label: { Label("Copy launch command", systemImage: "doc.on.doc") }
                         Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: row.account.configDir, claudePath: claudePath) }
+                        Button {
+                            AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)
+                        } label: { Label("Sign in again", systemImage: "person.badge.key") }
+                            .help("Opens Terminal with `claude auth login` for this account; the browser window is this account's own profile.")
                     }
                 }
             }
@@ -173,6 +177,22 @@ public struct SettingsView: View {
                 .pickerStyle(.segmented)
                 Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("One browser profile per account") {
+                if let line = AddAccountFlow.shellProfileLine {
+                    Text("Every sign-in Brow starts already opens the account's own Chrome profile. For sign-ins started elsewhere (cmux, any terminal), add this to your ~/.zshrc once — the router reads CLAUDE_CONFIG_DIR itself:")
+                        .font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Text(line).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        Spacer()
+                        Button { AddAccountFlow.copyToPasteboard(line) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                    }
+                    Text("Profiles live in ~/Library/Application Support/Brow/browser-profiles/. Brow never sees the session; Chrome keeps it.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("The browser router is missing from this build (Contents/Resources/brow-browser); sign-ins use the default browser.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
             }
             Section("Path to claude") {
                 TextField("Auto-detected", text: Binding(

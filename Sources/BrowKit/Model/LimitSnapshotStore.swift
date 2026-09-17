@@ -11,6 +11,28 @@ public struct LimitsFile: Codable, Sendable, Equatable {
         self.snapshots = snapshots
         self.accounts = accounts
     }
+
+    private enum CodingKeys: String, CodingKey { case snapshots, accounts }
+
+    /// The two halves decode independently. The snapshots are the file's reason to
+    /// exist; the accounts are a convenience for the first frame. So an `accounts`
+    /// array this build cannot read — absent, or written by a later build whose
+    /// `PersistedAccount` carries a field this one cannot fill — degrades to no
+    /// accounts instead of failing the whole decode and costing every cached number.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        snapshots = try container.decode([String: LimitSnapshot].self, forKey: .snapshots)
+        do {
+            accounts = try container.decodeIfPresent([PersistedAccount].self, forKey: .accounts) ?? []
+        } catch {
+            // Best-effort is not silent: the snapshots survive, but the seed was lost.
+            BrowLog.limits.error("""
+                limits cache: accounts unreadable, keeping the snapshots alone: \
+                \(String(describing: error), privacy: .public)
+                """)
+            accounts = []
+        }
+    }
 }
 
 /// `<directory>/limits.json`. Atomic writes; any read error is an empty file —

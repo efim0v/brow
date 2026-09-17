@@ -108,6 +108,54 @@ extension LimitSnapshotStoreTests {
         XCTAssertEqual(loaded.accounts, [], "an old file names no accounts")
     }
 
+    func testCurrentShapeWithoutAccountsKeyKeepsItsSnapshots() throws {
+        let dir = try Fixture.tempDir("limits-no-accounts").path
+        let noAccounts = """
+        {
+          "snapshots" : {
+            "org-a" : {
+              "fetchedAt" : "2023-11-14T22:13:20Z",
+              "fiveHour" : { "resetsAt" : "2026-09-16T20:00:00Z", "usedPercentage" : 41 },
+              "organizationUuid" : "org-a"
+            }
+          }
+        }
+        """
+        try noAccounts.write(toFile: dir + "/limits.json", atomically: true, encoding: .utf8)
+
+        let loaded = LimitSnapshotStore(directory: dir).loadFile()
+        XCTAssertEqual(loaded.snapshots["org-a"]?.fetchedAt, t0, "a missing accounts key must not cost the snapshots")
+        XCTAssertEqual(loaded.snapshots["org-a"]?.fiveHour,
+                       CapturedWindow(usedPercentage: 41, resetsAt: "2026-09-16T20:00:00Z"))
+        XCTAssertEqual(loaded.accounts, [], "no accounts key names no accounts")
+    }
+
+    func testAccountsThisBuildCannotDecodeDoNotCostTheSnapshots() throws {
+        let dir = try Fixture.tempDir("limits-future-accounts").path
+        // An account entry written by a build whose PersistedAccount has fields this one
+        // does not know how to fill in — here, no `configDir`.
+        let futureShape = """
+        {
+          "accounts" : [
+            { "orgId" : "org-a", "order" : 0 }
+          ],
+          "snapshots" : {
+            "org-a" : {
+              "fetchedAt" : "2023-11-14T22:13:20Z",
+              "fiveHour" : { "resetsAt" : "2026-09-16T20:00:00Z", "usedPercentage" : 41 },
+              "organizationUuid" : "org-a"
+            }
+          }
+        }
+        """
+        try futureShape.write(toFile: dir + "/limits.json", atomically: true, encoding: .utf8)
+
+        let loaded = LimitSnapshotStore(directory: dir).loadFile()
+        XCTAssertEqual(loaded.snapshots["org-a"]?.fetchedAt, t0,
+                       "an accounts entry this build cannot read must not wipe the cached numbers")
+        XCTAssertEqual(loaded.accounts, [], "undecodable accounts degrade to none, not to a broken file")
+    }
+
     func testPersistedAccountRoundTripsToDiscovered() {
         let persisted = PersistedAccount(from: accountA, order: 3)
         XCTAssertEqual(persisted.order, 3, "display order survives the file")

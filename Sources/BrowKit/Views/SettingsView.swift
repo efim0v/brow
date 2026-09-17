@@ -123,6 +123,18 @@ public struct SettingsView: View {
                     do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
                     catch { BrowLog.panel.error("launch at login: \(error.localizedDescription, privacy: .public)") }
                 }
+            Section {
+                // The store writes config.json and publishes on every change, and the
+                // panel re-reads `earsPlacement` on every render — so the strip reshapes
+                // as the segment is clicked, with no relaunch.
+                Picker("Ears", selection: $store.settings.earsPlacement) {
+                    Text("Beside the notch").tag(EarsPlacement.beside)
+                    Text("Below the notch").tag(EarsPlacement.below)
+                }
+                .pickerStyle(.segmented)
+                Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Path to claude") {
                 TextField("Auto-detected", text: Binding(
                     get: { store.settings.claudePath ?? "" },

@@ -41,7 +41,11 @@ public final class NotchPanelController {
         self.clock = clock
         self.onExpandedChange = onExpandedChange
         self.onSettings = onSettings
-        self.frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: 200)
+        // The placement from the first frame on: the panel's contentRect is built from
+        // this, and a `below` user would otherwise see one beside-shaped strip flash
+        // before the first render().
+        self.frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: 200,
+                                           placement: store.settings.earsPlacement)
         panel = BrowPanel(contentRect: frames.collapsed,
                           styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .statusBar + 1
@@ -126,17 +130,24 @@ public final class NotchPanelController {
         // the fact left the hosted view carrying the previous screen's earWidth and
         // hasNotch until a later publish — two store publishes (~240 s) behind.
         let metrics = Self.metrics()
-        frames = NotchGeometry.frames(for: metrics, expandedHeight: frames.expanded.height)
+        // Read LIVE, every render: the store publishes on every settings write, and this
+        // is what turns the Ears picker into a reshaped strip without a relaunch.
+        let placement = store.settings.earsPlacement
+        frames = NotchGeometry.frames(for: metrics, expandedHeight: frames.expanded.height, placement: placement)
         if expanded {
-            host.rootView = AnyView(PanelView(store: store, clock: clock, onSettings: onSettings,
+            host.rootView = AnyView(PanelView(store: store, clock: clock, topInset: frames.contentTopInset,
+                                              onSettings: onSettings,
                                               onRefresh: { [store] in Task { await store.refresh(force: true) } })
-                .frame(width: NotchGeometry.expandedWidth))
+                // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
+                // concave corners in those 6 pt, and the visible black still starts at
+                // the notch edge.
+                .frame(width: frames.expanded.width))
         } else {
-            host.rootView = AnyView(EarsView(aggregate: store.aggregate, earWidth: frames.earWidth, hasNotch: frames.hasNotch)
+            host.rootView = AnyView(EarsView(aggregate: store.aggregate, frames: frames)
                 .frame(width: frames.collapsed.width, height: frames.collapsed.height))
         }
         // …then size the window to the tree that was just installed.
-        frames = NotchGeometry.frames(for: metrics, expandedHeight: expandedHeight())
+        frames = NotchGeometry.frames(for: metrics, expandedHeight: expandedHeight(), placement: placement)
         applyFrame(animated: true)
     }
 
@@ -146,18 +157,21 @@ public final class NotchPanelController {
         // tree, which opened the first hover at the 120 pt floor and cut off the
         // footer — the only ⟳ and ⚙ buttons there are.
         host.layoutSubtreeIfNeeded()
-        let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount))
+        let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount),
+                                                    topInset: frames.contentTopInset)
         return max(120, max(modelled, host.fittingSize.height))
     }
 
     /// A layout-independent floor for the expanded panel, from the model PanelView
-    /// draws: 14 pt padding twice, the Overall line, one block per account (header +
-    /// bars) each followed by a divider, and the footer, with 10 pt stack spacing.
-    static func estimatedExpandedHeight(barCounts: [Int]) -> CGFloat {
-        let padding: CGFloat = 28, overall: CGFloat = 20, footer: CGFloat = 20
+    /// draws: the top inset that keeps the content clear of the notch, 14 pt of bottom
+    /// padding, the Overall line, one block per account (header + bars) each followed
+    /// by a divider, and the footer, with 10 pt stack spacing. The inset is PanelView's
+    /// whole top padding, so it is added, not stacked on a second 14.
+    static func estimatedExpandedHeight(barCounts: [Int], topInset: CGFloat) -> CGFloat {
+        let bottomPadding: CGFloat = 14, overall: CGFloat = 20, footer: CGFloat = 20
         let spacing: CGFloat = 10, divider: CGFloat = 1
         let blocks = barCounts.reduce(CGFloat(0)) { $0 + 18 + CGFloat($1) * 19 + spacing + divider + spacing }
-        return padding + overall + spacing + divider + spacing + blocks + footer
+        return topInset + bottomPadding + overall + spacing + divider + spacing + blocks + footer
     }
 
     /// 5h and Weekly always; the model-scoped weekly only when the snapshot has one.
@@ -183,9 +197,14 @@ public final class NotchPanelController {
             return ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1440, height: 900), topLeftArea: nil, topRightArea: nil, menuBarHeight: 24)
         }
         let menuBar = max(0, screen.frame.maxY - screen.visibleFrame.maxY)
+        // `safeAreaInsets.top` is the notch itself — 32 pt on the 14", where the menu
+        // bar is 33. That one point is what made the collapsed strip stand proud of the
+        // notch, so the menu-bar height must never stand in for it; 0 here (no notch, or
+        // an OS that reports none) makes the geometry fall back to the auxiliary areas.
         return ScreenMetrics(frame: screen.frame,
                              topLeftArea: screen.auxiliaryTopLeftArea,
                              topRightArea: screen.auxiliaryTopRightArea,
-                             menuBarHeight: menuBar > 0 ? menuBar : 24)
+                             menuBarHeight: menuBar > 0 ? menuBar : 24,
+                             notchHeight: screen.safeAreaInsets.top)
     }
 }

@@ -30,12 +30,20 @@ public final class PanelClock: ObservableObject {
 public struct PanelView: View {
     @ObservedObject var store: LimitsStore
     @ObservedObject var clock: PanelClock
+    /// How far the first row starts below the window's top edge — `notch height + 8`
+    /// from `NotchGeometry`. The panel hangs off the screen edge, so without it the
+    /// "Overall" line sat *under* the notch and the Weekly/Fable numbers were hidden
+    /// behind the camera. The black fills the inset too: this is one continuous shape
+    /// growing out of the notch, not a card floating below it.
+    let topInset: CGFloat
     let onSettings: () -> Void
     let onRefresh: () -> Void
 
-    public init(store: LimitsStore, clock: PanelClock, onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
+    public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat,
+                onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
         self.store = store
         self.clock = clock
+        self.topInset = topInset
         self.onSettings = onSettings
         self.onRefresh = onRefresh
     }
@@ -53,9 +61,17 @@ public struct PanelView: View {
             }
             footer
         }
-        .padding(14)
+        // The inset REPLACES the top padding rather than stacking on it: `contentTopInset`
+        // is already "notch + 8 pt of breathing room", and the height model below is
+        // sized from the same two numbers.
+        .padding(EdgeInsets(top: topInset, leading: 14, bottom: 14, trailing: 14))
         .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
         .background(Color.black)
+        // Same outline as the collapsed strip, with the wider bottom radius the spec
+        // gives the panel; the fill is behind the clip, so the black — inset included —
+        // is what gets the flared top corners.
+        .clipShape(NotchShape(topFlare: NotchGeometry.flare, bottomRadius: NotchGeometry.expandedBottomRadius))
     }
 
     private var overall: some View {

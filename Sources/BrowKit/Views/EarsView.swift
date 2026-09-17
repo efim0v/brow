@@ -1,34 +1,78 @@
 import SwiftUI
 
-/// The collapsed readouts. Black background so the view disappears into the
-/// notch; on a pill (no notch) the same content sits on a dark rounded rect.
+/// The collapsed readouts, drawn on the notch outline itself.
+///
+/// The whole frame is `NotchShape` in black — flared where it meets the screen edge,
+/// rounded at the bottom — so the strip reads as the notch growing rather than a bar
+/// stuck over the menu bar. Where the readouts sit inside it is `frames.placement`:
+///
+/// - `beside`: the two wings on either side of the notch, vertically centred, with the
+///   notch-wide middle left empty (there is a camera behind it).
+/// - `below`: one centred row in the `belowStripHeight` strip under the notch; the
+///   notch's own height stays empty for the same reason.
+/// - no notch (external display): the 180 × 24 pt pill, square-cornered and rounded,
+///   with no flare to draw.
 public struct EarsView: View {
     let aggregate: LimitsAggregate
-    let earWidth: CGFloat
-    let hasNotch: Bool
+    let frames: NotchFrames
 
-    public init(aggregate: LimitsAggregate, earWidth: CGFloat, hasNotch: Bool) {
+    public init(aggregate: LimitsAggregate, frames: NotchFrames) {
         self.aggregate = aggregate
-        self.earWidth = earWidth
-        self.hasNotch = hasNotch
+        self.frames = frames
     }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            ear(aggregate.leftEar, leading: true).frame(width: earWidth)
-            if hasNotch { Spacer(minLength: 0) }
-            ear(aggregate.rightEar, leading: false).frame(width: earWidth)
-        }
-        // Two fixed-width ears cannot compress, so the padding has to be paid for out
-        // of the ear width (NotchGeometry.pillPadding), not added on top of it.
-        .padding(.horizontal, hasNotch ? 0 : NotchGeometry.pillPadding)
-        .background(Color.black)
-        .clipShape(RoundedRectangle(cornerRadius: hasNotch ? 0 : 12, style: .continuous))
+        content
+            .background(background)
     }
 
-    private func ear(_ r: EarReadout, leading: Bool) -> some View {
-        HStack(spacing: 5) {
-            if !leading { Spacer(minLength: 0) }
+    @ViewBuilder
+    private var content: some View {
+        if frames.hasNotch, frames.placement == .below {
+            VStack(spacing: 0) {
+                // The notch itself: black, and empty.
+                Color.clear.frame(height: frames.notchHeight)
+                row(outward: false).frame(height: NotchGeometry.belowStripHeight)
+            }
+            // The flares widen the frame on each side; the readouts belong inside the
+            // visible black, not under the bezel.
+            .padding(.horizontal, frames.flare)
+        } else {
+            row(outward: true)
+                // Two fixed-width ears cannot compress, so on the pill the padding has to
+                // be paid for out of the ear width (NotchGeometry.pillPadding), not added
+                // on top of it; with a notch the frame already carries the flares.
+                .padding(.horizontal, frames.hasNotch ? frames.flare : NotchGeometry.pillPadding)
+        }
+    }
+
+    /// `beside` needs the notch-wide gap between the wings; `below` and the pill are
+    /// one contiguous row whose two halves meet in the middle.
+    private func row(outward: Bool) -> some View {
+        HStack(spacing: 0) {
+            ear(aggregate.leftEar, leading: true, outward: outward).frame(width: frames.earWidth)
+            if frames.hasNotch, frames.placement == .beside { Spacer(minLength: 0) }
+            ear(aggregate.rightEar, leading: false, outward: outward).frame(width: frames.earWidth)
+        }
+    }
+
+    @ViewBuilder
+    private var background: some View {
+        if frames.hasNotch {
+            NotchShape(topFlare: frames.flare, bottomRadius: NotchGeometry.collapsedBottomRadius)
+                .fill(Color.black)
+        } else {
+            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.black)
+        }
+    }
+
+    /// `outward`: the readout hugs the outer edge of its wing, which is what keeps the
+    /// notch-wide middle clear in `beside`. Otherwise it hugs the middle, so the two
+    /// halves read as the one centred `● 14%   27% ●` row the strip needs.
+    private func ear(_ r: EarReadout, leading: Bool, outward: Bool) -> some View {
+        let spacerFirst = outward ? !leading : leading
+        return HStack(spacing: 5) {
+            if spacerFirst { Spacer(minLength: 0) }
             if leading { dot(r) }
             HStack(spacing: 3) {
                 if let initial = r.modelInitial {
@@ -40,7 +84,7 @@ public struct EarsView: View {
                     .foregroundStyle(.white)
             }
             if !leading { dot(r) }
-            if leading { Spacer(minLength: 0) }
+            if !spacerFirst { Spacer(minLength: 0) }
         }
         .padding(.horizontal, 8)
     }

@@ -238,6 +238,43 @@ final class LimitsStoreTests: XCTestCase {
         now = t0
     }
 
+    /// One bucket for every account (the endpoint's limit is per user, not per
+    /// token), refilled at 1 per 100 s, and the store fetching accounts one after
+    /// another, oldest reading first: the accounts take turns at the window instead
+    /// of both firing at once and the second being refused.
+    func testSharedBucketAlternatesAccountsAtTheRefillPeriod() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let b = try makeAccount(".claude-accounts/b", org: "org-b", email: "b@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600); creds.expiry[b] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
+        fetcher.responses["Bearer tok-\(b)"] = (body(five: 2, seven: 2), 200)
+        let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300,
+                                      minInterval: 100, burstCapacity: 5, sharedBucket: true, credentials: creds)
+        let keeper = TokenKeeper(runner: MockRunnerBK(results: []), credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { [clock] in clock.date })
+        let store = LimitsStore(deps: .init(directory: AccountDirectory(home: home.path, credentials: creds),
+                                            keeper: keeper, client: client,
+                                            snapshotStore: LimitSnapshotStore(directory: appDir),
+                                            settingsStore: BrowSettingsStore(directory: appDir),
+                                            now: { [clock] in clock.date }, sequentialFetch: true))
+        await store.refresh(force: false)
+        XCTAssertEqual(fetcher.calls.count, 2, "first readings draw on the burst budget")
+        now = t0.addingTimeInterval(40)
+        await store.refresh(force: false)
+        XCTAssertEqual(fetcher.calls.count, 2, "inside the refill period nobody goes out")
+        now = t0.addingTimeInterval(101)
+        await store.refresh(force: false)
+        XCTAssertEqual(fetcher.calls.count, 3, "one refill, one request — the oldest reading")
+        XCTAssertEqual(fetcher.calls.last, "Bearer tok-\(a)")
+        now = t0.addingTimeInterval(202)
+        await store.refresh(force: false)
+        XCTAssertEqual(fetcher.calls.count, 4)
+        XCTAssertEqual(fetcher.calls.last, "Bearer tok-\(b)", "the other account takes the next turn")
+        XCTAssertEqual(store.rows.first { $0.id == "org-a" }?.snapshot?.fetchedAt, t0.addingTimeInterval(101))
+        XCTAssertEqual(store.rows.first { $0.id == "org-b" }?.snapshot?.fetchedAt, t0.addingTimeInterval(202))
+    }
+
     func testFetchesEveryVisibleAccountAndAggregates() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
         let b = try makeAccount(".claude-accounts/b", org: "org-b", email: "b@x")

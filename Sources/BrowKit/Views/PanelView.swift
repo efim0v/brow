@@ -42,6 +42,10 @@ public struct PanelView: View {
     /// nicked ~6 pt of black out of each top corner of a panel that has no notch to
     /// match, above a collapsed pill whose corners are square.
     let flare: CGFloat
+    /// False when `NotchRootView` hosts this panel inside its own animated outline
+    /// (the one that grows out of the notch on hover); true when the panel is on its
+    /// own, e.g. in tests.
+    let drawsBackground: Bool
     let onSettings: () -> Void
     let onRefresh: () -> Void
 
@@ -51,11 +55,13 @@ public struct PanelView: View {
     static let padding: CGFloat = 14
 
     public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat, flare: CGFloat,
+                drawsBackground: Bool = true,
                 onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
         self.store = store
         self.clock = clock
         self.topInset = topInset
         self.flare = flare
+        self.drawsBackground = drawsBackground
         self.onSettings = onSettings
         self.onRefresh = onRefresh
     }
@@ -68,7 +74,8 @@ public struct PanelView: View {
                 Text("No Claude accounts found").font(.system(size: 12)).foregroundStyle(.secondary)
             }
             ForEach(store.rows) { row in
-                AccountBlockView(row: row, now: clock.now)
+                AccountBlockView(row: row, now: clock.now,
+                                 claudePath: store.settings.claudePath ?? store.claudeDetected ?? "claude")
                 Divider().overlay(Color.white.opacity(0.15))
             }
             footer
@@ -80,11 +87,12 @@ public struct PanelView: View {
                             bottom: Self.padding, trailing: Self.padding))
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
-        .background(Color.black)
+        .background { if drawsBackground { Color.black } }
         // Same outline as the collapsed strip, with the wider bottom radius the spec
         // gives the panel; the fill is behind the clip, so the black — inset included —
-        // is what gets the flared top corners.
-        .clipShape(outline)
+        // is what gets the flared top corners. Inside `NotchRootView` the animated
+        // outline does the clipping instead.
+        .clipShape(drawsBackground ? outline : AnyShape(Rectangle()))
     }
 
     /// The notch outline where there is a notch; the pill's rounded rectangle — the very

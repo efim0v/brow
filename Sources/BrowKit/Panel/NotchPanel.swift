@@ -15,28 +15,48 @@ final class FirstMouseHostingView<V: View>: NSHostingView<V> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// What the hosting view shows: the collapsed strip or the expanded panel, both hung
-/// from the top edge of a window that never moves. Only the CONTENT changes on hover
-/// — a crossfade — so the black can never be seen detaching from the notch, dropping
-/// down, or sliding sideways, which is exactly what animating the window's frame
-/// from the strip's rect to the panel's rect used to do.
+/// What the hosting view shows, hung from the top edge of a window that never moves:
+/// ONE black notch outline that grows out of the notch on hover — from the strip's
+/// size and 14 pt corners to the panel's size and 18 pt corners, on a spring — with
+/// the strip fading out and the panel fading in inside it, clipped to the outline
+/// as it grows. The window's frame is never touched, so the black can never be seen
+/// detaching from the notch, dropping down, or sliding sideways, which is exactly
+/// what animating the window from the strip's rect to the panel's rect used to do.
 struct NotchRootView: View {
     let expanded: Bool
+    let frames: NotchFrames
     let ears: AnyView
     let panel: AnyView
-    let width: CGFloat
-    let height: CGFloat
+
+    private var shapeSize: CGSize {
+        expanded ? frames.expanded.size : frames.collapsed.size
+    }
+
+    private var outline: AnyShape {
+        if frames.hasNotch {
+            return AnyShape(NotchShape(topFlare: frames.flare,
+                                       bottomRadius: expanded ? NotchGeometry.expandedBottomRadius
+                                                              : NotchGeometry.collapsedBottomRadius))
+        }
+        return AnyShape(RoundedRectangle(cornerRadius: NotchGeometry.collapsedBottomRadius, style: .continuous))
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
-            if expanded {
-                panel.transition(.opacity)
-            } else {
-                ears.transition(.opacity)
+            outline.fill(Color.black)
+                .frame(width: shapeSize.width, height: shapeSize.height)
+            ZStack(alignment: .top) {
+                if expanded {
+                    panel.transition(.opacity)
+                } else {
+                    ears.transition(.opacity)
+                }
             }
+            .frame(width: shapeSize.width, height: shapeSize.height, alignment: .top)
+            .clipShape(outline)
         }
-        .frame(width: width, height: height, alignment: .top)
-        .animation(.easeInOut(duration: NotchPanelController.animation), value: expanded)
+        .frame(width: frames.expanded.width, height: frames.expanded.height, alignment: .top)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
     }
 }
 
@@ -167,24 +187,26 @@ public final class NotchPanelController {
         // is what turns the Ears picker into a reshaped strip without a relaunch.
         let placement = store.settings.earsPlacement
         frames = NotchGeometry.frames(for: metrics, expandedHeight: frames.expanded.height, placement: placement)
-        let ears = EarsView(aggregate: store.aggregate, frames: frames)
+        // Size the window to the panel it would show expanded — whether or not it is
+        // expanded right now — so the frame never has to change on hover.
+        let height = expandedHeight()
+        frames = NotchGeometry.frames(for: metrics, expandedHeight: height, placement: placement)
+        // Both views draw NO background of their own: `NotchRootView` owns the one
+        // animated outline they live in.
+        let ears = EarsView(aggregate: store.aggregate, frames: frames, drawsBackground: false)
             .frame(width: frames.collapsed.width, height: frames.collapsed.height)
         let panelView = PanelView(store: store, clock: clock, topInset: frames.contentTopInset,
                                   // The frame's OWN flare, not the constant: an
                                   // external display's frame carries none.
-                                  flare: frames.flare,
+                                  flare: frames.flare, drawsBackground: false,
                                   onSettings: onSettings,
                                   onRefresh: { [store] in Task { await store.refresh(force: true) } })
             // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
             // concave corners in those 6 pt, and the visible black still starts at
             // the notch edge.
             .frame(width: frames.expanded.width)
-        // Size the window to the panel it would show expanded — whether or not it is
-        // expanded right now — so the frame never has to change on hover.
-        let height = expandedHeight()
-        frames = NotchGeometry.frames(for: metrics, expandedHeight: height, placement: placement)
-        host.rootView = AnyView(NotchRootView(expanded: expanded, ears: AnyView(ears), panel: AnyView(panelView),
-                                              width: frames.expanded.width, height: frames.expanded.height))
+        host.rootView = AnyView(NotchRootView(expanded: expanded, frames: frames,
+                                              ears: AnyView(ears), panel: AnyView(panelView)))
         applyFrame()
     }
 

@@ -2,27 +2,67 @@ import SwiftUI
 import GroveCore
 
 /// One account: header line + up to three bars (5h, weekly, model weekly).
+///
+/// The header carries the two things the owner asked to have IN the panel, not in
+/// Settings: copy the command that runs Claude Code as this account, and open a
+/// Terminal already running it.
 public struct AccountBlockView: View {
     let row: AccountRow
     let now: Date
+    let claudePath: String
+    @State private var copied = false
 
-    public init(row: AccountRow, now: Date) {
+    public init(row: AccountRow, now: Date, claudePath: String = "claude") {
         self.row = row
         self.now = now
+        self.claudePath = claudePath
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 8) {
                 Text(row.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 Spacer()
                 Text(tag).font(.system(size: 10)).foregroundStyle(tagColor).lineLimit(1)
+                actions
             }
             bar("5h", row.snapshot?.fiveHour)
             bar("Weekly", row.snapshot?.sevenDay)
             if let scoped = row.snapshot?.weeklyScoped {
                 bar(row.snapshot?.weeklyScopedModel ?? "Model", scoped)
             }
+        }
+    }
+
+    /// Copy the launch command (a checkmark for a second confirms it), or open it in
+    /// Terminal. Small, borderless, and right where the account is.
+    private var actions: some View {
+        let command = AddAccountFlow.launchCommand(dir: row.account.configDir)
+        return HStack(spacing: 2) {
+            Button {
+                AddAccountFlow.copyToPasteboard(command)
+                copied = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_200_000_000)
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 11))
+                    .foregroundStyle(copied ? Color.green : Color.secondary)
+                    .frame(width: 18, height: 18).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Copy: \(command)")
+            Button {
+                AddAccountFlow.openInTerminal(dir: row.account.configDir, claudePath: claudePath)
+            } label: {
+                Image(systemName: "terminal")
+                    .font(.system(size: 11)).foregroundStyle(Color.secondary)
+                    .frame(width: 18, height: 18).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open Claude Code as this account in Terminal")
         }
     }
 

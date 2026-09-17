@@ -42,13 +42,18 @@ public final class LimitsStore: ObservableObject {
         /// The cycle's two deadlines (watchdog, Keychain patience) go through here so
         /// tests reach 240 s and 5 s in microseconds and never sleep for real.
         public var sleep: @Sendable (TimeInterval) async -> Void
+        /// Fetch accounts one after another (oldest reading first) instead of all at
+        /// once. Required when the client's bucket is shared across accounts.
+        public var sequentialFetch: Bool
         public init(directory: AccountDirectory, keeper: TokenKeeper, client: OAuthUsageClient,
                     snapshotStore: LimitSnapshotStore, settingsStore: BrowSettingsStore,
                     now: @escaping @Sendable () -> Date,
-                    sleep: @escaping @Sendable (TimeInterval) async -> Void = Dependencies.realSleep) {
+                    sleep: @escaping @Sendable (TimeInterval) async -> Void = Dependencies.realSleep,
+                    sequentialFetch: Bool = false) {
             self.directory = directory; self.keeper = keeper; self.client = client
             self.snapshotStore = snapshotStore; self.settingsStore = settingsStore; self.now = now
             self.sleep = sleep
+            self.sequentialFetch = sequentialFetch
         }
 
         /// Cancellation is how the winner of a race stops the loser, and it is not a
@@ -414,43 +419,35 @@ public final class LimitsStore: ObservableObject {
         cycleResults = [:]
         var outstanding = visible.map(\.organizationUuid)
         phase = .fetching(outstanding)
-        await withTaskGroup(of: FetchResult.self) { group in
-            for account in visible {
-                let forceAttempt = rejected[account.organizationUuid] ?? false
-                group.addTask { [deps] in
-                    let token = await deps.keeper.ensureFresh(configDir: account.configDir,
-                                                              authRejected: forceAttempt)
-                    // Sampled AFTER the token work: `claude doctor` (90 s) plus
-                    // `claude -p` (120 s) can sit between the top of the cycle and
-                    // this request, and the reading must be stamped with the instant
-                    // it was really taken — that stamp is the panel's "Updated …".
-                    let at = deps.now()
-                    do {
-                        let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
-                        let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
-                        return FetchResult(org: account.organizationUuid, snapshot: snap,
-                                           error: snap == nil ? "No limit windows in response" : nil,
-                                           token: token, rejected: false, rateLimited: false)
-                    } catch {
-                        return FetchResult(org: account.organizationUuid, snapshot: nil,
-                                           error: Self.errorText(error), token: token,
-                                           rejected: Self.isAuthRejection(error),
-                                           rateLimited: Self.isRateLimit(error))
+        if deps.sequentialFetch {
+            // One bucket for every account (the endpoint's limit is per user, not per
+            // token): the second request has to SEE the first one's success, or both go
+            // out together and the second is refused. Oldest reading first, so the
+            // accounts take turns at the window.
+            let ordered = visible.sorted {
+                (snapshots[$0.organizationUuid]?.fetchedAt ?? .distantPast)
+                    < (snapshots[$1.organizationUuid]?.fetchedAt ?? .distantPast)
+            }
+            for account in ordered {
+                let result = await Self.fetch(deps: deps, account: account, force: force,
+                                              forceAttempt: rejected[account.organizationUuid] ?? false)
+                guard cycle == generation else { return }
+                handle(result, outstanding: &outstanding)
+            }
+        } else {
+            await withTaskGroup(of: FetchResult.self) { group in
+                for account in visible {
+                    let forceAttempt = rejected[account.organizationUuid] ?? false
+                    group.addTask { [deps] in
+                        await Self.fetch(deps: deps, account: account, force: force, forceAttempt: forceAttempt)
                     }
                 }
-            }
-            for await result in group {
-                // A superseded cycle drops the rest of its results rather than writing
-                // older numbers over newer ones.
-                guard cycle == generation else { continue }
-                apply(result)
-                outstanding.removeAll { $0 == result.org }
-                phase = .fetching(outstanding)
-                // Errors wait for the end of the cycle — an account that failed while
-                // another is still out is not yet "nothing worked". A success is
-                // published immediately, message and all.
-                if result.snapshot != nil { updateFooter() }
-                recompute()
+                for await result in group {
+                    // A superseded cycle drops the rest of its results rather than
+                    // writing older numbers over newer ones.
+                    guard cycle == generation else { continue }
+                    handle(result, outstanding: &outstanding)
+                }
             }
         }
         guard cycle == generation else { return }
@@ -477,6 +474,39 @@ public final class LimitsStore: ObservableObject {
             for alias in account.aliasDirs { deps.directory.invalidate(configDir: alias) }
         }
         deps.directory.invalidateCandidates(extraDirs: settings.extraDirs)
+    }
+
+    /// One account's token upkeep and usage request, off the main actor. Sampled
+    /// AFTER the token work: `claude doctor` (90 s) plus `claude -p` (120 s) can sit
+    /// between the top of the cycle and this request, and the reading must be stamped
+    /// with the instant it was really taken — that stamp is the panel's "Updated …".
+    nonisolated private static func fetch(deps: Dependencies, account: DiscoveredAccount,
+                                          force: Bool, forceAttempt: Bool) async -> FetchResult {
+        let token = await deps.keeper.ensureFresh(configDir: account.configDir, authRejected: forceAttempt)
+        let at = deps.now()
+        do {
+            let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
+            let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
+            return FetchResult(org: account.organizationUuid, snapshot: snap,
+                               error: snap == nil ? "No limit windows in response" : nil,
+                               token: token, rejected: false, rateLimited: false)
+        } catch {
+            return FetchResult(org: account.organizationUuid, snapshot: nil,
+                               error: Self.errorText(error), token: token,
+                               rejected: Self.isAuthRejection(error),
+                               rateLimited: Self.isRateLimit(error))
+        }
+    }
+
+    /// One result as it lands: applied and published at once. Errors wait for the end
+    /// of the cycle — an account that failed while another is still out is not yet
+    /// "nothing worked"; a success is published immediately, message and all.
+    private func handle(_ result: FetchResult, outstanding: inout [String]) {
+        apply(result)
+        outstanding.removeAll { $0 == result.org }
+        phase = .fetching(outstanding)
+        if result.snapshot != nil { updateFooter() }
+        recompute()
     }
 
     /// One account's answer, as it lands.

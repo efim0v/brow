@@ -19,6 +19,13 @@ public struct NotchShape: Shape {
         self.bottomRadius = bottomRadius
     }
 
+    /// Both radii interpolate, so the strip's 14 pt corners can grow into the panel's
+    /// 18 pt ones as the shape itself grows on hover.
+    public var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(topFlare, bottomRadius) }
+        set { topFlare = newValue.first; bottomRadius = newValue.second }
+    }
+
     public func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))

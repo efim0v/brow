@@ -15,10 +15,15 @@ import SwiftUI
 public struct EarsView: View {
     let aggregate: LimitsAggregate
     let frames: NotchFrames
+    /// `NotchRootView` draws ONE black outline that grows on hover and hosts both this
+    /// view and the panel inside it; it passes false so the strip does not paint a
+    /// second, non-animating outline over the animated one.
+    let drawsBackground: Bool
 
-    public init(aggregate: LimitsAggregate, frames: NotchFrames) {
+    public init(aggregate: LimitsAggregate, frames: NotchFrames, drawsBackground: Bool = true) {
         self.aggregate = aggregate
         self.frames = frames
+        self.drawsBackground = drawsBackground
     }
 
     public var body: some View {
@@ -30,7 +35,7 @@ public struct EarsView: View {
             // floating 8.5 pt below the screen edge — the pill the same way. `below` was
             // immune only because its VStack pins both children explicitly.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(background)
+            .background { if drawsBackground { background } }
     }
 
     @ViewBuilder

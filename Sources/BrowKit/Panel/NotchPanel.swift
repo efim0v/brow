@@ -105,6 +105,7 @@ public final class NotchPanelController {
     private let panel: BrowPanel
     private let host: FirstMouseHostingView<NotchRootView>
     private let model: NotchPanelModel
+    private let hover = CalendarHoverTracker()
     /// The space above every user Space that keeps the panel out of the Spaces
     /// transition; nil when the private API is unavailable (logged once).
     private let space: SkyLightSpace?
@@ -188,6 +189,7 @@ public final class NotchPanelController {
         // pointer has to reach the notch itself.
         let collapsedHot = store.settings.showEars ? frames.collapsed : (frames.notch ?? frames.collapsed)
         let hot = expanded ? frames.expanded : collapsedHot
+        if expanded { hover.update(pointer: hot.contains(point) ? hostPoint(fromScreen: point) : nil) }
         if hot.contains(point) {
             collapseWork?.cancel(); collapseWork = nil
             if !expanded { setExpanded(true) }
@@ -198,10 +200,18 @@ public final class NotchPanelController {
         }
     }
 
+    /// A screen point in the hosting view's space — the `.global` space SwiftUI's
+    /// `GeometryReader` reports in: origin top-left, whatever the view's flip.
+    private func hostPoint(fromScreen point: NSPoint) -> CGPoint {
+        let inHost = host.convert(panel.convertPoint(fromScreen: point), from: nil)
+        return CGPoint(x: inHost.x, y: host.isFlipped ? inHost.y : host.bounds.height - inHost.y)
+    }
+
     private func setExpanded(_ value: Bool) {
         guard expanded != value else { return }
         expanded = value
         collapseWork = nil
+        if !value { hover.update(pointer: nil) }
         // Expanded, the panel owns its clicks (⟳ and ⚙); collapsed, it must let the
         // menu bar underneath have them.
         panel.ignoresMouseEvents = !value
@@ -229,7 +239,7 @@ public final class NotchPanelController {
         let panelView = PanelView(store: store, clock: clock, topInset: frames.contentTopInset,
                                   // The frame's OWN flare, not the constant: an
                                   // external display's frame carries none.
-                                  flare: frames.flare, drawsBackground: false,
+                                  flare: frames.flare, drawsBackground: false, hover: hover,
                                   onSettings: onSettings,
                                   onRefresh: { [store] in Task { await store.refresh(force: true) } })
             // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its

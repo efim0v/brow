@@ -48,6 +48,8 @@ public struct PanelView: View {
     let drawsBackground: Bool
     let onSettings: () -> Void
     let onRefresh: () -> Void
+    /// The calendar's hovered day, driven by the controller's mouse monitor.
+    @ObservedObject var hover: CalendarHoverTracker
 
     /// The panel's own top/bottom/side padding. `topInset` is the notch clearance and
     /// REPLACES the top padding, so on a screen with no notch to clear (inset 8) it
@@ -55,13 +57,14 @@ public struct PanelView: View {
     static let padding: CGFloat = 14
 
     public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat, flare: CGFloat,
-                drawsBackground: Bool = true,
+                drawsBackground: Bool = true, hover: CalendarHoverTracker = CalendarHoverTracker(),
                 onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
         self.store = store
         self.clock = clock
         self.topInset = topInset
         self.flare = flare
         self.drawsBackground = drawsBackground
+        self.hover = hover
         self.onSettings = onSettings
         self.onRefresh = onRefresh
     }
@@ -79,7 +82,7 @@ public struct PanelView: View {
                 Divider().overlay(Color.white.opacity(0.15))
             }
             if store.settings.showCalendar, !store.rows.isEmpty {
-                CalendarView(rows: store.rows, now: clock.now)
+                CalendarView(rows: store.rows, now: clock.now, hover: hover)
                 Divider().overlay(Color.white.opacity(0.15))
             }
             footer

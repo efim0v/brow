@@ -7,9 +7,11 @@ import SwiftUI
 struct CalendarView: View {
     let rows: [AccountRow]
     let now: Date
+    /// Fed by the controller's mouse monitor — see `CalendarHoverTracker`.
+    @ObservedObject var hover: CalendarHoverTracker
     var calendar: Calendar = .autoupdatingCurrent
     @State private var monthOffset = 0
-    @State private var hovered: Date?
+    private var hovered: Date? { hover.hoveredDay }
 
     static let cell = CGSize(width: 26, height: 22)
     /// The height `NotchPanelController` budgets for this view before it is laid out:
@@ -55,6 +57,7 @@ struct CalendarView: View {
                         }
                     }
                 }
+                .onPreferenceChange(CellFrames.self) { frames in hover.frames = frames }
             }
             if let detailDay {
                 detail(ResetCalendar.dayDetail(for: detailDay, marks: marks, now: now, calendar: calendar))
@@ -134,8 +137,16 @@ struct CalendarView: View {
                     .stroke(Color.white.opacity(today ? 0.35 : 0), lineWidth: 1))
         )
         .contentShape(Rectangle())
-        .onHover { inside in
-            if inside { hovered = day } else if isHovered { hovered = nil }
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: CellFrames.self, value: [calendar.startOfDay(for: day): geo.frame(in: .global)])
+        })
+    }
+
+    /// Every cell's frame in the hosting view's space, merged up the tree.
+    private struct CellFrames: PreferenceKey {
+        static let defaultValue: [Date: CGRect] = [:]
+        static func reduce(value: inout [Date: CGRect], nextValue: () -> [Date: CGRect]) {
+            value.merge(nextValue()) { $1 }
         }
     }
 }

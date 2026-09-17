@@ -60,6 +60,10 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     private let drafts = SettingsDrafts()
     private var screenObserver: (any NSObjectProtocol)?
     private let promptFallback = SendableFlag(true)
+    /// Reachability, mirrored out of `RefreshTriggers`' path monitor. Same reason as
+    /// `promptFallback`: the keeper runs on its own executor and cannot read the
+    /// main-actor triggers, and an offline attempt must not spend its attempt floor.
+    private let online = SendableFlag(true)
     private let claudePathBox = SendableText("claude")
     private var cancellables: Set<AnyCancellable> = []
 
@@ -79,6 +83,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         let keeper = TokenKeeper(runner: runner, credentials: credentials,
                                  claudePath: { [claudePathBox] in claudePathBox.current },
                                  allowPromptFallback: { [promptFallback] in promptFallback.current },
+                                 isOnline: { [online] in online.current },
                                  stateDirectory: BrowSettingsStore.defaultDirectory)
         // `userAgent: nil` — Brow sends no `claude-code/…` User-Agent (spec, Risks).
         let client = OAuthUsageClient(fetcher: URLSessionUsageFetcher(), userAgent: nil,
@@ -96,12 +101,23 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             .sink { [weak self] updated in self?.applyClaudeSettings(updated) }
             .store(in: &cancellables)
         self.addFlow = AddAccountFlow(store: store)
-        self.triggers = RefreshTriggers(store: store)
+        let triggers = RefreshTriggers(store: store)
+        self.triggers = triggers
+        // The keeper reads reachability off a lock-guarded box; the path monitor is
+        // the only thing that knows the answer.
+        triggers.$isOnline
+            .sink { [online] reachable in online.set(reachable) }
+            .store(in: &cancellables)
         self.panel = NotchPanelController(store: store, clock: clock,
                                           onExpandedChange: { [weak self] in self?.triggers.setExpanded($0) },
                                           onSettings: { [weak self] in self?.showSettings() })
         self.panel.show()
         BrowLog.panel.info("panel shown")
+        // Before detection and before `bootstrap()` (spec, The cycle §8): both of
+        // those can sit for minutes behind a login shell or a Keychain prompt, and a
+        // hover, a wake or the network returning in that window has to be live. The
+        // triggers touch neither the Keychain nor the CLI to install themselves.
+        triggers.start()
         self.screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.panel.relayout() }
@@ -118,7 +134,6 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             store.setClaudeDetection(detected.map(ClaudeDetection.found) ?? .notFound)
             applyClaudeSettings(store.settings)
             await store.bootstrap()
-            self.triggers.start()
         }
     }
 

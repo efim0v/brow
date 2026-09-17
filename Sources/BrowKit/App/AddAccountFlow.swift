@@ -53,8 +53,43 @@ public final class AddAccountFlow: ObservableObject {
         pasteboard.setString(text, forType: .string)
     }
 
-    /// "+" in Settings: a standard folder picker rooted at `~/.claude-accounts`
-    /// (created on demand). Returns the chosen folder, or nil if cancelled.
+    /// The one-click path: Brow picks the folder itself (`~/.claude-accounts/account-N`,
+    /// the first N that is free), opens Terminal running Anthropic's own sign-in in it,
+    /// and waits for the account to appear. The folder name is cosmetic — the row is
+    /// labelled with the email once the sign-in lands — and it must never be renamed
+    /// afterwards: Claude Code keys the account's Keychain item on the folder path.
+    public func quickAdd(claudePath: String) {
+        let dir = Self.freshAccountDir(home: home)
+        do { try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true) }
+        catch {
+            status = "Could not create \(dir): \(error.localizedDescription)"
+            BrowLog.tokens.error("create account dir failed at \(dir, privacy: .public): \(String(describing: error), privacy: .public)")
+            return
+        }
+        pendingDir = dir
+        if let reason = Self.openInTerminal(dir: dir, claudePath: claudePath, subcommand: "auth login") {
+            // Terminal could not be driven (Automation consent denied is the usual
+            // reason): the command card stays up so the user can run it by hand.
+            status = "Could not open Terminal (\(reason)). Run the command below yourself and sign in."
+        } else {
+            status = "Sign in in the Terminal window that just opened; Brow picks the account up automatically."
+        }
+        startPolling(dir: dir)
+    }
+
+    /// `~/.claude-accounts/account-N` for the smallest N (from 1) that does not exist yet.
+    static func freshAccountDir(home: String) -> String {
+        let root = home + "/.claude-accounts"
+        for n in 1...999 {
+            let dir = "\(root)/account-\(n)"
+            if !FileManager.default.fileExists(atPath: dir) { return dir }
+        }
+        return "\(root)/account-\(Int(Date().timeIntervalSince1970))"
+    }
+
+    /// "Existing folder…" in Settings: a standard folder picker rooted at
+    /// `~/.claude-accounts` (created on demand). Returns the chosen folder, or nil if
+    /// cancelled.
     public func chooseFolder() -> String? {
         let root = home + "/.claude-accounts"
         try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)

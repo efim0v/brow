@@ -40,6 +40,37 @@ public struct SettingsView: View {
     /// "Show" toggle could never be turned back on.
     private var accounts: some View {
         Form {
+            Section {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add an account").font(.headline)
+                        Text("One click: Terminal opens with Anthropic's sign-in; Brow does the rest.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    // Nothing to pick or name: the folder is chosen for the user
+                    // (~/.claude-accounts/account-N) and the sign-in is Anthropic's own.
+                    Button { addFlow.quickAdd(claudePath: claudePath) } label: {
+                        Label("Sign in…", systemImage: "person.badge.plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    // For a config folder that already exists somewhere else.
+                    Button("Existing folder…") {
+                        if let dir = addFlow.chooseFolder() { addFlow.begin(dir: dir) }
+                    }
+                }
+                if let dir = addFlow.pendingDir {
+                    let command = AddAccountFlow.launchCommand(dir: dir)
+                    HStack {
+                        Text(command).font(.system(.caption, design: .monospaced))
+                            .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        Spacer()
+                        Button { AddAccountFlow.copyToPasteboard(command) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                        Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: dir, claudePath: claudePath) }
+                    }
+                }
+                if let s = addFlow.status { Text(s).font(.caption) }
+            }
             ForEach(store.allRows) { row in
                 Section {
                     // Committed on Return / focus loss / window close, not on every
@@ -55,47 +86,33 @@ public struct SettingsView: View {
                             .font(.caption).textSelection(.enabled)
                     }
                     LabeledContent("Token", value: row.tokenStatus)
+                    // The command that runs Claude Code as this account, in plain sight:
+                    // paste it into any terminal. The copy button sits right on it.
+                    LabeledContent("Launch") {
+                        let command = AddAccountFlow.launchCommand(dir: row.account.configDir)
+                        HStack(spacing: 6) {
+                            Text(command)
+                                .font(.system(.caption, design: .monospaced))
+                                .lineLimit(1).truncationMode(.middle)
+                                .textSelection(.enabled)
+                            Button { AddAccountFlow.copyToPasteboard(command) } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Copy the launch command")
+                        }
+                    }
                     HStack {
                         Toggle("Show", isOn: Binding(
                             get: { !store.settings.isHidden(row.id) },
                             set: { store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].hidden = !$0 }))
                         Spacer()
-                        // The command to run Claude Code as this account. Copying is the
-                        // primary action — it works in any terminal the user already has
-                        // open; "Open in Terminal" is the shortcut.
                         Button {
                             AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
-                        } label: { Label("Copy command", systemImage: "doc.on.doc") }
-                            .help(AddAccountFlow.launchCommand(dir: row.account.configDir))
+                        } label: { Label("Copy launch command", systemImage: "doc.on.doc") }
                         Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: row.account.configDir, claudePath: claudePath) }
                     }
                 }
-            }
-            Section {
-                HStack {
-                    Text("Add an account").font(.headline)
-                    Spacer()
-                    // A folder picker, not a name field: pick or create the folder the new
-                    // account's Claude Code config will live in (default: ~/.claude-accounts).
-                    Button {
-                        if let dir = addFlow.chooseFolder() { addFlow.begin(dir: dir) }
-                    } label: { Label("Add…", systemImage: "plus") }
-                }
-                if let dir = addFlow.pendingDir {
-                    let command = AddAccountFlow.launchCommand(dir: dir)
-                    Text("Run this in a terminal and sign in; Brow picks the account up automatically:")
-                        .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Text(command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                        Spacer()
-                        Button { AddAccountFlow.copyToPasteboard(command) } label: { Label("Copy", systemImage: "doc.on.doc") }
-                        Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: dir, claudePath: claudePath) }
-                    }
-                } else {
-                    Text("Sign-in happens in Anthropic's own flow (`claude` in the chosen folder); Brow never sees your password.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let s = addFlow.status { Text(s).font(.caption) }
             }
             Section {
                 Toggle("Allow `claude -p` fallback", isOn: $store.settings.allowPromptFallback)

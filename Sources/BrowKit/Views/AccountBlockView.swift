@@ -54,15 +54,6 @@ public struct AccountBlockView: View {
             }
             .buttonStyle(.plain)
             .help("Copy: \(command)")
-            Button {
-                AddAccountFlow.openInTerminal(dir: row.account.configDir, claudePath: claudePath)
-            } label: {
-                Image(systemName: "terminal")
-                    .font(.system(size: 11)).foregroundStyle(Color.secondary)
-                    .frame(width: 18, height: 18).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Open Claude Code as this account in Terminal")
             // Sign in again, in this account's own browser profile. Orange when the
             // server has rejected the token — that is the moment this button exists for.
             Button {

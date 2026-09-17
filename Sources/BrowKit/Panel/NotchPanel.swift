@@ -15,6 +15,25 @@ final class FirstMouseHostingView<V: View>: NSHostingView<V> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// Everything `NotchRootView` draws, as ONE observable object that lives as long as
+/// the hosting view. The root view is installed once and reads this; expanding is a
+/// `withAnimation` change to `expanded`. Replacing the hosting view's `rootView` with
+/// a fresh value on every hover was the reason nothing ever animated: the change
+/// arrived as a new root, outside any SwiftUI transaction, and every "spring" landed
+/// as a single frame.
+@MainActor
+final class NotchPanelModel: ObservableObject {
+    @Published var expanded = false
+    @Published var frames: NotchFrames
+    /// False: collapsed, the outline shrinks to the physical notch (invisible under
+    /// it) and nothing is drawn — the panel is all there is, on hover.
+    @Published var showEars = true
+    @Published var ears = AnyView(EmptyView())
+    @Published var panel = AnyView(EmptyView())
+
+    init(frames: NotchFrames) { self.frames = frames }
+}
+
 /// What the hosting view shows, hung from the top edge of a window that never moves:
 /// ONE black notch outline that grows out of the notch on hover — from the strip's
 /// size and 14 pt corners to the panel's size and 18 pt corners, on a spring — with
@@ -23,17 +42,13 @@ final class FirstMouseHostingView<V: View>: NSHostingView<V> {
 /// detaching from the notch, dropping down, or sliding sideways, which is exactly
 /// what animating the window from the strip's rect to the panel's rect used to do.
 struct NotchRootView: View {
-    let expanded: Bool
-    let frames: NotchFrames
-    /// False: collapsed, the outline shrinks to the physical notch (invisible under
-    /// it) and nothing is drawn — the panel is all there is, on hover.
-    let showEars: Bool
-    let ears: AnyView
-    let panel: AnyView
+    @ObservedObject var model: NotchPanelModel
+
+    private var frames: NotchFrames { model.frames }
 
     private var shapeSize: CGSize {
-        if expanded { return frames.expanded.size }
-        if !showEars, let notch = frames.notch {
+        if model.expanded { return frames.expanded.size }
+        if !model.showEars, let notch = frames.notch {
             return CGSize(width: notch.width + 2 * frames.flare, height: notch.height)
         }
         return frames.collapsed.size
@@ -42,8 +57,8 @@ struct NotchRootView: View {
     private var outline: AnyShape {
         if frames.hasNotch {
             return AnyShape(NotchShape(topFlare: frames.flare,
-                                       bottomRadius: expanded ? NotchGeometry.expandedBottomRadius
-                                                              : NotchGeometry.collapsedBottomRadius))
+                                       bottomRadius: model.expanded ? NotchGeometry.expandedBottomRadius
+                                                                    : NotchGeometry.collapsedBottomRadius))
         }
         return AnyShape(RoundedRectangle(cornerRadius: NotchGeometry.collapsedBottomRadius, style: .continuous))
     }
@@ -53,20 +68,16 @@ struct NotchRootView: View {
             outline.fill(Color.black)
                 .frame(width: shapeSize.width, height: shapeSize.height)
             ZStack(alignment: .top) {
-                if expanded {
-                    panel.transition(.opacity)
-                } else if showEars {
-                    ears.transition(.opacity)
+                if model.expanded {
+                    model.panel.transition(.opacity)
+                } else if model.showEars {
+                    model.ears.transition(.opacity)
                 }
             }
             .frame(width: shapeSize.width, height: shapeSize.height, alignment: .top)
             .clipShape(outline)
         }
         .frame(width: frames.expanded.width, height: frames.expanded.height, alignment: .top)
-        // Opening springs a little; closing is quicker and settles without a bounce —
-        // a strip that overshoots into the notch reads as a glitch.
-        .animation(expanded ? .spring(response: 0.32, dampingFraction: 0.86)
-                            : .spring(response: 0.26, dampingFraction: 1.0), value: expanded)
     }
 }
 
@@ -82,13 +93,18 @@ struct NotchRootView: View {
 public final class NotchPanelController {
     public static let collapseDelay: TimeInterval = 0.5
     public static let animation: TimeInterval = 0.18
+    /// Opening springs a little; closing is quicker and settles without a bounce —
+    /// a strip that overshoots into the notch reads as a glitch.
+    static let openAnimation: Animation = .spring(response: 0.32, dampingFraction: 0.86)
+    static let closeAnimation: Animation = .spring(response: 0.26, dampingFraction: 1.0)
 
     private let store: LimitsStore
     private let clock: PanelClock
     private let onExpandedChange: (Bool) -> Void
     private let onSettings: () -> Void
     private let panel: BrowPanel
-    private let host: FirstMouseHostingView<AnyView>
+    private let host: FirstMouseHostingView<NotchRootView>
+    private let model: NotchPanelModel
     /// The space above every user Space that keeps the panel out of the Spaces
     /// transition; nil when the private API is unavailable (logged once).
     private let space: SkyLightSpace?
@@ -124,7 +140,8 @@ public final class NotchPanelController {
         // The ears and the panel are drawn on black; `.secondary` text only reads
         // as light grey in a dark appearance, so the host never inherits a light one.
         panel.appearance = NSAppearance(named: .darkAqua)
-        host = FirstMouseHostingView(rootView: AnyView(EmptyView()))
+        model = NotchPanelModel(frames: frames)
+        host = FirstMouseHostingView(rootView: NotchRootView(model: model))
         panel.contentView = host
         space = SkyLightSpace()
         if space == nil {
@@ -191,6 +208,7 @@ public final class NotchPanelController {
         if value { clock.start() } else { clock.stop() }
         onExpandedChange(value)
         render()
+        withAnimation(value ? Self.openAnimation : Self.closeAnimation) { model.expanded = value }
         BrowLog.panel.debug("expanded=\(value)")
     }
 
@@ -218,8 +236,12 @@ public final class NotchPanelController {
             // concave corners in those 6 pt, and the visible black still starts at
             // the notch edge.
             .frame(width: frames.expanded.width)
-        host.rootView = AnyView(NotchRootView(expanded: expanded, frames: frames, showEars: store.settings.showEars,
-                                              ears: AnyView(ears), panel: AnyView(panelView)))
+        // Content and geometry are plain updates; `expanded` alone is animated, by
+        // `setExpanded`, so a store publish mid-spring cannot restart or cut it.
+        model.frames = frames
+        model.showEars = store.settings.showEars
+        model.ears = AnyView(ears)
+        model.panel = AnyView(panelView)
         applyFrame()
     }
 

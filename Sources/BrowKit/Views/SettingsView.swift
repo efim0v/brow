@@ -66,7 +66,6 @@ public struct SettingsView: View {
                             .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                         Spacer()
                         Button { AddAccountFlow.copyToPasteboard(command) } label: { Label("Copy", systemImage: "doc.on.doc") }
-                        Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: dir, claudePath: claudePath) }
                     }
                 }
                 if let s = addFlow.status { Text(s).font(.caption) }
@@ -110,20 +109,19 @@ public struct SettingsView: View {
                         Button {
                             AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
                         } label: { Label("Copy launch command", systemImage: "doc.on.doc") }
-                        Button("Open in Terminal") { AddAccountFlow.openInTerminal(dir: row.account.configDir, claudePath: claudePath) }
                         Button {
                             AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)
                         } label: { Label("Sign in again", systemImage: "person.badge.key") }
                             .help("Opens Terminal with `claude auth login` for this account; the browser window is this account's own profile.")
                     }
                     HStack {
-                        Text("Browser profile: signed-in Google/claude.ai sessions persist here, like any Chrome profile.")
+                        Text("Browser profile: a complete Chrome profile of its own, named after the account — every site's sessions, cookies and saved passwords stay in it between launches.")
                             .font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Button {
                             AddAccountFlow.openBrowserProfile(dir: row.account.configDir)
                         } label: { Label("Open browser profile", systemImage: "globe") }
-                            .help("Open this account's own Chrome profile on claude.ai — sign into Google/claude.ai there once and every later `claude auth login` is one click.")
+                            .help("Open this account's own Chrome profile on claude.ai. Sign in there once (Apple, Google, email — and any other site you like); it all stays, and every later `claude auth login` is one click.")
                     }
                 }
             }

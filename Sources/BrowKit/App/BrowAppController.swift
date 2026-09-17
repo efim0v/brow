@@ -97,7 +97,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         let store = LimitsStore(deps: .init(directory: AccountDirectory(credentials: credentials),
                                             keeper: keeper, client: client,
                                             snapshotStore: LimitSnapshotStore(), settingsStore: settingsStore,
-                                            now: { Date() }))
+                                            now: { Date() },
+                                            profileClient: OAuthProfileClient(fetcher: URLSessionUsageFetcher(),
+                                                                              userAgent: nil, credentials: credentials)))
         self.store = store
         // Settings can change either of these at any time; keep the boxes the keeper
         // reads — and the "`claude` not found" banner — in step with the live values.

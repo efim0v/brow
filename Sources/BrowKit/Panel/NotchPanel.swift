@@ -257,7 +257,8 @@ public final class NotchPanelController {
     /// holds the strip, not the panel.
     private func expandedHeight() -> CGFloat {
         let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount),
-                                                    topInset: frames.contentTopInset)
+                                                    topInset: frames.contentTopInset,
+                                                    calendar: store.settings.showCalendar && !store.rows.isEmpty)
         guard expanded else { return max(120, modelled, measuredHeight) }
         host.layoutSubtreeIfNeeded()
         measuredHeight = max(modelled, host.fittingSize.height)
@@ -274,11 +275,12 @@ public final class NotchPanelController {
     /// and `expandedHeight()` takes `max(modelled, fittingSize)`, so the laid-out tree —
     /// which does carry the floor — wins on the only path where the two differ (a screen
     /// with no notch, inset 8).
-    static func estimatedExpandedHeight(barCounts: [Int], topInset: CGFloat) -> CGFloat {
+    static func estimatedExpandedHeight(barCounts: [Int], topInset: CGFloat, calendar: Bool = false) -> CGFloat {
         let bottomPadding: CGFloat = 14, overall: CGFloat = 20, footer: CGFloat = 20
         let spacing: CGFloat = 10, divider: CGFloat = 1
         let blocks = barCounts.reduce(CGFloat(0)) { $0 + 18 + CGFloat($1) * 19 + spacing + divider + spacing }
-        return topInset + bottomPadding + overall + spacing + divider + spacing + blocks + footer
+        let month = calendar ? CalendarView.estimatedHeight + spacing + divider + spacing : 0
+        return topInset + bottomPadding + overall + spacing + divider + spacing + blocks + month + footer
     }
 
     /// 5h and Weekly always; the model-scoped weekly only when the snapshot has one.

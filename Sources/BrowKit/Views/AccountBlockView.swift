@@ -85,7 +85,8 @@ public struct AccountBlockView: View {
     }
 
     private var tag: String {
-        PanelText.accountTag(tier: row.account.tier, snapshot: row.snapshot, status: row.status, now: now)
+        PanelText.accountTag(tier: row.account.tier, snapshot: row.snapshot, status: row.status,
+                             renewsAt: row.renewsAt, now: now)
     }
     private var tagColor: Color {
         switch row.status { case .ok: return .secondary; case .stale: return .secondary; case .error: return .orange }

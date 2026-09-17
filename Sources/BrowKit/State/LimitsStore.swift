@@ -16,6 +16,18 @@ public struct AccountRow: Sendable, Equatable, Identifiable {
     public let snapshot: LimitSnapshot?
     public let status: AccountStatus
     public let tokenStatus: String
+    /// The next (estimated) subscription renewal — see `SubscriptionInfo.nextRenewal`.
+    public let renewsAt: Date?
+
+    public init(account: DiscoveredAccount, name: String, snapshot: LimitSnapshot?, status: AccountStatus,
+                tokenStatus: String, renewsAt: Date? = nil) {
+        self.account = account
+        self.name = name
+        self.snapshot = snapshot
+        self.status = status
+        self.tokenStatus = tokenStatus
+        self.renewsAt = renewsAt
+    }
 }
 
 /// What auto-detection has to say about the `claude` binary. Three states, not an
@@ -45,15 +57,18 @@ public final class LimitsStore: ObservableObject {
         /// Fetch accounts one after another (oldest reading first) instead of all at
         /// once. Required when the client's bucket is shared across accounts.
         public var sequentialFetch: Bool
+        /// `api/oauth/profile`, for the subscription facts. nil: never asked (tests).
+        public var profileClient: OAuthProfileClient?
         public init(directory: AccountDirectory, keeper: TokenKeeper, client: OAuthUsageClient,
                     snapshotStore: LimitSnapshotStore, settingsStore: BrowSettingsStore,
                     now: @escaping @Sendable () -> Date,
                     sleep: @escaping @Sendable (TimeInterval) async -> Void = Dependencies.realSleep,
-                    sequentialFetch: Bool = false) {
+                    sequentialFetch: Bool = false, profileClient: OAuthProfileClient? = nil) {
             self.directory = directory; self.keeper = keeper; self.client = client
             self.snapshotStore = snapshotStore; self.settingsStore = settingsStore; self.now = now
             self.sleep = sleep
             self.sequentialFetch = sequentialFetch
+            self.profileClient = profileClient
         }
 
         /// Cancellation is how the winner of a race stops the loser, and it is not a
@@ -205,6 +220,7 @@ public final class LimitsStore: ObservableObject {
         self.settings = deps.settingsStore.load()
         let file = deps.snapshotStore.loadFile()
         self.snapshots = file.snapshots
+        self.subscriptions = file.subscriptions
         self.aggregate = LimitsAggregate.compute(accounts: [], snapshots: [:], now: deps.now())
         self.accounts = file.accounts.sorted { $0.order < $1.order }.map(\.discovered)
         // The Keychain verdict needs evidence that OUTLIVES the process. `everHadTokens`
@@ -476,6 +492,42 @@ public final class LimitsStore: ObservableObject {
         updateFooter()
         persist(visible: visible)
         recompute()
+        // Last, and never in the way of a reading: the billing facts change about
+        // never, so one request per account per day is plenty.
+        await refreshSubscriptions(visible, cycle: cycle)
+    }
+
+    /// Billing facts per organisation, from `api/oauth/profile`.
+    private var subscriptions: [String: SubscriptionInfo]
+    /// When a profile request last FAILED per organisation — an hour's rest before
+    /// trying again, so a dead endpoint costs one request per cycle at most once an hour.
+    private var subscriptionFailedAt: [String: Date] = [:]
+    static let subscriptionRefresh: TimeInterval = 24 * 3600
+    static let subscriptionRetry: TimeInterval = 3600
+
+    private func refreshSubscriptions(_ visible: [DiscoveredAccount], cycle: Int) async {
+        guard let client = deps.profileClient else { return }
+        var changed = false
+        for account in visible where account.tokenExpiresAt != nil {
+            let id = account.organizationUuid
+            let now = deps.now()
+            if let known = subscriptions[id], now.timeIntervalSince(known.fetchedAt) < Self.subscriptionRefresh { continue }
+            if let failed = subscriptionFailedAt[id], now.timeIntervalSince(failed) < Self.subscriptionRetry { continue }
+            do {
+                let profile = try await client.profile(configDir: account.configDir)
+                guard cycle == generation else { return }
+                subscriptions[id] = SubscriptionInfo(organizationUuid: id, profile: profile, fetchedAt: deps.now())
+                subscriptionFailedAt[id] = nil
+                changed = true
+            } catch {
+                guard cycle == generation else { return }
+                subscriptionFailedAt[id] = deps.now()
+                BrowLog.limits.error("profile fetch failed for \(id, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+        }
+        guard changed else { return }
+        persist(visible: visible)
+        recompute()
     }
 
     /// Every dir a forced cycle is about to read: the known accounts AND their aliases
@@ -573,7 +625,7 @@ public final class LimitsStore: ObservableObject {
         let stored = visible.isEmpty
             ? deps.snapshotStore.loadFile().accounts
             : visible.enumerated().map { PersistedAccount(from: $1, order: $0) }
-        do { try deps.snapshotStore.saveFile(LimitsFile(snapshots: snapshots, accounts: stored)) }
+        do { try deps.snapshotStore.saveFile(LimitsFile(snapshots: snapshots, accounts: stored, subscriptions: subscriptions)) }
         catch { BrowLog.limits.error("snapshot save failed: \(String(describing: error), privacy: .public)") }
     }
 
@@ -734,7 +786,8 @@ public final class LimitsStore: ObservableObject {
                           snapshot: snap, status: status,
                           tokenStatus: Self.tokenStatus(account, outcome: tokenOutcome[account.organizationUuid],
                                                         error: lastError[account.organizationUuid],
-                                                        keychain: keychainState, now: now))
+                                                        keychain: keychainState, now: now),
+                          renewsAt: subscriptions[account.organizationUuid]?.nextRenewal(after: now))
     }
 
     /// The account row's token slot. The missing token comes FIRST: when the Keychain

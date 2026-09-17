@@ -174,6 +174,11 @@ public struct SettingsView: View {
                     catch { BrowLog.panel.error("launch at login: \(error.localizedDescription, privacy: .public)") }
                 }
             Section {
+                Toggle("Show the reset calendar in the panel", isOn: $store.settings.showCalendar)
+                Text("A month under the accounts: a dot per weekly reset in the account's colour, a diamond for the estimated subscription renewal. Hover a day for the details.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
                 Toggle("Show readouts next to the notch", isOn: $store.settings.showEars)
                 Text("Off: nothing is drawn until the pointer reaches the notch itself; the panel then opens with its animation.")
                     .font(.caption).foregroundStyle(.secondary)

@@ -34,7 +34,20 @@ public enum PanelText {
     /// `Max 20x · 3 d ago · sign-in expired`, never a bare error over stale bars.
     public static func accountTag(tier: String?, snapshot: LimitSnapshot?,
                                   status: AccountStatus, now: Date) -> String {
-        let label = tierLabel(tier)
+        accountTag(tier: tier, snapshot: snapshot, status: status, renewsAt: nil, now: now)
+    }
+
+    /// With a renewal estimate the tier reads `Max 20x · renews ~10 Oct` — the `~`
+    /// is the whole caveat (see `SubscriptionInfo.nextRenewal`).
+    public static func accountTag(tier: String?, snapshot: LimitSnapshot?,
+                                  status: AccountStatus, renewsAt: Date?, now: Date) -> String {
+        var label = tierLabel(tier)
+        if let renewsAt {
+            let f = DateFormatter()
+            f.dateFormat = "d MMM"
+            f.locale = Locale(identifier: "en_US_POSIX")
+            label += " · renews ~\(f.string(from: renewsAt))"
+        }
         // "no data" rather than an invented age: nothing was ever captured for this one.
         let age = snapshot.map { Formatting.age($0.fetchedAt, now: now) } ?? "no data"
         switch status {

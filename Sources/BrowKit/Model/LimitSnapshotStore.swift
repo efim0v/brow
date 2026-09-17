@@ -6,13 +6,17 @@ import Foundation
 public struct LimitsFile: Codable, Sendable, Equatable {
     public var snapshots: [String: LimitSnapshot]
     public var accounts: [PersistedAccount]
+    /// Billing facts per organisation (see `SubscriptionInfo`), refreshed about daily.
+    public var subscriptions: [String: SubscriptionInfo]
 
-    public init(snapshots: [String: LimitSnapshot] = [:], accounts: [PersistedAccount] = []) {
+    public init(snapshots: [String: LimitSnapshot] = [:], accounts: [PersistedAccount] = [],
+                subscriptions: [String: SubscriptionInfo] = [:]) {
         self.snapshots = snapshots
         self.accounts = accounts
+        self.subscriptions = subscriptions
     }
 
-    private enum CodingKeys: String, CodingKey { case snapshots, accounts }
+    private enum CodingKeys: String, CodingKey { case snapshots, accounts, subscriptions }
 
     /// The two halves decode independently. The snapshots are the file's reason to
     /// exist; the accounts are a convenience for the first frame. So an `accounts`
@@ -32,6 +36,8 @@ public struct LimitsFile: Codable, Sendable, Equatable {
                 """)
             accounts = []
         }
+        // Same best-effort as the accounts: a renewal estimate is never worth a cache.
+        subscriptions = (try? container.decodeIfPresent([String: SubscriptionInfo].self, forKey: .subscriptions)) ?? [:]
     }
 }
 
@@ -91,6 +97,7 @@ public struct LimitSnapshotStore: Sendable {
     /// Snapshot-only write: the accounts already on disk are carried over, so a
     /// fetch that lands before the next scan cannot erase the seed.
     public func save(_ snapshots: [String: LimitSnapshot]) throws {
-        try saveFile(LimitsFile(snapshots: snapshots, accounts: loadFile().accounts))
+        let file = loadFile()
+        try saveFile(LimitsFile(snapshots: snapshots, accounts: file.accounts, subscriptions: file.subscriptions))
     }
 }

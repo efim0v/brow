@@ -78,6 +78,10 @@ public struct PanelView: View {
                                  claudePath: store.settings.claudePath ?? store.claudeDetected ?? "claude")
                 Divider().overlay(Color.white.opacity(0.15))
             }
+            if store.settings.showCalendar, !store.rows.isEmpty {
+                CalendarView(rows: store.rows, now: clock.now)
+                Divider().overlay(Color.white.opacity(0.15))
+            }
             footer
         }
         // The inset REPLACES the top padding rather than stacking on it: `contentTopInset`

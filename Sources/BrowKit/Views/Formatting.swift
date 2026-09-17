@@ -26,6 +26,17 @@ public enum Formatting {
         return "resets \(f.string(from: reset))"
     }
 
+    /// `in 3 d 4 h` / `in 4 h 12 min` / `in 12 min` / `now` — for the calendar's detail line.
+    public static func remaining(_ date: Date, now: Date) -> String {
+        let s = date.timeIntervalSince(now)
+        if s <= 0 { return "now" }
+        let d = Int(s / 86400), h = Int(s.truncatingRemainder(dividingBy: 86400) / 3600)
+        let m = Int(s.truncatingRemainder(dividingBy: 3600) / 60)
+        if d > 0 { return "in \(d) d \(h) h" }
+        if h > 0 { return "in \(h) h \(m) min" }
+        return "in \(m) min"
+    }
+
     public static func percent(_ value: Double) -> String {
         "\(Int(value.rounded()))%"
     }

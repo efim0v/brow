@@ -122,6 +122,12 @@ final class LimitsStoreTests: XCTestCase {
         private let gate = NSCondition()
         private var closed = false
         private var waiting = 0
+        /// Config dirs whose NEXT read parks, one-shot. `holdReads` stops every scan at
+        /// once; this stops ONE scan at a known point and lets a second one run past it
+        /// to completion — which is the only way to order two overlapping scans.
+        private var heldDirs: Set<String> = []
+        /// Bumped by `releaseReads`, so a one-shot hold knows its release has happened.
+        private var releaseEpoch = 0
         var expiry: [String: Date] {
             get { lock.withLock { expiries } }
             set { lock.withLock { expiries = newValue } }
@@ -133,13 +139,19 @@ final class LimitsStoreTests: XCTestCase {
         var parkedReads: Int { gate.lock(); defer { gate.unlock() }; return waiting }
 
         func holdReads() { gate.lock(); closed = true; gate.unlock() }
-        func releaseReads() { gate.lock(); closed = false; gate.broadcast(); gate.unlock() }
+        func holdNextRead(for dir: String) { gate.lock(); heldDirs.insert(dir); gate.unlock() }
+        func releaseReads() {
+            gate.lock(); closed = false; heldDirs.removeAll(); releaseEpoch += 1
+            gate.broadcast(); gate.unlock()
+        }
 
         func token(configDir: String) -> ClaudeToken? {
             gate.lock()
-            if closed {
+            let held = heldDirs.remove(configDir) != nil
+            if closed || held {
+                let epoch = releaseEpoch
                 waiting += 1
-                while closed { gate.wait() }
+                while closed || (held && epoch == releaseEpoch) { gate.wait() }
                 waiting -= 1
             }
             gate.unlock()
@@ -610,7 +622,10 @@ final class LimitsStoreTests: XCTestCase {
     }
 
     /// A scan that comes back with no token for every account that had one is the
-    /// Keychain refusing us — not every account signing out at once.
+    /// Keychain refusing us — not every account signing out at once. And the verdict
+    /// has to SURVIVE the next cycle: the denial leaves the account list tokenless, so a
+    /// verdict judged against the previous scan alone decays to `.ok` one poll later and
+    /// takes the only actionable message off the screen while the denial is still live.
     func testAScanThatLosesEveryTokenReadsAsKeychainDenied() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
         let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
@@ -627,6 +642,91 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
         XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
         XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40, "the last numbers stay on screen")
+
+        // The steady state, 60 s later: still denied, still saying so.
+        now = t0.addingTimeInterval(600)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.keychainState, .denied, "the verdict does not decay on the next cycle")
+        XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
+        XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
+
+        // And it is not permanent: the first scan that gets a token back clears it.
+        now = t0.addingTimeInterval(900)
+        creds.expiry[a] = now.addingTimeInterval(3600)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.keychainState, .ok)
+        XCTAssertEqual(store.rows.first?.tokenStatus, "fresh · 1 h")
+        XCTAssertNil(store.footerError)
+    }
+
+    /// `BrowAppController` arms the poll timer BEFORE it calls `bootstrap`, so
+    /// bootstrap's scan and a cycle's scan can sit in the Keychain at the same time —
+    /// and bootstrap's is the one parked behind the first-run prompt. Its answer is then
+    /// the OLDER one: applying it would restore a stale account list and judge the
+    /// Keychain against a baseline the cycle has already replaced.
+    func testBootstrapDropsItsScanWhenACycleHasMovedOn() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let b = try makeAccount(".claude-accounts/b", org: "org-b", email: "b@x")
+        let creds = Creds()
+        creds.expiry[a] = t0.addingTimeInterval(3600)
+        creds.expiry[b] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60), 200)
+        fetcher.responses["Bearer tok-\(b)"] = (body(five: 10, seven: 20), 200)
+        // Never fired: the patience must not expire here, or bootstrap would take the
+        // late-apply path instead of returning its own (stale) answer.
+        let sleeper = Sleeper()
+        addTeardownBlock { sleeper.drain(); creds.releaseReads() }
+        let store = makeStore(fetcher: fetcher, creds: creds, sleeper: sleeper)
+
+        // Dirs are read in name order: bootstrap's scan reads a's token (1 h), then
+        // parks on b's for as long as the test likes.
+        creds.holdNextRead(for: b)
+        let boot = Task { await store.bootstrap() }
+        try await waitUntil("bootstrap's scan to park in the Keychain") { creds.parkedReads == 1 }
+
+        // A whole cycle runs to completion while bootstrap is parked, and reads a's
+        // token as it is NOW.
+        creds.expiry[a] = t0.addingTimeInterval(9 * 3600)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows.first?.tokenStatus, "fresh · 9 h")
+
+        // Bootstrap's scan finally returns, carrying the 1 h it read before the cycle.
+        creds.releaseReads()
+        await boot.value
+        await settle()
+        XCTAssertEqual(store.rows.first?.tokenStatus, "fresh · 9 h", "the superseded scan writes nothing")
+        XCTAssertEqual(store.rows.map(\.id), ["org-a", "org-b"])
+        XCTAssertEqual(store.keychainState, .ok)
+        XCTAssertNil(store.footerError)
+    }
+
+    /// The first scan is the one the first-run Keychain prompt parks, and until Task 6
+    /// arms the poll timer nothing else would say so: bootstrap is bounded by the same
+    /// patience as a cycle, and the late answer still lands when the prompt is answered.
+    func testBootstrapSurfacesTheWaitOnTheFirstRun() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3600)
+        let sleeper = Sleeper()
+        addTeardownBlock { sleeper.drain(); creds.releaseReads() }
+        let store = makeStore(fetcher: Fetcher(), creds: creds, sleeper: sleeper)
+
+        creds.holdReads()
+        let boot = Task { await store.bootstrap() }
+        try await waitUntil("the scan to park in the Keychain") { creds.parkedReads > 0 }
+        try await waitUntil("bootstrap's patience timer to be armed") {
+            sleeper.pending.contains(LimitsStore.keychainPatience)
+        }
+        sleeper.fire(LimitsStore.keychainPatience)
+        await boot.value
+        XCTAssertEqual(store.keychainState, .waiting, "bootstrap does not wait silently")
+        XCTAssertEqual(store.footerError, "Waiting for Keychain access…")
+
+        creds.releaseReads()
+        try await waitUntil("the late scan to be applied") { store.keychainState == .ok }
+        XCTAssertEqual(store.rows.map(\.id), ["org-a"])
+        XCTAssertEqual(store.rows.first?.tokenStatus, "fresh · 1 h")
+        XCTAssertNil(store.footerError, "the message clears when the scan returns")
     }
 
     /// 401/403 is the server's word on the token and it outranks `expiresAt`: a token

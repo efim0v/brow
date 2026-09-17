@@ -149,6 +149,12 @@ public final class LimitsStore: ObservableObject {
     private var cycleResults: [String: FetchResult] = [:]
     /// What the cycle is waiting on, for the watchdog's log line.
     private var phase: CyclePhase = .idle
+    /// Every organisation a scan has EVER handed a token for. The Keychain verdict is
+    /// judged against this, not against the last scan: a denied scan leaves `accounts`
+    /// tokenless, so a verdict judged against the previous scan alone is edge-triggered —
+    /// it says `.denied` for one cycle and `.ok` from the next one on, taking the one
+    /// message that tells the user how to fix it off the screen 60 s after it went up.
+    private var everHadTokens: Set<String> = []
 
     /// NO I/O beyond the persisted snapshot file: `AccountDirectory.scan` reads one
     /// Keychain item per config dir, and on a new bundle id macOS puts a modal prompt
@@ -172,8 +178,20 @@ public final class LimitsStore: ObservableObject {
     /// First account discovery. Call AFTER the panel is visible: the persisted
     /// snapshots are already on screen, so the Keychain prompts are answered by a
     /// user who can see the app they belong to.
+    ///
+    /// This is the scan most likely to be parked behind a prompt (it is the first one),
+    /// and the poll timer is already armed by the time it runs — so it is bounded by the
+    /// same patience as a cycle's scan, and its answer is dropped if a cycle has since
+    /// scanned. Writing an older account list over a newer one would also judge the
+    /// Keychain against the wrong baseline.
     public func bootstrap() async {
-        let discovered = await Self.scan(deps.directory, extraDirs: settings.extraDirs)
+        let gate = generation
+        let discovered = await scanWithPatience(gate: gate)
+        guard gate == generation else {
+            BrowLog.limits.info("bootstrap scan superseded by a refresh cycle; dropped")
+            return
+        }
+        guard let discovered else { return }    // the patience path applies it late
         applyScan(discovered)
         BrowLog.limits.info("discovered \(discovered.count, privacy: .public) account(s)")
     }
@@ -235,8 +253,30 @@ public final class LimitsStore: ObservableObject {
         Task.detached { directory.scan(extraDirs: extraDirs) }
     }
 
-    private static func scan(_ directory: AccountDirectory, extraDirs: [String]) async -> [DiscoveredAccount] {
-        await scanTask(directory, extraDirs: extraDirs).value
+    /// One discovery scan, bounded by `keychainPatience` (spec, The cycle §3). Returns
+    /// the accounts when the Keychain answers in time. When it does not, the caller is
+    /// released with nil — the wait is on screen and the caller carries on with the
+    /// accounts it already has — and the late answer is applied here, once, if `gate` is
+    /// still the current generation when it lands.
+    private func scanWithPatience(gate: Int) async -> [DiscoveredAccount]? {
+        let scan = Self.scanTask(deps.directory, extraDirs: settings.extraDirs)
+        if let scanned = await firstResult(of: scan, within: Self.keychainPatience) { return scanned }
+        guard gate == generation else { return nil }
+        setKeychainState(.waiting)
+        setFooterError(Self.waitingMessage)
+        BrowLog.limits.error("""
+            account scan still blocked after \(Self.keychainPatience, privacy: .public) s — \
+            continuing with \(self.accounts.count, privacy: .public) known account(s)
+            """)
+        // Not abandoned: when the Keychain finally answers, the result is applied (if
+        // this generation is still the current one) and the message goes.
+        Task { @MainActor [weak self] in
+            let late = await scan.value
+            guard let self, gate == self.generation else { return }
+            self.applyScan(late)
+            self.updateFooter()
+        }
+        return nil
     }
 
     /// One bounded cycle. The body runs as its own task and is raced against the
@@ -270,27 +310,9 @@ public final class LimitsStore: ObservableObject {
     private func cycleBody(cycle: Int, force: Bool) async {
         // 1. Discovery. The Keychain can hold this behind a modal prompt for minutes;
         //    after `keychainPatience` the cycle says so and carries on with what it has.
-        let scan = Self.scanTask(deps.directory, extraDirs: settings.extraDirs)
-        if let scanned = await firstResult(of: scan, within: Self.keychainPatience) {
-            guard cycle == generation else { return }
-            applyScan(scanned)
-        } else {
-            guard cycle == generation else { return }
-            setKeychainState(.waiting)
-            setFooterError(Self.waitingMessage)
-            BrowLog.limits.error("""
-                account scan still blocked after \(Self.keychainPatience, privacy: .public) s — \
-                continuing with \(self.accounts.count, privacy: .public) known account(s)
-                """)
-            // Not abandoned: when the Keychain finally answers, the result is applied
-            // (if this cycle is still the current one) and the message goes.
-            Task { @MainActor [weak self] in
-                let late = await scan.value
-                guard let self, cycle == self.generation else { return }
-                self.applyScan(late)
-                self.updateFooter()
-            }
-        }
+        let scanned = await scanWithPatience(gate: cycle)
+        guard cycle == generation else { return }
+        if let scanned { applyScan(scanned) }
         // The rows (names, tiers, persisted values with their real age) are worth
         // showing before the network answers.
         recompute()
@@ -365,17 +387,18 @@ public final class LimitsStore: ObservableObject {
     }
 
     /// The scan's answer, whenever it arrives. The Keychain verdict is read off the
-    /// tokens: a scan that came back empty-handed for every account that HAD a token is
-    /// the Keychain refusing us, not every account signing out at once.
+    /// tokens: a scan that came back empty-handed for every account we have ever read a
+    /// token for is the Keychain refusing us, not every account signing out at once.
+    /// Only a scan that actually hands a token back reaches `.ok` again, so the verdict
+    /// holds for as long as the denial does instead of decaying on the next cycle.
     private func applyScan(_ scanned: [DiscoveredAccount]) {
-        let hadTokens = accounts.filter { $0.tokenExpiresAt != nil }
-        let lost = hadTokens.filter { previous in
-            guard let now = scanned.first(where: { $0.organizationUuid == previous.organizationUuid })
-            else { return false }               // gone from disk is not "denied"
-            return now.tokenExpiresAt == nil
-        }
+        let answered = scanned.filter { $0.tokenExpiresAt != nil }.map(\.organizationUuid)
+        everHadTokens.formUnion(answered)
+        // An account that vanished from disk stops voting: that is a removed directory,
+        // not a refused prompt.
+        let deniable = scanned.contains { everHadTokens.contains($0.organizationUuid) }
         accounts = scanned
-        setKeychainState(!hadTokens.isEmpty && lost.count == hadTokens.count ? .denied : .ok)
+        setKeychainState(answered.isEmpty && deniable ? .denied : .ok)
         recompute()
     }
 

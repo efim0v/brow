@@ -30,8 +30,10 @@ public enum Formatting {
             let m = Int(remaining.truncatingRemainder(dividingBy: 3600) / 60)
             return h == 0 ? "resets in \(m) min" : "resets in \(h) h \(m) min"
         }
+        // The date, not the weekday: "resets 22 Sep 02:00". A weekday reads as a
+        // guess about which week; a date is the fact.
         let f = DateFormatter()
-        f.dateFormat = "EEE HH:mm"
+        f.dateFormat = "d MMM HH:mm"
         f.locale = Locale(identifier: "en_US_POSIX")
         return "resets \(f.string(from: reset))"
     }

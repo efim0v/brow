@@ -24,10 +24,10 @@ final class FormattingTests: XCTestCase {
         XCTAssertEqual(Formatting.countdown(past, now: t0), "resets now")
     }
 
-    func testCountdownBeyondADayShowsWeekdayAndTime() {
+    func testCountdownBeyondADayShowsDateAndTime() {
         let later = t0.addingTimeInterval(3 * 86400)
         let iso = ISO8601DateFormatter().string(from: later)
-        let f = DateFormatter(); f.dateFormat = "EEE HH:mm"; f.locale = Locale(identifier: "en_US_POSIX")
+        let f = DateFormatter(); f.dateFormat = "d MMM HH:mm"; f.locale = Locale(identifier: "en_US_POSIX")
         XCTAssertEqual(Formatting.countdown(iso, now: t0), "resets \(f.string(from: later))")
     }
 

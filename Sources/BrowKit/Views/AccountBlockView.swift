@@ -10,12 +10,15 @@ public struct AccountBlockView: View {
     let row: AccountRow
     let now: Date
     let claudePath: String
+    /// Grant Brow access to this account's Keychain item — shown only while it is withheld.
+    let onGrant: (() -> Void)?
     @State private var copied = false
 
-    public init(row: AccountRow, now: Date, claudePath: String = "claude") {
+    public init(row: AccountRow, now: Date, claudePath: String = "claude", onGrant: (() -> Void)? = nil) {
         self.row = row
         self.now = now
         self.claudePath = claudePath
+        self.onGrant = onGrant
     }
 
     public var body: some View {
@@ -39,6 +42,17 @@ public struct AccountBlockView: View {
     private var actions: some View {
         let command = AddAccountFlow.launchCommand(dir: row.account.configDir)
         return HStack(spacing: 2) {
+            // The one prompt the user chooses to see: macOS asks once, "Always Allow"
+            // puts Brow on the item's access list for good.
+            if row.account.keychainLocked, let onGrant {
+                Button(action: onGrant) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 11)).foregroundStyle(Color.orange)
+                        .frame(width: 18, height: 18).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Grant Brow access to this account's Keychain item — once; choose “Always Allow” in the dialog")
+            }
             Button {
                 AddAccountFlow.copyToPasteboard(command)
                 copied = true

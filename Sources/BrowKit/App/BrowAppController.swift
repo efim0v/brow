@@ -74,6 +74,11 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     /// Cmd-Q inert, indistinguishable from a crash.
     func applicationDidFinishLaunching(_ notification: Notification) {
         BrowLog.panel.info("Brow launching")
+        // No Keychain dialog Brow did not ask for. An ungranted item answers `.locked`
+        // and the row grows a key; a background read that blocked on the dialog parked
+        // the whole cycle until the watchdog threw it — readings and all — away (115
+        // times in one night), which is what "updated 9 h ago" was.
+        KeychainCredentialsReader.setUserInteractionAllowed(false)
         let runner = ProcessRunner()
         let settingsStore = BrowSettingsStore()
         let settings = settingsStore.load()

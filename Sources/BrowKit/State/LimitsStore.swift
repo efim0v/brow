@@ -108,7 +108,7 @@ public final class LimitsStore: ObservableObject {
     public static let keychainPatience: TimeInterval = 5
 
     static let waitingMessage = "Waiting for Keychain access…"
-    static let deniedMessage = "Keychain access denied — grant it in Keychain Access"
+    static let deniedMessage = "Keychain access needed — press the key on the account"
     static let timedOutMessage = "Refresh timed out"
 
     // The four derived values are published BY HAND (`recompute`), not with `@Published`:
@@ -612,9 +612,25 @@ public final class LimitsStore: ObservableObject {
         // An account that vanished from disk stops voting: that is a removed directory,
         // not a refused prompt.
         let deniable = scanned.contains { everHadTokens.contains($0.organizationUuid) }
+        // The reader now SAYS when an item is withheld, so a locked account is a
+        // verdict on its own; the tokenless-but-once-had-tokens heuristic stays for a
+        // denial the reader cannot see (a refused prompt floored for ten minutes).
+        let locked = scanned.contains(where: \.keychainLocked)
         accounts = scanned
-        setKeychainState(answered.isEmpty && deniable ? .denied : .ok)
+        setKeychainState(locked || (answered.isEmpty && deniable) ? .denied : .ok)
         recompute()
+    }
+
+    /// The user pressed the key: read this account's items WITH the Keychain dialog
+    /// allowed — "Always Allow" there is what makes every later cycle silent — then
+    /// refresh so the grant shows at once. Off the main actor: the dialog is modal
+    /// system UI, and the read behind it must not park the app.
+    public func grantKeychainAccess(_ account: DiscoveredAccount) async {
+        let directory = deps.directory
+        let dirs = [account.configDir] + account.aliasDirs
+        let granted = await Task.detached { directory.grant(configDirs: dirs) }.value
+        BrowLog.limits.info("keychain grant for \(account.organizationUuid, privacy: .public): \(granted ? "token read" : "still withheld", privacy: .public)")
+        await refresh(force: true)
     }
 
     /// The accounts go to disk WITH the snapshots: without them the first frame after a
@@ -799,6 +815,7 @@ public final class LimitsStore: ObservableObject {
     nonisolated static func tokenStatus(_ account: DiscoveredAccount, outcome: TokenRefreshOutcome?,
                                         error: String?, keychain: KeychainState = .ok, now: Date) -> String {
         guard let exp = account.tokenExpiresAt else {
+            if account.keychainLocked { return "Keychain access needed" }
             switch keychain {
             case .waiting: return "waiting for Keychain access"
             case .denied:  return "Keychain access denied"

@@ -106,6 +106,12 @@ public struct SettingsView: View {
                             get: { !store.settings.isHidden(row.id) },
                             set: { store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].hidden = !$0 }))
                         Spacer()
+                        if row.account.keychainLocked {
+                            Button {
+                                Task { await store.grantKeychainAccess(row.account) }
+                            } label: { Label("Grant Keychain access", systemImage: "key.fill") }
+                                .help("macOS asks once; choose “Always Allow”. Needed again only after a fresh `claude auth login` recreates the item.")
+                        }
                         Button {
                             AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
                         } label: { Label("Copy launch command", systemImage: "doc.on.doc") }

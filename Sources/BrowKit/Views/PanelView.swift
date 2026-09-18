@@ -78,7 +78,8 @@ public struct PanelView: View {
             }
             ForEach(store.rows) { row in
                 AccountBlockView(row: row, now: clock.now,
-                                 claudePath: store.settings.claudePath ?? store.claudeDetected ?? "claude")
+                                 claudePath: store.settings.claudePath ?? store.claudeDetected ?? "claude",
+                                 onGrant: { [store] in Task { await store.grantKeychainAccess(row.account) } })
                 Divider().overlay(Color.white.opacity(0.15))
             }
             if store.settings.showCalendar, !store.rows.isEmpty {

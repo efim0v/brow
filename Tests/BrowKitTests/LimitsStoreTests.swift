@@ -5,6 +5,13 @@ import GroveCore
 
 @MainActor
 final class LimitsStoreTests: XCTestCase {
+    func testTokenStatusNamesAWithheldKeychainItem() {
+        let account = DiscoveredAccount(organizationUuid: "o", email: "e", tier: nil, configDir: "/d",
+                                        aliasDirs: [], tokenExpiresAt: nil, keychainLocked: true)
+        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: nil, error: nil, keychain: .denied, now: Date()),
+                       "Keychain access needed")
+    }
+
     /// `sink` cannot mutate a captured local, and the count has to survive the closure.
     private final class Counter { var value = 0 }
 
@@ -687,7 +694,7 @@ final class LimitsStoreTests: XCTestCase {
         await store.refresh(force: false)
         XCTAssertEqual(store.keychainState, .denied)
         XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
-        XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
+        XCTAssertEqual(store.footerError, "Keychain access needed — press the key on the account")
         XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40, "the last numbers stay on screen")
 
         // The steady state, 60 s later: still denied, still saying so.
@@ -695,7 +702,7 @@ final class LimitsStoreTests: XCTestCase {
         await store.refresh(force: false)
         XCTAssertEqual(store.keychainState, .denied, "the verdict does not decay on the next cycle")
         XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
-        XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
+        XCTAssertEqual(store.footerError, "Keychain access needed — press the key on the account")
 
         // And it is not permanent: the first scan that gets a token back clears it.
         now = t0.addingTimeInterval(900)
@@ -731,7 +738,7 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.keychainState, .denied,
                        "the first scan of the process is the one that has to say so")
         XCTAssertEqual(store.rows.first?.tokenStatus, "Keychain access denied")
-        XCTAssertEqual(store.footerError, "Keychain access denied — grant it in Keychain Access")
+        XCTAssertEqual(store.footerError, "Keychain access needed — press the key on the account")
         XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40,
                        "and the last numbers stay on screen, dated")
     }

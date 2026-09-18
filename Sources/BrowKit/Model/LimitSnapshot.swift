@@ -13,15 +13,40 @@ public struct LimitSnapshot: Codable, Sendable, Equatable {
     public let sevenDay: CapturedWindow?
     public let weeklyScoped: CapturedWindow?
     public let weeklyScopedModel: String?
+    /// When `weeklyScoped` was obtained, if not at `fetchedAt`: a statusline capture
+    /// refreshes the 5h and weekly windows but carries no model-scoped one, so the
+    /// Fable bar keeps the API reading and its own, older, age.
+    public let scopedFetchedAt: Date?
 
     public init(organizationUuid: String, fetchedAt: Date, fiveHour: CapturedWindow?,
-                sevenDay: CapturedWindow?, weeklyScoped: CapturedWindow?, weeklyScopedModel: String?) {
+                sevenDay: CapturedWindow?, weeklyScoped: CapturedWindow?, weeklyScopedModel: String?,
+                scopedFetchedAt: Date? = nil) {
         self.organizationUuid = organizationUuid
         self.fetchedAt = fetchedAt
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
         self.weeklyScoped = weeklyScoped
         self.weeklyScopedModel = weeklyScopedModel
+        self.scopedFetchedAt = scopedFetchedAt
+    }
+
+    /// The 5h and weekly windows from a newer statusline capture, the scoped window
+    /// kept from this reading with its date. A window the capture lacks is kept too.
+    public func merging(_ capture: StatuslineReading) -> LimitSnapshot {
+        LimitSnapshot(organizationUuid: organizationUuid, fetchedAt: capture.capturedAt,
+                      fiveHour: capture.fiveHour ?? fiveHour, sevenDay: capture.sevenDay ?? sevenDay,
+                      weeklyScoped: weeklyScoped, weeklyScopedModel: weeklyScopedModel,
+                      scopedFetchedAt: weeklyScoped == nil ? nil : (scopedFetchedAt ?? fetchedAt))
+    }
+
+    /// A reading with nothing but a statusline capture behind it.
+    public init(organizationUuid: String, capture: StatuslineReading) {
+        self.init(organizationUuid: organizationUuid, fetchedAt: capture.capturedAt,
+                  fiveHour: capture.fiveHour, sevenDay: capture.sevenDay, weeklyScoped: nil, weeklyScopedModel: nil)
+    }
+
+    public func isScopedStale(now: Date) -> Bool {
+        now.timeIntervalSince(scopedFetchedAt ?? fetchedAt) > Self.staleAfter
     }
 
     /// nil when the payload carries none of the windows Brow shows.
@@ -42,7 +67,7 @@ public struct LimitSnapshot: Codable, Sendable, Equatable {
 
     // CapturedWindow lives in GroveCore and is not Codable; mirror it here rather
     // than widen a type other modules own.
-    private enum CodingKeys: String, CodingKey { case organizationUuid, fetchedAt, fiveHour, sevenDay, weeklyScoped, weeklyScopedModel }
+    private enum CodingKeys: String, CodingKey { case organizationUuid, fetchedAt, fiveHour, sevenDay, weeklyScoped, weeklyScopedModel, scopedFetchedAt }
     private struct Window: Codable { let usedPercentage: Double; let resetsAt: String? }
 
     public init(from decoder: Decoder) throws {
@@ -54,7 +79,8 @@ public struct LimitSnapshot: Codable, Sendable, Equatable {
                   fetchedAt: try c.decode(Date.self, forKey: .fetchedAt),
                   fiveHour: try window(.fiveHour), sevenDay: try window(.sevenDay),
                   weeklyScoped: try window(.weeklyScoped),
-                  weeklyScopedModel: try c.decodeIfPresent(String.self, forKey: .weeklyScopedModel))
+                  weeklyScopedModel: try c.decodeIfPresent(String.self, forKey: .weeklyScopedModel),
+                  scopedFetchedAt: try c.decodeIfPresent(Date.self, forKey: .scopedFetchedAt))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -65,5 +91,6 @@ public struct LimitSnapshot: Codable, Sendable, Equatable {
         try c.encodeIfPresent(sevenDay.map { Window(usedPercentage: $0.usedPercentage, resetsAt: $0.resetsAt) }, forKey: .sevenDay)
         try c.encodeIfPresent(weeklyScoped.map { Window(usedPercentage: $0.usedPercentage, resetsAt: $0.resetsAt) }, forKey: .weeklyScoped)
         try c.encodeIfPresent(weeklyScopedModel, forKey: .weeklyScopedModel)
+        try c.encodeIfPresent(scopedFetchedAt, forKey: .scopedFetchedAt)
     }
 }

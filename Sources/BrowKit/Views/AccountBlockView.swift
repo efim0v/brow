@@ -32,7 +32,10 @@ public struct AccountBlockView: View {
             bar("5h", row.snapshot?.fiveHour)
             bar("Weekly", row.snapshot?.sevenDay)
             if let scoped = row.snapshot?.weeklyScoped {
-                bar(row.snapshot?.weeklyScopedModel ?? "Model", scoped)
+                // Its own age: a statusline capture refreshes the two bars above but
+                // never this one, which keeps the last API reading.
+                bar(row.snapshot?.weeklyScopedModel ?? "Model", scoped,
+                    stale: row.snapshot?.isScopedStale(now: now) ?? true)
             }
         }
     }
@@ -112,9 +115,9 @@ public struct AccountBlockView: View {
     /// over a three-day-old capture used to paint it confident green.
     private var isStale: Bool { row.snapshot?.isStale(now: now) ?? true }
 
-    private func bar(_ title: String, _ window: CapturedWindow?) -> some View {
+    private func bar(_ title: String, _ window: CapturedWindow?, stale: Bool? = nil) -> some View {
         let used = window?.usedPercentage ?? 0
-        let stale = isStale
+        let stale = stale ?? isStale
         return HStack(spacing: 8) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
             GeometryReader { geo in

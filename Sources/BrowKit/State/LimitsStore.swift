@@ -59,16 +59,20 @@ public final class LimitsStore: ObservableObject {
         public var sequentialFetch: Bool
         /// `api/oauth/profile`, for the subscription facts. nil: never asked (tests).
         public var profileClient: OAuthProfileClient?
+        /// Claude Code's own statusline captures — see `StatuslineCaptures`. nil: none.
+        public var statusline: StatuslineCaptures?
         public init(directory: AccountDirectory, keeper: TokenKeeper, client: OAuthUsageClient,
                     snapshotStore: LimitSnapshotStore, settingsStore: BrowSettingsStore,
                     now: @escaping @Sendable () -> Date,
                     sleep: @escaping @Sendable (TimeInterval) async -> Void = Dependencies.realSleep,
-                    sequentialFetch: Bool = false, profileClient: OAuthProfileClient? = nil) {
+                    sequentialFetch: Bool = false, profileClient: OAuthProfileClient? = nil,
+                    statusline: StatuslineCaptures? = nil) {
             self.directory = directory; self.keeper = keeper; self.client = client
             self.snapshotStore = snapshotStore; self.settingsStore = settingsStore; self.now = now
             self.sleep = sleep
             self.sequentialFetch = sequentialFetch
             self.profileClient = profileClient
+            self.statusline = statusline
         }
 
         /// Cancellation is how the winner of a race stops the loser, and it is not a
@@ -481,6 +485,11 @@ public final class LimitsStore: ObservableObject {
             }
         }
         guard cycle == generation else { return }
+        // 3. Whatever the endpoint said, the account's own sessions may have said
+        //    something newer: their statusline captures cost nothing and outrun a
+        //    token whose bucket those very sessions keep empty.
+        await applyStatuslineCaptures(visible, cycle: cycle)
+        guard cycle == generation else { return }
         // A forced cycle the rate limit held back re-queues itself for the moment the
         // client says a request will go through; one that got everything it asked for
         // clears any countdown.
@@ -495,6 +504,33 @@ public final class LimitsStore: ObservableObject {
         // Last, and never in the way of a reading: the billing facts change about
         // never, so one request per account per day is plenty.
         await refreshSubscriptions(visible, cycle: cycle)
+    }
+
+    /// A capture newer than the reading on screen replaces its 5h and weekly windows
+    /// (the scoped one stays, dated on its own) and clears a fetch error — a number
+    /// from ten seconds ago is not "rate limited", whatever the endpoint answered.
+    private func applyStatuslineCaptures(_ visible: [DiscoveredAccount], cycle: Int) async {
+        guard let source = deps.statusline else { return }
+        let dirs = visible.map { (org: $0.organizationUuid, dirs: [$0.configDir] + $0.aliasDirs) }
+        let readings = await Task.detached {
+            dirs.compactMap { entry in source.latest(configDirs: entry.dirs).map { (entry.org, $0) } }
+        }.value
+        guard cycle == generation else { return }
+        var changed = false
+        for (org, capture) in readings {
+            if let current = snapshots[org] {
+                guard capture.capturedAt > current.fetchedAt else { continue }
+                snapshots[org] = current.merging(capture)
+            } else {
+                snapshots[org] = LimitSnapshot(organizationUuid: org, capture: capture)
+            }
+            lastError[org] = nil
+            // The endpoint's answer for this account no longer speaks for it: not in
+            // the footer, and not as a rate-limit retry to queue.
+            cycleResults[org] = nil
+            changed = true
+        }
+        if changed { updateFooter(); recompute() }
     }
 
     /// Billing facts per organisation, from `api/oauth/profile`.

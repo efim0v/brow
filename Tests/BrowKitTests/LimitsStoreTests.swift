@@ -200,8 +200,17 @@ final class LimitsStoreTests: XCTestCase {
         return dir.path
     }
 
+    private final class Captures: StatuslineCaptures, @unchecked Sendable {
+        private let lock = NSLock()
+        private var byDir: [String: StatuslineReading] = [:]
+        func set(_ reading: StatuslineReading?, for dir: String) { lock.withLock { byDir[dir] = reading } }
+        func latest(configDirs: [String]) -> StatuslineReading? {
+            lock.withLock { configDirs.compactMap { byDir[$0] }.max { $0.capturedAt < $1.capturedAt } }
+        }
+    }
+
     private func makeStore(fetcher: Fetcher, creds: Creds, runner: CommandRunning = MockRunnerBK(results: []),
-                           sleeper: Sleeper? = nil) -> LimitsStore {
+                           sleeper: Sleeper? = nil, captures: Captures? = nil) -> LimitsStore {
         let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300,
                                       // No endpoint pacing here: these tests pin the CYCLE mechanics (one
                                       // cycle at a time, force vs cache vs backoff), not the 100 s refill.
@@ -214,7 +223,46 @@ final class LimitsStoreTests: XCTestCase {
                                             settingsStore: BrowSettingsStore(directory: appDir),
                                             now: { [clock] in clock.date })
         if let sleeper { deps.sleep = sleeper.closure }
+        deps.statusline = captures
         return LimitsStore(deps: deps)
+    }
+
+    /// The account's own sessions know its limits before the endpoint will say — and
+    /// while the endpoint says 429. A newer capture replaces the 5h and weekly bars,
+    /// keeps Fable (dated on its own), and takes the rate-limit tag off the row.
+    func testANewerStatuslineCaptureOutranksARateLimitedEndpoint() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(36_000)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 40, seven: 60, scoped: 98), 200)
+        let captures = Captures()
+        let store = makeStore(fetcher: fetcher, creds: creds, captures: captures)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 40)
+
+        // Ten hours on: the endpoint refuses, the sessions have just written a capture.
+        now = t0.addingTimeInterval(36_000)
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 429)
+        captures.set(StatuslineReading(capturedAt: t0.addingTimeInterval(35_990),
+                                       fiveHour: CapturedWindow(usedPercentage: 16, resetsAt: nil),
+                                       sevenDay: CapturedWindow(usedPercentage: 87, resetsAt: nil)), for: a)
+        await store.refresh(force: true)
+        let snap = try XCTUnwrap(store.rows[0].snapshot)
+        XCTAssertEqual(snap.fiveHour?.usedPercentage, 16)
+        XCTAssertEqual(snap.sevenDay?.usedPercentage, 87)
+        XCTAssertEqual(snap.weeklyScoped?.usedPercentage, 98, "Fable stays: the statusline has no scoped window")
+        XCTAssertEqual(snap.fetchedAt, t0.addingTimeInterval(35_990))
+        XCTAssertEqual(snap.scopedFetchedAt, t0, "and keeps the date it was really read")
+        XCTAssertTrue(snap.isScopedStale(now: now))
+        XCTAssertFalse(snap.isStale(now: now))
+        XCTAssertEqual(store.rows[0].status, .ok, "a ten-second-old number is not \"rate limited\"")
+        XCTAssertNil(store.footerError)
+
+        // An OLDER capture changes nothing.
+        captures.set(StatuslineReading(capturedAt: t0.addingTimeInterval(100),
+                                       fiveHour: CapturedWindow(usedPercentage: 1, resetsAt: nil), sevenDay: nil), for: a)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 16)
     }
 
     /// Polls a main-actor condition on the REAL clock (the injected one is frozen by

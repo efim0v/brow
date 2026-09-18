@@ -215,6 +215,10 @@ public final class AddAccountFlow: ObservableObject {
                     AccountDirectory.identity(configDir: dir, home: home) != nil
                 }.value
                 guard signedIn else { continue }
+                // `claude auth login` leaves only `oauthAccount` behind; without this
+                // the first `claude` in the folder runs the onboarding wizard as if
+                // nobody were signed in.
+                ClaudeService.ensureOnboarded(configDir: dir, home: home)
                 guard let self else { return }
                 // `allRows`, not `rows`: a re-signed-in account that the user has
                 // hidden is still "already known", and must not read as a timeout.

@@ -93,6 +93,30 @@ final class ResetCalendarTests: XCTestCase {
         XCTAssertTrue(ResetCalendar.dots(on: date("2026-09-22T12:00:00Z"), marks: marks, calendar: utc).isEmpty)
     }
 
+    /// 98 on the account page and from the endpoint, 97 in the next statusline
+    /// header, 98 again a turn later: the capture's figure is a step behind. The same
+    /// window never ticks down on screen; a new window does start from the capture.
+    func testACaptureLowerThanTheReadingForTheSameWindowDoesNotPullTheBarDown() {
+        let base = LimitSnapshot(organizationUuid: "a", fetchedAt: now,
+                                 fiveHour: CapturedWindow(usedPercentage: 62, resetsAt: "2026-09-18T15:00:00Z"),
+                                 sevenDay: CapturedWindow(usedPercentage: 98, resetsAt: "2026-09-21T21:00:00Z"),
+                                 weeklyScoped: nil, weeklyScopedModel: nil)
+        let lower = base.merging(StatuslineReading(capturedAt: now.addingTimeInterval(60),
+                                                   fiveHour: CapturedWindow(usedPercentage: 59, resetsAt: "2026-09-18T15:00:00Z"),
+                                                   sevenDay: CapturedWindow(usedPercentage: 97, resetsAt: "2026-09-21T21:00:00Z")))
+        XCTAssertEqual(lower.sevenDay?.usedPercentage, 98)
+        XCTAssertEqual(lower.fiveHour?.usedPercentage, 62)
+        XCTAssertEqual(lower.fetchedAt, now.addingTimeInterval(60), "the date still moves: the number was checked")
+        let higher = base.merging(StatuslineReading(capturedAt: now.addingTimeInterval(120), fiveHour: nil,
+                                                    sevenDay: CapturedWindow(usedPercentage: 99, resetsAt: "2026-09-21T21:00:00Z")))
+        XCTAssertEqual(higher.sevenDay?.usedPercentage, 99)
+        XCTAssertEqual(higher.fiveHour?.usedPercentage, 62, "a window the capture lacks is kept")
+        let reset = base.merging(StatuslineReading(capturedAt: now.addingTimeInterval(180),
+                                                   fiveHour: CapturedWindow(usedPercentage: 3, resetsAt: "2026-09-18T20:00:00Z"),
+                                                   sevenDay: nil))
+        XCTAssertEqual(reset.fiveHour?.usedPercentage, 3, "a new window starts from the capture")
+    }
+
     func testNextRenewalIsTheFirstMonthlyAnniversaryAfterNow() {
         let info = SubscriptionInfo(organizationUuid: "a", status: "active", billingType: "stripe_subscription",
                                     createdAt: date("2026-09-10T14:31:29Z"), fetchedAt: now)

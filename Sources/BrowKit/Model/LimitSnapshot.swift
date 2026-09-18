@@ -32,11 +32,26 @@ public struct LimitSnapshot: Codable, Sendable, Equatable {
 
     /// The 5h and weekly windows from a newer statusline capture, the scoped window
     /// kept from this reading with its date. A window the capture lacks is kept too.
+    ///
+    /// Usage inside one window only ever grows, and the statusline's number is the
+    /// header of ONE request — rounded on Anthropic's side and, going by the data,
+    /// a step behind the account page and the usage endpoint (97 beside their 98,
+    /// then 98 a turn later). So a capture that reads LOWER than what is on screen,
+    /// for the same window, keeps the higher figure and only refreshes the date: a
+    /// bar that ticks down and back up is a lie about the account. A new window
+    /// (`resetsAt` changed) starts from the capture, whatever it says.
     public func merging(_ capture: StatuslineReading) -> LimitSnapshot {
-        LimitSnapshot(organizationUuid: organizationUuid, fetchedAt: capture.capturedAt,
-                      fiveHour: capture.fiveHour ?? fiveHour, sevenDay: capture.sevenDay ?? sevenDay,
-                      weeklyScoped: weeklyScoped, weeklyScopedModel: weeklyScopedModel,
-                      scopedFetchedAt: weeklyScoped == nil ? nil : (scopedFetchedAt ?? fetchedAt))
+        func settle(_ new: CapturedWindow?, over current: CapturedWindow?) -> CapturedWindow? {
+            guard let new else { return current }
+            guard let current, current.resetsAt == new.resetsAt, new.usedPercentage < current.usedPercentage
+            else { return new }
+            return current
+        }
+        return LimitSnapshot(organizationUuid: organizationUuid, fetchedAt: capture.capturedAt,
+                             fiveHour: settle(capture.fiveHour, over: fiveHour),
+                             sevenDay: settle(capture.sevenDay, over: sevenDay),
+                             weeklyScoped: weeklyScoped, weeklyScopedModel: weeklyScopedModel,
+                             scopedFetchedAt: weeklyScoped == nil ? nil : (scopedFetchedAt ?? fetchedAt))
     }
 
     /// A reading with nothing but a statusline capture behind it.

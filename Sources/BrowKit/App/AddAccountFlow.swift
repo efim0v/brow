@@ -53,9 +53,11 @@ public final class AddAccountFlow: ObservableObject {
     }
 
     /// `CLAUDE_CONFIG_DIR='…' BROWSER='…'` — the environment every command for
-    /// `dir` starts with.
+    /// `dir` starts with. The default `~/.claude` is the exception: it is selected by
+    /// the variable being ABSENT (`isDefaultClaudeDir`), so its prefix removes it —
+    /// the terminal the line is pasted into may well have another account exported.
     public static func environmentPrefix(dir: String) -> String {
-        var prefix = "CLAUDE_CONFIG_DIR=\(shellQuote(dir))"
+        var prefix = isDefaultClaudeDir(dir) ? "env -u CLAUDE_CONFIG_DIR" : "CLAUDE_CONFIG_DIR=\(shellQuote(dir))"
         if let helper = browserHelperPath { prefix += " BROWSER=\(shellQuote(helper))" }
         return prefix
     }

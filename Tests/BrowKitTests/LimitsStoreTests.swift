@@ -1159,6 +1159,14 @@ final class ClaudePathAndAddAccountTests: XCTestCase {
             "CLAUDE_CONFIG_DIR='/Users/a/.claude' '/bin/claude'", "no subcommand → no trailing space")
     }
 
+    /// The default account is selected by the variable's absence — and the terminal the
+    /// line lands in may have another account exported, so it is removed explicitly.
+    func testTerminalCommandForTheDefaultDirRemovesTheVariable() {
+        XCTAssertEqual(
+            AddAccountFlow.terminalCommand(dir: NSHomeDirectory() + "/.claude", claudePath: "/bin/claude", subcommand: "auth login"),
+            "env -u CLAUDE_CONFIG_DIR '/bin/claude' auth login")
+    }
+
     func testAppleScriptQuoteEscapesQuotesAndBackslashes() {
         XCTAssertEqual(AddAccountFlow.appleScriptQuote(#"a"b\c"#), #""a\"b\\c""#)
     }

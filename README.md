@@ -1,8 +1,8 @@
-# Brow
+# Brow — Claude Code rate limits in the MacBook notch
 
-A macOS app that lives in the MacBook notch and shows the **rate limits of every [Claude](https://claude.com/claude-code) account** you have — with one-click sign-in in a browser profile that belongs to that account alone.
+A macOS app that shows the **usage and rate limits of every [Claude Code](https://claude.com/claude-code) account** you have, right in the MacBook notch: the 5-hour limit, the weekly limit, and when each resets. One click signs you in to an account in a browser profile that belongs to that account alone.
 
-It is for people who keep several Claude subscriptions and run a separate stream of work on each: Brow shows at a glance which account is close to its limit, which has room, and when each one resets.
+It is for people who keep several Claude subscriptions and run a separate stream of AI-assisted work on each. Brow shows at a glance which account is close to its limit, which has room, and when each one frees up.
 
 > **Companion app: [Grove](https://github.com/efim0v/grove).** Grove gives each feature of a multi-repo project its own workspace for Claude Code and moves a session from one account to another. Brow tells you which account has room; Grove moves the work there. Each runs on its own, and they are built to be used together.
 

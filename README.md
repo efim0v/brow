@@ -4,6 +4,8 @@ A macOS app that shows the **usage and rate limits of every [Claude Code](https:
 
 It is for people who keep several Claude subscriptions and run a separate stream of AI-assisted work on each. Brow shows at a glance which account is close to its limit, which has room, and when each one frees up.
 
+**[Download Brow for macOS](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** · macOS 26 or later, Apple silicon · [install notes](#install)
+
 > **Companion app: [Grove](https://github.com/efim0v/grove).** Grove gives each feature of a multi-repo project its own workspace for Claude Code and moves a session from one account to another. Brow tells you which account has room; Grove moves the work there. Each runs on its own, and they are built to be used together.
 
 <p align="center">
@@ -68,6 +70,20 @@ This is an independent tool, not affiliated with or endorsed by Anthropic.
 - [Claude Code](https://claude.com/claude-code).
 - For separate browser profiles: Chrome, Chromium, Brave or Edge.
 
+## Install
+
+Download **[Brow.zip](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** from the [latest release](https://github.com/efim0v/brow/releases/latest), unzip it and move `Brow.app` to `/Applications`.
+
+The build is signed ad hoc and is not notarized by Apple, so macOS blocks the first launch. Open **System Settings → Privacy & Security**, find the message about Brow and press **Open Anyway** — or clear the quarantine flag yourself:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Brow.app
+```
+
+On first launch macOS asks once per account for access to Claude Code's Keychain item — choose **Always Allow**. Because the build is signed ad hoc, macOS asks again after you update to a newer build.
+
+`SHA256SUMS.txt` in the release is there to check the download against.
+
 ## Build
 
 ```sh
@@ -80,8 +96,6 @@ cp -R dist/Brow.app /Applications/
 ```
 
 The app is signed ad hoc by default. macOS then forgets the Keychain and Automation permissions on every rebuild; to keep them, set `GROVE_SIGN_IDENTITY` to your own `Apple Development: Name (TEAMID)` identity before building.
-
-On first launch macOS asks once per account for access to Claude Code's Keychain item — choose **Always Allow**.
 
 ## Layout
 

@@ -140,4 +140,4 @@ The only dependency is [`GroveCore`](https://github.com/efim0v/grove) from the G
 
 ## License
 
-[MIT](LICENSE)
+[GNU GPL v3](LICENSE). Version 0.2.0 and earlier were released under the MIT License.

@@ -6,16 +6,39 @@ It is for people who keep several Claude subscriptions and run a separate stream
 
 **[Download Brow for macOS](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** · macOS 26 or later, Apple silicon · [install notes](#install)
 
+### Which account still has room
+
+Hover the notch: every account's 5-hour and weekly limits open out of it. Copy an account's launch command and Claude Code starts as that account.
+
+<p align="center"><picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v1.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v1.webp">
+  <img src="docs/media/brow-hero-v1.png" width="840" alt="Hovering the notch opens the limits of every account; the launch command of the account with room is copied and Claude Code starts as that account">
+</picture></p>
+
+### When each limit resets
+
+The calendar marks every account's weekly resets and subscription renewals. Point at a day to see what frees up.
+
+<p align="center"><picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v1.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v1.webp">
+  <img src="docs/media/brow-calendar-v1.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
+</picture></p>
+
+### Sign in again in one click
+
+When an account's sign-in expires, the key next to it starts `claude auth login` for that account and opens the browser profile that belongs to it, already signed in to that account. Other accounts stay signed in.
+
+<p align="center"><picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v1.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v1.webp">
+  <img src="docs/media/brow-signin-v1.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
+</picture></p>
+
+All demos show made-up demo data.
+
 > **Companion app: [Grove](https://github.com/efim0v/grove).** Grove gives each feature of a multi-repo project its own workspace for Claude Code and moves a session from one account to another. Brow tells you which account has room; Grove moves the work there. Each runs on its own, and they are built to be used together.
-
-<p align="center">
-  <img alt="Brow collapsed beside the notch" src="docs/screenshots/brow-notch-collapsed.png" width="640" />
-</p>
-<p align="center">
-  <img alt="Brow panel" src="docs/screenshots/brow-panel-reset-calendar.png" width="640" />
-</p>
-
-All screenshots show made-up demo data.
 
 ## What it does
 

@@ -554,7 +554,7 @@ h2 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.75rem); font-weight: 
           </div>
           <div class="panel">
             <h3>Build it yourself</h3>
-            <p>Brow is a Swift package. You need Xcode with Swift 6.2; the steps are in the <a href="https://github.com/efim0v/brow#build">README</a>.</p>
+            <p>Brow is a Swift package. You need Xcode; the steps are in the <a href="https://github.com/efim0v/brow#build">README</a>.</p>
           </div>
         </aside>
       </div>
@@ -569,12 +569,12 @@ h2 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.75rem); font-weight: 
         <p>Worth knowing before you run it.</p>
       </div>
       <ul class="facts">
-        <li><strong>Your token, read from the Keychain</strong>Brow reads each account’s Claude Code sign-in token from the macOS Keychain and uses it only to call Anthropic’s usage and profile endpoints on <code class="nowrap">api.anthropic.com</code>. Those endpoints are not a documented public API and may change.</li>
-        <li><strong>No analytics, no update check</strong>No token is written to disk or logged, and nothing is sent anywhere else.</li>
-        <li><strong>The fallback token refresh is on by default</strong>If the normal refresh stops working, Brow runs a tiny <code class="nowrap">claude -p</code> request, which spends a little limit and starts that account’s 5-hour window. Turn it off in Settings → Accounts.</li>
-        <li><strong>One browser profile per account</strong>Each is a separate directory under <code>~/Library/Application Support/Brow/browser-profiles/</code>. Brow sets the profile’s name and allows third-party cookies in it so that sign-in works.</li>
-        <li><strong>Signing in opens Terminal</strong>Sign-in runs <code class="nowrap">claude auth login</code> in Terminal, and macOS asks once for permission to control it.</li>
-        <li><strong>Settings stay in one folder</strong>Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>.</li>
+        <li><strong>Your token, read from the Keychain</strong> Brow reads each account’s Claude Code sign-in token from the macOS Keychain and uses it only to call Anthropic’s usage and profile endpoints on <code class="nowrap">api.anthropic.com</code>. Those endpoints are not a documented public API and may change.</li>
+        <li><strong>No analytics, no update check</strong> No token is written to disk or logged, and nothing is sent anywhere else.</li>
+        <li><strong>The fallback token refresh is on by default</strong> If the normal refresh stops working, Brow runs a tiny <code class="nowrap">claude -p</code> request, which spends a little limit and starts that account’s 5-hour window. Turn it off in Settings → Accounts.</li>
+        <li><strong>One browser profile per account</strong> Each is a separate directory under <code>~/Library/Application Support/Brow/browser-profiles/</code>. Brow sets the profile’s name and allows third-party cookies in it so that sign-in works.</li>
+        <li><strong>Signing in opens Terminal</strong> Sign-in runs <code class="nowrap">claude auth login</code> in Terminal, and macOS asks once for permission to control it.</li>
+        <li><strong>Settings and readings on disk</strong> Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>. It also keeps a pacing record for the usage endpoint, with each account’s last reading, in <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>; that path comes from GroveCore, the library Brow shares with Grove.</li>
       </ul>
       <p class="note">Brow is an independent tool, not affiliated with or endorsed by Anthropic.</p>
     </div>

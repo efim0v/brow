@@ -2,8 +2,8 @@
 
 - Accounts are discovered from `~/.claude` and `~/.claude-accounts/*`; dirs that
   belong to the same organisation are shown once.
-- On first launch macOS asks once per account for access to Claude Code's
-  Keychain item — choose "Always Allow".
+- If macOS asks for access to Claude Code's Keychain item, choose "Always Allow".
+  An account whose item is withheld shows a key: press it to grant access.
 - Idle accounts' tokens are kept fresh by running `claude doctor` in that
   account (no model call). If that ever stops working, the `claude -p` fallback
   (Settings → Accounts, **on by default**) spends a little limit and starts the
@@ -24,9 +24,9 @@
 - Add an account from Settings with one click (**Sign in…**): Brow creates
   `~/.claude-accounts/account-N` itself and opens Terminal with `claude auth login`;
   sign-in happens in Anthropic's own flow.
-- Limits are re-fetched every **60 s** by one timer that keeps running whether the
+- Limits are checked every **30 s** by one timer that keeps running whether the
   panel is open or shut, plus on wake, on the network returning, and on hover when
-  the data on screen is more than 60 s old. The footer always leads with the age
+  the data on screen is more than 30 s old. The footer always leads with the age
   (`Updated 3 h ago`), so a number you can see is a number you can date.
 - **Settings → General → Ears** chooses where the two readouts sit on a built-in
   display: `Beside the notch` (default — one wing each side, the notch itself left
@@ -34,6 +34,6 @@
   effect as you click; an external display always shows the pill.
 - The strip is drawn as the notch outline (`NotchShape`), not a rectangle. Its
   tuning knobs are constants in `Sources/BrowKit/Panel/NotchGeometry.swift` —
-  `flare` (concave top corners, 6), `collapsedBottomRadius` (12),
+  `flare` (concave top corners, 6), `collapsedBottomRadius` (14),
   `expandedBottomRadius` (18), `wingWidth` (96), `belowStripHeight` (22). They are
   meant to be tuned by eye against the physical bezel; no screenshot can show it.

@@ -444,7 +444,7 @@ final class LimitsStoreTests: XCTestCase {
     }
 
     /// Six triggers call `refresh`, a cycle can be in flight for 210 s (doctor 90 s +
-    /// `-p` 120 s), and the 60 s expanded timer keeps firing: overlap is the normal
+    /// `-p` 120 s), and the 30 s poll timer keeps firing: overlap is the normal
     /// case. Overlapping cycles let an older capture overwrite a newer one and cleared
     /// the spinner while a fetch was still out.
     func testConcurrentRefreshesRunASingleCycle() async throws {
@@ -745,7 +745,7 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.footerError, "Keychain access needed — press the key on the account")
         XCTAssertEqual(store.rows.first?.snapshot?.fiveHour?.usedPercentage, 40, "the last numbers stay on screen")
 
-        // The steady state, 60 s later: still denied, still saying so.
+        // The steady state, one cycle later: still denied, still saying so.
         now = t0.addingTimeInterval(600)
         await store.refresh(force: false)
         XCTAssertEqual(store.keychainState, .denied, "the verdict does not decay on the next cycle")
@@ -877,12 +877,12 @@ final class LimitsStoreTests: XCTestCase {
 
         await store.refresh(force: false)
         XCTAssertTrue(creds.invalidated.isEmpty,
-                      "the 60 s poll must never re-raise a prompt the user declined")
+                      "the 30 s poll must never re-raise a prompt the user declined")
 
         now = t0.addingTimeInterval(60)
         await store.refresh(force: true)
         XCTAssertTrue(creds.invalidated.contains(a),
-                      "⟳ / wake / network-return clear the floor for every dir the scan will walk")
+                      "⟳ / wake / sign-in clear the floor for every dir the scan will walk")
     }
 
     /// `BrowAppController` arms the poll timer BEFORE it calls `bootstrap`, so

@@ -3,11 +3,11 @@ import Combine
 import Foundation
 import Network
 
-/// Everything that can make `LimitsStore` re-evaluate itself. Intervals from the
-/// spec: one 60 s poll timer for the life of the app (the expanded panel uses the
-/// same one), a 5 s staleness ticker that costs no network, an immediate pass on
-/// expand when the data is > 60 s old, and immediate forced passes on wake and on
-/// the network coming back — the two events behind most "the number is frozen"
+/// Everything that can make `LimitsStore` re-evaluate itself. Intervals: one 30 s
+/// poll timer for the life of the app (the expanded panel uses the same one), a 5 s
+/// staleness ticker that costs no network, an immediate pass on expand when the
+/// data is > 30 s old, and immediate passes on wake (forced) and on the network
+/// coming back (a plain poll) — the two events behind most "the number is frozen"
 /// reports.
 ///
 /// Every trigger guards on its OWN state. A single `guard timer == nil` used to

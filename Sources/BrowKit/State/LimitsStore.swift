@@ -207,7 +207,7 @@ public final class LimitsStore: ObservableObject {
     /// judged against this, not against the last scan: a denied scan leaves `accounts`
     /// tokenless, so a verdict judged against the previous scan alone is edge-triggered —
     /// it says `.denied` for one cycle and `.ok` from the next one on, taking the one
-    /// message that tells the user how to fix it off the screen 60 s after it went up.
+    /// message that tells the user how to fix it off the screen 30 s after it went up.
     private var everHadTokens: Set<String> = []
 
     /// NO I/O beyond the persisted snapshot file: `AccountDirectory.scan` reads one
@@ -231,7 +231,7 @@ public final class LimitsStore: ObservableObject {
         // is filled by successful scans, and a denial already in force at launch makes
         // every scan of that process tokenless — so without this seed `.denied` needed a
         // successful scan earlier in the SAME run, and a relaunch under a standing denial
-        // (Brow ships with Launch at login: the normal way the user meets this state)
+        // (once Launch at login is turned on, the normal way the user meets this state)
         // showed "no token" plus a generic fetch error instead of the one message that
         // says what to do. The trade-off is deliberate and one-sided: an account that
         // genuinely signed out but left its dir on disk reads `.denied` until the first
@@ -297,7 +297,7 @@ public final class LimitsStore: ObservableObject {
     /// One cycle at a time. A `force: false` caller joins the cycle already running
     /// instead of starting a second; a `force: true` caller queues behind it, so the
     /// newest data always wins the write. A full cycle can take 210 s (doctor 90 s +
-    /// `-p` 120 s) while the 60 s expanded timer keeps firing — overlap is the normal
+    /// `-p` 120 s) while the 30 s poll timer keeps firing — overlap is the normal
     /// case, not a coincidence.
     public func refresh(force: Bool) async {
         if !force, let running = inFlight {
@@ -427,12 +427,12 @@ public final class LimitsStore: ObservableObject {
     private func cycleBody(cycle: Int, force: Bool) async {
         await seedClientIfNeeded()
         // 0. A forced cycle means the user just did something — pressed ⟳, woke the
-        //    Mac, came back on to Wi-Fi, finished `claude auth login`. That is the only
+        //    Mac, finished `claude auth login`, pressed an account's key. That is the only
         //    moment a credential the Keychain refused us ten minutes ago can plausibly
         //    have changed, and `CachingCredentialsReader`'s nil floor answers "nothing
         //    here" for 600 s BEFORE any request — so without this the footer's own
         //    advice ("grant it in Keychain Access") did nothing for up to ten minutes
-        //    and ⟳ was, by the user's reckoning, dead. The 60 s background poll is
+        //    and ⟳ was, by the user's reckoning, dead. The 30 s background poll is
         //    untouched: it still never re-raises a prompt the user declined.
         if force { invalidateCredentials() }
         // 1. Discovery. The Keychain can hold this behind a modal prompt for minutes;

@@ -154,7 +154,7 @@ public struct PanelView: View {
                     .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
             Spacer()
-            // The button STAYS: the 60 s background poll must not take the only manual
+            // The button STAYS: the 30 s background poll must not take the only manual
             // refresh off the screen — a cycle is budgeted at up to 210 s of CLI work,
             // and a dead ⟳ for minutes at a time is the failure this whole spec exists
             // to fix. `isForcing` is the ONLY gate (spec, The cycle §7): `isRefreshing`

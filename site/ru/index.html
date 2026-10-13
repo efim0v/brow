@@ -535,6 +535,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <p>Claude&nbsp;Code хранит каждый аккаунт в&nbsp;отдельной папке конфигурации: аккаунт по&nbsp;умолчанию&nbsp;— в&nbsp;<code class="nowrap">~/.claude</code>, любой другой&nbsp;— в&nbsp;папке, на&nbsp;которую указывает <code class="nowrap">CLAUDE_CONFIG_DIR</code>. Именно так <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">документация Anthropic</a> предлагает оставаться авторизованным сразу в&nbsp;нескольких аккаунтах, например в&nbsp;рабочем и&nbsp;личном.</p>
         <p>Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code>. В&nbsp;<span class="nowrap">Settings → Accounts</span> кнопка <strong>Sign in…</strong> создаёт следующую свободную папку, <code class="nowrap">~/.claude-accounts/account-N</code>, и&nbsp;запускает для неё <code class="nowrap">claude auth login</code> в&nbsp;Терминале, а&nbsp;<strong>Existing folder…</strong> добавляет папку, которой вы&nbsp;уже пользуетесь. После этого у&nbsp;каждого аккаунта есть кнопка, которая копирует его команду запуска, например <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>. С&nbsp;этой командой Claude&nbsp;Code стартует под нужным аккаунтом и&nbsp;открывает ссылки в&nbsp;его профиле браузера.</p>
         <p>У&nbsp;каждой папки свои учётные данные. Claude&nbsp;Code хранит их в&nbsp;связке ключей macOS под именем, привязанным к&nbsp;папке: <code>Claude Code-credentials</code> для <code class="nowrap">~/.claude</code> и&nbsp;<code>Claude Code-credentials-&lt;hash&gt;</code> для любой другой папки. Правила для ваших тарифов смотрите в&nbsp;<a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> Anthropic.</p>
+        <p>Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском).</p>
       </div>
     </div>
   </section>
@@ -770,7 +771,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Можно&nbsp;ли видеть лимиты нескольких аккаунтов Claude&nbsp;Code сразу?</h3>
-          <p>Да. Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code> и&nbsp;показывает лимиты всех аккаунтов рядом друг с&nbsp;другом. Claude&nbsp;Code хранит каждый аккаунт в&nbsp;своей папке конфигурации, которая задаётся через <code class="nowrap">CLAUDE_CONFIG_DIR</code>; подробнее&nbsp;— в&nbsp;разделе «<a href="#accounts">Несколько аккаунтов Claude&nbsp;Code на&nbsp;одном Mac</a>» выше.</p>
+          <p>Да. Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code> и&nbsp;показывает лимиты всех аккаунтов рядом друг с&nbsp;другом. Claude&nbsp;Code хранит каждый аккаунт в&nbsp;своей папке конфигурации, которая задаётся через <code class="nowrap">CLAUDE_CONFIG_DIR</code>; подробнее&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском).</p>
         </div>
         <div>
           <h3>Тратит&nbsp;ли Brow мои лимиты?</h3>
@@ -825,8 +826,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   <section class="section companion" id="grove" aria-labelledby="grove-title">
     <div class="wrap">
       <h2 id="grove-title"><img src="../grove-mark.png" width="20" height="20" alt=""><span><span>Brow подсказывает, у&nbsp;какого аккаунта есть запас.</span> <span>Grove переносит туда работу.</span></span></h2>
-      <p class="prose">Grove выделяет каждой фиче проекта из&nbsp;нескольких репозиториев своё рабочее пространство для Claude&nbsp;Code и&nbsp;<a href="https://efim0v.github.io/grove/#accounts">переносит сессию с&nbsp;одного аккаунта на&nbsp;другой</a>. Каждое приложение работает и&nbsp;само по&nbsp;себе, но&nbsp;задуманы они как пара.</p>
-      <p class="links"><a href="https://efim0v.github.io/grove/">Grove&nbsp;— параллельные сессии Claude&nbsp;Code в&nbsp;нескольких репозиториях</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove на&nbsp;GitHub</a></p>
+      <p class="prose">Grove выделяет каждой фиче проекта из&nbsp;нескольких репозиториев своё рабочее пространство для Claude&nbsp;Code и&nbsp;<a href="https://efim0v.github.io/grove/ru/#accounts">переносит сессию с&nbsp;одного аккаунта на&nbsp;другой</a>. Каждое приложение работает и&nbsp;само по&nbsp;себе, но&nbsp;задуманы они как пара.</p>
+      <p class="links"><a href="https://efim0v.github.io/grove/ru/">Grove&nbsp;— параллельные сессии Claude&nbsp;Code в&nbsp;нескольких репозиториях</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove на&nbsp;GitHub</a></p>
     </div>
   </section>
 </main>
@@ -834,7 +835,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 <footer class="site-footer">
   <div class="wrap">
     <div>
-      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU&nbsp;GPL&nbsp;v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Список изменений</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Релизы</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Трекер задач</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/">Grove</a></p>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU&nbsp;GPL&nbsp;v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Список изменений</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Релизы</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Трекер задач</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/ru/">Grove</a></p>
       <p>Автор Brow&nbsp;— <a href="https://github.com/efim0v">Artem Efimov</a>. Это независимый инструмент: Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его. Во&nbsp;всех демо&nbsp;— выдуманные данные.</p>
       <nav class="lang" aria-label="Язык">
         <a href="/brow/" hreflang="en" lang="en">English</a>&nbsp;·

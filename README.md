@@ -116,21 +116,22 @@ The fallback is on by default. When an account's token has 30 minutes or less le
 
 From the Keychain item Claude Code keeps for each account: `Claude Code-credentials` for `~/.claude`, `Claude Code-credentials-<hash>` for any other account folder. Brow reads it with macOS's `security` tool and falls back to the Keychain API; with older Claude Code installs it reads `.credentials.json` in the account folder instead. It uses the access token only and leaves renewing it to Claude Code.
 
-Brow's own network requests go to two Anthropic endpoints and nowhere else: `api.anthropic.com/api/oauth/usage` for the numbers and, about once a day per account, `api.anthropic.com/api/oauth/profile` for the renewal estimate in the calendar. Brow has no analytics and no update check. The `claude` commands it runs talk to Anthropic as Claude Code always does, and the per-account browser profiles open claude.ai.
+Brow's own network requests go to two Anthropic endpoints and nowhere else: `api.anthropic.com/api/oauth/usage` for the numbers and, about once a day per account, `api.anthropic.com/api/oauth/profile` for the renewal estimate in the calendar. Brow has no analytics and no update check. The `claude` commands it runs make Claude Code's usual connections, and the per-account browser profiles open claude.ai.
 
 ### Which Macs does it run on, and where does it sit?
 
-macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch.
+macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead.
 
 ## Uninstall
 
 1. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with ⌘Q while its Settings window is in front.
 2. Delete the app: `brew uninstall --cask efim0v/tap/brow`, or move `Brow.app` from `/Applications` to the Trash.
-3. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings and per-account browser profiles (cookies and saved passwords included), and the request-pacing file it keeps in Grove's folder:
+3. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings and per-account browser profiles (cookies and saved passwords included), the request-pacing file it keeps in Grove's folder, and what macOS stored for its network requests:
 
    ```sh
    rm -rf ~/Library/Application\ Support/Brow
    rm -f ~/Library/Application\ Support/Grove/oauth-usage-ledger.json
+   rm -rf ~/Library/Caches/dev.artemefimov.brow ~/Library/HTTPStorages/dev.artemefimov.brow
    ```
 
 4. If you added Brow's `export BROWSER=…` line to `~/.zshrc`, remove it.

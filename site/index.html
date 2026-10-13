@@ -193,7 +193,7 @@ pre code { padding: 0; background: none; font-size: 1em; }
 .nowrap { white-space: nowrap; }
 .select-all { -webkit-user-select: all; user-select: all; }
 .prose { max-width: 40rem; }
-.text > p + p { margin-top: 16px; }
+.text > :is(p, ul) + :is(p, ul) { margin-top: 16px; }
 .small { color: var(--muted); font-size: .875rem; }
 
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
@@ -280,6 +280,21 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 @media (max-width: 640px) {
   .spec > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
 }
+
+/* Comparison: one plain table; on a narrow screen it scrolls sideways in its own box */
+.table-scroll { margin-top: 32px; overflow-x: auto; }
+.compare { width: 100%; min-width: 60rem; border-collapse: separate; border-spacing: 0; font-size: .9375rem; line-height: 1.5; }
+.compare th, .compare td { padding: 10px 16px 12px 0; border-top: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.compare th { font-weight: 600; }
+.compare tr > :last-child { padding-right: 0; white-space: nowrap; }
+.compare tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+/* Where the table scrolls (content narrower than 60rem), the tool names stay in view */
+@media (max-width: 1007px) {
+  .compare tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: inset -1px 0 0 var(--rule); }
+  .compare tr > :nth-child(2) { padding-left: 12px; }
+}
+.table-note { margin-top: 12px; }
+.table-note + .text { margin-top: 32px; }
 
 /* Install */
 .install { display: grid; gap: 48px; margin-top: 32px; }
@@ -489,6 +504,134 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <p>Claude Code keeps each account in its own configuration folder: <code class="nowrap">~/.claude</code> for the default account, and any other folder you point <code class="nowrap">CLAUDE_CONFIG_DIR</code> at. <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">Anthropic’s documentation</a> describes this as the way to stay signed in to several accounts at once, such as a work and a personal one.</p>
         <p>Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>. In <span class="nowrap">Settings → Accounts</span>, <strong>Sign in…</strong> creates the next folder, <code class="nowrap">~/.claude-accounts/account-N</code>, and opens Anthropic’s own sign-in in Terminal; <strong>Existing folder…</strong> adds a folder you already use. Each account then has a button that copies its launch command, such as <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>, so Claude Code starts as that account and opens links in that account’s browser profile.</p>
         <p>Each folder keeps its own sign-in. Claude Code stores it in the macOS Keychain under a name tied to the folder: <code>Claude Code-credentials</code> for <code class="nowrap">~/.claude</code>, <code>Claude Code-credentials-&lt;hash&gt;</code> for any other folder. Check Anthropic’s <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> for your plans.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="compare" aria-labelledby="compare-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="compare-title">How Brow compares with /usage, ccusage and menu-bar trackers</h2>
+        <p>There are several ways to see Claude Code usage. The rows for Claude Code’s own tools come from Anthropic’s documentation, the others from each tool’s own site or README.</p>
+      </div>
+      <div class="table-scroll" role="region" aria-labelledby="compare-title" tabindex="0">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th scope="col">Tool</th>
+              <th scope="col">What it shows</th>
+              <th scope="col">Where it lives</th>
+              <th scope="col">Several Claude accounts at once</th>
+              <th scope="col">Other providers</th>
+              <th scope="col">Platforms</th>
+              <th scope="col">Licence, price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/costs"><code>/usage</code> in Claude Code</a></th>
+              <td>Plan usage bars for the signed-in account</td>
+              <td>Inside Claude Code</td>
+              <td>No: the account the session runs as</td>
+              <td>—</td>
+              <td>Wherever Claude Code runs</td>
+              <td>Part of Claude Code</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://support.claude.com/en/articles/17007452-what-is-a-limit-reset">claude.ai Settings → Usage</a></th>
+              <td>Usage of the signed-in account</td>
+              <td>Web, Claude Desktop</td>
+              <td>No</td>
+              <td>—</td>
+              <td>Browser, Claude Desktop</td>
+              <td>Part of Claude</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/statusline">Status line <code>rate_limits</code></a></th>
+              <td>5-hour and 7-day percent used and reset time, for your own status-line script; Pro and Max only</td>
+              <td>Claude Code status line</td>
+              <td>No: the session’s account</td>
+              <td>—</td>
+              <td>Wherever Claude Code runs</td>
+              <td>Part of Claude Code</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://ccusage.com/">ccusage</a></th>
+              <td>Token usage and estimated cost from local usage logs</td>
+              <td>Terminal</td>
+              <td>Not stated</td>
+              <td>Codex, OpenCode, Gemini CLI and others</td>
+              <td>Not stated</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor">Claude-Code-Usage-Monitor</a></th>
+              <td>Terminal monitor of tokens, messages and cost, with predictions</td>
+              <td>Terminal</td>
+              <td>Scans several config folders; no side-by-side view described</td>
+              <td>Not stated</td>
+              <td>Python 3.9+; install commands for macOS, Linux and Windows</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://codexbar.app/">CodexBar</a></th>
+              <td>Usage windows, credits, costs and resets per provider</td>
+              <td>macOS menu bar, plus a CLI and widgets</td>
+              <td>Not stated</td>
+              <td>Many, including Codex, Cursor and Gemini</td>
+              <td>macOS 14+; the CLI also on Linux</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudetracker.com/">Claude Usage Tracker</a></th>
+              <td>Claude 5-hour, weekly and per-model usage; threshold notifications</td>
+              <td>Menu bar, plus a HUD at the notch</td>
+              <td>Yes, “every account at once”</td>
+              <td>Not stated</td>
+              <td>macOS 14+, Apple silicon and Intel</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://u4c.fi5h.xyz/">Usage4Claude</a></th>
+              <td>Claude and Codex 5-hour, weekly and extra usage; notifications</td>
+              <td>Menu bar</td>
+              <td>Several accounts, switched from the menu bar</td>
+              <td>Codex</td>
+              <td>macOS 13+, Intel and Apple silicon</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudebar.tddworks.com/">ClaudeBar</a></th>
+              <td>Quotas of many AI coding tools; notifications at warning levels and resets</td>
+              <td>Menu bar</td>
+              <td>Not stated</td>
+              <td>Many, including Codex, Gemini and Copilot</td>
+              <td>macOS 15+</td>
+              <td>Apache-2.0, free</td>
+            </tr>
+            <tr>
+              <th scope="row">Brow</th>
+              <td>5-hour, weekly and model-specific weekly limits per account; reset times; a reset calendar; a browser profile per account</td>
+              <td>Beside the MacBook notch; a pill on other displays</td>
+              <td>Yes, side by side</td>
+              <td>Claude only</td>
+              <td>macOS 26+, Apple silicon</td>
+              <td>GPL-3.0, free</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note small">Checked on <time datetime="2026-10-13">13 October 2026</time>. “Not stated” means the tool’s own page does not say.</p>
+      <div class="prose text">
+        <ul class="reqs">
+          <li>Want the numbers inside Claude Code: <code>/usage</code>, or a status-line script on Pro and Max.</li>
+          <li>Want token and cost reports: ccusage.</li>
+          <li>Want a terminal dashboard with predictions: Claude-Code-Usage-Monitor.</li>
+          <li>Use Codex, Gemini or other providers too: CodexBar or ClaudeBar.</li>
+          <li>Need notifications, an Intel Mac or an older macOS: Usage4Claude (macOS 13+) or Claude Usage Tracker (macOS 14+).</li>
+          <li>Want several Claude accounts side by side at the notch, with a reset calendar and a browser profile per account: Brow.</li>
+        </ul>
+        <p>Brow’s own limits: it covers Claude only; it needs macOS 26 or later on Apple silicon; it sends no notifications; and the build is not notarized, so the first launch needs <strong>Open Anyway</strong>.</p>
       </div>
     </div>
   </section>

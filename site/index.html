@@ -60,7 +60,7 @@
           "url": "https://efim0v.github.io/brow/media/hero-still.webp",
           "width": 1280,
           "height": 800,
-          "caption": "Brow’s panel under the MacBook notch with the 5-hour, weekly and Opus limits of three Claude Code accounts and when each resets"
+          "caption": "Brow’s panel under the MacBook notch with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets"
         },
         {
           "@type": "ImageObject",
@@ -772,7 +772,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Where does Brow read my token, and does anything leave my Mac?</h3>
-          <p>From the Keychain item Claude Code keeps for each account folder. Brow uses the access token only and leaves renewing it to Claude Code.</p>
+          <p>From the Keychain item Claude Code keeps for each account folder, or from <code class="nowrap">.credentials.json</code> in that folder when Claude Code keeps the sign-in there. Brow uses the access token only and leaves renewing it to Claude Code.</p>
           <p>Brow’s own requests go to <code class="nowrap">api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code class="nowrap">api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check. The <code class="nowrap">claude</code> commands it runs make Claude Code’s usual connections, and the browser profiles open claude.ai.</p>
         </div>
         <div>
@@ -781,7 +781,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>My Claude Code login expired. How do I sign in to the right account?</h3>
-          <p>When a stored login cannot be refreshed, Claude Code reports <span class="nowrap">“Login expired · Please run /login”</span>. In Brow, the key next to that account runs <code class="nowrap">claude auth login</code> for it. It also opens the browser profile that belongs to that account, so the sign-in lands in the right account. Other accounts stay signed in.</p>
+          <p>When a stored login cannot be refreshed, Claude Code reports “Login expired&nbsp;· Please run /login”. In Brow, the sign-in button next to that account runs <code class="nowrap">claude auth login</code> for it. It also opens the browser profile that belongs to that account, so the sign-in lands in the right account. Other accounts stay signed in.</p>
         </div>
         <div>
           <h3>Which Macs does Brow run on?</h3>

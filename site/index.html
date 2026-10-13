@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Brow — Claude Code rate limits in the MacBook notch</title>
-<meta name="description" content="Brow is a free, open-source macOS app that shows the 5-hour and weekly rate limits of every Claude Code account in the MacBook notch, and when each resets.">
+<title>Brow: Claude Code usage limits of all accounts in the notch</title>
+<meta name="description" content="Free, open-source macOS app: 5-hour and weekly Claude Code limits for one account or many, in the MacBook notch, with reset times and a reset calendar.">
 <link rel="canonical" href="https://efim0v.github.io/brow/">
 <meta name="robots" content="max-image-preview:large">
+<meta name="author" content="Artem Efimov">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
@@ -18,18 +19,18 @@
 <meta property="og:site_name" content="Brow">
 <meta property="og:locale" content="en_US">
 <meta property="og:url" content="https://efim0v.github.io/brow/">
-<meta property="og:title" content="Brow — Claude Code rate limits in the MacBook notch">
+<meta property="og:title" content="Brow: Claude Code usage limits of all accounts in the notch">
 <meta property="og:description" content="See the 5-hour and weekly limits of every Claude Code account in the MacBook notch, and when each resets. Free and open source, for macOS 26 or later.">
 <meta property="og:image" content="https://efim0v.github.io/brow/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="The words “Claude Code rate limits in the MacBook notch” next to Brow’s panel, which shows the 5-hour and weekly limits of three Claude Code accounts.">
+<meta property="og:image:alt" content="Brow: “Claude Code usage limits in the MacBook notch”, next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Brow — Claude Code rate limits in the MacBook notch">
+<meta name="twitter:title" content="Brow: Claude Code usage limits of all accounts in the notch">
 <meta name="twitter:description" content="See the 5-hour and weekly limits of every Claude Code account in the MacBook notch, and when each resets. Free and open source, for macOS 26 or later.">
 <meta name="twitter:image" content="https://efim0v.github.io/brow/og.png">
-<meta name="twitter:image:alt" content="The words “Claude Code rate limits in the MacBook notch” next to Brow’s panel, which shows the 5-hour and weekly limits of three Claude Code accounts.">
+<meta name="twitter:image:alt" content="Brow: “Claude Code usage limits in the MacBook notch”, next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets.">
 
 <script type="application/ld+json">
 {
@@ -39,7 +40,7 @@
       "@type": "SoftwareApplication",
       "@id": "https://efim0v.github.io/brow/#app",
       "name": "Brow",
-      "description": "A free, open-source macOS app that shows the usage and rate limits of every Claude Code account in the MacBook notch: the 5-hour limit, the weekly limit, and when each resets.",
+      "description": "A free, open-source macOS app that shows the 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account in the MacBook notch, as percent used, and when each one resets.",
       "url": "https://efim0v.github.io/brow/",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS 26 or later",
@@ -59,7 +60,7 @@
           "url": "https://efim0v.github.io/brow/media/hero-still.webp",
           "width": 1280,
           "height": 800,
-          "caption": "Brow’s panel under the MacBook notch with the 5-hour, weekly and Opus limits of three Claude Code accounts and when each resets"
+          "caption": "Brow’s panel under the MacBook notch with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets"
         },
         {
           "@type": "ImageObject",
@@ -77,12 +78,14 @@
         }
       ],
       "featureList": [
-        "The 5-hour limit, the weekly limit and any model-specific weekly limit of each account, as percent used, with the time until each resets",
+        "The 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account, as percent used",
+        "When each limit resets: a countdown within a day, otherwise the date and time",
         "A reset calendar with weekly resets and estimated subscription renewals on a month grid",
         "Copy the command that starts Claude Code as a given account",
         "Sign in again in that account’s own browser profile",
         "Add an account in one click",
-        "Tokens of idle accounts kept fresh in the background"
+        "Tokens of idle accounts kept fresh in the background",
+        "Limits checked every 30 seconds, on wake, when the network comes back and on hover"
       ],
       "softwareHelp": { "@type": "CreativeWork", "name": "Brow in detail", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
       "author": { "@id": "https://efim0v.github.io/#person" },
@@ -109,7 +112,7 @@
       "@type": "WebPage",
       "@id": "https://efim0v.github.io/brow/#webpage",
       "url": "https://efim0v.github.io/brow/",
-      "name": "Brow — Claude Code rate limits in the MacBook notch",
+      "name": "Brow: Claude Code usage limits of all accounts in the notch",
       "inLanguage": "en",
       "about": { "@id": "https://efim0v.github.io/brow/#app" }
     }
@@ -190,6 +193,7 @@ pre code { padding: 0; background: none; font-size: 1em; }
 .nowrap { white-space: nowrap; }
 .select-all { -webkit-user-select: all; user-select: all; }
 .prose { max-width: 40rem; }
+.text > :is(p, ul) + :is(p, ul) { margin-top: 16px; }
 .small { color: var(--muted); font-size: .875rem; }
 
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
@@ -277,6 +281,21 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   .spec > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
 }
 
+/* Comparison: one plain table; on a narrow screen it scrolls sideways in its own box */
+.table-scroll { margin-top: 32px; overflow-x: auto; }
+.compare { width: 100%; min-width: 60rem; border-collapse: separate; border-spacing: 0; font-size: .9375rem; line-height: 1.5; }
+.compare th, .compare td { padding: 10px 16px 12px 0; border-top: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.compare th { font-weight: 600; }
+.compare tr > :last-child { padding-right: 0; white-space: nowrap; }
+.compare tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+/* Where the table scrolls (content narrower than 60rem), the tool names stay in view */
+@media (max-width: 1007px) {
+  .compare tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: inset -1px 0 0 var(--rule); }
+  .compare tr > :nth-child(2) { padding-left: 12px; }
+}
+.table-note { max-width: 40rem; margin-top: 12px; }
+.table-note + .text { margin-top: 32px; }
+
 /* Install */
 .install { display: grid; gap: 48px; margin-top: 32px; }
 .steps { padding: 0; list-style: none; counter-reset: step; }
@@ -308,13 +327,16 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   .install aside { padding-top: 16px; border-top: 1px solid var(--rule); }
 }
 
-/* Privacy */
-.facts { max-width: 46rem; margin-top: 32px; }
-.facts > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
-.facts > div:last-child { border-bottom: 1px solid var(--rule); }
+/* Privacy, and the questions: the same plain list */
+.facts, .faq { max-width: 46rem; margin-top: 32px; }
+.facts > div, .faq > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
+.facts > div:last-child, .faq > div:last-child { border-bottom: 1px solid var(--rule); }
 .facts dt { font-weight: 600; }
 .facts dd { margin-top: 4px; }
 .facts + .small { margin-top: 24px; }
+.faq h3 { font-size: 1em; line-height: inherit; }
+.faq h3 + p { margin-top: 4px; }
+.faq p + p { margin-top: 10px; }
 
 /* Grove */
 .companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
@@ -354,6 +376,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <li class="optional"><a href="#features">Features</a></li>
         <li><a href="#install">Install</a></li>
         <li class="optional"><a href="#privacy">Privacy</a></li>
+        <li><a href="#faq">FAQ</a></li>
         <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
       </ul>
     </nav>
@@ -364,20 +387,20 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   <section class="section hero" aria-labelledby="hero-title">
     <div class="wrap">
       <div class="prose">
-        <h1 id="hero-title">Claude Code rate limits in the MacBook notch</h1>
-        <p class="lead">Brow shows the usage and rate limits of every Claude Code account you have, right in the notch: the 5-hour limit, the weekly limit, and when each resets.</p>
+        <h1 id="hero-title">Claude Code usage limits for every account, in the MacBook notch</h1>
+        <p class="lead">Brow is a free, open-source macOS app that shows the 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account, as percent used, and when each one resets. It works with one account, which it finds in <code class="nowrap">~/.claude</code> by itself, or with several.</p>
         <p class="actions">
           <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Download Brow</a>
           <a href="https://github.com/efim0v/brow">Source on GitHub</a>
         </p>
         <p class="brew">Or with Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>Free and open source</span>&nbsp;· <span>macOS 26 or later</span>&nbsp;· <span>Apple silicon</span>&nbsp;· <span>Version 0.2.0,</span> <span>5 October 2026 (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">changelog</a>)</span>&nbsp;· <a href="#install">Install notes</a></p>
+      <p class="meta"><span>Free and open source</span>&nbsp;· <span>macOS 26 or later</span>&nbsp;· <span>Apple silicon</span>&nbsp;· <span>Version 0.2.0,</span> <span><time datetime="2026-10-05">5 October 2026</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">changelog</a>)</span>&nbsp;· <a href="#install">Install notes</a></p>
 
       <figure class="hero-shot">
         <picture>
           <source media="(prefers-reduced-motion: reduce)" srcset="media/hero-still.webp" type="image/webp">
-          <img src="media/hero.webp" width="1280" height="800" fetchpriority="high" alt="Hovering the notch opens the limits of every account; the launch command of the account with room is copied and Claude Code starts as that account">
+          <img src="media/hero.webp" width="1280" height="800" fetchpriority="high" alt="Hovering the MacBook notch opens Brow’s panel with each Claude Code account’s 5-hour and weekly limits; the launch command of the account with room is copied and Claude Code starts as that account">
         </picture>
         <figcaption>Hover the notch: every account’s 5-hour and weekly limits open out of it. Copy an account’s launch command and Claude Code starts as that account. <span class="demo-note">All demos show made-up demo data.</span></figcaption>
       </figure>
@@ -387,44 +410,45 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   <section class="section" id="tour" aria-labelledby="tour-title">
     <div class="wrap">
       <div class="prose">
-        <h2 id="tour-title">Which account has room, and when the others free up</h2>
-        <p>One account is enough: Brow picks up <code class="nowrap">~/.claude</code> by itself. With several, it shows at a glance which account is close to its limit, which has room, and when each one frees up.</p>
+        <h2 id="tour-title">Which Claude account has room, and when each limit resets</h2>
+        <p>With several accounts, Brow shows at a glance which one is close to its limit, which has room, and when each one frees up.</p>
       </div>
 
       <div class="tour-row">
         <div>
-          <h3>When each limit resets</h3>
+          <h3>Reset times and a reset calendar</h3>
+          <p>Each limit shows when it resets: within a day as a countdown, “resets in 3&nbsp;h 12&nbsp;min”, and further out as a date and time, “resets 22&nbsp;Sep 02:00”.</p>
           <p>The calendar marks every account’s weekly resets and estimated subscription renewals. Point at a day to see what frees up.</p>
         </div>
         <figure>
           <picture>
             <source media="(prefers-reduced-motion: reduce)" srcset="media/calendar-still.webp" type="image/webp">
-            <img src="media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="The reset calendar: pointing at a day shows which account’s weekly limit resets or which subscription renews">
+            <img src="media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Brow’s reset calendar: each account’s weekly resets and estimated subscription renewals on a month grid; pointing at a day shows which limit resets or which subscription renews">
           </picture>
         </figure>
       </div>
 
       <div class="tour-row">
         <div>
-          <h3>Sign in again in one click</h3>
+          <h3>Sign in again in that account’s own browser profile</h3>
           <p>When an account’s sign-in expires, one click next to it starts <code class="nowrap">claude auth login</code> for that account and opens the browser profile that belongs to it, already signed in to that account. Other accounts stay signed in.</p>
         </div>
         <figure>
           <picture>
             <source media="(prefers-reduced-motion: reduce)" srcset="media/signin-still.webp" type="image/webp">
-            <img src="media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="An expired sign-in: one click opens that account’s own browser profile, already signed in, and Claude Code logs in again">
+            <img src="media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="An expired Claude Code sign-in: one click runs claude auth login for that account and opens its own browser profile, already signed in to claude.ai">
           </picture>
         </figure>
       </div>
 
       <div class="tour-row">
         <div>
-          <h3>Two numbers beside the notch</h3>
-          <p>Collapsed, Brow shows how much of the 5-hour limit and of the weekly limit is used across your accounts. Hover and the panel opens.</p>
+          <h3>Two numbers beside the notch, or a pill on other displays</h3>
+          <p>Collapsed, Brow shows how much of the 5-hour limit and of the weekly limit is used across your accounts. The dot beside each number turns orange at 70% and red at 90%. Hover and the panel opens.</p>
           <p>The readouts can also sit in a strip below the notch. On a display without a notch, Brow shows a pill instead.</p>
         </div>
         <figure>
-          <img src="media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow collapsed: 54% on the left of the notch is the 5-hour limit used across all accounts; 72% on the right is the weekly limit.">
+          <img src="media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow collapsed beside the MacBook notch: 54% of the 5-hour limit used across all accounts on the left, 72% of the weekly limit on the right">
         </figure>
       </div>
 
@@ -442,7 +466,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 
   <section class="section" id="features" aria-labelledby="features-title">
     <div class="wrap">
-      <h2 id="features-title">What it does</h2>
+      <h2 id="features-title">What Brow does for each account</h2>
       <dl class="spec">
         <div>
           <dt>Every account at a glance</dt>
@@ -468,14 +492,157 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <dt>Tokens kept fresh</dt>
           <dd>Idle accounts are refreshed in the background, so the numbers do not go stale.</dd>
         </div>
+        <div>
+          <dt>Checked every 30 seconds</dt>
+          <dd>Brow checks the limits every 30 seconds, again when the Mac wakes or the network comes back, and on hover when the numbers on screen are older than 30 seconds. The panel says how old they are.</dd>
+        </div>
       </dl>
       <p class="spec-note">Separate browser profiles need Google Chrome, Chromium, Brave or Edge. Without one of them, links open in your default browser, with no isolation. More on pacing, refresh and layout options is in <a href="https://github.com/efim0v/brow/blob/main/docs/brow.md">Brow in detail</a>.</p>
     </div>
   </section>
 
+  <section class="section" id="accounts" aria-labelledby="accounts-title">
+    <div class="wrap">
+      <div class="prose text">
+        <h2 id="accounts-title">Several Claude Code accounts on one Mac</h2>
+        <p>Claude Code keeps each account in its own configuration folder: <code class="nowrap">~/.claude</code> for the default account, and any other folder you point <code class="nowrap">CLAUDE_CONFIG_DIR</code> at. <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">Anthropic’s documentation</a> describes this as the way to stay signed in to several accounts at once, such as a work and a personal one.</p>
+        <p>Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>. In <span class="nowrap">Settings → Accounts</span>, <strong>Sign in…</strong> creates the next free folder, <code class="nowrap">~/.claude-accounts/account-N</code>, and starts <code class="nowrap">claude auth login</code> for it in Terminal; <strong>Existing folder…</strong> adds a folder you already use. Each account then has a button that copies its launch command, such as <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>, so Claude Code starts as that account and opens links in that account’s browser profile.</p>
+        <p>Each folder keeps its own sign-in. Claude Code stores it in the macOS Keychain under a name tied to the folder: <code>Claude Code-credentials</code> for <code class="nowrap">~/.claude</code>, <code>Claude Code-credentials-&lt;hash&gt;</code> for any other folder. Check Anthropic’s <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> for your plans.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="compare" aria-labelledby="compare-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="compare-title">How Brow compares with /usage, ccusage and menu-bar trackers</h2>
+        <p>There are several ways to see Claude Code usage. The first three rows come from Anthropic’s documentation, the others from each tool’s own site or README.</p>
+      </div>
+      <div class="table-scroll" role="region" aria-labelledby="compare-title" tabindex="0">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th scope="col">Tool</th>
+              <th scope="col">What it shows</th>
+              <th scope="col">Where it lives</th>
+              <th scope="col">Several Claude accounts at once</th>
+              <th scope="col">Other providers</th>
+              <th scope="col">Platforms</th>
+              <th scope="col">Licence, price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/costs"><code>/usage</code> in Claude Code</a></th>
+              <td>Plan usage bars for the signed-in account</td>
+              <td>Inside Claude Code</td>
+              <td>No: the account the session runs as</td>
+              <td>—</td>
+              <td>Wherever Claude Code runs</td>
+              <td>Part of Claude Code</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://support.claude.com/en/articles/17007452-what-is-a-limit-reset">claude.ai Settings → Usage</a></th>
+              <td>Usage of the signed-in account</td>
+              <td>Web, Claude Desktop</td>
+              <td>No</td>
+              <td>—</td>
+              <td>Browser, Claude Desktop</td>
+              <td>Part of Claude</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/statusline">Status line <code>rate_limits</code></a></th>
+              <td>5-hour and 7-day percent used and reset time, for your own status-line script; Pro and Max only</td>
+              <td>Claude Code status line</td>
+              <td>No: the session’s account</td>
+              <td>—</td>
+              <td>Wherever Claude Code runs</td>
+              <td>Part of Claude Code</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://ccusage.com/">ccusage</a></th>
+              <td>Token usage and estimated cost from local usage logs</td>
+              <td>Terminal</td>
+              <td>Not stated</td>
+              <td>Codex, OpenCode, Gemini CLI and others</td>
+              <td>Not stated</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor">Claude Code Usage Monitor</a></th>
+              <td>Terminal monitor of tokens, messages and cost, with predictions</td>
+              <td>Terminal</td>
+              <td>Scans several config folders; no side-by-side view described</td>
+              <td>Not stated</td>
+              <td>Python 3.9+; install commands for macOS, Linux and Windows</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://codexbar.app/">CodexBar</a></th>
+              <td>Usage windows, credits, costs and resets per provider</td>
+              <td>macOS menu bar, plus a CLI and widgets</td>
+              <td>Not stated</td>
+              <td>Many, including Codex, Cursor and Gemini</td>
+              <td>macOS 14+; the CLI also on Linux</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudetracker.com/">Claude Tracker</a></th>
+              <td>Claude 5-hour, weekly and per-model usage; threshold notifications</td>
+              <td>Menu bar, plus a HUD at the notch</td>
+              <td>Yes, “every account at once”</td>
+              <td>Not stated</td>
+              <td>macOS 14+, Apple silicon and Intel</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://u4c.fi5h.xyz/">Usage4Claude</a></th>
+              <td>Claude and Codex 5-hour, weekly and extra usage; notifications</td>
+              <td>Menu bar</td>
+              <td>Several accounts, switched from the menu bar</td>
+              <td>Codex</td>
+              <td>macOS 13+, Intel and Apple silicon</td>
+              <td>MIT, free</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudebar.tddworks.com/">ClaudeBar</a></th>
+              <td>Quotas of many AI coding tools; notifications at warning levels and resets</td>
+              <td>Menu bar</td>
+              <td>Not stated</td>
+              <td>Many, including Codex, Gemini and Copilot</td>
+              <td>macOS 15+</td>
+              <td>Apache-2.0, free</td>
+            </tr>
+            <tr>
+              <th scope="row">Brow</th>
+              <td>5-hour, weekly and model-specific weekly limits per account; reset times; a reset calendar; a browser profile per account</td>
+              <td>Beside the MacBook notch; a pill on other displays</td>
+              <td>Yes, side by side</td>
+              <td>Claude only</td>
+              <td>macOS 26+, Apple silicon</td>
+              <td>GPL-3.0, free</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note small">Checked on <time datetime="2026-10-13">13 October 2026</time>. “Not stated” means the tool’s own page does not say. Claude Tracker is the new name of Claude Usage Tracker.</p>
+      <div class="prose text">
+        <ul class="reqs">
+          <li>Want the numbers inside Claude Code: <code>/usage</code>, or a status-line script on Pro and Max.</li>
+          <li>Want token and cost reports: ccusage.</li>
+          <li>Want a terminal dashboard with predictions: Claude Code Usage Monitor.</li>
+          <li>Use Codex, Gemini or other providers too: CodexBar or ClaudeBar.</li>
+          <li>Need notifications, an Intel Mac or an older macOS: Usage4Claude (macOS 13+) or Claude Tracker (macOS 14+).</li>
+          <li>Want several Claude accounts side by side at the notch, with a reset calendar and a browser profile per account: Brow.</li>
+        </ul>
+        <p>Brow’s own limits: it covers Claude only; it needs macOS 26 or later, and the prebuilt app is Apple silicon only; it sends no notifications; and the build is not notarized, so the first launch needs <strong>Open Anyway</strong>.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="section" id="install" aria-labelledby="install-title">
     <div class="wrap">
-      <h2 id="install-title">Install</h2>
+      <h2 id="install-title">Install Brow on your Mac</h2>
       <div class="install">
         <ol class="steps">
           <li>
@@ -554,11 +721,85 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     </div>
   </section>
 
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title">Questions about Brow and Claude Code limits</h2>
+      <div class="faq">
+        <div>
+          <h3>How do I check my Claude Code usage limits?</h3>
+          <p>In Claude Code, run <code>/usage</code>; Pro and Max subscribers see their plan usage bars there. On claude.ai or in Claude Desktop, open Settings → Usage. Both show the account you are signed in to. Brow shows every account at once, with each limit and when it resets.</p>
+        </div>
+        <div>
+          <h3>When does the Claude weekly limit reset, and on which day?</h3>
+          <p>Weekly limits reset once every week, on the account’s usual day and time. Brow shows each account’s next reset as a countdown when it is less than a day away, and otherwise as a date and time, for example “resets 22&nbsp;Sep 02:00”. The reset calendar puts every account’s weekly resets on one month grid.</p>
+        </div>
+        <div>
+          <h3>How does the 5-hour limit work?</h3>
+          <p>Paid plans have a session limit that resets every five hours. Brow shows how much of it each account has used and how long until it resets.</p>
+        </div>
+        <div>
+          <h3>What does “You’ve hit your session limit” mean?</h3>
+          <p>Claude Code shows it when an account has used up its usage window. The message says when the window resets, and switching models with <code>/model</code> does not restore access. “You’ve hit your weekly limit” works the same way. Brow shows which of your other accounts still has room, and one click copies the command that starts Claude Code as that account.</p>
+        </div>
+        <div>
+          <h3>Can I see the limits of several Claude Code accounts at once?</h3>
+          <p>Yes. Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>, and shows each account’s limits side by side. Claude Code keeps each account in its own configuration folder, chosen with <code class="nowrap">CLAUDE_CONFIG_DIR</code>; see <a href="#accounts">Several Claude Code accounts on one Mac</a> above.</p>
+        </div>
+        <div>
+          <h3>Does Brow use up my limits?</h3>
+          <p>Only through the fallback token refresh, and you can turn that off. Reading the limits is a request to Anthropic’s usage endpoint, not to a model. An idle account’s token is kept fresh with <code class="nowrap">claude doctor</code>, which makes no model call.</p>
+          <p>The fallback is on by default. When a token has 30 minutes or less left and <code class="nowrap">claude doctor</code> did not renew it, Brow runs a one-turn <code class="nowrap">claude -p</code> request on Haiku. That spends a sliver of the account’s limit and starts its 5-hour window. It runs at most once every 30 minutes per account. <span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong> turns it off.</p>
+        </div>
+        <div>
+          <h3>Is Brow a menu bar app? Does it work without a notch?</h3>
+          <p>Brow has no menu-bar icon and no Dock icon. It sits at the top of the main display. On a MacBook with a notch, two readouts sit beside the notch or in a strip below it. On a display without a notch, such as an external one, Brow shows a pill at the top centre.</p>
+        </div>
+        <div>
+          <h3>Does Brow send notifications?</h3>
+          <p>No. The dot next to each readout turns orange at 70% and red at 90%.</p>
+        </div>
+        <div>
+          <h3>Is there a desktop widget?</h3>
+          <p>No. Brow lives at the notch, or in a pill on other displays: hover it to open the panel.</p>
+        </div>
+        <div>
+          <h3>How often does Brow update the numbers?</h3>
+          <p>It checks them every 30 seconds, again on wake and when the network returns, and on hover when the numbers on screen are older than 30 seconds. Anthropic’s usage endpoint is rate-limited, so a check that comes too soon reuses the last reading. The panel shows how old the numbers are.</p>
+        </div>
+        <div>
+          <h3>Is Brow free and open source?</h3>
+          <p>Yes. Brow is free, and <a href="https://github.com/efim0v/brow">its source is on GitHub</a> under the GNU GPL v3. Version 0.2.0 and earlier were released under the MIT License.</p>
+        </div>
+        <div>
+          <h3>Where does Brow read my token, and does anything leave my Mac?</h3>
+          <p>From the Keychain item Claude Code keeps for each account folder, or from <code class="nowrap">.credentials.json</code> in that folder when Claude Code keeps the sign-in there. Brow uses the access token only and leaves renewing it to Claude Code.</p>
+          <p>Brow’s own requests go to <code class="nowrap">api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code class="nowrap">api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check. The <code class="nowrap">claude</code> commands it runs make Claude Code’s usual connections, and the browser profiles open claude.ai.</p>
+        </div>
+        <div>
+          <h3>How is Brow different from ccusage or <code>/usage</code>?</h3>
+          <p><code>/usage</code> shows the plan usage of the account the session runs as. ccusage reports token usage and estimated cost from local usage logs. Brow shows the limits Anthropic reports for every account, side by side, with reset times and a calendar.</p>
+        </div>
+        <div>
+          <h3>My Claude Code login expired. How do I sign in to the right account?</h3>
+          <p>When a stored login cannot be refreshed, Claude Code reports “Login expired&nbsp;· Please run /login”. In Brow, the sign-in button next to that account runs <code class="nowrap">claude auth login</code> for it. It also opens the browser profile that belongs to that account, so the sign-in lands in the right account. Other accounts stay signed in.</p>
+        </div>
+        <div>
+          <h3>Which Macs does Brow run on?</h3>
+          <p>macOS 26 or later; the prebuilt app is Apple silicon only. The notch layout is for MacBooks with a notch; other displays show a pill.</p>
+        </div>
+        <div>
+          <h3>Is Brow made by Anthropic?</h3>
+          <p>No. Brow is made by Artem Efimov and is not affiliated with or endorsed by Anthropic.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="section companion" id="grove" aria-labelledby="grove-title">
     <div class="wrap">
       <h2 id="grove-title"><img src="grove-mark.png" width="20" height="20" alt=""><span><span>Brow tells you which account has room.</span> <span>Grove moves the work there.</span></span></h2>
-      <p class="prose">Grove gives each feature of a multi-repo project its own workspace for Claude Code and moves a session from one account to another. Each app runs on its own, and they are built to be used together.</p>
-      <p class="links"><a href="https://efim0v.github.io/grove/">Grove’s page</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove on GitHub</a></p>
+      <p class="prose">Grove gives each feature of a multi-repo project its own workspace for Claude Code and <a href="https://efim0v.github.io/grove/#accounts">moves a session from one account to another</a>. Each app runs on its own, and they are built to be used together.</p>
+      <p class="links"><a href="https://efim0v.github.io/grove/">Grove — parallel Claude Code sessions across multiple repositories</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove on GitHub</a></p>
     </div>
   </section>
 </main>
@@ -566,7 +807,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 <footer class="site-footer">
   <div class="wrap">
     <div>
-      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove</a></p>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/">Grove</a></p>
       <p>Brow is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. All demos show made-up demo data.</p>
     </div>
   </div>

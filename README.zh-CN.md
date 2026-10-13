@@ -118,7 +118,7 @@ Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打�
 
 ### Brow 从哪里读取令牌？会有数据离开我的 Mac 吗？
 
-从 Claude Code 为每个账号保存的钥匙串项目中读取：`~/.claude` 对应 `Claude Code-credentials`，其他账号文件夹对应 `Claude Code-credentials-<hash>`。Brow 用 macOS 的 `security` 工具读取，不行时退回到钥匙串 API；对于较旧的 Claude Code 安装，则改为读取账号文件夹中的 `.credentials.json`。它只使用访问令牌，续期交给 Claude Code 自己处理。
+从 Claude Code 为每个账号保存的钥匙串项目中读取：`~/.claude` 对应 `Claude Code-credentials`，其他账号文件夹对应 `Claude Code-credentials-<hash>`。Brow 用 macOS 的 `security` 工具读取，不行时回退到钥匙串 API；对于较旧版本的 Claude Code，则改为读取账号文件夹中的 `.credentials.json`。它只使用访问令牌，续期交给 Claude Code 自己处理。
 
 Brow 自己的网络请求只发往两个 Anthropic 接口，不会发往别处：`api.anthropic.com/api/oauth/usage` 用于获取用量数字；`api.anthropic.com/api/oauth/profile` 每个账号大约每天请求一次，用于估算日历中的续费日期。Brow 没有任何统计分析，也不检查更新。它运行的 `claude` 命令会建立 Claude Code 平常就会建立的连接，各账号的浏览器配置文件会打开 claude.ai。
 

@@ -1,0 +1,6 @@
+# Crawlers read robots.txt only at the root of a host (https://efim0v.github.io/robots.txt),
+# so this copy under /brow/ documents the intent; submit the sitemap to search engines directly.
+User-agent: *
+Allow: /
+
+Sitemap: https://efim0v.github.io/brow/sitemap.xml

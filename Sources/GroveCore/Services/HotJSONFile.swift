@@ -46,12 +46,14 @@ public enum HotJSONFile {
     /// Applies `transform` to the decoded top-level object (`[:]` when the file is
     /// absent) and swaps the result in atomically. `mode` is applied to the written
     /// file when given; otherwise an existing file's mode is preserved.
+    /// `transform` runs under the lock, again each time the file changes underneath;
+    /// an error it throws ends the update with nothing written.
     @discardableResult
     public static func update(
         path rawPath: String,
         mode: Int? = nil,
         lockWait: TimeInterval = 3,
-        transform: ([String: Any]) -> [String: Any]
+        transform: ([String: Any]) throws -> [String: Any]
     ) throws -> Outcome {
         let fm = FileManager.default
         // Write through a symlink rather than replacing it with a regular file.
@@ -80,11 +82,13 @@ public enum HotJSONFile {
                 current = parsed
             }
 
-            let merged = transform(current)
+            let merged = try transform(current)
             if before != nil || merged.isEmpty, NSDictionary(dictionary: merged).isEqual(to: current) { return .unchanged }
 
+            // The file's own key order can't be kept; sorted keys at least stay put from one
+            // write to the next. `/` is written as is, not as `\/`, in paths and URLs.
             let outData: Data
-            do { outData = try JSONSerialization.data(withJSONObject: merged, options: [.prettyPrinted]) }
+            do { outData = try JSONSerialization.data(withJSONObject: merged, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) }
             catch { throw Failure.io("encode \(path): \(error.localizedDescription)") }
 
             let tmp = parent + "/." + (path as NSString).lastPathComponent + ".grove-\(getpid())-\(UUID().uuidString.prefix(8))"

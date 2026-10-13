@@ -7,8 +7,8 @@
 <meta name="description" content="Brow is a free, open-source macOS app that shows the 5-hour and weekly rate limits of every Claude Code account in the MacBook notch, and when each resets.">
 <link rel="canonical" href="https://efim0v.github.io/brow/">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfd">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0e">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -62,49 +62,27 @@
 
 <style>
 :root {
-  --bg: #fbfbfd;
-  --bg-alt: #f3f3f7;
-  --surface: #ffffff;
-  --text: #1d1d1f;
-  --muted: #55555e;
-  --line: #e3e3ea;
-  --line-strong: #cfcfd8;
-  --link: #3138c4;
-  --kicker: #5a3fc0;
-  --focus: #3d5afe;
-  --btn-bg: #1d1d1f;
-  --btn-text: #ffffff;
-  --hover: rgba(0, 0, 0, .05);
-  --code-bg: #f0f0f5;
-  --code-line: #e1e1e9;
-  --glow-a: rgba(244, 134, 186, .30);
-  --glow-b: rgba(88, 98, 236, .24);
-  --frame-ring: rgba(0, 0, 0, .06);
-  --shadow: 0 1px 2px rgba(20, 20, 40, .06), 0 30px 70px -30px rgba(40, 44, 140, .45);
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --paper: #fbfbfa;
+  --ink: #161616;
+  --muted: #5f5e5a;
+  --rule: #e4e3df;
+  --code-bg: #f2f1ee;
+  --button: #161616;
+  --button-ink: #fff;
+  --button-hover: #333;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b0b0e;
-    --bg-alt: #111116;
-    --surface: #16161c;
-    --text: #f2f2f5;
-    --muted: #a6a6b2;
-    --line: #26262f;
-    --line-strong: #3a3a46;
-    --link: #a9adff;
-    --kicker: #c4a8ff;
-    --focus: #8ea2ff;
-    --btn-bg: #f2f2f5;
-    --btn-text: #0b0b0e;
-    --hover: rgba(255, 255, 255, .07);
-    --code-bg: #1b1b23;
-    --code-line: #2b2b36;
-    --glow-a: rgba(236, 120, 180, .20);
-    --glow-b: rgba(84, 96, 240, .24);
-    --frame-ring: rgba(255, 255, 255, .09);
-    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 30px 80px -30px rgba(0, 0, 0, .9);
+    --paper: #121212;
+    --ink: #ededec;
+    --muted: #a3a29e;
+    --rule: #2b2b2a;
+    --code-bg: #1c1c1b;
+    --button: #ededec;
+    --button-ink: #121212;
+    --button-hover: #fff;
   }
 }
 
@@ -113,232 +91,186 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 400 1.0625rem/1.6 var(--font);
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
+h1, h2, h3, p, ul, ol, dl, dd, figure { margin: 0; }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 1.35rem + 2.4vw, 2.75rem); line-height: 1.1; letter-spacing: -.012em; }
+h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 1.875rem); line-height: 1.2; letter-spacing: -.006em; }
+h3 { font-size: 1.125rem; line-height: 1.35; }
+p { text-wrap: pretty; }
 img { display: block; max-width: 100%; height: auto; }
-a { color: var(--link); text-underline-offset: .18em; text-decoration-thickness: 1px; }
+a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: .18em; }
 a:hover { text-decoration-thickness: 2px; }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
-strong { font-weight: 600; color: var(--text); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+strong { font-weight: 600; }
 code, pre { font-family: var(--mono); }
 code {
-  font-size: .88em;
-  padding: .08em .4em;
-  border: 1px solid var(--code-line);
-  border-radius: 6px;
+  padding: .08em .3em;
+  border-radius: 3px;
   background: var(--code-bg);
+  font-size: .9em;
   overflow-wrap: anywhere;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
 pre {
-  margin: 14px 0;
-  padding: 14px 16px;
-  border: 1px solid var(--code-line);
-  border-radius: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
   background: var(--code-bg);
-  color: var(--text);
-  font-size: .9rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;   /* short commands: wrap rather than hide the end behind a scrollbar */
   overflow-wrap: anywhere;
 }
-pre code { padding: 0; border: 0; background: none; font-size: 1em; }
-code.nowrap { white-space: nowrap; }
+pre code { padding: 0; background: none; font-size: 1em; }
+/* Paths and commands stay in one piece where there is room; on a phone they may wrap */
+@media (min-width: 641px) { :not(pre) > code { white-space: nowrap; } }
+.nowrap { white-space: nowrap; }
 .select-all { -webkit-user-select: all; user-select: all; }
-h1, h2, h3 { color: var(--text); text-wrap: balance; }
+.prose { max-width: 40rem; }
+.small { color: var(--muted); font-size: .875rem; }
 
-.wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-@media (max-width: 480px) { .wrap { padding: 0 16px; } }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 480px) {
+  .wrap { padding: 0 16px; }
+  pre { padding: 10px 12px; font-size: 13px; }
+}
 
 .skip {
-  position: absolute; left: 12px; top: -64px; z-index: 100;
-  padding: 10px 14px; border-radius: 10px;
-  background: var(--btn-bg); color: var(--btn-text);
+  position: absolute; left: 16px; top: -64px; z-index: 1;
+  padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
   font-weight: 600; text-decoration: none;
 }
 .skip:focus { top: 12px; }
 
 /* Header */
-.site-header {
-  position: sticky; top: 0; z-index: 10;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 84%, transparent);
-  -webkit-backdrop-filter: saturate(1.6) blur(14px);
-  backdrop-filter: saturate(1.6) blur(14px);
-}
-.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 60px; }
+.site-header { border-bottom: 1px solid var(--rule); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; }
 .brand {
-  display: inline-flex; align-items: center; gap: 10px;
-  color: var(--text); text-decoration: none;
-  font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em;
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--ink); font-size: 1.0625rem; font-weight: 600; text-decoration: none;
 }
-.brand svg { width: 28px; height: 28px; flex: none; }
-.site-header ul { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.site-header nav a {
-  display: block; padding: 8px 12px; border-radius: 8px;
-  color: var(--muted); font-size: .95rem; text-decoration: none;
-}
-.site-header nav a:hover { color: var(--text); background: var(--hover); }
+.brand svg { width: 22px; height: 22px; flex: none; }
+.site-header ul { display: flex; gap: 20px; padding: 0; list-style: none; }
+.site-header nav a { display: block; padding: 8px 0; color: var(--muted); font-size: .9375rem; text-decoration: none; }
+.site-header nav a:hover { color: var(--ink); text-decoration: underline; }
 @media (max-width: 600px) { .site-header .optional { display: none; } }
 
+/* Sections: one paper colour, a hairline between them */
+section { scroll-margin-top: 24px; }
+.section > .wrap { padding-block: 72px; }
+.section + .section > .wrap { padding-top: 0; }
+.section + .section > .wrap::before { content: ""; display: block; margin-bottom: 72px; border-top: 1px solid var(--rule); }
+.section h2 { margin-bottom: 16px; }
+@media (max-width: 640px) {
+  .section > .wrap { padding-block: 48px; }
+  .section + .section > .wrap { padding-top: 0; }
+  .section + .section > .wrap::before { margin-bottom: 48px; }
+}
+
 /* Hero */
-.hero { position: relative; isolation: isolate; overflow: hidden; padding: 72px 0 8px; text-align: center; }
-.hero::before {
-  content: ""; position: absolute; z-index: -1; left: -20%; right: -20%; top: 260px; height: 900px;
-  background:
-    radial-gradient(38% 45% at 32% 50%, var(--glow-a), transparent 70%),
-    radial-gradient(38% 45% at 68% 56%, var(--glow-b), transparent 70%);
-  pointer-events: none;
+.hero h1 { margin-bottom: 16px; }
+.lead { font-size: 1.1875rem; line-height: 1.5; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 28px; }
+.button {
+  display: inline-block; padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
+  font: 600 1rem/1.2 var(--sans); text-decoration: none;
 }
-.eyebrow {
-  display: inline-block; margin: 0 0 20px; padding: 6px 14px;
-  border: 1px solid var(--line); border-radius: 999px;
-  background: var(--surface); color: var(--muted);
-  font-size: .875rem; font-weight: 500;
-}
-h1 {
-  max-width: 13.5em; margin: 0 auto;
-  font-size: clamp(2.4rem, 1.25rem + 4.6vw, 4.5rem);
-  font-weight: 700; line-height: 1.04; letter-spacing: -.03em;
-}
-.lead {
-  max-width: 40rem; margin: 22px auto 0;
-  color: var(--muted); font-size: clamp(1.1rem, 1rem + .45vw, 1.3rem); line-height: 1.5;
-}
-.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 32px; }
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  min-height: 48px; padding: 12px 22px;
-  border: 1px solid var(--line-strong); border-radius: 12px;
-  background: var(--surface); color: var(--text);
-  font-size: 1rem; font-weight: 600; text-decoration: none;
-  transition: transform .15s ease;
-}
-.btn:hover { transform: translateY(-1px); }
-.btn.primary { border-color: var(--btn-bg); background: var(--btn-bg); color: var(--btn-text); }
-.btn svg { width: 20px; height: 20px; flex: none; }
-@media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:hover { transform: none; } }
-.brew { margin: 22px 0 0; color: var(--muted); font-size: .95rem; }
-.brew code { display: inline-block; margin: 6px 0 0 4px; padding: 7px 12px; color: var(--text); font-size: .95em; }
-.fine { margin: 14px 0 0; color: var(--muted); font-size: .9rem; }
-.shot.hero-shot { max-width: 1080px; margin: 52px auto 0; }
-@media (max-width: 480px) {
-  .cta { flex-direction: column; align-items: stretch; }
-  .shot.hero-shot { margin-top: 40px; }
-}
+.button:hover { background: var(--button-hover); }
+.brew { margin-top: 16px; color: var(--muted); font-size: 1rem; }
+@media (max-width: 360px) { .brew code { white-space: normal; } }
+.meta { margin-top: 8px; color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.meta span, .meta a { white-space: nowrap; }
+.meta a { color: inherit; }
+.meta a:hover { color: var(--ink); }
+.hero-shot { margin-top: 40px; }
+figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size: .875rem; }
+.demo-note { display: block; }
 
-/* Screenshots */
-.shot { margin: 0; }
-.frame {
-  overflow: hidden;
-  border-radius: clamp(10px, 1.6vw, 18px);
-  box-shadow: 0 0 0 1px var(--frame-ring), var(--shadow);
-}
-.frame img { width: 100%; }
-.shot figcaption { max-width: 46rem; margin: 18px auto 0; color: var(--muted); font-size: .95rem; text-align: center; }
-.demo-note { display: block; margin-top: 4px; font-size: .85rem; }
-
-/* Sections */
-section { scroll-margin-top: 72px; }
-.section { padding: 96px 0; }
-.section.alt { border-block: 1px solid var(--line); background: var(--bg-alt); }
-.section-head { max-width: 46rem; margin: 0 0 48px; }
-.kicker { margin: 0 0 10px; color: var(--kicker); font-size: .85rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-h2 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.75rem); font-weight: 700; line-height: 1.12; letter-spacing: -.022em; }
-.section-head p { margin: 16px 0 0; color: var(--muted); font-size: 1.125rem; }
-@media (max-width: 640px) { .section { padding: 64px 0; } .section-head { margin-bottom: 36px; } }
-
-/* Tour rows */
-.row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: center; }
-.row + .row { margin-top: 88px; }
-.row.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
-.row.flip .row-text { order: 2; }
-.row h3 { margin: 0 0 12px; font-size: 1.5rem; line-height: 1.25; letter-spacing: -.015em; }
-.row p { margin: 0 0 12px; color: var(--muted); }
-.row p:last-child { margin-bottom: 0; }
-.shot.tall { justify-self: center; width: 100%; max-width: 440px; }
+/* Tour: text in the margin on the left, the picture on the right */
+.tour-row { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 40px; align-items: start; margin-top: 72px; }
+.prose + .tour-row { margin-top: 48px; }
+.tour-row h3 { margin-bottom: 8px; }
+.tour-row p { color: var(--muted); font-size: 1rem; }
+.tour-row p + p { margin-top: 12px; }
+.settings-shot { max-width: 520px; }
+.settings-shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
 @media (max-width: 860px) {
-  .row, .row.flip { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .row.flip .row-text { order: 0; }
-  .row + .row { margin-top: 64px; }
+  .tour-row { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 48px; }
 }
 
-/* Features */
-.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
-.feature { padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
-.feature h3 { margin: 16px 0 8px; font-size: 1.1rem; line-height: 1.3; }
-.feature p { margin: 0; color: var(--muted); font-size: .98rem; }
-.icon {
-  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
-  background: linear-gradient(160deg, #ef8fbd, #9a6be0 55%, #4654dc); color: #fff;
+/* What it does: a spec sheet */
+.spec { margin-top: 32px; }
+.spec > div {
+  display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); column-gap: 32px;
+  padding: 14px 0 16px; border-top: 1px solid var(--rule);
 }
-.icon svg { width: 22px; height: 22px; }
-.note { max-width: 46rem; margin: 28px 0 0; color: var(--muted); font-size: .98rem; }
-@media (max-width: 900px) { .features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .features { grid-template-columns: minmax(0, 1fr); } }
+.spec > div:last-child { border-bottom: 1px solid var(--rule); }
+.spec dt { font-weight: 600; }
+.spec dd { max-width: 40rem; color: var(--muted); }
+.spec-note { max-width: 40rem; margin-top: 24px; color: var(--muted); font-size: 1rem; }
+@media (max-width: 640px) {
+  .spec > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+}
 
 /* Install */
-.install { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 32px; align-items: start; }
-.steps { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
-.step { position: relative; padding: 24px 24px 24px 76px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
-.step::before {
-  counter-increment: step; content: counter(step);
-  position: absolute; left: 24px; top: 22px;
-  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
-  background: var(--btn-bg); color: var(--btn-text); font-size: .95rem; font-weight: 700;
+.install { display: grid; gap: 48px; margin-top: 32px; }
+.steps { padding: 0; list-style: none; counter-reset: step; }
+.steps > li {
+  display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); align-items: baseline;
+  padding: 16px 0 24px; border-top: 1px solid var(--rule); counter-increment: step;
 }
-.step h3 { margin: 3px 0 8px; font-size: 1.15rem; line-height: 1.3; }
-.step p { margin: 0 0 10px; color: var(--muted); }
-.step p:last-child { margin-bottom: 0; }
-.panel { padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
-.panel + .panel { margin-top: 16px; }
-.panel h3 { margin: 0 0 12px; font-size: 1.15rem; }
-.panel p { margin: 0; color: var(--muted); font-size: .98rem; }
-.checks { margin: 0; padding: 0; list-style: none; }
-.checks li { position: relative; padding-left: 28px; color: var(--muted); font-size: .98rem; }
-.checks li + li { margin-top: 10px; }
-.checks li::before {
-  content: ""; position: absolute; left: 2px; top: .45em; width: 14px; height: 8px;
-  border-left: 2px solid var(--kicker); border-bottom: 2px solid var(--kicker); transform: rotate(-45deg);
+.steps > li::before {
+  content: counter(step); grid-area: 1 / 1;
+  color: var(--muted); font: 15px/1 var(--mono);
 }
-@media (max-width: 900px) { .install { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 520px) {
-  .step { padding: 20px 18px; }
-  .step::before { position: static; margin-bottom: 12px; }
-  pre { padding: 12px 14px; font-size: .8rem; }
+.steps > li > * { grid-column: 2; }
+.steps > li > * + * { margin-top: 10px; }
+.steps > li > h3 + * { margin-top: 6px; }
+.install aside { font-size: 1rem; }
+.install aside > div + div { margin-top: 32px; }
+.install aside h3 { margin-bottom: 8px; }
+.reqs li::marker { color: var(--muted); }
+.install aside pre { margin-top: 10px; }
+.reqs { padding-left: 1.15em; }
+.reqs li + li { margin-top: 6px; }
+.licence { max-width: 40rem; margin-top: 48px; color: var(--muted); font-size: .9375rem; }
+@media (min-width: 900px) {
+  .install { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .install aside { padding: 17px 0 0 32px; border-left: 1px solid var(--rule); }
+}
+@media (max-width: 899px) {
+  .install { gap: 24px; }
+  .install aside { padding-top: 16px; border-top: 1px solid var(--rule); }
 }
 
 /* Privacy */
-.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
-.facts li { padding: 22px 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--muted); }
-.facts strong { display: block; margin-bottom: 6px; }
-@media (max-width: 760px) { .facts { grid-template-columns: minmax(0, 1fr); } }
+.facts { max-width: 46rem; margin-top: 32px; }
+.facts > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
+.facts > div:last-child { border-bottom: 1px solid var(--rule); }
+.facts dt { font-weight: 600; }
+.facts dd { margin-top: 4px; }
+.facts + .small { margin-top: 24px; }
 
 /* Grove */
-.companion {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 40px; align-items: center;
-  padding: 36px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface);
-}
-.companion h2 { font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2rem); }
-.companion p { margin: 12px 0 0; color: var(--muted); }
-@media (max-width: 760px) { .companion { grid-template-columns: minmax(0, 1fr); padding: 24px; } }
-
-/* Closing */
-.closing { text-align: center; }
-.closing p { max-width: 38rem; margin: 16px auto 0; color: var(--muted); font-size: 1.125rem; }
+.companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
+.companion h2 img { flex: none; width: 20px; height: 20px; margin-top: calc((1.3em - 20px) / 2); }
+.companion h2 span span { display: inline-block; }   /* break between the two sentences, not inside one */
+.companion .links { margin-top: 16px; }
 
 /* Footer */
-.site-footer { padding: 32px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
-.site-footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; }
-.site-footer p { margin: 0; }
-.site-footer ul { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 0; list-style: none; }
-.site-footer a { color: var(--muted); }
-.site-footer a:hover { color: var(--text); }
+.site-footer { color: var(--muted); font-size: .875rem; }
+.site-footer .wrap > div { padding: 24px 0 48px; border-top: 1px solid var(--rule); }
+.site-footer p + p { margin-top: 6px; }
+.site-footer a { color: inherit; }
+.site-footer a:hover { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -349,15 +281,10 @@ h2 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.75rem); font-weight: 
     <a class="brand" href="./">
       <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <defs>
-          <linearGradient id="logo-wallpaper" x1="0" y1="0" x2=".35" y2="1">
-            <stop offset="0" stop-color="#f9c6c9"/>
-            <stop offset=".45" stop-color="#c37fd8"/>
-            <stop offset="1" stop-color="#3f4bd6"/>
-          </linearGradient>
-          <clipPath id="logo-tile"><rect width="64" height="64" rx="15"/></clipPath>
+          <clipPath id="brow-tile"><rect width="64" height="64" rx="15"/></clipPath>
         </defs>
-        <g clip-path="url(#logo-tile)">
-          <rect width="64" height="64" fill="url(#logo-wallpaper)"/>
+        <g clip-path="url(#brow-tile)">
+          <rect width="64" height="64" fill="#7a7b80"/>
           <path d="M7 0h50v17a11 11 0 0 1-11 11H18A11 11 0 0 1 7 17z" fill="#000"/>
           <circle cx="19.5" cy="14" r="5.5" fill="#34c759"/>
           <circle cx="44.5" cy="14" r="5.5" fill="#ff9f0a"/>
@@ -377,169 +304,144 @@ h2 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.75rem); font-weight: 
 </header>
 
 <main id="main">
-  <section class="hero" aria-labelledby="hero-title">
+  <section class="section hero" aria-labelledby="hero-title">
     <div class="wrap">
-      <p class="eyebrow">Brow · a free, open-source app for macOS</p>
-      <h1 id="hero-title">Claude Code rate limits in the MacBook notch</h1>
-      <p class="lead">Brow shows the usage and rate limits of every Claude Code account you have, right in the notch: the 5-hour limit, the weekly limit, and when each resets.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
-          Download for macOS
-        </a>
-        <a class="btn" href="https://github.com/efim0v/brow">Source on GitHub</a>
+      <div class="prose">
+        <h1 id="hero-title">Claude Code rate limits in the MacBook notch</h1>
+        <p class="lead">Brow shows the usage and rate limits of every Claude Code account you have, right in the notch: the 5-hour limit, the weekly limit, and when each resets.</p>
+        <p class="actions">
+          <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Download Brow</a>
+          <a href="https://github.com/efim0v/brow">Source on GitHub</a>
+        </p>
+        <p class="brew">Or with Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="brew">or with Homebrew: <code class="select-all">brew install --cask efim0v/tap/brow</code></p>
-      <p class="fine">macOS 26 or later · Apple silicon · <a href="#install">install notes</a></p>
+      <p class="meta"><span>Free and open source</span>&nbsp;· <span>macOS 26 or later</span>&nbsp;· <span>Apple silicon</span>&nbsp;· <span>Version 0.2.0,</span> <span>5 October 2026 (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">changelog</a>)</span>&nbsp;· <a href="#install">Install notes</a></p>
 
-      <figure class="shot hero-shot">
-        <div class="frame">
-          <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="media/hero-still.webp" type="image/webp">
-            <img src="media/hero.webp" width="1280" height="800" fetchpriority="high" alt="Hovering the notch opens the limits of every account; the launch command of the account with room is copied and Claude Code starts as that account">
-          </picture>
-        </div>
-        <figcaption>Hover the notch: every account’s 5-hour and weekly limits open out of it. Copy an account’s launch command and Claude Code starts as that account.<span class="demo-note">All demos show made-up demo data.</span></figcaption>
+      <figure class="hero-shot">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="media/hero-still.webp" type="image/webp">
+          <img src="media/hero.webp" width="1280" height="800" fetchpriority="high" alt="Hovering the notch opens the limits of every account; the launch command of the account with room is copied and Claude Code starts as that account">
+        </picture>
+        <figcaption>Hover the notch: every account’s 5-hour and weekly limits open out of it. Copy an account’s launch command and Claude Code starts as that account. <span class="demo-note">All demos show made-up demo data.</span></figcaption>
       </figure>
     </div>
   </section>
 
   <section class="section" id="tour" aria-labelledby="tour-title">
     <div class="wrap">
-      <div class="section-head">
-        <p class="kicker">At a glance</p>
+      <div class="prose">
         <h2 id="tour-title">Which account has room, and when the others free up</h2>
         <p>One account is enough: Brow picks up <code class="nowrap">~/.claude</code> by itself. With several, it shows at a glance which account is close to its limit, which has room, and when each one frees up.</p>
       </div>
 
-      <div class="row">
-        <div class="row-text">
+      <div class="tour-row">
+        <div>
           <h3>When each limit resets</h3>
           <p>The calendar marks every account’s weekly resets and estimated subscription renewals. Point at a day to see what frees up.</p>
         </div>
-        <figure class="shot">
-          <div class="frame">
-            <picture>
-              <source media="(prefers-reduced-motion: reduce)" srcset="media/calendar-still.webp" type="image/webp">
-              <img src="media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="The reset calendar: pointing at a day shows which account’s weekly limit resets or which subscription renews">
-            </picture>
-          </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="media/calendar-still.webp" type="image/webp">
+            <img src="media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="The reset calendar: pointing at a day shows which account’s weekly limit resets or which subscription renews">
+          </picture>
         </figure>
       </div>
 
-      <div class="row flip">
-        <div class="row-text">
+      <div class="tour-row">
+        <div>
           <h3>Sign in again in one click</h3>
           <p>When an account’s sign-in expires, one click next to it starts <code class="nowrap">claude auth login</code> for that account and opens the browser profile that belongs to it, already signed in to that account. Other accounts stay signed in.</p>
         </div>
-        <figure class="shot">
-          <div class="frame">
-            <picture>
-              <source media="(prefers-reduced-motion: reduce)" srcset="media/signin-still.webp" type="image/webp">
-              <img src="media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="An expired sign-in: one click opens that account’s own browser profile, already signed in, and Claude Code logs in again">
-            </picture>
-          </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="media/signin-still.webp" type="image/webp">
+            <img src="media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="An expired sign-in: one click opens that account’s own browser profile, already signed in, and Claude Code logs in again">
+          </picture>
         </figure>
       </div>
 
-      <div class="row">
-        <div class="row-text">
+      <div class="tour-row">
+        <div>
           <h3>Two numbers beside the notch</h3>
           <p>Collapsed, Brow shows how much of the 5-hour limit and of the weekly limit is used across your accounts. Hover and the panel opens.</p>
           <p>The readouts can also sit in a strip below the notch. On a display without a notch, Brow shows a pill instead.</p>
         </div>
-        <figure class="shot">
-          <div class="frame">
-            <img src="media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow collapsed: 54% of the 5-hour limit used on the left of the notch, 72% of the weekly limit on the right">
-          </div>
+        <figure>
+          <img src="media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow collapsed: 54% on the left of the notch is the 5-hour limit used across all accounts; 72% on the right is the weekly limit.">
         </figure>
       </div>
 
-      <div class="row flip">
-        <div class="row-text">
+      <div class="tour-row">
+        <div>
           <h3>Every account in Settings</h3>
           <p>Settings → Accounts lists each account with its email, tier, folder, token state and launch command. <strong>Sign in…</strong> adds another account: Brow creates the folder and opens Anthropic’s own sign-in in Terminal.</p>
         </div>
-        <figure class="shot tall">
-          <div class="frame">
-            <img src="media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Brow’s Accounts settings: an Add an account row with a Sign in button, then an account card with name, email, tier, folder, token state and launch command">
-          </div>
+        <figure class="settings-shot">
+          <img src="media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Brow’s Accounts settings: an Add an account row with a Sign in button, then an account card with name, email, tier, folder, token state and launch command">
         </figure>
       </div>
     </div>
   </section>
 
-  <section class="section alt" id="features" aria-labelledby="features-title">
+  <section class="section" id="features" aria-labelledby="features-title">
     <div class="wrap">
-      <div class="section-head">
-        <p class="kicker">Features</p>
-        <h2 id="features-title">What it does</h2>
-      </div>
-      <ul class="features">
-        <li class="feature">
-          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l4-4"/></svg></span>
-          <h3>Every account at a glance</h3>
-          <p>For each account: the 5-hour limit, the weekly limit and any model-specific weekly limit, as percent used, with the time until each resets.</p>
-        </li>
-        <li class="feature">
-          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
-          <h3>A reset calendar</h3>
-          <p>Weekly resets and estimated subscription renewals on a month grid, so you can see which account frees up when.</p>
-        </li>
-        <li class="feature">
-          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></svg></span>
-          <h3>Copy the launch command</h3>
-          <p>One button copies the command that starts Claude Code as that account.</p>
-        </li>
-        <li class="feature">
-          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17"/></svg></span>
-          <h3>Sign in again, in that account’s own browser</h3>
-          <p>Each account gets a separate browser profile, with its own cookies, history and saved logins, so signing in to one never disturbs another. A second button opens that profile directly.</p>
-        </li>
-        <li class="feature">
-          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 19.5c.8-3.5 3.4-5.5 6.5-5.5 1.3 0 2.5.3 3.5.9M18 14v6M15 17h6"/></svg></span>
-          <h3>Add an account in one click</h3>
-          <p>Brow creates the account folder and opens Anthropic’s own sign-in flow.</p>
-        </li>
-        <li class="feature">
-          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg></span>
-          <h3>Tokens kept fresh</h3>
-          <p>Idle accounts are refreshed in the background, so the numbers do not go stale.</p>
-        </li>
-      </ul>
-      <p class="note">Separate browser profiles need Google Chrome, Chromium, Brave or Edge. Without one of them, links open in your default browser, with no isolation. More on pacing, refresh and layout options is in <a href="https://github.com/efim0v/brow/blob/main/docs/brow.md">Brow in detail</a>.</p>
+      <h2 id="features-title">What it does</h2>
+      <dl class="spec">
+        <div>
+          <dt>Every account at a glance</dt>
+          <dd>For each account: the 5-hour limit, the weekly limit and any model-specific weekly limit, as percent used, with the time until each resets.</dd>
+        </div>
+        <div>
+          <dt>A reset calendar</dt>
+          <dd>Weekly resets and estimated subscription renewals on a month grid, so you can see which account frees up when.</dd>
+        </div>
+        <div>
+          <dt>Copy the launch command</dt>
+          <dd>One button copies the command that starts Claude Code as that account.</dd>
+        </div>
+        <div>
+          <dt>Sign in again, in that account’s own browser</dt>
+          <dd>Each account gets a separate browser profile, with its own cookies, history and saved logins, so signing in to one never disturbs another. A second button opens that profile directly.</dd>
+        </div>
+        <div>
+          <dt>Add an account in one click</dt>
+          <dd>Brow creates the account folder and opens Anthropic’s own sign-in flow.</dd>
+        </div>
+        <div>
+          <dt>Tokens kept fresh</dt>
+          <dd>Idle accounts are refreshed in the background, so the numbers do not go stale.</dd>
+        </div>
+      </dl>
+      <p class="spec-note">Separate browser profiles need Google Chrome, Chromium, Brave or Edge. Without one of them, links open in your default browser, with no isolation. More on pacing, refresh and layout options is in <a href="https://github.com/efim0v/brow/blob/main/docs/brow.md">Brow in detail</a>.</p>
     </div>
   </section>
 
   <section class="section" id="install" aria-labelledby="install-title">
     <div class="wrap">
-      <div class="section-head">
-        <p class="kicker">Install</p>
-        <h2 id="install-title">Get Brow</h2>
-      </div>
+      <h2 id="install-title">Install</h2>
       <div class="install">
         <ol class="steps">
-          <li class="step">
+          <li>
             <h3>Install Brow</h3>
             <p>With Homebrew:</p>
             <pre><code class="select-all">brew install --cask efim0v/tap/brow</code></pre>
             <p>Or download <a href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Brow.zip</a> from the <a href="https://github.com/efim0v/brow/releases/latest">latest release</a>, unzip it and move <code class="nowrap">Brow.app</code> to <code class="nowrap">/Applications</code>.</p>
           </li>
-          <li class="step">
+          <li>
             <h3>Allow the first launch</h3>
             <p>The build is signed ad hoc and is not notarized by Apple, so macOS blocks the first launch, whichever way you installed it.</p>
             <p>Open <strong>System Settings → Privacy &amp; Security</strong>, find the message about Brow under Security and click <strong>Open Anyway</strong>, then confirm with your login password. The button is there for about an hour after the blocked launch.</p>
           </li>
-          <li class="step">
+          <li>
             <h3>Find it in the notch</h3>
             <p>Brow has no Dock icon: hover the notch to open the panel. The ⚙ in the panel opens Settings, and <strong>Launch at login</strong> is in Settings → General.</p>
             <p>If macOS withholds an account’s Keychain item, that account shows an orange key. Click it and choose <strong>Always Allow</strong>.</p>
           </li>
         </ol>
         <aside aria-label="Requirements and checks">
-          <div class="panel" id="requirements">
+          <div id="requirements">
             <h3>Requirements</h3>
-            <ul class="checks">
+            <ul class="reqs">
               <li>macOS 26 or later</li>
               <li>A Mac with Apple silicon (the prebuilt app is arm64 only)</li>
               <li><a href="https://claude.com/claude-code">Claude Code</a></li>
@@ -547,77 +449,69 @@ h2 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.75rem); font-weight: 
               <li>Google Chrome, Chromium, Brave or Edge for separate browser profiles</li>
             </ul>
           </div>
-          <div class="panel">
+          <div>
             <h3>Check the download</h3>
             <p>The release includes <code class="nowrap">SHA256SUMS.txt</code>. With it next to <code class="nowrap">Brow.zip</code>, run:</p>
             <pre><code>shasum -a 256 -c SHA256SUMS.txt</code></pre>
           </div>
-          <div class="panel">
+          <div>
             <h3>Build it yourself</h3>
             <p>Brow is a Swift package. You need Xcode; the steps are in the <a href="https://github.com/efim0v/brow#build">README</a>.</p>
           </div>
         </aside>
       </div>
+      <p class="licence">Brow is licensed under the <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>; version 0.2.0 and earlier were released under the MIT License. <a href="https://github.com/efim0v/brow">The source</a>, <a href="https://github.com/efim0v/brow/releases">the releases</a> and <a href="https://github.com/efim0v/brow/issues">the issue tracker</a> are on GitHub.</p>
     </div>
   </section>
 
-  <section class="section alt" id="privacy" aria-labelledby="privacy-title">
+  <section class="section" id="privacy" aria-labelledby="privacy-title">
     <div class="wrap">
-      <div class="section-head">
-        <p class="kicker">Privacy</p>
-        <h2 id="privacy-title">What Brow does on your machine</h2>
-        <p>Worth knowing before you run it.</p>
-      </div>
-      <ul class="facts">
-        <li><strong>Your token, read from the Keychain</strong> Brow reads each account’s Claude Code sign-in token from the macOS Keychain and uses it only to call Anthropic’s usage and profile endpoints on <code class="nowrap">api.anthropic.com</code>. Those endpoints are not a documented public API and may change.</li>
-        <li><strong>No analytics, no update check</strong> No token is written to disk or logged, and nothing is sent anywhere else.</li>
-        <li><strong>The fallback token refresh is on by default</strong> If the normal refresh stops working, Brow runs a tiny <code class="nowrap">claude -p</code> request, which spends a little limit and starts that account’s 5-hour window. Turn it off in Settings → Accounts.</li>
-        <li><strong>One browser profile per account</strong> Each is a separate directory under <code>~/Library/Application Support/Brow/browser-profiles/</code>. Brow sets the profile’s name and allows third-party cookies in it so that sign-in works.</li>
-        <li><strong>Signing in opens Terminal</strong> Sign-in runs <code class="nowrap">claude auth login</code> in Terminal, and macOS asks once for permission to control it.</li>
-        <li><strong>Settings and readings on disk</strong> Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>. It also keeps a pacing record for the usage endpoint, with each account’s last reading, in <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>; that path comes from GroveCore, the library Brow shares with Grove.</li>
-      </ul>
-      <p class="note">Brow is an independent tool, not affiliated with or endorsed by Anthropic.</p>
-    </div>
-  </section>
-
-  <section class="section" id="grove" aria-labelledby="grove-title">
-    <div class="wrap">
-      <div class="companion">
+      <h2 id="privacy-title">What Brow does on your machine</h2>
+      <dl class="facts">
         <div>
-          <p class="kicker">Companion app</p>
-          <h2 id="grove-title">Brow tells you which account has room. Grove moves the work there.</h2>
-          <p>Grove gives each feature of a multi-repo project its own workspace for Claude Code and moves a session from one account to another. Each app runs on its own, and they are built to be used together.</p>
+          <dt>Your token, read from the Keychain</dt>
+          <dd>Brow reads each account’s Claude Code sign-in token from the macOS Keychain and uses it only to call Anthropic’s usage and profile endpoints on <code class="nowrap">api.anthropic.com</code>. Those endpoints are not a documented public API and may change.</dd>
         </div>
-        <a class="btn" href="https://github.com/efim0v/grove">Grove on GitHub</a>
-      </div>
+        <div>
+          <dt>No analytics, no update check</dt>
+          <dd>No token is written to disk or logged, and nothing is sent anywhere else.</dd>
+        </div>
+        <div>
+          <dt>The fallback token refresh is on by default</dt>
+          <dd>If the normal refresh stops working, Brow runs a tiny <code class="nowrap">claude -p</code> request, which spends a little limit and starts that account’s 5-hour window. Turn it off in Settings → Accounts.</dd>
+        </div>
+        <div>
+          <dt>One browser profile per account</dt>
+          <dd>Each is a separate directory under <code>~/Library/Application Support/Brow/browser-profiles/</code>. Brow sets the profile’s name and allows third-party cookies in it so that sign-in works.</dd>
+        </div>
+        <div>
+          <dt>Signing in opens Terminal</dt>
+          <dd>Sign-in runs <code class="nowrap">claude auth login</code> in Terminal, and macOS asks once for permission to control it.</dd>
+        </div>
+        <div>
+          <dt>Settings and readings on disk</dt>
+          <dd>Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>. It also keeps a pacing record for the usage endpoint, with each account’s last reading, in <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>; that path comes from GroveCore, the library Brow shares with Grove.</dd>
+        </div>
+      </dl>
+      <p class="small">Brow is an independent tool, not affiliated with or endorsed by Anthropic.</p>
     </div>
   </section>
 
-  <section class="section alt closing" aria-labelledby="closing-title">
+  <section class="section companion" id="grove" aria-labelledby="grove-title">
     <div class="wrap">
-      <h2 id="closing-title">Free and open source</h2>
-      <p>Brow is licensed under the GNU GPL v3; version 0.2.0 and earlier were released under the MIT License. The source, the releases and the issue tracker are on GitHub.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
-          Download for macOS
-        </a>
-        <a class="btn" href="https://github.com/efim0v/brow/releases">All releases</a>
-      </div>
+      <h2 id="grove-title"><img src="grove-mark.png" width="20" height="20" alt=""><span><span>Brow tells you which account has room.</span> <span>Grove moves the work there.</span></span></h2>
+      <p class="prose">Grove gives each feature of a multi-repo project its own workspace for Claude Code and moves a session from one account to another. Each app runs on its own, and they are built to be used together.</p>
+      <p class="links"><a href="https://efim0v.github.io/grove/">Grove’s page</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove on GitHub</a></p>
     </div>
   </section>
 </main>
 
 <footer class="site-footer">
   <div class="wrap">
-    <p>Brow · <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a> · Not affiliated with or endorsed by Anthropic.</p>
-    <ul>
-      <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
-      <li><a href="https://github.com/efim0v/brow/releases">Releases</a></li>
-      <li><a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a></li>
-      <li><a href="https://github.com/efim0v/brow/issues">Issues</a></li>
-      <li><a href="https://github.com/efim0v/grove">Grove</a></li>
-    </ul>
+    <div>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove</a></p>
+      <p>Brow is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. All demos show made-up demo data.</p>
+    </div>
   </div>
 </footer>
 </body>

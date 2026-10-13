@@ -227,13 +227,13 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
           <p>On a Mac the login itself is in the Keychain, in an entry that Claude Code <a href="https://code.claude.com/docs/en/authentication#credential-management">keys to the folder</a>:</p>
           <ul>
             <li><code>Claude Code-credentials</code> for <code>~/.claude</code>, with <code>CLAUDE_CONFIG_DIR</code> unset;</li>
-            <li><code>Claude Code-credentials-&lt;hash&gt;</code> for any other folder, where the hash is the first eight hex characters of the SHA-256 of the folder’s full path, without a trailing slash.</li>
+            <li><code>Claude Code-credentials-&lt;hash&gt;</code> whenever <code>CLAUDE_CONFIG_DIR</code> is set, where the hash is the first eight hex characters of the SHA-256 of the variable’s value: the folder’s full path, exactly as written.</li>
           </ul>
           <p>To work out the hash for a folder:</p>
           <pre><code>printf '%s' "$HOME/.claude-accounts/work" | shasum -a 256 | cut -c1-8</code></pre>
           <p>In practice:</p>
           <ul>
-            <li><strong>Keep the folder where it is.</strong> Once an account is signed in, don’t rename or move its folder. Claude Code would look for the entry under the new path’s hash and find no login.</li>
+            <li><strong>Keep the folder where it is.</strong> Once an account is signed in, don’t rename or move its folder, and write its path the same way every time. A different path gives a different hash, and Claude Code finds no login under it. Even a trailing slash counts: <code>~/.claude-accounts/work/</code> is not the same entry as <code>~/.claude-accounts/work</code>.</li>
             <li><strong>Leave the variable unset for the default account.</strong> Pointing it at <code>~/.claude</code> is not the same thing: with the variable set, Claude Code reads a hashed entry, not <code>Claude Code-credentials</code>.</li>
             <li><strong>Settings don’t carry over.</strong> Your personal <code>CLAUDE.md</code>, settings, skills and plugins live in <code>~/.claude</code>, and another account’s folder has its own. A repository’s <code>CLAUDE.md</code> and <code>.claude/</code> folder are read whichever account you use.</li>
           </ul>

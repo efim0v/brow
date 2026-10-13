@@ -9,7 +9,7 @@ let package = Package(
     ],
     dependencies: [
         // GroveCore: accounts, credentials, usage and token refresh, shared with Grove.
-        .package(url: "https://github.com/efim0v/grove.git", from: "0.2.0"),
+        .package(url: "https://github.com/efim0v/grove.git", from: "0.2.1"),
     ],
     targets: [
         .target(

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-13
+
+Update if you run 0.2.0: it kept Claude Code access tokens in a cache file.
+
+### Security
+
+- Usage and profile requests no longer go through the shared URL cache. Brow 0.2.0 stored each request, with the Claude Code access token in its `Authorization` header, and each response, with the account's email and plan, in `~/Library/Caches/dev.artemefimov.brow/Cache.db`. Any process running as your user could read that file without a Keychain prompt. The tokens there are access tokens, which expire after about eight hours; refresh tokens were never stored. The first request after launching 0.2.1 empties that cache. The fix is in `GroveCore` 0.2.1, which Brow now requires.
+
 ### Added
 
 - An Install section in the README for the prebuilt `Brow.zip`. It covers the first launch, which macOS blocks because the build is not notarized, and points to `SHA256SUMS.txt` for checking the download. A download link sits at the top of the README.
@@ -44,5 +52,6 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.2.1...HEAD
+[0.2.1]: https://github.com/efim0v/brow/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/efim0v/brow/releases/tag/0.2.0

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none'">
-  <title>Grove — git-worktree workspaces for parallel Claude Code sessions</title>
-  <meta name="description" content="Free, open-source macOS menu-bar app and CLI that gives each feature a git-worktree workspace across all your repositories, for parallel Claude Code sessions.">
+  <title>Grove: parallel Claude Code sessions in multi-repo worktrees</title>
+  <meta name="description" content="Run parallel Claude Code sessions on a multi-repo project: each feature gets a git worktree of each repo on one branch. Free macOS menu-bar app and CLI.">
   <link rel="canonical" href="https://efim0v.github.io/grove/">
   <meta name="robots" content="max-image-preview:large">
   <meta name="author" content="Artem Efimov">
@@ -17,7 +17,7 @@
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Grove">
-  <meta property="og:title" content="Grove — git-worktree workspaces for parallel Claude Code sessions">
+  <meta property="og:title" content="Grove: parallel Claude Code sessions in multi-repo worktrees">
   <meta property="og:description" content="A macOS menu-bar app and CLI: one directory per feature with a git worktree of each of your repositories, Claude Code sessions across accounts, and moving a session from one account to another.">
   <meta property="og:url" content="https://efim0v.github.io/grove/">
   <meta property="og:image" content="https://efim0v.github.io/grove/og.png">
@@ -27,7 +27,7 @@
   <meta property="og:image:alt" content="Grove: git-worktree workspaces for parallel Claude Code sessions, next to a screenshot of its Workspaces screen.">
   <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Grove — git-worktree workspaces for parallel Claude Code sessions">
+  <meta name="twitter:title" content="Grove: parallel Claude Code sessions in multi-repo worktrees">
   <meta name="twitter:description" content="A macOS menu-bar app and CLI: one directory per feature with a git worktree of each of your repositories, Claude Code sessions across accounts, and moving a session from one account to another.">
   <meta name="twitter:image" content="https://efim0v.github.io/grove/og.png">
   <meta name="twitter:image:alt" content="Grove: git-worktree workspaces for parallel Claude Code sessions, next to a screenshot of its Workspaces screen.">
@@ -40,7 +40,7 @@
         "@type": "SoftwareApplication",
         "@id": "https://efim0v.github.io/grove/#app",
         "name": "Grove",
-        "description": "A macOS menu-bar app and command-line tool that gives every feature its own workspace: one directory holding a git worktree of each of your repositories, all on the same branch, for parallel Claude Code sessions. It also keeps Claude Code sessions in view across projects and accounts, and moves a session from one Claude account to another.",
+        "description": "A macOS menu-bar app and command-line tool for parallel Claude Code sessions across multiple repositories: every feature of a multi-repo project gets its own workspace, one directory holding a git worktree of each repository you pick, all on the same branch. It also keeps Claude Code sessions in view across projects and accounts, and moves a session from one Claude account to another.",
         "url": "https://efim0v.github.io/grove/",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "macOS 26 or later",
@@ -63,12 +63,12 @@
             "caption": "The Accounts screen: the personal account, marked canonical, with its sessions, and below it the work account, marked shared" }
         ],
         "featureList": [
-          "One workspace per feature: a directory with a git worktree of each repository you pick, all on the same branch",
+          "One workspace per feature: a git worktree of each repository you pick, all on the same branch",
           "A base branch per repository, branch names from a template, shared files such as CLAUDE.md, post-create hooks and stacked workspaces",
-          "The Claude Code sessions of every project and workspace, across accounts",
+          "Every Claude Code session in view, across projects and accounts",
           "Resume as…, Migrate to… and Share: continue a session under another Claude account, copy it into another account, or move it into the shared store",
-          "A transcript mirror that keeps transcripts for up to 90 days and 500 MB by default",
-          "The commit graph of each repository, and lines of code across the project",
+          "Transcripts that outlast Claude Code’s 30-day cleanup: the mirror keeps them for up to 90 days and 500 MB by default",
+          "Commit graph and code statistics across repositories",
           "The grove command-line tool: scan, workspaces, sessions, create, graph and doctor, each with --json"
         ],
         "author": { "@id": "https://efim0v.github.io/#person" },
@@ -95,7 +95,7 @@
         "@type": "WebPage",
         "@id": "https://efim0v.github.io/grove/#webpage",
         "url": "https://efim0v.github.io/grove/",
-        "name": "Grove — git-worktree workspaces for parallel Claude Code sessions",
+        "name": "Grove: parallel Claude Code sessions in multi-repo worktrees",
         "inLanguage": "en",
         "about": { "@id": "https://efim0v.github.io/grove/#app" }
       }
@@ -164,6 +164,8 @@
     :not(pre) > code { background: var(--code-bg); padding: .08em .3em; border-radius: 3px; }
     @media (min-width: 641px) { :not(pre) > code { white-space: nowrap; } }
     @media (max-width: 640px) { :not(pre) > code { overflow-wrap: anywhere; } }
+    /* In a heading the type is large enough; the grey box would only add weight */
+    h2 code { background: none; padding: 0; font-size: .86em; }
     pre {
       font-size: 14px; line-height: 1.55;
       background: var(--code-bg); border-radius: 6px;
@@ -273,19 +275,56 @@
     .terms dd { margin: 0; }
     @media (max-width: 640px) { .terms > div { grid-template-columns: minmax(0, 1fr); row-gap: 2px; } }
 
+    /* Tables: a hairline above each row and one under the last, nothing else */
+    .ruled { border-collapse: collapse; margin: 0 0 36px; }
+    .ruled th, .ruled td { padding: 10px 16px 10px 0; border-top: 1px solid var(--rule); vertical-align: top; text-align: left; }
+    .ruled th { font-weight: 600; }
+    .ruled tr > :last-child { padding-right: 0; }
+    .ruled tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+    @media (max-width: 480px) {
+      .ruled { font-size: .9375rem; }
+      .ruled th, .ruled td { padding-right: 12px; }
+      .ruled tr > :last-child { padding-right: 0; }
+    }
+
     /* Requirements: one real table, as wide as the privacy list */
-    .needs { width: min(100%, 46rem); border-collapse: collapse; margin: 0 0 36px; }
-    .needs th, .needs td { padding: 10px 16px 10px 0; border-top: 1px solid var(--rule); vertical-align: top; text-align: left; }
-    .needs thead th { font-weight: 600; }
+    .needs { width: min(100%, 46rem); }
     .needs tbody th { font-weight: 400; }
-    .needs tr > :last-child { padding-right: 0; }
-    .needs tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+    /* The Brow link may wrap; the requirements themselves stay on one line */
+    .needs tbody th a { white-space: normal; }
     @media (min-width: 760px) { .needs tbody th { white-space: nowrap; padding-right: 32px; } }
     @media (max-width: 759px) { .needs thead th:first-child { width: 50%; } }
-    @media (max-width: 480px) {
-      .needs { font-size: .9375rem; }
-      .needs th, .needs td { padding-right: 12px; }
-      .needs tr > :last-child { padding-right: 0; }
+
+    /* Grove workspaces vs claude --worktree: row names on the left */
+    .versus { width: min(100%, 46rem); margin: 24px 0 16px; }
+    @media (min-width: 760px) { .versus tbody th { white-space: nowrap; padding-right: 32px; } }
+
+    /* How Grove compares: seven columns, the full width of the page */
+    .tools { width: 100%; margin: 24px 0 16px; font-size: .9375rem; }
+    .tools + .small { max-width: 40rem; margin-bottom: 32px; }
+
+    /* Where the columns don't fit, each row becomes a block: its name, then
+       each value after its column name, the way the term lists stack. The paths
+       in the worktree table don't wrap, so it needs the full width from 760px. */
+    @media (max-width: 759px) {
+      .versus thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .versus, .versus tbody, .versus tr, .versus th, .versus td { display: block; }
+      .versus tr { padding: 12px 0 13px; border-top: 1px solid var(--rule); }
+      .versus tbody tr:last-child { border-bottom: 1px solid var(--rule); }
+      .versus tr > *, .versus tbody tr:last-child > * { padding: 0; border: 0; }
+      .versus th { margin-bottom: 4px; }
+      .versus td + td { margin-top: 4px; }
+      .versus td::before { content: attr(data-label) ": "; color: var(--muted); }
+    }
+    @media (max-width: 959px) {
+      .tools thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .tools, .tools tbody, .tools tr, .tools th, .tools td { display: block; }
+      .tools tr { padding: 14px 0 15px; border-top: 1px solid var(--rule); }
+      .tools tbody tr:last-child { border-bottom: 1px solid var(--rule); }
+      .tools tr > *, .tools tbody tr:last-child > * { padding: 0; border: 0; }
+      .tools th { margin-bottom: 4px; font-size: 1rem; }
+      .tools td + td { margin-top: 2px; }
+      .tools td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
     }
 
     /* What changes on your Mac */
@@ -328,6 +367,8 @@
         <ul>
           <li class="optional"><a href="#workspaces">Workspaces</a></li>
           <li class="optional"><a href="#sessions">Sessions</a></li>
+          <li class="optional"><a href="#compare">Compare</a></li>
+          <li class="optional"><a href="#faq">FAQ</a></li>
           <li><a href="#install">Install</a></li>
           <li class="optional"><a href="#on-your-mac">Privacy</a></li>
           <li><a href="https://github.com/efim0v/grove">GitHub</a></li>
@@ -340,8 +381,8 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="wrap split">
         <div class="text">
-          <h1 id="hero-title">Git-worktree workspaces for parallel <span class="nowrap">Claude Code</span> sessions</h1>
-          <p class="lead">Grove, a menu-bar app and command-line tool for macOS, gives every feature its own workspace: one directory holding a git worktree of each of your repositories, all on the same branch. Start Claude Code there and it sees the whole product, and parallel sessions never trip over each other’s branches.</p>
+          <h1 id="hero-title">Parallel <span class="nowrap">Claude Code</span> sessions across multiple repositories</h1>
+          <p class="lead">Grove, a menu-bar app and command-line tool for macOS, gives every feature of a multi-repo project its own workspace: one directory holding a git worktree of each repository you pick, all on the same branch. Start Claude Code there and it sees the whole product, and parallel sessions never trip over each other’s branches.</p>
           <p>It also keeps your Claude Code sessions in view across projects and accounts, and moves a session from one Claude account to another.</p>
           <p class="actions">
             <a class="button" href="https://github.com/efim0v/grove/releases/latest/download/Grove.zip">Download Grove</a>
@@ -366,7 +407,7 @@
       <div class="wrap">
         <div class="split">
           <div class="text">
-            <h2 id="workspaces-title">One directory per feature, one branch across every repository</h2>
+            <h2 id="workspaces-title">One workspace per feature: a git worktree of every repository, on one branch</h2>
             <p>Claude Code works best when it sees the whole product in one directory. When the product is split across repositories, parallel sessions start tripping over branches: one checks out a branch in the server repository, and another, working on a different feature, is suddenly looking at the wrong code.</p>
             <p>A Grove workspace is a directory for one feature that holds a git worktree of each repository you pick, all on the same branch. Claude Code starts in that directory with its own working copy of the whole product, and nothing another session does can switch the branch under it.</p>
             <pre role="img" aria-label="A workspace directory, Workspaces/acme-shop/checkout-redesign, holding worktrees of web-client, api-server and server-config, each on the branch feat/checkout-redesign. Claude Code starts in the workspace directory."><code><span class="comment"># start Claude Code here:</span>
@@ -374,7 +415,8 @@
 ├── web-client/     <span class="comment">feat/checkout-redesign</span>
 ├── api-server/     <span class="comment">feat/checkout-redesign</span>
 └── server-config/  <span class="comment">feat/checkout-redesign</span></code></pre>
-            <p class="small">Claude Code’s own <code>--worktree</code> flag starts a session in a new worktree of the one repository you run it in. A Grove workspace spans all the repositories of a product, under one directory.</p>
+            <h3>What is a git worktree?</h3>
+            <p>A <a href="https://git-scm.com/docs/git-worktree">git worktree</a> is an extra working directory of a repository, with its own files and its own checked-out branch, sharing the repository’s history and remotes. Running each Claude Code session in its own worktree lets one session build a feature while another fixes a bug. A Grove workspace does this for every repository of a product at once, under one directory.</p>
           </div>
           <figure class="fig-wide">
             <img class="shot" src="img/grove-new-workspace.webp" width="1080" height="722" loading="lazy" decoding="async"
@@ -382,31 +424,58 @@
             <figcaption>A name and a click: Grove runs <code>git worktree add</code> in each repository.</figcaption>
           </figure>
         </div>
+      </div>
+    </section>
 
-        <div class="split">
-          <div class="text">
-            <h3>Set up the way your project works</h3>
-            <ul class="points">
-              <li><strong>Branches from the right place.</strong> Each repository starts from its own base branch, detected from <code>origin/HEAD</code> or set per repository, or from another workspace’s branches, so workspaces can be stacked.</li>
-              <li><strong>Branch names from a template,</strong> <code>feat/{name}</code> by default.</li>
-              <li><strong>Shared files in every workspace.</strong> Files such as <code>CLAUDE.md</code> are linked or copied into each new workspace.</li>
-              <li><strong>Post-create hooks.</strong> Each repository can run its own shell command in its new worktree.</li>
-              <li><strong>Launch defaults.</strong> Each project has a default Claude account, model and effort.</li>
-              <li><strong>State at a glance.</strong> Every workspace shows its age, its uncommitted changes and its sessions.</li>
-            </ul>
-          </div>
-          <figure class="fig-settings">
-            <img class="shot" src="img/grove-project-settings.webp" width="1120" height="1575" loading="lazy" decoding="async"
-                 alt="A project’s settings: workspaces root, branch template feat/{name}, seed files, the default Claude account, model and effort, base-branch overrides for each repository, and post-create hooks.">
-          </figure>
+    <section id="vs-worktree" aria-labelledby="vs-worktree-title">
+      <div class="wrap">
+        <div class="prose">
+          <h2 id="vs-worktree-title">Grove workspaces vs <code>claude --worktree</code></h2>
+          <p>Claude Code’s own <code>--worktree</code> starts a session in a new worktree of the repository you run it in. If your product lives in one repository, that may be all you need. For a product split across repositories:</p>
         </div>
+        <table class="ruled versus">
+          <thead>
+            <tr><td></td><th scope="col"><code>claude --worktree</code></th><th scope="col">Grove workspace</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Repositories</th><td data-label="claude --worktree">The repository you run it in</td><td data-label="Grove workspace">Every repository you pick, under one directory</td></tr>
+            <tr><th scope="row">Location</th><td data-label="claude --worktree"><code>.claude/worktrees/&lt;name&gt;/</code> at the repository root; elsewhere through a <code>WorktreeCreate</code> hook, or with <code>git worktree add</code> yourself</td><td data-label="Grove workspace"><code>~/Workspaces/&lt;project&gt;/&lt;name&gt;</code> by default, set by a template</td></tr>
+            <tr><th scope="row">Branch</th><td data-label="claude --worktree"><code>worktree-&lt;name&gt;</code></td><td data-label="Grove workspace">From a template, <code>feat/{name}</code> by default</td></tr>
+            <tr><th scope="row">Start point</th><td data-label="claude --worktree"><code>worktree.baseRef</code>: <code>fresh</code> (the remote default branch) or <code>head</code> (your local <code>HEAD</code>); it can’t name a branch. Given a pull request number or URL, the worktree starts from that pull request.</td><td data-label="Grove workspace">A base branch per repository, from <code>origin/HEAD</code> or set by hand, or another workspace’s branches</td></tr>
+            <tr><th scope="row">Files outside git</th><td data-label="claude --worktree"><code>.worktreeinclude</code> copies gitignored files such as <code>.env</code></td><td data-label="Grove workspace">Files you choose, such as <code>CLAUDE.md</code>, linked or copied to the workspace root or into each repository</td></tr>
+            <tr><th scope="row">Setup</th><td data-label="claude --worktree">Ask Claude, or run your setup yourself; a <code>WorktreeCreate</code> hook can replace creation</td><td data-label="Grove workspace">A post-create hook per repository</td></tr>
+            <tr><th scope="row">Cleanup</th><td data-label="claude --worktree">On exit, removes the worktree of an unnamed session if it is clean, and asks otherwise</td><td data-label="Grove workspace">Workspaces stay until you remove them with <code>git worktree remove</code>. If creating one fails, the app offers to roll back what that run created.</td></tr>
+            <tr><th scope="row">Accounts</th><td data-label="claude --worktree">—</td><td data-label="Grove workspace"><strong>Resume as…</strong>, <strong>Migrate to…</strong>, <strong>Share</strong></td></tr>
+          </tbody>
+        </table>
+        <p class="small">Claude Code facts from its <a href="https://code.claude.com/docs/en/worktrees">worktree documentation</a>, checked on 13 October 2026.</p>
+      </div>
+    </section>
+
+    <section id="setup" aria-labelledby="setup-title">
+      <div class="wrap split">
+        <div class="text">
+          <h2 id="setup-title">Set up each workspace the way your project works</h2>
+          <ul class="points">
+            <li><strong>Branches from the right place.</strong> Each repository starts from its own base branch, detected from <code>origin/HEAD</code> or set per repository, or from another workspace’s branches, so workspaces can be stacked.</li>
+            <li><strong>Branch names from a template,</strong> <code>feat/{name}</code> by default.</li>
+            <li><strong>Shared files in every workspace.</strong> Files such as <code>CLAUDE.md</code> are linked or copied into each new workspace, at its root or into each repository.</li>
+            <li><strong>Post-create hooks.</strong> Each repository can run its own shell command in its new worktree.</li>
+            <li><strong>Launch defaults.</strong> Each project has a default Claude account, model and effort.</li>
+            <li><strong>State at a glance.</strong> Every workspace shows its age, its uncommitted changes and its sessions.</li>
+          </ul>
+        </div>
+        <figure class="fig-settings">
+          <img class="shot" src="img/grove-project-settings.webp" width="1120" height="1575" loading="lazy" decoding="async"
+               alt="A project’s settings: workspaces root, branch template feat/{name}, seed files, the default Claude account, model and effort, base-branch overrides for each repository, and post-create hooks.">
+        </figure>
       </div>
     </section>
 
     <section id="sessions" aria-labelledby="sessions-title">
       <div class="wrap">
         <div class="prose">
-          <h2 id="sessions-title">Every Claude Code session in view</h2>
+          <h2 id="sessions-title">Every Claude Code session in view, across projects and accounts</h2>
           <p>Grove finds the Claude Code sessions of every project and workspace, across your accounts. It shows which are running, which are waiting for you and which are closed. On the Projects screen, one click takes you to a running session, in cmux or Terminal.app.</p>
           <ul class="points">
             <li><strong>New or resumed.</strong> The launch sheet picks the account, model and effort, and opens the session in cmux or Terminal.app.</li>
@@ -431,7 +500,7 @@
     <section id="accounts" aria-labelledby="accounts-title">
       <div class="wrap split">
         <div class="text">
-          <h2 id="accounts-title">Move a session to another account</h2>
+          <h2 id="accounts-title">Move a Claude Code session to another account</h2>
           <p>Claude Code keeps each account in a folder of its own: <code>~/.claude</code> for the default account, and <code>~/.claude-accounts/&lt;name&gt;</code> for each account you add in Grove. A session doesn’t have to stay on the account it started on. Continue it under another of your accounts, for example when one has used up its limit.</p>
           <dl class="terms">
             <div>
@@ -459,10 +528,20 @@
       </div>
     </section>
 
+    <section id="transcripts" aria-labelledby="transcripts-title">
+      <div class="wrap">
+        <div class="prose">
+          <h2 id="transcripts-title">Transcripts that outlast Claude Code’s 30-day cleanup</h2>
+          <p>Claude Code deletes session transcripts older than <a href="https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically"><code>cleanupPeriodDays</code></a>, 30 days by default. Grove keeps a hard link to every transcript in <code>~/.claude/grove/transcripts/</code> and restores a transcript that disappears from an account, whether you deleted it or Claude Code’s cleanup did, for up to 90 days and 500&nbsp;MB by default.</p>
+          <p>Change both limits, or turn the mirror off, in Settings → Transcript safety-net. <strong>Purge</strong> on the Sessions screen deletes a transcript for good.</p>
+        </div>
+      </div>
+    </section>
+
     <section id="graph" aria-labelledby="graph-title">
       <div class="wrap">
         <div class="prose">
-          <h2 id="graph-title">The repositories behind the work</h2>
+          <h2 id="graph-title">Commit graph and code statistics across repositories</h2>
           <dl class="terms">
             <div>
               <dt>Graph</dt>
@@ -492,7 +571,7 @@
     <section id="cli" aria-labelledby="cli-title">
       <div class="wrap">
         <div class="prose">
-          <h2 id="cli-title">Workspaces from a terminal or a script</h2>
+          <h2 id="cli-title">The <code>grove</code> CLI: multi-repo worktrees from a terminal or a script</h2>
           <p>The <code>grove</code> command-line tool works with the same workspaces: <code>scan</code>, <code>workspaces</code>, <code>sessions</code>, <code>create</code>, <code>graph</code> and <code>doctor</code>. Each command takes <code>--json</code>.</p>
           <pre><code><span class="comment"># repositories and their worktrees</span>
 grove scan ~/code/acme-shop
@@ -514,10 +593,118 @@ grove doctor</code></pre>
       </div>
     </section>
 
+    <section id="compare" aria-labelledby="compare-title">
+      <div class="wrap">
+        <div class="prose">
+          <h2 id="compare-title">How Grove compares</h2>
+          <p>Many tools run Claude Code in parallel. The facts below come from each tool’s own site or README.</p>
+        </div>
+        <table class="ruled tools">
+          <thead>
+            <tr>
+              <th scope="col">Tool</th>
+              <th scope="col">What it is</th>
+              <th scope="col">Platforms</th>
+              <th scope="col">Repositories per task</th>
+              <th scope="col">Agents</th>
+              <th scope="col">Moves a session to another account</th>
+              <th scope="col">License</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row"><a href="https://code.claude.com/docs/en/worktrees"><code>claude --worktree</code></a></th><td>Built into Claude Code: a session in a new worktree</td><td data-label="Platforms">Wherever Claude Code runs</td><td data-label="Repositories per task">The repository you run it in</td><td data-label="Agents">Claude Code</td><td data-label="Moves a session to another account">—</td><td data-label="License">Part of Claude Code</td></tr>
+            <tr><th scope="row"><a href="https://www.conductor.build/">Conductor</a></th><td>Mac app for parallel coding agents in isolated workspaces; agents can also run in cloud sandboxes</td><td data-label="Platforms">macOS, iOS</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">Claude Code, Codex, Cursor, OpenCode</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">Not stated</td></tr>
+            <tr><th scope="row"><a href="https://github.com/smtg-ai/claude-squad">Claude Squad</a></th><td>Terminal app on tmux and git worktrees</td><td data-label="Platforms">Not stated; needs tmux</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">Claude Code, Codex, Gemini, Aider, others</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">AGPL-3.0</td></tr>
+            <tr><th scope="row"><a href="https://nimbalyst.com/">Nimbalyst</a></th><td>Visual workspace; any session can get its own worktree</td><td data-label="Platforms">macOS, Windows, Linux, iOS</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">Claude Code, Codex; OpenCode and Copilot in alpha</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">MIT</td></tr>
+            <tr><th scope="row"><a href="https://superset.sh/">Superset</a></th><td>Runs many coding agents in parallel, each in its own worktree</td><td data-label="Platforms">macOS, iOS; Linux experimental; no Windows yet</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">Any CLI agent</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">Elastic License 2.0 (source-available)</td></tr>
+            <tr><th scope="row"><a href="https://emdash.com/">Emdash</a></th><td>Open-source agentic development environment; parallel tasks in separate worktrees</td><td data-label="Platforms">macOS, Windows, Linux</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">25+ agents</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">Apache-2.0</td></tr>
+            <tr><th scope="row"><a href="https://github.com/BloopAI/vibe-kanban">Vibe Kanban</a></th><td>Kanban board for coding agents; its README says it is sunsetting</td><td data-label="Platforms">Not stated</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">Claude Code, Codex, others</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">Apache-2.0</td></tr>
+            <tr><th scope="row"><a href="https://worktrunk.dev/">Worktrunk</a></th><td>CLI for git worktree management</td><td data-label="Platforms">macOS, Linux, Windows</td><td data-label="Repositories per task">Not stated</td><td data-label="Agents">Claude Code, Codex, others</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">MIT or Apache-2.0</td></tr>
+            <tr><th scope="row"><a href="https://ivar.run/">ivar</a></th><td>CLI: one feature across repos, one branch, one plan, one PR per repo</td><td data-label="Platforms">macOS, Linux</td><td data-label="Repositories per task">Several, on one branch</td><td data-label="Agents">Claude Code, OpenCode, OMP</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">Apache-2.0</td></tr>
+            <tr><th scope="row"><a href="https://github.com/nicksenap/grove">gw</a> (nicksenap/grove)</th><td>CLI: a workspace folder with worktrees from several repos on one branch</td><td data-label="Platforms">macOS, Linux</td><td data-label="Repositories per task">Several, on one branch</td><td data-label="Agents">Vendor-neutral</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">MIT</td></tr>
+            <tr><th scope="row"><a href="https://github.com/realiti4/claude-swap">claude-swap</a></th><td>CLI, with an optional macOS menu bar, that switches the active Claude Code account; can switch before a limit; usage dashboard</td><td data-label="Platforms">Windows, macOS, Linux/WSL</td><td data-label="Repositories per task">—</td><td data-label="Agents">Claude Code</td><td data-label="Moves a session to another account">Switches the account; the current session can continue</td><td data-label="License">MIT</td></tr>
+            <tr><th scope="row"><a href="https://cmux.com/">cmux</a> (works with Grove)</th><td>macOS terminal for AI coding agents</td><td data-label="Platforms">macOS</td><td data-label="Repositories per task">—</td><td data-label="Agents">Any CLI agent</td><td data-label="Moves a session to another account">Not stated</td><td data-label="License">GPL-3.0 or later</td></tr>
+            <tr><th scope="row">Grove</th><td>Menu-bar app and CLI: multi-repo workspaces, Claude Code sessions across accounts</td><td data-label="Platforms">macOS 26 or later, Apple silicon</td><td data-label="Repositories per task">Several, on one branch</td><td data-label="Agents">Starts and lists Claude Code; a workspace is an ordinary directory</td><td data-label="Moves a session to another account"><strong>Resume as…</strong>, <strong>Migrate to…</strong>, <strong>Share</strong></td><td data-label="License">GPL-3.0</td></tr>
+          </tbody>
+        </table>
+        <p class="small">Checked on 13 October 2026. “Not stated” means the tool’s own page or README doesn’t say; a dash means the column doesn’t apply to that tool.</p>
+        <div class="prose">
+          <p>When another tool fits better:</p>
+          <ul class="points">
+            <li>One repository: <code>claude --worktree</code>.</li>
+            <li>Windows or Linux: Emdash or Nimbalyst.</li>
+            <li>Multi-repo worktrees from the command line on Linux: ivar or gw.</li>
+            <li>Several different agent CLIs in one window: Claude Squad, Superset or Emdash.</li>
+            <li>Automatic account switching before a limit: claude-swap.</li>
+            <li>A terminal built around agents: cmux, which Grove opens sessions in.</li>
+          </ul>
+          <p>Grove fits a product split across several repositories that you work on with Claude Code on a Mac, under one account or several.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" aria-labelledby="faq-title">
+      <div class="wrap">
+        <div class="prose">
+          <h2 id="faq-title">Questions people ask about Grove</h2>
+
+          <h3>How do I run several Claude Code sessions at once without them colliding?</h3>
+          <p>Give each task its own working copy, a git worktree; Anthropic <a href="https://code.claude.com/docs/en/worktrees">documents this</a> for parallel sessions. For a product split across repositories, a Grove workspace holds a worktree of each repository on one branch. Start Claude Code in that directory.</p>
+
+          <h3>Can Claude Code work on multiple repositories at once?</h3>
+          <p><a href="https://code.claude.com/docs/en/cli-reference"><code>--add-dir</code></a> gives a session access to more directories, and <code>permissions.additionalDirectories</code> makes that persistent. It grants file access, and Claude Code doesn’t pick up most <code>.claude/</code> configuration from those directories. A Grove workspace puts every repository, already on the feature’s branch, under the directory Claude Code starts in.</p>
+
+          <h3>How is a Grove workspace different from <code>claude --worktree</code>?</h3>
+          <p>See <a href="#vs-worktree">the table above</a>. In short, <code>--worktree</code> covers one repository, and a workspace covers every repository you pick, on one branch.</p>
+
+          <h3>Can I choose the base branch, branch name and folder for each workspace?</h3>
+          <p>Yes. Each repository has its own base branch, branch names come from a template, and the workspace root is set by a template.</p>
+
+          <h3>How do <code>CLAUDE.md</code> and other shared files get into each workspace?</h3>
+          <p>List them as seed files in the project’s settings. Grove links or copies each one into every new workspace, at its root or into each repository.</p>
+
+          <h3>How do I continue a Claude Code session under another account?</h3>
+          <ul class="points">
+            <li><strong>Resume as…</strong> continues it under another account without copying anything.</li>
+            <li><strong>Migrate to…</strong> makes a full copy.</li>
+            <li><strong>Share</strong> moves it into the shared store.</li>
+          </ul>
+          <p>Grove refuses a move that would give a session two writers.</p>
+
+          <h3>Will I lose session history when I switch accounts?</h3>
+          <p>Linked accounts share their session folders through <code>~/.claude</code>, so a session started under one linked account is visible to the others. Credentials, settings and plugins stay with each account.</p>
+
+          <h3>Why do old Claude Code sessions disappear, and can I keep them?</h3>
+          <p>Claude Code deletes transcripts older than <code>cleanupPeriodDays</code>, 30 days by default. Grove’s <a href="#transcripts">transcript mirror</a> keeps them for up to 90 days and 500&nbsp;MB by default, and you can turn it off.</p>
+
+          <h3>How many Claude Code sessions can I run at once?</h3>
+          <p>Grove sets no limit of its own. Every session counts toward the usage limits of the account it runs under. Grove lists the sessions by project and workspace and shows which are running and which are waiting for you.</p>
+
+          <h3>Do I need cmux?</h3>
+          <p>It’s recommended, not required. The launch sheet can open a session in Terminal.app; the other buttons that start or resume a session, such as <strong>Resume</strong> and <strong>Resume as…</strong>, open it in cmux. You can also start Claude Code in a workspace yourself, from any terminal.</p>
+
+          <h3>Does Grove work with Codex or other agents?</h3>
+          <p>A workspace is an ordinary directory, so you can start any CLI agent in it yourself. Grove starts, lists and moves Claude Code sessions only.</p>
+
+          <h3>Can I resume a session from another directory?</h3>
+          <p>Yes. Grove lists the sessions of every project and resumes each one with <code>claude --resume</code> in the session’s own directory.</p>
+
+          <h3>Why does macOS block the first launch?</h3>
+          <p>Grove is signed ad hoc and not notarized by Apple. Use <strong>Open Anyway</strong> in System Settings → Privacy &amp; Security once; <a href="#first-launch">First launch</a> has the steps.</p>
+
+          <h3>Which Macs does Grove run on?</h3>
+          <p>Macs with Apple silicon, on macOS 26 or later.</p>
+
+          <h3>Is Grove free and open source?</h3>
+          <p>Yes, under the GNU GPL v3. Version 0.2.0 and earlier were released under the MIT License.</p>
+        </div>
+      </div>
+    </section>
+
     <section id="requirements" aria-labelledby="requirements-title">
       <div class="wrap">
         <h2 id="requirements-title">What you need</h2>
-        <table class="needs">
+        <table class="ruled needs">
           <thead>
             <tr><th scope="col">You need</th><th scope="col">Notes</th></tr>
           </thead>
@@ -526,11 +713,11 @@ grove doctor</code></pre>
             <tr><th scope="row"><a href="https://claude.com/claude-code">Claude Code</a> and git</th><td></td></tr>
             <tr><th scope="row">cmux (recommended) or Terminal.app</th><td>For the sessions</td></tr>
             <tr><th scope="row">An account signed in at the default <code>~/.claude</code></th><td>For <strong>Resume as…</strong> across accounts and for the transcript mirror</td></tr>
-            <tr><th scope="row">Optional: <a href="https://github.com/efim0v/brow">Brow</a></th><td>When it is installed, Grove passes Brow’s browser router to the sessions it launches, so a sign-in opens in that account’s own browser profile.</td></tr>
+            <tr><th scope="row">Optional: <a href="https://efim0v.github.io/brow/">Brow — Claude Code usage limits in the MacBook notch</a></th><td>When it is installed, Grove passes Brow’s browser router to the sessions it launches, so a sign-in opens in that account’s own browser profile.</td></tr>
           </tbody>
         </table>
         <div class="prose">
-          <h3>cmux or Terminal.app</h3>
+          <h3>Works with cmux or Terminal.app</h3>
           <p>Grove is built around <a href="https://cmux.dev">cmux</a>: it opens each session in a cmux workspace of its own and switches to a running session in one click. Terminal.app works too. The launch sheet, which opens for <strong>New Claude</strong>, for the gear next to a closed session and for a closed session on the Projects screen, has an <strong>Open in: Terminal</strong> option, and Grove can bring a session running in Terminal.app to the front. Every other button that starts or resumes a session, such as <strong>Resume</strong>, <strong>Resume as…</strong> and <strong>Add &amp; log in</strong>, opens it in cmux.</p>
           <p>A workspace is an ordinary directory, so you can also start Claude Code in it from any terminal yourself.</p>
         </div>
@@ -607,7 +794,7 @@ xattr -d com.apple.quarantine grove</code></pre>
           <div>
             <dt>The transcript mirror outlasts Claude Code’s cleanup</dt>
             <dd>
-              <p>Grove keeps a hard link to every session transcript in <code>~/.claude/grove/transcripts/</code> and restores a transcript that disappears from an account, whether you deleted it or Claude Code’s own cleanup did. Claude Code deletes transcripts older than <a href="https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically"><code>cleanupPeriodDays</code></a>, 30 days by default; Grove keeps them for up to 90 days and 500&nbsp;MB by default.</p>
+              <p>Grove keeps a hard link to every session transcript in <code>~/.claude/grove/transcripts/</code> and restores a transcript that disappears from an account, including one you deleted yourself. A hard link takes no extra disk space while the original file exists. By default the mirror keeps transcripts for up to 90 days and 500&nbsp;MB.</p>
               <p><strong>Purge</strong> on the Sessions screen deletes a transcript for good. To leave retention to Claude Code, turn off <em>Keep a backup of every session</em> in Settings → Transcript safety-net, then delete <code>~/.claude/grove/transcripts/</code>.</p>
             </dd>
           </div>
@@ -643,8 +830,8 @@ xattr -d com.apple.quarantine grove</code></pre>
       <div class="wrap">
         <div class="prose">
           <h2 id="brow-title" class="companion"><img src="brow-mark.svg" width="20" height="20" alt=""><span>Brow shows which account has room</span></h2>
-          <p>Brow lives in the MacBook notch and shows the rate limits of every Claude account you have. Grove moves work between accounts; Brow tells you which account has room. Each runs on its own, and they are built to be used together.</p>
-          <p><a href="https://efim0v.github.io/brow/">Brow’s page</a> · <a href="https://github.com/efim0v/brow">Brow on GitHub</a></p>
+          <p>Brow lives in the MacBook notch and shows the usage limits of every Claude account you have. Grove moves work between accounts; Brow tells you which account has room. Each runs on its own, and they are built to be used together.</p>
+          <p><a href="https://efim0v.github.io/brow/">Brow — Claude Code usage limits in the MacBook notch</a> · <a href="https://github.com/efim0v/brow">Brow on GitHub</a></p>
         </div>
       </div>
     </section>
@@ -659,7 +846,7 @@ xattr -d com.apple.quarantine grove</code></pre>
         <li><a href="https://github.com/efim0v/grove/issues">Issues</a></li>
         <li><a href="https://github.com/efim0v/grove/discussions">Discussions</a></li>
         <li><a href="https://github.com/efim0v/grove/blob/main/LICENSE">License: GPL-3.0</a></li>
-        <li><a href="https://github.com/efim0v/brow">Brow</a></li>
+        <li><a href="https://efim0v.github.io/brow/">Brow</a></li>
       </ul>
       <p>Grove is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. Screenshots show made-up demo data.</p>
     </div>

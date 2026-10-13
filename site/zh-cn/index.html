@@ -809,7 +809,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Brow 从哪里读取令牌？会上传数据吗？</h3>
           <p>从 Claude Code 为每个账号文件夹保存的钥匙串项目中读取；如果 Claude Code 把登录信息保存在账号文件夹里，则读取该文件夹中的 <code class="nowrap">.credentials.json</code>。Brow 只使用访问令牌，续期交给 Claude Code 自己处理。</p>
-          <p>Brow 自己的请求只发往 <code class="nowrap">api.anthropic.com/api/oauth/usage</code>，以及每个账号大约每天一次的 <code class="nowrap">api.anthropic.com/api/oauth/profile</code>，不会发往别处。它没有任何统计分析，也不检查更新。它运行的 <code class="nowrap">claude</code> 命令会建立 Claude Code 平常就会建立的连接，各账号的浏览器配置文件会打开 claude.ai。</p>
+          <p>Brow 自己的请求只发往 <code>api.anthropic.com/api/oauth/usage</code>，以及每个账号大约每天一次的 <code>api.anthropic.com/api/oauth/profile</code>，不会发往别处。它没有任何统计分析，也不检查更新。它运行的 <code class="nowrap">claude</code> 命令会建立 Claude Code 平常就会建立的连接，各账号的浏览器配置文件会打开 claude.ai。</p>
         </div>
         <div>
           <h3>Brow 和 ccusage、<code>/usage</code> 有什么区别？</h3>

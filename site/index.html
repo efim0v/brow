@@ -800,7 +800,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Where does Brow read my token, and does anything leave my Mac?</h3>
           <p>From the Keychain item Claude Code keeps for each account folder, or from <code class="nowrap">.credentials.json</code> in that folder when Claude Code keeps the sign-in there. Brow uses the access token only and leaves renewing it to Claude Code.</p>
-          <p>Brow’s own requests go to <code class="nowrap">api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code class="nowrap">api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check. The <code class="nowrap">claude</code> commands it runs make Claude Code’s usual connections, and the browser profiles open claude.ai.</p>
+          <p>Brow’s own requests go to <code>api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code>api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check. The <code class="nowrap">claude</code> commands it runs make Claude Code’s usual connections, and the browser profiles open claude.ai.</p>
         </div>
         <div>
           <h3>How is Brow different from ccusage or <code>/usage</code>?</h3>

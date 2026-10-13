@@ -75,7 +75,7 @@ jobs:
             exit 0
           fi
           # Wait for the key file to be served: the deployment can take a few minutes to go live.
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$KEY.txt")" = 200 ] && break
             sleep 10
           done

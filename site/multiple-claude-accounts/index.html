@@ -291,7 +291,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
             <li>The profiles are folders in <code>~/Library/Application Support/Brow/browser-profiles/</code>, each named with the eight-character hash of the account’s folder path.</li>
             <li>The script uses the first of Google Chrome, Chromium, Brave and Edge that it finds in <code>/Applications</code>. With none of them, the link opens in your default browser, with no isolation.</li>
             <li>A new account’s profile starts empty. Sign in to claude.ai there once and the profile keeps that sign-in. <strong>Open browser profile</strong> in Settings → Accounts, or the globe next to the account in the panel, opens claude.ai in it.</li>
-            <li>When Claude Code reports “Login expired · Please run /login” for an account, <strong>Sign in again</strong> in Settings → Accounts, or the matching button next to the account in the panel, runs <code>claude auth login</code> for it in its own profile. Other accounts stay signed in.</li>
+            <li>When Claude Code reports “Login expired · Please run /login” for an account, <strong>Sign in again</strong> in Settings → Accounts, or the person-and-key button next to the account in the panel, runs <code>claude auth login</code> for it in its own profile. Other accounts stay signed in.</li>
           </ul>
           <p>Sign-ins that Brow starts already go through the script. For sign-ins you start yourself, in cmux or any other terminal, Settings → General → One browser profile per account shows a line to add to <code>~/.zshrc</code> once:</p>
           <pre><code>export BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser'</code></pre>
@@ -304,7 +304,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
           <ul>
             <li>the 5-hour limit, the weekly limit and any model-specific weekly limit of each account, as percent used;</li>
             <li>when each one resets: a countdown such as “resets in 3&nbsp;h 12&nbsp;min” within a day, otherwise a date and time such as “resets 22 Sep 02:00”;</li>
-            <li>a reset calendar with every account’s weekly resets and estimated subscription renewals on one month.</li>
+            <li>a reset calendar with every account’s weekly resets and estimated subscription renewals on a month grid.</li>
           </ul>
           <p>Brow checks every 30 seconds, and again when the Mac wakes or the network comes back. Reading the limits is not a model request. The one thing that can spend a little of an account’s limit is the fallback token refresh, which is on by default and can be turned off; <a href="/brow/#privacy">what Brow does on your machine</a> explains it.</p>
           <p>For other ways to watch usage, from <code>/usage</code> to ccusage and menu-bar trackers, see <a href="/brow/#compare">how Brow compares with other usage tools</a>.</p>
@@ -316,7 +316,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
         <section id="questions" aria-labelledby="questions-title">
           <h2 id="questions-title">Questions</h2>
           <h3>How do I switch Claude Code to another account?</h3>
-          <p>Start it with that account’s folder, as above. Nothing is switched for the whole Mac: each <code>claude</code> runs as the account of the folder it started with, so two terminals can work as two accounts at the same time.</p>
+          <p>Start it with that account’s folder, as above. Nothing is switched for the whole Mac: each <code>claude</code> runs as the account of the folder it started with, so two terminals can work as two accounts at the same time. To change the account a folder itself is signed in to, run <code>/login</code> in a session that uses it; the new login replaces the old one.</p>
 
           <h3>Can I continue a session under another account?</h3>
           <p>Not with <code>CLAUDE_CONFIG_DIR</code> alone: a session’s transcript is in the folder of the account that ran it. <a href="/grove/">Grove</a>, Brow’s companion app, moves sessions between accounts. <strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies its transcript, memory, file history and tasks into the other account. <strong>Share</strong> moves it into a store that every linked account can see. Step by step: <a href="/grove/move-session-to-another-account/">continue a Claude Code session on another account</a>.</p>

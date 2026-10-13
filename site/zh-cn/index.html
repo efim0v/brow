@@ -239,20 +239,19 @@ pre code { padding: 0; background: none; font-size: 1em; }
 .site-header nav a:hover { color: var(--ink); text-decoration: underline; }
 @media (max-width: 600px) { .site-header .optional { display: none; } }
 
-/* Language switcher: at the end of the header bar, and again in the footer */
+/* Language switcher: at the end of the header bar, on its own row below it on narrow
+   screens, and again in the footer */
 .bar > nav:not(.lang) { margin-left: auto; }
-.lang a { text-decoration: none; }
-.lang a:hover { text-decoration: underline; }
+.lang { white-space: nowrap; }
 .lang a[aria-current="page"] { color: var(--ink); }
-.site-header .lang { flex: none; padding-left: 16px; border-left: 1px solid var(--rule); color: var(--muted); font-size: .875rem; }
-.site-header .lang a { display: inline; padding: 0; color: inherit; font-size: inherit; }
-.site-header .lang a[aria-current="page"] { color: var(--ink); }
-/* Where the bar has no room for it, the switcher takes a line of its own under the menu */
-@media (max-width: 720px) {
-  .bar { flex-wrap: wrap; row-gap: 0; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
-  .site-header .lang { flex-basis: 100%; padding: 0 0 2px; border-left: 0; text-align: right; }
+.lang :lang(zh-Hans) { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", var(--sans); }
+.site-header .lang { padding-left: 20px; border-left: 1px solid var(--rule); color: var(--muted); font-size: .9375rem; }
+.site-header .lang a { display: inline; }
+@media (max-width: 860px) {
+  .bar { flex-wrap: wrap; height: auto; column-gap: 16px; row-gap: 0; }
+  .bar > :not(.lang) { min-height: 56px; display: flex; align-items: center; }
+  .site-header .lang { flex-basis: 100%; margin-top: -8px; padding: 0 0 10px; border-left: 0; text-align: right; font-size: .875rem; }
 }
-.site-footer .lang { margin-top: 6px; }
 
 /* Sections: one paper colour, a hairline between them */
 section { scroll-margin-top: 24px; }
@@ -381,6 +380,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .site-footer p + p { margin-top: 6px; }
 .site-footer a { color: inherit; }
 .site-footer a:hover { color: var(--ink); }
+.site-footer .lang { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -412,8 +412,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       </ul>
     </nav>
     <nav class="lang" aria-label="语言">
-      <a href="/brow/" hreflang="en" lang="en">English</a> ·
-      <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a> ·
+      <a href="/brow/" hreflang="en" lang="en">English</a>&nbsp;·
+      <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a>&nbsp;·
       <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans" aria-current="page">简体中文</a>
     </nav>
   </div>
@@ -846,8 +846,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">发行版</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">问题反馈</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/">Grove</a></p>
       <p>Brow 由 <a href="https://github.com/efim0v">Artem Efimov</a> 开发。这是一个独立工具，与 Anthropic 没有关联，也未获 Anthropic 认可。所有演示均使用虚构数据。</p>
       <nav class="lang" aria-label="语言">
-        <a href="/brow/" hreflang="en" lang="en">English</a> ·
-        <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a> ·
+        <a href="/brow/" hreflang="en" lang="en">English</a>&nbsp;·
+        <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a>&nbsp;·
         <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans" aria-current="page">简体中文</a>
       </nav>
     </div>

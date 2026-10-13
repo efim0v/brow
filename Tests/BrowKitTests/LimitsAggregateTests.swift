@@ -38,12 +38,39 @@ final class LimitsAggregateTests: XCTestCase {
         XCTAssertEqual(agg.fiveHour, 50, accuracy: 0.001)
     }
 
-    func testAccountWithoutSnapshotIsZeroAndStale() {
+    func testAccountWithoutSnapshotIsLeftOutButStale() {
+        // No reading yet is not "0 % used": the account stays out of the numbers, and
+        // the stale flag (the grey dot) is what says one is missing.
         let agg = LimitsAggregate.compute(accounts: [acct("a", tier: nil), acct("b", tier: nil)],
                                           snapshots: ["a": snap("a", five: 40, seven: 40)], now: t0)
-        XCTAssertEqual(agg.fiveHour, 20, accuracy: 0.001)
+        XCTAssertEqual(agg.fiveHour, 40, accuracy: 0.001)
+        XCTAssertEqual(agg.weekly, 40, accuracy: 0.001)
         XCTAssertTrue(agg.stale)
         XCTAssertTrue(agg.leftEar.stale)
+    }
+
+    func testUnreadAccountDoesNotOutweighTheMeasuredOne() {
+        // Pro at 90 % beside a Max 20x with no reading (just added, Keychain item
+        // withheld) used to read 4 %: twenty units of capacity nobody had measured
+        // counted as unused.
+        let agg = LimitsAggregate.compute(accounts: [acct("pro", tier: "default_claude_pro"), acct("max", tier: "default_claude_max_20x")],
+                                          snapshots: ["pro": snap("pro", five: 90, seven: 90)], now: t0)
+        XCTAssertEqual(agg.leftEar.usedPercentage, 90, accuracy: 0.001)
+        XCTAssertEqual(agg.rightEar.usedPercentage, 90, accuracy: 0.001)
+        XCTAssertEqual(agg.leftEar.severity, .critical)
+        XCTAssertTrue(agg.hasData)
+    }
+
+    func testWindowNotStartedCountsButNoReadingDoesNot() {
+        // "mid" has a reading with no 5-hour window open: 0 % used, at its weight.
+        // "max" has no reading at all and stays out.
+        // 5h: remaining = 1·0.1 + 5·1 = 5.1 of 6 → used 15 %.
+        // Weekly: remaining = 1·0.5 + 5·0.9 = 5 of 6 → used 16.7 %.
+        let agg = LimitsAggregate.compute(accounts: [acct("pro", tier: "default_claude_pro"), acct("mid", tier: "default_claude_max_5x"),
+                                                     acct("max", tier: "default_claude_max_20x")],
+                                          snapshots: ["pro": snap("pro", five: 90, seven: 50), "mid": snap("mid", five: nil, seven: 10)], now: t0)
+        XCTAssertEqual(agg.fiveHour, 100 * (1 - 5.1 / 6), accuracy: 0.01)
+        XCTAssertEqual(agg.weekly, 100 * (1 - 5.0 / 6), accuracy: 0.01)
     }
 
     func testStaleWhenAnySnapshotOld() {

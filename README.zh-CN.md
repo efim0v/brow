@@ -1,5 +1,7 @@
 [English](README.md) · [Русский](README.ru.md) · 简体中文
 
+网站：[efim0v.github.io/brow/zh-cn](https://efim0v.github.io/brow/zh-cn/)
+
 > 本文是[英文 README](README.md) 的译文。英文版可能比译文更新，两者不一致时以英文版为准。
 
 # Brow：MacBook 刘海里的 Claude Code 用量限额

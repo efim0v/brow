@@ -1,3 +1,5 @@
+English · [Русский](README.ru.md) · [简体中文](README.zh-CN.md)
+
 # Brow — Claude Code rate limits in the MacBook notch
 
 [![CI](https://github.com/efim0v/brow/actions/workflows/ci.yml/badge.svg)](https://github.com/efim0v/brow/actions/workflows/ci.yml)

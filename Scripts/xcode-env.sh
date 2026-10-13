@@ -10,8 +10,10 @@
 #
 # Harmless once the license IS accepted (same toolchain, same SDK). Note that
 # `swift test` still cannot DISCOVER XCTest cases this way (SwiftPM hardcodes
-# /usr/bin/xcrun for that probe); use Scripts/test.sh, which runs the built
-# bundles with Xcode's `xctest` directly.
+# /usr/bin/xcrun for that probe); run the built bundle with Xcode's `xctest`
+# directly instead:
+#   swift build --build-tests
+#   "$DEVELOPER_DIR/usr/bin/xctest" .build/debug/*.xctest
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 export SDKROOT="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:$PATH"

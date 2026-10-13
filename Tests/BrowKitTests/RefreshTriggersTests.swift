@@ -66,7 +66,7 @@ final class RefreshTriggersTests: XCTestCase {
         XCTAssertTrue(triggers.installed.path)
     }
 
-    /// One 60 s timer for the life of the app. Restarting it on every expand pushed
+    /// One 30 s timer for the life of the app. Restarting it on every expand pushed
     /// the next poll a full interval away each time the pointer crossed the notch, so
     /// a user who hovered often saw the numbers refresh least.
     func testExpandDoesNotRestartThePollTimer() {

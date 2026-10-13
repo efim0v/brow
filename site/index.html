@@ -6,6 +6,10 @@
 <title>Brow: Claude Code usage limits of all accounts in the notch</title>
 <meta name="description" content="Free, open-source macOS app: 5-hour and weekly Claude Code limits for one account or many, in the MacBook notch, with reset times and a reset calendar.">
 <link rel="canonical" href="https://efim0v.github.io/brow/">
+<link rel="alternate" hreflang="en" href="https://efim0v.github.io/brow/">
+<link rel="alternate" hreflang="ru" href="https://efim0v.github.io/brow/ru/">
+<link rel="alternate" hreflang="zh-Hans" href="https://efim0v.github.io/brow/zh-cn/">
+<link rel="alternate" hreflang="x-default" href="https://efim0v.github.io/brow/">
 <meta name="robots" content="max-image-preview:large">
 <meta name="author" content="Artem Efimov">
 <meta name="color-scheme" content="light dark">
@@ -18,6 +22,8 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Brow">
 <meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="ru_RU">
+<meta property="og:locale:alternate" content="zh_CN">
 <meta property="og:url" content="https://efim0v.github.io/brow/">
 <meta property="og:title" content="Brow: Claude Code usage limits of all accounts in the notch">
 <meta property="og:description" content="See the 5-hour and weekly limits of every Claude Code account in the MacBook notch, and when each resets. Free and open source, for macOS 26 or later.">
@@ -223,6 +229,20 @@ pre code { padding: 0; background: none; font-size: 1em; }
 .site-header nav a:hover { color: var(--ink); text-decoration: underline; }
 @media (max-width: 600px) { .site-header .optional { display: none; } }
 
+/* Language switcher: at the end of the header bar, on its own row below it on narrow
+   screens, and again in the footer */
+.bar > nav:not(.lang) { margin-left: auto; }
+.lang { white-space: nowrap; }
+.lang a[aria-current="page"] { color: var(--ink); }
+.lang :lang(zh-Hans) { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", var(--sans); }
+.site-header .lang { padding-left: 20px; border-left: 1px solid var(--rule); color: var(--muted); font-size: .9375rem; }
+.site-header .lang a { display: inline; }
+@media (max-width: 860px) {
+  .bar { flex-wrap: wrap; height: auto; column-gap: 16px; row-gap: 0; }
+  .bar > :not(.lang) { min-height: 56px; display: flex; align-items: center; }
+  .site-header .lang { flex-basis: 100%; margin-top: -8px; padding: 0 0 10px; border-left: 0; text-align: right; font-size: .875rem; }
+}
+
 /* Sections: one paper colour, a hairline between them */
 section { scroll-margin-top: 24px; }
 .section > .wrap { padding-block: 72px; }
@@ -350,6 +370,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .site-footer p + p { margin-top: 6px; }
 .site-footer a { color: inherit; }
 .site-footer a:hover { color: var(--ink); }
+.site-footer .lang { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -379,6 +400,11 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <li><a href="#faq">FAQ</a></li>
         <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
       </ul>
+    </nav>
+    <nav class="lang" aria-label="Language">
+      <a href="/brow/" hreflang="en" lang="en" aria-current="page">English</a>&nbsp;·
+      <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a>&nbsp;·
+      <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans">简体中文</a>
     </nav>
   </div>
 </header>
@@ -810,6 +836,11 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div>
       <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/">Grove</a></p>
       <p>Brow is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. All demos show made-up demo data.</p>
+      <nav class="lang" aria-label="Language">
+        <a href="/brow/" hreflang="en" lang="en" aria-current="page">English</a>&nbsp;·
+        <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a>&nbsp;·
+        <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans">简体中文</a>
+      </nav>
     </div>
   </div>
 </footer>

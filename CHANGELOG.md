@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An Install section in the README for the prebuilt `Brow.zip`. It covers the first launch, which macOS blocks because the build is not notarized, and points to `SHA256SUMS.txt` for checking the download. A download link sits at the top of the README.
 - Three animated demos at the top of the README: which account still has room, when each limit resets, and signing in again in one click.
+- Homebrew: `brew install --cask efim0v/tap/brow` installs Brow from the [efim0v/homebrew-tap](https://github.com/efim0v/homebrew-tap) tap. As with the zip, macOS blocks the first launch.
+- A FAQ in the README: what can use up an account's limits and exactly when the `claude -p` fallback runs, where Brow reads each account's token and where its requests go, and which Macs and displays it runs on.
+- An Uninstall section in the README: turning off Launch at login, removing the app, and deleting the files Brow keeps, its per-account browser profiles included.
+- The README in Russian (`README.ru.md`) and Simplified Chinese (`README.zh-CN.md`), with a language switcher at the top of all three READMEs.
+- A landing page at [efim0v.github.io/brow](https://efim0v.github.io/brow/), published from `site/` with GitHub Pages.
+- A contributing guide (`CONTRIBUTING.md`), a code of conduct (the Contributor Covenant 2.1), a security policy (`SECURITY.md`) that explains how to report a vulnerability privately, issue forms for bug reports and feature requests, and a pull request template.
+- Continuous integration: GitHub Actions builds Brow and runs its tests on macOS 26 for every pull request and every push to `main`.
 
 ### Changed
 
@@ -19,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - An account Brow has no reading for yet no longer counts as 0 % used in the two readouts beside the notch and in the panel's Overall line. With a Pro account at 90 % of both limits and a Max 20x account with no reading, both readouts showed 4 %; they now show 90 %.
+- `docs/brow.md` said the limits are re-fetched every 60 s. Brow checks them every 30 s, and the doc and the code comments now say so.
+- The README and `docs/brow.md` no longer say that macOS asks once per account for Keychain access on first launch. Brow does not bring up the Keychain dialog by itself: an account whose Keychain item macOS withholds shows an orange key, and pressing the key asks for access.
 
 ## [0.2.0] - 2026-10-05
 

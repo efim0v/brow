@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brow：在 MacBook 刘海查看所有 Claude Code 账号的额度</title>
+<meta name="description" content="免费开源的 macOS 应用：在 MacBook 刘海中查看一个或多个 Claude Code 账号的 5 小时与每周额度、重置时间和重置日历。">
+<link rel="canonical" href="https://efim0v.github.io/brow/zh-cn/">
+<link rel="alternate" hreflang="en" href="https://efim0v.github.io/brow/">
+<link rel="alternate" hreflang="ru" href="https://efim0v.github.io/brow/ru/">
+<link rel="alternate" hreflang="zh-Hans" href="https://efim0v.github.io/brow/zh-cn/">
+<link rel="alternate" hreflang="x-default" href="https://efim0v.github.io/brow/">
+<meta name="robots" content="max-image-preview:large">
+<meta name="author" content="Artem Efimov">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
+<link rel="icon" href="/brow/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/brow/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/brow/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Brow">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="ru_RU">
+<meta property="og:url" content="https://efim0v.github.io/brow/zh-cn/">
+<meta property="og:title" content="Brow：在 MacBook 刘海查看所有 Claude Code 账号的额度">
+<meta property="og:description" content="在 MacBook 刘海中查看每个 Claude Code 账号的 5 小时与每周额度，以及各自何时重置。免费开源，适用于 macOS 26 或更高版本。">
+<meta property="og:image" content="https://efim0v.github.io/brow/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Brow：英文标题“Claude Code usage limits in the MacBook notch”（MacBook 刘海里的 Claude Code 用量限额），旁边是 Brow 的面板，显示三个 Claude Code 账号的 5 小时限额和每周限额及各自何时重置，其中一个账号还有 Opus 限额。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Brow：在 MacBook 刘海查看所有 Claude Code 账号的额度">
+<meta name="twitter:description" content="在 MacBook 刘海中查看每个 Claude Code 账号的 5 小时与每周额度，以及各自何时重置。免费开源，适用于 macOS 26 或更高版本。">
+<meta name="twitter:image" content="https://efim0v.github.io/brow/og.png">
+<meta name="twitter:image:alt" content="Brow：英文标题“Claude Code usage limits in the MacBook notch”（MacBook 刘海里的 Claude Code 用量限额），旁边是 Brow 的面板，显示三个 Claude Code 账号的 5 小时限额和每周限额及各自何时重置，其中一个账号还有 Opus 限额。">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://efim0v.github.io/brow/#app",
+      "name": "Brow",
+      "description": "一款免费开源的 macOS 应用，在 MacBook 刘海中以已用百分比显示每个 Claude Code 账号的 5 小时限额、每周限额和特定模型的每周限额（如有），并显示每项限额何时重置。",
+      "url": "https://efim0v.github.io/brow/",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS 26 或更高版本",
+      "processorRequirements": "Apple 芯片（arm64）",
+      "softwareRequirements": "Claude Code",
+      "softwareVersion": "0.2.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.2.0",
+      "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
+      "inLanguage": "en",
+      "isAccessibleForFree": true,
+      "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "image": "https://efim0v.github.io/brow/media/hero-still.webp",
+      "screenshot": [
+        {
+          "@type": "ImageObject",
+          "url": "https://efim0v.github.io/brow/media/hero-still.webp",
+          "width": 1280,
+          "height": 800,
+          "caption": "MacBook 刘海下方的 Brow 面板：三个 Claude Code 账号的 5 小时限额和每周限额及各自何时重置，其中一个账号还有 Opus 限额"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efim0v.github.io/brow/media/calendar-still.webp",
+          "width": 1280,
+          "height": 800,
+          "caption": "Brow 的重置日历，标出每周重置日和预计的订阅续费日"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efim0v.github.io/brow/media/settings.webp",
+          "width": 1108,
+          "height": 900,
+          "caption": "Brow 的 Accounts 设置：一个账号的邮箱、套餐、文件夹、令牌状态和启动命令"
+        }
+      ],
+      "featureList": [
+        "以已用百分比显示每个 Claude Code 账号的 5 小时限额、每周限额和特定模型的每周限额（如有）",
+        "每项限额何时重置：不到一天时显示倒计时，否则显示日期和时间",
+        "重置日历：在月历上标出每周重置日和预计的订阅续费日",
+        "复制以指定账号身份启动 Claude Code 的命令",
+        "在账号自己的浏览器配置文件中重新登录",
+        "一键添加账号",
+        "空闲账号的令牌在后台保持有效",
+        "每 30 秒检查一次限额，Mac 唤醒、网络恢复和指针悬停时也会检查"
+      ],
+      "softwareHelp": { "@type": "CreativeWork", "name": "Brow 详解", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
+      "author": { "@id": "https://efim0v.github.io/#person" },
+      "sameAs": ["https://github.com/efim0v/brow"]
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://efim0v.github.io/brow/#source",
+      "name": "Brow 源代码",
+      "codeRepository": "https://github.com/efim0v/brow",
+      "programmingLanguage": "Swift",
+      "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "author": { "@id": "https://efim0v.github.io/#person" },
+      "targetProduct": { "@id": "https://efim0v.github.io/brow/#app" }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://efim0v.github.io/#person",
+      "name": "Artem Efimov",
+      "url": "https://github.com/efim0v",
+      "sameAs": ["https://github.com/efim0v"]
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://efim0v.github.io/brow/zh-cn/#webpage",
+      "url": "https://efim0v.github.io/brow/zh-cn/",
+      "name": "Brow：在 MacBook 刘海查看所有 Claude Code 账号的额度",
+      "description": "免费开源的 macOS 应用：在 MacBook 刘海中查看一个或多个 Claude Code 账号的 5 小时与每周额度、重置时间和重置日历。",
+      "inLanguage": "zh-Hans",
+      "about": { "@id": "https://efim0v.github.io/brow/#app" }
+    }
+  ]
+}
+</script>
+
+<style>
+:root {
+  --paper: #fbfbfa;
+  --ink: #161616;
+  --muted: #5f5e5a;
+  --rule: #e4e3df;
+  --code-bg: #f2f1ee;
+  --button: #161616;
+  --button-ink: #fff;
+  --button-hover: #333;
+  /* Latin in the system font; Chinese in PingFang SC on a Mac and the usual Simplified Chinese fonts elsewhere */
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121212;
+    --ink: #ededec;
+    --muted: #a3a29e;
+    --rule: #2b2b2a;
+    --code-bg: #1c1c1b;
+    --button: #ededec;
+    --button-ink: #121212;
+    --button-hover: #fff;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  /* Chinese breaks between any two characters, but never before closing punctuation,
+     and a paragraph does not end on a single character */
+  word-break: normal;
+  line-break: strict;
+  text-wrap: pretty;
+}
+h1, h2, h3, p, ul, ol, dl, dd, figure { margin: 0; }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; }
+/* No letter-spacing on Chinese, and a little more line height for two-line headings.
+   Section headings and questions break at spaces and punctuation only, not inside a word. */
+h1 { font-size: clamp(2rem, 1.35rem + 2.4vw, 2.75rem); line-height: 1.25; letter-spacing: 0; }
+h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 1.875rem); line-height: 1.3; letter-spacing: 0; }
+h1, h2, .faq h3 { word-break: keep-all; overflow-wrap: anywhere; }
+h3 { font-size: 1.125rem; line-height: 1.35; }
+p { text-wrap: pretty; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+strong { font-weight: 600; }
+code, pre { font-family: var(--mono); }
+code {
+  padding: .08em .3em;
+  border-radius: 3px;
+  background: var(--code-bg);
+  font-size: .9em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;   /* short commands: wrap rather than hide the end behind a scrollbar */
+  overflow-wrap: anywhere;
+}
+pre code { padding: 0; background: none; font-size: 1em; }
+/* Paths and commands stay in one piece where there is room; on a phone they may wrap */
+@media (min-width: 641px) { :not(pre) > code { white-space: nowrap; } }
+.nowrap { white-space: nowrap; }
+.select-all { -webkit-user-select: all; user-select: all; }
+.prose { max-width: 40rem; }
+.text > :is(p, ul) + :is(p, ul) { margin-top: 16px; }
+.small { color: var(--muted); font-size: .875rem; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 480px) {
+  .wrap { padding: 0 16px; }
+  pre { padding: 10px 12px; font-size: 13px; }
+}
+
+.skip {
+  position: absolute; left: 16px; top: -64px; z-index: 1;
+  padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
+  font-weight: 600; text-decoration: none;
+}
+.skip:focus { top: 12px; }
+
+/* Header */
+.site-header { border-bottom: 1px solid var(--rule); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; }
+.brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--ink); font-size: 1.0625rem; font-weight: 600; text-decoration: none;
+}
+.brand svg { width: 22px; height: 22px; flex: none; }
+.site-header ul { display: flex; gap: 20px; padding: 0; list-style: none; }
+.site-header nav a { display: block; padding: 8px 0; color: var(--muted); font-size: .9375rem; text-decoration: none; }
+.site-header nav a:hover { color: var(--ink); text-decoration: underline; }
+@media (max-width: 600px) { .site-header .optional { display: none; } }
+
+/* Language switcher: at the end of the header bar, and again in the footer */
+.bar > nav:not(.lang) { margin-left: auto; }
+.lang a { text-decoration: none; }
+.lang a:hover { text-decoration: underline; }
+.lang a[aria-current="page"] { color: var(--ink); }
+.site-header .lang { flex: none; padding-left: 16px; border-left: 1px solid var(--rule); color: var(--muted); font-size: .875rem; }
+.site-header .lang a { display: inline; padding: 0; color: inherit; font-size: inherit; }
+.site-header .lang a[aria-current="page"] { color: var(--ink); }
+/* Where the bar has no room for it, the switcher takes a line of its own under the menu */
+@media (max-width: 720px) {
+  .bar { flex-wrap: wrap; row-gap: 0; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
+  .site-header .lang { flex-basis: 100%; padding: 0 0 2px; border-left: 0; text-align: right; }
+}
+.site-footer .lang { margin-top: 6px; }
+
+/* Sections: one paper colour, a hairline between them */
+section { scroll-margin-top: 24px; }
+.section > .wrap { padding-block: 72px; }
+.section + .section > .wrap { padding-top: 0; }
+.section + .section > .wrap::before { content: ""; display: block; margin-bottom: 72px; border-top: 1px solid var(--rule); }
+.section h2 { margin-bottom: 16px; }
+@media (max-width: 640px) {
+  .section > .wrap { padding-block: 48px; }
+  .section + .section > .wrap { padding-top: 0; }
+  .section + .section > .wrap::before { margin-bottom: 48px; }
+}
+
+/* Hero */
+.hero h1 { margin-bottom: 16px; }
+.lead { font-size: 1.1875rem; line-height: 1.5; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 28px; }
+.button {
+  display: inline-block; padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
+  font: 600 1rem/1.2 var(--sans); text-decoration: none;
+}
+.button:hover { background: var(--button-hover); }
+.brew { margin-top: 16px; color: var(--muted); font-size: 1rem; }
+@media (max-width: 360px) { .brew code { white-space: normal; } }
+.meta { margin-top: 8px; color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.meta span, .meta a { white-space: nowrap; }
+.meta a { color: inherit; }
+.meta a:hover { color: var(--ink); }
+.hero-shot { margin-top: 40px; }
+figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size: .875rem; }
+.demo-note { display: block; }
+
+/* Tour: text in the margin on the left, the picture on the right */
+.tour-row { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 40px; align-items: start; margin-top: 72px; }
+.prose + .tour-row { margin-top: 48px; }
+.tour-row h3 { margin-bottom: 8px; }
+.tour-row p { color: var(--muted); font-size: 1rem; }
+.tour-row p + p { margin-top: 12px; }
+.settings-shot { max-width: 520px; }
+.settings-shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
+@media (max-width: 860px) {
+  .tour-row { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 48px; }
+}
+
+/* What it does: a spec sheet */
+.spec { margin-top: 32px; }
+.spec > div {
+  display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); column-gap: 32px;
+  padding: 14px 0 16px; border-top: 1px solid var(--rule);
+}
+.spec > div:last-child { border-bottom: 1px solid var(--rule); }
+.spec dt { font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
+.spec dd { max-width: 40rem; color: var(--muted); }
+.spec-note { max-width: 40rem; margin-top: 24px; color: var(--muted); font-size: 1rem; }
+@media (max-width: 640px) {
+  .spec > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+}
+
+/* Comparison: one plain table; on a narrow screen it scrolls sideways in its own box */
+.table-scroll { margin-top: 32px; overflow-x: auto; }
+.compare { width: 100%; min-width: 60rem; border-collapse: separate; border-spacing: 0; font-size: .9375rem; line-height: 1.5; }
+.compare th, .compare td { padding: 10px 16px 12px 0; border-top: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.compare th { font-weight: 600; }
+.compare tr > :last-child { padding-right: 0; white-space: nowrap; }
+.compare tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+/* Where the table scrolls (content narrower than 60rem), the tool names stay in view */
+@media (max-width: 1007px) {
+  .compare tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: inset -1px 0 0 var(--rule); }
+  .compare tr > :nth-child(2) { padding-left: 12px; }
+}
+.table-note { max-width: 40rem; margin-top: 12px; }
+.table-note + .text { margin-top: 32px; }
+
+/* Install */
+.install { display: grid; gap: 48px; margin-top: 32px; }
+.steps { padding: 0; list-style: none; counter-reset: step; }
+.steps > li {
+  display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); align-items: baseline;
+  padding: 16px 0 24px; border-top: 1px solid var(--rule); counter-increment: step;
+}
+.steps > li::before {
+  content: counter(step); grid-area: 1 / 1;
+  color: var(--muted); font: 15px/1 var(--mono);
+}
+.steps > li > * { grid-column: 2; }
+.steps > li > * + * { margin-top: 10px; }
+.steps > li > h3 + * { margin-top: 6px; }
+.install aside { font-size: 1rem; }
+.install aside > div + div { margin-top: 32px; }
+.install aside h3 { margin-bottom: 8px; }
+.reqs li::marker { color: var(--muted); }
+.install aside pre { margin-top: 10px; }
+.reqs { padding-left: 1.15em; }
+.reqs li + li { margin-top: 6px; }
+.licence { max-width: 40rem; margin-top: 48px; color: var(--muted); font-size: .9375rem; }
+@media (min-width: 900px) {
+  .install { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .install aside { padding: 17px 0 0 32px; border-left: 1px solid var(--rule); }
+}
+@media (max-width: 899px) {
+  .install { gap: 24px; }
+  .install aside { padding-top: 16px; border-top: 1px solid var(--rule); }
+}
+
+/* Privacy, and the questions: the same plain list */
+.facts, .faq { max-width: 46rem; margin-top: 32px; }
+.facts > div, .faq > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
+.facts > div:last-child, .faq > div:last-child { border-bottom: 1px solid var(--rule); }
+.facts dt { font-weight: 600; }
+.facts dd { margin-top: 4px; }
+.facts + .small { margin-top: 24px; }
+.faq h3 { font-size: 1em; line-height: inherit; }
+.faq h3 + p { margin-top: 4px; }
+.faq p + p { margin-top: 10px; }
+
+/* Grove */
+.companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; word-break: normal; }
+.companion h2 img { flex: none; width: 20px; height: 20px; margin-top: calc((1.3em - 20px) / 2); }
+.companion h2 span span { display: inline-block; }   /* break between the two sentences, not inside one */
+.companion .links { margin-top: 16px; }
+
+/* Footer */
+.site-footer { color: var(--muted); font-size: .875rem; }
+.site-footer .wrap > div { padding: 24px 0 48px; border-top: 1px solid var(--rule); }
+.site-footer p + p { margin-top: 6px; }
+.site-footer a { color: inherit; }
+.site-footer a:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs>
+          <clipPath id="brow-tile"><rect width="64" height="64" rx="15"/></clipPath>
+        </defs>
+        <g clip-path="url(#brow-tile)">
+          <rect width="64" height="64" fill="#7a7b80"/>
+          <path d="M7 0h50v17a11 11 0 0 1-11 11H18A11 11 0 0 1 7 17z" fill="#000"/>
+          <circle cx="19.5" cy="14" r="5.5" fill="#34c759"/>
+          <circle cx="44.5" cy="14" r="5.5" fill="#ff9f0a"/>
+        </g>
+      </svg>
+      <span>Brow</span>
+    </a>
+    <nav aria-label="主导航">
+      <ul>
+        <li class="optional"><a href="#features">功能</a></li>
+        <li><a href="#install">安装</a></li>
+        <li class="optional"><a href="#privacy">隐私</a></li>
+        <li><a href="#faq">常见问题</a></li>
+        <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
+      </ul>
+    </nav>
+    <nav class="lang" aria-label="语言">
+      <a href="/brow/" hreflang="en" lang="en">English</a> ·
+      <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a> ·
+      <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans" aria-current="page">简体中文</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="section hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="prose">
+        <h1 id="hero-title">所有 Claude&nbsp;Code 账号的额度，都在&nbsp;MacBook 刘海里</h1>
+        <p class="lead">Brow 是一款免费开源的 macOS 应用，用来查看 Claude Code 的用量限额：以已用百分比显示每个账号的 5&nbsp;小时限额、每周限额和特定模型的每周限额（如有），并显示每项限额何时重置。只有一个账号也能用（Brow 会自动找到 <code class="nowrap">~/.claude</code>），也支持多个账号。应用界面为英文。</p>
+        <p class="actions">
+          <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">下载 Brow</a>
+          <a href="https://github.com/efim0v/brow">GitHub 上的源代码</a>
+        </p>
+        <p class="brew">或者用 Homebrew 安装：<code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
+      </div>
+      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.2.0，</span><span><time datetime="2026-10-05">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;5&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
+
+      <figure class="hero-shot">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="../media/hero-still.webp" type="image/webp">
+          <img src="../media/hero.webp" width="1280" height="800" fetchpriority="high" alt="将指针悬停在 MacBook 刘海上，会展开 Brow 的面板，显示每个 Claude Code 账号的 5 小时限额和每周限额；复制还有余量的账号的启动命令后，Claude Code 以该账号的身份启动">
+        </picture>
+        <figcaption>将指针悬停在刘海上，所有账号的 5&nbsp;小时限额和每周限额就会从刘海中展开。复制某个账号的启动命令，Claude Code 就会以该账号的身份启动。<span class="demo-note">所有演示均使用虚构数据。</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="tour" aria-labelledby="tour-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="tour-title">哪个 Claude&nbsp;账号还有余量，额度何时重置</h2>
+        <p>有多个账号时，Brow 让你一眼看出哪个账号快到限额、哪个还有余量、各自何时恢复。</p>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>重置时间与重置日历</h3>
+          <p>每项限额都会显示何时重置：不到一天时显示倒计时，如“resets in 3&nbsp;h 12&nbsp;min”；超过一天则显示日期和时间，如“resets 22&nbsp;Sep 02:00”。</p>
+          <p>日历上标出了每个账号的每周重置日和预计的订阅续费日。把指针移到某一天上，就能看到那天有哪些额度会恢复。</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/calendar-still.webp" type="image/webp">
+            <img src="../media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Brow 的重置日历：月历上标出每个账号的每周重置日和预计的订阅续费日；指向某一天，即可看到哪项限额在这天重置，或哪个订阅在这天续费">
+          </picture>
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>在账号自己的浏览器配置文件中重新登录</h3>
+          <p>某个账号的登录过期后，点一下它旁边的按钮，就会为该账号运行 <code class="nowrap">claude auth login</code>，并打开属于它的浏览器配置文件，其中已经登录了这个账号。其他账号的登录状态不受影响。</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/signin-still.webp" type="image/webp">
+            <img src="../media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Claude Code 登录过期：点一下就会为该账号运行 claude auth login，并打开它自己的浏览器配置文件，其中已登录 claude.ai">
+          </picture>
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>刘海两侧的两个数字，或其他显示器上的胶囊</h3>
+          <p>收起时，Brow 显示你的所有账号总体上用掉了多少 5&nbsp;小时限额和每周限额。每个数字旁的圆点在达到 70% 时变成橙色，达到 90% 时变成红色。指针悬停时，面板就会展开。</p>
+          <p>这两个读数也可以放到刘海下方的横条里。在没有刘海的显示器上，Brow 改为显示一个胶囊。</p>
+        </div>
+        <figure>
+          <img src="../media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow 收起在 MacBook 刘海两侧：左边是所有账号合计已用 54% 的 5 小时限额，右边是已用 72% 的每周限额">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Settings 中的所有账号</h3>
+          <p>Settings → Accounts（设置 → 账号）列出每个账号的邮箱、套餐、文件夹、令牌状态和启动命令。<strong>Sign in…</strong> 可以再添加一个账号：Brow 会创建文件夹，并在“终端”中打开 Anthropic 自己的登录流程。</p>
+        </div>
+        <figure class="settings-shot">
+          <img src="../media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Brow 的 Accounts 设置：顶部是 Add an account 一栏和 Sign in 按钮，下面是一张账号卡片，显示名称、邮箱、套餐、文件夹、令牌状态和启动命令">
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title">Brow 能为每个账号做什么</h2>
+      <dl class="spec">
+        <div>
+          <dt>所有账号一目了然</dt>
+          <dd>每个账号显示 5&nbsp;小时限额、每周限额，以及特定模型的每周限额（如有），均以已用百分比表示，并附上距离各自重置还剩多久。</dd>
+        </div>
+        <div>
+          <dt>重置日历</dt>
+          <dd>在月历上标出每周重置日和预计的订阅续费日，哪个账号什么时候恢复，一看便知。</dd>
+        </div>
+        <div>
+          <dt>复制启动命令</dt>
+          <dd>一个按钮即可复制以该账号身份启动 Claude Code 的命令。</dd>
+        </div>
+        <div>
+          <dt>在账号自己的浏览器里<wbr>重新登录</dt>
+          <dd>每个账号都有独立的浏览器配置文件，Cookie、历史记录和已保存的登录信息互不相通，登录一个账号绝不会影响另一个。第二个按钮可以直接打开这个配置文件。</dd>
+        </div>
+        <div>
+          <dt>一键添加账号</dt>
+          <dd>Brow 会创建账号文件夹，并打开 Anthropic 自己的登录流程。</dd>
+        </div>
+        <div>
+          <dt>令牌保持有效</dt>
+          <dd>空闲账号的令牌会在后台刷新，所以数字不会过时。</dd>
+        </div>
+        <div>
+          <dt>每 30&nbsp;秒检查一次</dt>
+          <dd>Brow 每 30&nbsp;秒检查一次限额；Mac 唤醒或网络恢复时会再检查一次；指针悬停时，如果屏幕上的数字已超过 30&nbsp;秒没有更新，也会重新检查。面板会显示这些数字是多久之前的。</dd>
+        </div>
+      </dl>
+      <p class="spec-note">独立的浏览器配置文件需要 Google Chrome、Chromium、Brave 或 Edge。如果都没有，链接会在默认浏览器中打开，不做隔离。关于请求节奏、刷新和布局选项的更多细节，见 <a href="https://github.com/efim0v/brow/blob/main/docs/brow.md">Brow 详解</a>（英文）。</p>
+    </div>
+  </section>
+
+  <section class="section" id="accounts" aria-labelledby="accounts-title">
+    <div class="wrap">
+      <div class="prose text">
+        <h2 id="accounts-title">在一台 Mac 上使用多个 Claude&nbsp;Code 账号</h2>
+        <p>Claude Code 把每个账号放在各自的配置文件夹中：默认账号是 <code class="nowrap">~/.claude</code>，其他账号可以是你用 <code class="nowrap">CLAUDE_CONFIG_DIR</code> 指向的任意文件夹。想同时登录多个账号（例如一个工作账号、一个个人账号），<a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">Anthropic 的文档</a>给出的就是这个办法。</p>
+        <p>Brow 读取 <code class="nowrap">~/.claude</code> 以及 <code class="nowrap">~/.claude-accounts/</code> 中的每个文件夹。在 <span class="nowrap">Settings → Accounts</span> 中，<strong>Sign in…</strong> 会创建下一个可用的文件夹 <code class="nowrap">~/.claude-accounts/account-N</code>，并在“终端”中为它运行 <code class="nowrap">claude auth login</code>；<strong>Existing folder…</strong>（已有文件夹）则用来添加一个你已经在用的文件夹。之后每个账号都有一个按钮，可以复制它的启动命令，例如 <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>，这样 Claude Code 就会以该账号的身份启动，并在该账号的浏览器配置文件中打开链接。</p>
+        <p>每个文件夹各自保存登录信息。Claude Code 把它存放在 macOS 钥匙串中，名称与文件夹对应：<code class="nowrap">~/.claude</code> 对应 <code>Claude Code-credentials</code>，其他文件夹对应 <code>Claude Code-credentials-&lt;hash&gt;</code>。关于你所用套餐的规定，请查阅 Anthropic 的<a href="https://www.anthropic.com/legal/consumer-terms">消费者条款</a>（Consumer Terms）。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="compare" aria-labelledby="compare-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="compare-title">如何查看 Claude&nbsp;Code 额度：<wbr>Brow&nbsp;与&nbsp;/usage、ccusage 及菜单栏工具对比</h2>
+        <p>查看 Claude Code 用量的方式有好几种。表中前三行出自 Anthropic 的文档，其余各行出自各工具自己的网站或 README。</p>
+      </div>
+      <div class="table-scroll" role="region" aria-labelledby="compare-title" tabindex="0">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th scope="col">工具</th>
+              <th scope="col">显示内容</th>
+              <th scope="col">所在位置</th>
+              <th scope="col">同时查看多个 Claude 账号</th>
+              <th scope="col">其他服务</th>
+              <th scope="col">平台</th>
+              <th scope="col">许可证与价格</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/costs">Claude Code 中的 <code>/usage</code></a></th>
+              <td>当前登录账号的套餐用量条</td>
+              <td>Claude Code 内</td>
+              <td>否：只显示会话所用的账号</td>
+              <td>—</td>
+              <td>凡是 Claude Code 能运行的平台</td>
+              <td>Claude Code 自带</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://support.claude.com/en/articles/17007452-what-is-a-limit-reset">claude.ai 的 Settings → Usage</a></th>
+              <td>当前登录账号的用量</td>
+              <td>网页版、Claude Desktop</td>
+              <td>否</td>
+              <td>—</td>
+              <td>浏览器、Claude Desktop</td>
+              <td>Claude 自带</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/statusline">状态栏中的 <code>rate_limits</code></a></th>
+              <td>5&nbsp;小时和 7&nbsp;天的已用百分比与重置时间，供你自己的状态栏脚本使用；仅限 Pro 和 Max</td>
+              <td>Claude Code 状态栏</td>
+              <td>否：只显示会话所用的账号</td>
+              <td>—</td>
+              <td>凡是 Claude Code 能运行的平台</td>
+              <td>Claude Code 自带</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://ccusage.com/">ccusage</a></th>
+              <td>本地用量日志中的 token 用量和估算费用</td>
+              <td>终端</td>
+              <td>未说明</td>
+              <td>Codex、OpenCode、Gemini CLI 等</td>
+              <td>未说明</td>
+              <td>MIT，免费</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor">Claude Code Usage Monitor</a></th>
+              <td>在终端中监控 token、消息数和费用，并给出预测</td>
+              <td>终端</td>
+              <td>会扫描多个配置文件夹；未提到并排显示</td>
+              <td>未说明</td>
+              <td>Python 3.9+；提供 macOS、Linux 和 Windows 的安装命令</td>
+              <td>MIT，免费</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://codexbar.app/">CodexBar</a></th>
+              <td>按服务分别显示用量窗口、积分、费用和重置时间</td>
+              <td>macOS 菜单栏，另有 CLI 和小组件</td>
+              <td>未说明</td>
+              <td>很多，包括 Codex、Cursor 和 Gemini</td>
+              <td>macOS 14+；CLI 也支持 Linux</td>
+              <td>MIT，免费</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudetracker.com/">Claude Tracker</a></th>
+              <td>Claude 的 5&nbsp;小时、每周和按模型的用量；达到阈值时发出通知</td>
+              <td>菜单栏，另有刘海处的 HUD</td>
+              <td>是，“every account at once”</td>
+              <td>未说明</td>
+              <td>macOS 14+，Apple 芯片和 Intel</td>
+              <td>MIT，免费</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://u4c.fi5h.xyz/">Usage4Claude</a></th>
+              <td>Claude 和 Codex 的 5&nbsp;小时、每周及额外用量；通知</td>
+              <td>菜单栏</td>
+              <td>支持多个账号，在菜单栏中切换</td>
+              <td>Codex</td>
+              <td>macOS 13+，Intel 和 Apple 芯片</td>
+              <td>MIT，免费</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudebar.tddworks.com/">ClaudeBar</a></th>
+              <td>多种 AI 编程工具的配额；达到警告线及重置时发出通知</td>
+              <td>菜单栏</td>
+              <td>未说明</td>
+              <td>很多，包括 Codex、Gemini 和 Copilot</td>
+              <td>macOS 15+</td>
+              <td>Apache-2.0，免费</td>
+            </tr>
+            <tr>
+              <th scope="row">Brow</th>
+              <td>每个账号的 5&nbsp;小时限额、每周限额和特定模型的每周限额；重置时间；重置日历；每个账号一个浏览器配置文件</td>
+              <td>MacBook 刘海两侧；其他显示器上显示为胶囊</td>
+              <td>是，并排显示</td>
+              <td>仅限 Claude</td>
+              <td>macOS 26+，Apple 芯片</td>
+              <td>GPL-3.0，免费</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note small">以上信息核对于 <time datetime="2026-10-13">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;13&nbsp;日</time>。“未说明”表示该工具自己的页面没有提到。Claude Tracker 是 Claude Usage Tracker 的新名称。</p>
+      <div class="prose text">
+        <ul class="reqs">
+          <li>想在 Claude Code 里直接看数字：用 <code>/usage</code>；Pro 和 Max 用户也可以用状态栏脚本。</li>
+          <li>想看 token 用量和费用报告：ccusage。</li>
+          <li>想要带预测的终端仪表盘：Claude Code Usage Monitor。</li>
+          <li>同时在用 Codex、Gemini 或其他服务：CodexBar 或 ClaudeBar。</li>
+          <li>需要通知、用的是 Intel Mac 或较旧的 macOS：Usage4Claude（macOS 13+）或 Claude Tracker（macOS 14+）。</li>
+          <li>想在刘海处并排查看多个 Claude 账号，还想要重置日历和每个账号独立的浏览器配置文件：Brow。</li>
+        </ul>
+        <p>Brow 自身的局限：只支持 Claude；需要 macOS 26 或更高版本，且预编译版本仅支持 Apple 芯片；不发送通知；构建未经公证，所以首次启动需要点击<strong>仍要打开</strong>。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <h2 id="install-title">在 Mac 上安装 Brow</h2>
+      <div class="install">
+        <ol class="steps">
+          <li>
+            <h3>安装 Brow</h3>
+            <p>用 Homebrew 安装：</p>
+            <pre><code class="select-all">brew install --cask efim0v/tap/brow</code></pre>
+            <p>也可以从<a href="https://github.com/efim0v/brow/releases/latest">最新版本</a>下载 <a href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Brow.zip</a>，解压后把 <code class="nowrap">Brow.app</code> 移到 <code class="nowrap">/Applications</code>。</p>
+          </li>
+          <li>
+            <h3>允许首次启动</h3>
+            <p>该构建使用 ad hoc 签名，未经 Apple 公证，所以无论用哪种方式安装，macOS 都会拦下首次启动。</p>
+            <p>打开<strong>系统设置 → 隐私与安全性</strong>，在“安全性”下找到关于 Brow 的提示，点击<strong>仍要打开</strong>（Open Anyway），然后输入登录密码确认。启动被拦下后，这个按钮大约会保留一小时。</p>
+          </li>
+          <li>
+            <h3>在刘海里找到它</h3>
+            <p>Brow 没有程序坞图标：把指针悬停在刘海上即可打开面板。面板上的 ⚙ 用来打开 Settings，<strong>Launch at login</strong>（登录时启动）在 Settings → General 中。</p>
+            <p>如果 macOS 不让 Brow 读取某个账号的钥匙串项目，该账号会显示一把橙色钥匙。点击它，然后选择<strong>始终允许</strong>（Always Allow）。</p>
+          </li>
+        </ol>
+        <aside aria-label="系统要求与下载校验">
+          <div id="requirements">
+            <h3>系统要求</h3>
+            <ul class="reqs">
+              <li>macOS 26 或更高版本</li>
+              <li>搭载 Apple 芯片的 Mac（预编译版本仅支持 arm64）</li>
+              <li><a href="https://claude.com/claude-code">Claude Code</a></li>
+              <li>刘海布局需要带刘海的 MacBook；其他显示器上显示为胶囊</li>
+              <li>独立的浏览器配置文件需要 Google Chrome、Chromium、Brave 或 Edge</li>
+            </ul>
+          </div>
+          <div>
+            <h3>校验下载</h3>
+            <p>发布附带 <code class="nowrap">SHA256SUMS.txt</code>。把它和 <code class="nowrap">Brow.zip</code> 放在同一个文件夹里，运行：</p>
+            <pre><code>shasum -a 256 -c SHA256SUMS.txt</code></pre>
+          </div>
+          <div>
+            <h3>自行构建</h3>
+            <p>Brow 是一个 Swift 包。构建需要 Xcode，步骤见 <a href="https://github.com/efim0v/brow#build">README</a>（英文）。</p>
+          </div>
+        </aside>
+      </div>
+      <p class="licence">Brow 采用 <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a> 许可证；0.2.0 及更早的版本以 MIT 许可证发布。<a href="https://github.com/efim0v/brow">源代码</a>、<a href="https://github.com/efim0v/brow/releases">发行版</a>和<a href="https://github.com/efim0v/brow/issues">问题反馈</a>都在 GitHub 上。</p>
+    </div>
+  </section>
+
+  <section class="section" id="privacy" aria-labelledby="privacy-title">
+    <div class="wrap">
+      <h2 id="privacy-title">Brow 会在你的 Mac 上做什么</h2>
+      <dl class="facts">
+        <div>
+          <dt>从钥匙串读取你的令牌</dt>
+          <dd>Brow 从 macOS 钥匙串读取每个账号的 Claude Code 登录令牌，只用它调用 Anthropic 在 <code class="nowrap">api.anthropic.com</code> 上的用量（usage）和个人资料（profile）接口。这些接口并非有公开文档的 API，可能会发生变化。</dd>
+        </div>
+        <div>
+          <dt>没有统计分析，也不检查更新</dt>
+          <dd>令牌不会写入磁盘，也不会记入日志，任何数据都不会发往别处。</dd>
+        </div>
+        <div>
+          <dt>备用令牌刷新默认开启</dt>
+          <dd>如果常规刷新失效，Brow 会运行一个很小的 <code class="nowrap">claude -p</code> 请求，这会消耗少量额度，并开启该账号的 5&nbsp;小时窗口。可在 Settings → Accounts 中关闭。</dd>
+        </div>
+        <div>
+          <dt>每个账号一个浏览器配置文件</dt>
+          <dd>每个配置文件都是 <code>~/Library/Application Support/Brow/browser-profiles/</code> 下的一个单独目录。Brow 会设置配置文件的名称，并在其中允许第三方 Cookie，以便登录正常进行。</dd>
+        </div>
+        <div>
+          <dt>登录时会打开“终端”</dt>
+          <dd>登录时会在“终端”中运行 <code class="nowrap">claude auth login</code>，macOS 会询问一次是否允许 Brow 控制“终端”。</dd>
+        </div>
+        <div>
+          <dt>保存在磁盘上的设置和读数</dt>
+          <dd>Brow 把自己的设置和最近的读数保存在 <code>~/Library/Application Support/Brow</code> 中。它还在 <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> 中保存一份用量接口的请求节奏记录，其中包含每个账号最近一次的读数；这个路径来自 GroveCore，也就是 Brow 与 Grove 共用的库。</dd>
+        </div>
+      </dl>
+      <p class="small">Brow 是一个独立工具，与 Anthropic 没有关联，也未获 Anthropic 认可。</p>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title">关于 Brow 和 Claude&nbsp;Code 额度的常见问题</h2>
+      <div class="faq">
+        <div>
+          <h3>怎么查看 Claude&nbsp;Code 额度？</h3>
+          <p>在 Claude Code 中运行 <code>/usage</code>，Pro 和 Max 订阅用户能在那里看到套餐用量条。在 claude.ai 或 Claude Desktop 中，打开 Settings → Usage。这两处显示的都是你当前登录的账号。Brow 则同时显示所有账号的每项限额及其重置时间。</p>
+        </div>
+        <div>
+          <h3>Claude 每周额度什么时候刷新？是周几？</h3>
+          <p>每周限额每周重置（刷新）一次，日期和时间与该账号往常相同。Brow 会显示每个账号的下一次重置：不到一天时显示倒计时，否则显示日期和时间，例如“resets 22&nbsp;Sep 02:00”。重置日历把所有账号的每周重置日放在同一张月历上。</p>
+        </div>
+        <div>
+          <h3>Claude 5&nbsp;小时限额是怎么重置的？</h3>
+          <p>付费套餐有一个每 5&nbsp;小时重置一次的会话限额。Brow 会显示每个账号已经用掉了其中多少，以及距离重置还有多久。</p>
+        </div>
+        <div>
+          <h3>“You’ve hit your session limit”是什么意思？</h3>
+          <p>当某个账号用完了当前的用量窗口，Claude Code 就会显示这条消息。消息里会写明窗口何时重置；用 <code>/model</code> 切换模型并不能恢复使用。“You’ve hit your weekly limit”也是一样。Brow 会显示你的其他账号中哪个还有余量，点一下就能复制以该账号身份启动 Claude Code 的命令。</p>
+        </div>
+        <div>
+          <h3>能同时看到多个 Claude&nbsp;Code 账号的额度吗？</h3>
+          <p>可以。Brow 读取 <code class="nowrap">~/.claude</code> 以及 <code class="nowrap">~/.claude-accounts/</code> 中的每个文件夹，并排显示每个账号的限额。Claude Code 把每个账号放在各自的配置文件夹中，用 <code class="nowrap">CLAUDE_CONFIG_DIR</code> 指定；详见上文“<a href="#accounts">在一台 Mac 上使用多个 Claude Code 账号</a>”一节。</p>
+        </div>
+        <div>
+          <h3>Brow 会消耗额度吗？</h3>
+          <p>只有备用令牌刷新会消耗，而且可以关闭。读取限额是向 Anthropic 的用量接口发请求，而不是调用模型。空闲账号的令牌通过 <code class="nowrap">claude doctor</code> 保持有效，它也不会调用模型。</p>
+          <p>备用刷新默认开启。当令牌的剩余有效期不超过 30&nbsp;分钟，而 <code class="nowrap">claude doctor</code> 没能续期时，Brow 会用 Haiku 运行一次单轮 <code class="nowrap">claude -p</code> 请求。这会消耗该账号极少的额度，并开启它的 5&nbsp;小时窗口。对每个账号，它最多每 30&nbsp;分钟运行一次。在 <span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong> 中可以将其关闭。</p>
+        </div>
+        <div>
+          <h3>Brow 是菜单栏应用吗？没有刘海的屏幕能用吗？</h3>
+          <p>Brow 没有菜单栏图标，也没有程序坞图标。它位于主显示器顶部。在带刘海的 MacBook 上，两个读数显示在刘海两侧，或者显示在刘海下方的横条里。在没有刘海的显示器上（例如外接显示器），Brow 会在屏幕顶部中央显示一个胶囊。</p>
+        </div>
+        <div>
+          <h3>Brow 会发通知吗？</h3>
+          <p>不会。每个读数旁的圆点在达到 70% 时变成橙色，达到 90% 时变成红色。</p>
+        </div>
+        <div>
+          <h3>有桌面小组件吗？</h3>
+          <p>没有。Brow 待在刘海处，在其他显示器上则是一个胶囊：把指针悬停在上面即可打开面板。</p>
+        </div>
+        <div>
+          <h3>Brow 多久更新一次数字？</h3>
+          <p>每 30&nbsp;秒检查一次；Mac 唤醒和网络恢复时也会检查；指针悬停时，如果屏幕上的数字已超过 30&nbsp;秒没有更新，还会再检查一次。Anthropic 的用量接口有请求频率限制，所以来得太早的检查会沿用上一次的读数。面板会显示这些数字是多久之前的。</p>
+        </div>
+        <div>
+          <h3>Brow 是免费开源的吗？</h3>
+          <p>是的。Brow 免费，<a href="https://github.com/efim0v/brow">源代码在 GitHub 上</a>，采用 GNU GPL v3 许可证。0.2.0 及更早的版本以 MIT 许可证发布。</p>
+        </div>
+        <div>
+          <h3>Brow 从哪里读取令牌？会上传数据吗？</h3>
+          <p>从 Claude Code 为每个账号文件夹保存的钥匙串项目中读取；如果 Claude Code 把登录信息保存在账号文件夹里，则读取该文件夹中的 <code class="nowrap">.credentials.json</code>。Brow 只使用访问令牌，续期交给 Claude Code 自己处理。</p>
+          <p>Brow 自己的请求只发往 <code class="nowrap">api.anthropic.com/api/oauth/usage</code>，以及每个账号大约每天一次的 <code class="nowrap">api.anthropic.com/api/oauth/profile</code>，不会发往别处。它没有任何统计分析，也不检查更新。它运行的 <code class="nowrap">claude</code> 命令会建立 Claude Code 平常就会建立的连接，各账号的浏览器配置文件会打开 claude.ai。</p>
+        </div>
+        <div>
+          <h3>Brow 和 ccusage、<code>/usage</code> 有什么区别？</h3>
+          <p><code>/usage</code> 显示当前会话所用账号的套餐用量。ccusage 根据本地用量日志报告 token 用量和估算费用。Brow 则并排显示 Anthropic 为每个账号报告的限额，并附上重置时间和日历。</p>
+        </div>
+        <div>
+          <h3>Claude&nbsp;Code 登录过期了，怎么登录到正确的账号？</h3>
+          <p>当保存的登录无法刷新时，Claude Code 会提示“Login expired&nbsp;· Please run /login”。在 Brow 中，点击该账号旁的登录按钮，就会为它运行 <code class="nowrap">claude auth login</code>，同时打开属于该账号的浏览器配置文件，这样就能登录到正确的账号。其他账号的登录状态不受影响。</p>
+        </div>
+        <div>
+          <h3>Brow 支持哪些 Mac？</h3>
+          <p>macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。刘海布局为带刘海的 MacBook 设计；其他显示器上显示为胶囊。</p>
+        </div>
+        <div>
+          <h3>Brow 是 Anthropic 官方的吗？</h3>
+          <p>不是。Brow 由 Artem Efimov 开发，与 Anthropic 没有关联，也未获 Anthropic 认可。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section companion" id="grove" aria-labelledby="grove-title">
+    <div class="wrap">
+      <h2 id="grove-title"><img src="../grove-mark.png" width="20" height="20" alt=""><span><span>Brow 告诉你哪个账号还有余量，</span><span>Grove 把工作挪过去。</span></span></h2>
+      <p class="prose">Grove 为多仓库项目中的每个功能单独创建供 Claude Code 使用的工作区，还能<a href="https://efim0v.github.io/grove/#accounts">把会话从一个账号转移到另一个账号</a>。两个应用都能单独运行，同时也是为配合使用而设计的。</p>
+      <p class="links"><a href="https://efim0v.github.io/grove/">Grove：在多个仓库上并行运行 Claude Code 会话</a>&nbsp;· <a href="https://github.com/efim0v/grove">GitHub 上的 Grove</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">发行版</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">问题反馈</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/">Grove</a></p>
+      <p>Brow 由 <a href="https://github.com/efim0v">Artem Efimov</a> 开发。这是一个独立工具，与 Anthropic 没有关联，也未获 Anthropic 认可。所有演示均使用虚构数据。</p>
+      <nav class="lang" aria-label="语言">
+        <a href="/brow/" hreflang="en" lang="en">English</a> ·
+        <a href="/brow/ru/" hreflang="ru" lang="ru">Русский</a> ·
+        <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans" aria-current="page">简体中文</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

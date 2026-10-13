@@ -327,13 +327,16 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   .install aside { padding-top: 16px; border-top: 1px solid var(--rule); }
 }
 
-/* Privacy */
-.facts { max-width: 46rem; margin-top: 32px; }
-.facts > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
-.facts > div:last-child { border-bottom: 1px solid var(--rule); }
+/* Privacy, and the questions: the same plain list */
+.facts, .faq { max-width: 46rem; margin-top: 32px; }
+.facts > div, .faq > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
+.facts > div:last-child, .faq > div:last-child { border-bottom: 1px solid var(--rule); }
 .facts dt { font-weight: 600; }
 .facts dd { margin-top: 4px; }
 .facts + .small { margin-top: 24px; }
+.faq h3 { font-size: 1em; line-height: inherit; }
+.faq h3 + p { margin-top: 4px; }
+.faq p + p { margin-top: 10px; }
 
 /* Grove */
 .companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
@@ -373,6 +376,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <li class="optional"><a href="#features">Features</a></li>
         <li><a href="#install">Install</a></li>
         <li class="optional"><a href="#privacy">Privacy</a></li>
+        <li><a href="#faq">FAQ</a></li>
         <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
       </ul>
     </nav>
@@ -714,6 +718,80 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
       </dl>
       <p class="small">Brow is an independent tool, not affiliated with or endorsed by Anthropic.</p>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title">Questions about Brow and Claude Code limits</h2>
+      <div class="faq">
+        <div>
+          <h3>How do I check my Claude Code usage limits?</h3>
+          <p>In Claude Code, run <code>/usage</code>; Pro and Max subscribers see their plan usage bars there. On claude.ai or in Claude Desktop, open Settings → Usage. Both show the account you are signed in to. Brow shows every account at once, with each limit and when it resets.</p>
+        </div>
+        <div>
+          <h3>When does the Claude weekly limit reset, and on which day?</h3>
+          <p>Weekly limits reset once every week, on the account’s usual day and time. Brow shows each account’s next reset as a countdown when it is less than a day away, and otherwise as a date and time, for example “resets 22&nbsp;Sep 02:00”. The reset calendar puts every account’s weekly resets on one month grid.</p>
+        </div>
+        <div>
+          <h3>How does the 5-hour limit work?</h3>
+          <p>Paid plans have a session limit that resets every five hours. Brow shows how much of it each account has used and how long until it resets.</p>
+        </div>
+        <div>
+          <h3>What does “You’ve hit your session limit” mean?</h3>
+          <p>Claude Code shows it when an account has used up its usage window. The message says when the window resets, and switching models with <code>/model</code> does not restore access. “You’ve hit your weekly limit” works the same way. Brow shows which of your other accounts still has room, and one click copies the command that starts Claude Code as that account.</p>
+        </div>
+        <div>
+          <h3>Can I see the limits of several Claude Code accounts at once?</h3>
+          <p>Yes. Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>, and shows each account’s limits side by side. Claude Code keeps each account in its own configuration folder, chosen with <code class="nowrap">CLAUDE_CONFIG_DIR</code>; see <a href="#accounts">Several Claude Code accounts on one Mac</a> above.</p>
+        </div>
+        <div>
+          <h3>Does Brow use up my limits?</h3>
+          <p>Only through the fallback token refresh, and you can turn that off. Reading the limits is a request to Anthropic’s usage endpoint, not to a model. An idle account’s token is kept fresh with <code class="nowrap">claude doctor</code>, which makes no model call.</p>
+          <p>The fallback is on by default. When a token has 30 minutes or less left and <code class="nowrap">claude doctor</code> did not renew it, Brow runs a one-turn <code class="nowrap">claude -p</code> request on Haiku. That spends a sliver of the account’s limit and starts its 5-hour window. It runs at most once every 30 minutes per account. <span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong> turns it off.</p>
+        </div>
+        <div>
+          <h3>Is Brow a menu bar app? Does it work without a notch?</h3>
+          <p>Brow has no menu-bar icon and no Dock icon. It sits at the top of the main display. On a MacBook with a notch, two readouts sit beside the notch or in a strip below it. On a display without a notch, such as an external one, Brow shows a pill at the top centre.</p>
+        </div>
+        <div>
+          <h3>Does Brow send notifications?</h3>
+          <p>No. The dot next to each readout turns orange at 70% and red at 90%.</p>
+        </div>
+        <div>
+          <h3>Is there a desktop widget?</h3>
+          <p>No. Brow lives at the notch, or in a pill on other displays: hover it to open the panel.</p>
+        </div>
+        <div>
+          <h3>How often does Brow update the numbers?</h3>
+          <p>It checks them every 30 seconds, again on wake and when the network returns, and on hover when the numbers on screen are older than 30 seconds. Anthropic’s usage endpoint is rate-limited, so a check that comes too soon reuses the last reading. The panel shows how old the numbers are.</p>
+        </div>
+        <div>
+          <h3>Is Brow free and open source?</h3>
+          <p>Yes. Brow is free, and <a href="https://github.com/efim0v/brow">its source is on GitHub</a> under the GNU GPL v3. Version 0.2.0 and earlier were released under the MIT License.</p>
+        </div>
+        <div>
+          <h3>Where does Brow read my token, and does anything leave my Mac?</h3>
+          <p>From the Keychain item Claude Code keeps for each account folder. Brow uses the access token only and leaves renewing it to Claude Code.</p>
+          <p>Brow’s own requests go to <code class="nowrap">api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code class="nowrap">api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check. The <code class="nowrap">claude</code> commands it runs make Claude Code’s usual connections, and the browser profiles open claude.ai.</p>
+        </div>
+        <div>
+          <h3>How is Brow different from ccusage or <code>/usage</code>?</h3>
+          <p><code>/usage</code> shows the plan usage of the account the session runs as. ccusage reports token usage and estimated cost from local usage logs. Brow shows the limits Anthropic reports for every account, side by side, with reset times and a calendar.</p>
+        </div>
+        <div>
+          <h3>My Claude Code login expired. How do I sign in to the right account?</h3>
+          <p>When a stored login cannot be refreshed, Claude Code reports <span class="nowrap">“Login expired · Please run /login”</span>. In Brow, the key next to that account runs <code class="nowrap">claude auth login</code> for it. It also opens the browser profile that belongs to that account, so the sign-in lands in the right account. Other accounts stay signed in.</p>
+        </div>
+        <div>
+          <h3>Which Macs does Brow run on?</h3>
+          <p>macOS 26 or later; the prebuilt app is Apple silicon only. The notch layout is for MacBooks with a notch; other displays show a pill.</p>
+        </div>
+        <div>
+          <h3>Is Brow made by Anthropic?</h3>
+          <p>No. Brow is an independent tool, not affiliated with or endorsed by Anthropic.</p>
+        </div>
+      </div>
     </div>
   </section>
 

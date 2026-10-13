@@ -293,7 +293,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   .compare tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: inset -1px 0 0 var(--rule); }
   .compare tr > :nth-child(2) { padding-left: 12px; }
 }
-.table-note { margin-top: 12px; }
+.table-note { max-width: 40rem; margin-top: 12px; }
 .table-note + .text { margin-top: 32px; }
 
 /* Install */
@@ -516,7 +516,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose">
         <h2 id="compare-title">How Brow compares with /usage, ccusage and menu-bar trackers</h2>
-        <p>There are several ways to see Claude Code usage. The rows for Claude Code’s own tools come from Anthropic’s documentation, the others from each tool’s own site or README.</p>
+        <p>There are several ways to see Claude Code usage. The first three rows come from Anthropic’s documentation, the others from each tool’s own site or README.</p>
       </div>
       <div class="table-scroll" role="region" aria-labelledby="compare-title" tabindex="0">
         <table class="compare">
@@ -569,7 +569,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
               <td>MIT, free</td>
             </tr>
             <tr>
-              <th scope="row"><a href="https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor">Claude-Code-Usage-Monitor</a></th>
+              <th scope="row"><a href="https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor">Claude Code Usage Monitor</a></th>
               <td>Terminal monitor of tokens, messages and cost, with predictions</td>
               <td>Terminal</td>
               <td>Scans several config folders; no side-by-side view described</td>
@@ -587,7 +587,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
               <td>MIT, free</td>
             </tr>
             <tr>
-              <th scope="row"><a href="https://claudetracker.com/">Claude Usage Tracker</a></th>
+              <th scope="row"><a href="https://claudetracker.com/">Claude Tracker</a></th>
               <td>Claude 5-hour, weekly and per-model usage; threshold notifications</td>
               <td>Menu bar, plus a HUD at the notch</td>
               <td>Yes, “every account at once”</td>
@@ -625,17 +625,17 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           </tbody>
         </table>
       </div>
-      <p class="table-note small">Checked on <time datetime="2026-10-13">13 October 2026</time>. “Not stated” means the tool’s own page does not say.</p>
+      <p class="table-note small">Checked on <time datetime="2026-10-13">13 October 2026</time>. “Not stated” means the tool’s own page does not say. Claude Tracker is the new name of Claude Usage Tracker.</p>
       <div class="prose text">
         <ul class="reqs">
           <li>Want the numbers inside Claude Code: <code>/usage</code>, or a status-line script on Pro and Max.</li>
           <li>Want token and cost reports: ccusage.</li>
-          <li>Want a terminal dashboard with predictions: Claude-Code-Usage-Monitor.</li>
+          <li>Want a terminal dashboard with predictions: Claude Code Usage Monitor.</li>
           <li>Use Codex, Gemini or other providers too: CodexBar or ClaudeBar.</li>
-          <li>Need notifications, an Intel Mac or an older macOS: Usage4Claude (macOS 13+) or Claude Usage Tracker (macOS 14+).</li>
+          <li>Need notifications, an Intel Mac or an older macOS: Usage4Claude (macOS 13+) or Claude Tracker (macOS 14+).</li>
           <li>Want several Claude accounts side by side at the notch, with a reset calendar and a browser profile per account: Brow.</li>
         </ul>
-        <p>Brow’s own limits: it covers Claude only; it needs macOS 26 or later on Apple silicon; it sends no notifications; and the build is not notarized, so the first launch needs <strong>Open Anyway</strong>.</p>
+        <p>Brow’s own limits: it covers Claude only; it needs macOS 26 or later, and the prebuilt app is Apple silicon only; it sends no notifications; and the build is not notarized, so the first launch needs <strong>Open Anyway</strong>.</p>
       </div>
     </div>
   </section>

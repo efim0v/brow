@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use multiple Claude Code accounts on one Mac – Brow</title>
+<meta name="description" content="How Claude Code keeps accounts apart with CLAUDE_CONFIG_DIR, how to sign each one in, start Claude Code as a given account and see every account's limits.">
+<link rel="canonical" href="https://efim0v.github.io/brow/multiple-claude-accounts/">
+<meta name="robots" content="max-image-preview:large">
+<meta name="author" content="Artem Efimov">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
+<link rel="icon" href="/brow/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/brow/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/brow/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Brow">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://efim0v.github.io/brow/multiple-claude-accounts/">
+<meta property="og:title" content="Use multiple Claude Code accounts on one Mac – Brow">
+<meta property="og:description" content="How Claude Code keeps accounts apart with CLAUDE_CONFIG_DIR, how to sign each one in, start Claude Code as a given account and see every account's limits.">
+<meta property="og:image" content="https://efim0v.github.io/brow/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Brow’s social card: the words “Claude Code rate limits in the MacBook notch” next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts and when each resets.">
+<meta property="article:published_time" content="2026-10-13">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Use multiple Claude Code accounts on one Mac – Brow">
+<meta name="twitter:description" content="How Claude Code keeps accounts apart with CLAUDE_CONFIG_DIR, how to sign each one in, start Claude Code as a given account and see every account's limits.">
+<meta name="twitter:image" content="https://efim0v.github.io/brow/og.png">
+<meta name="twitter:image:alt" content="Brow’s social card: the words “Claude Code rate limits in the MacBook notch” next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts and when each resets.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Use multiple Claude Code accounts on one Mac",
+  "description": "How Claude Code keeps accounts apart with CLAUDE_CONFIG_DIR, how to sign each one in, start Claude Code as a given account and see every account's limits.",
+  "url": "https://efim0v.github.io/brow/multiple-claude-accounts/",
+  "mainEntityOfPage": "https://efim0v.github.io/brow/multiple-claude-accounts/",
+  "inLanguage": "en",
+  "datePublished": "2026-10-13",
+  "dateModified": "2026-10-13",
+  "image": ["https://efim0v.github.io/brow/media/settings.webp"],
+  "author": { "@type": "Person", "name": "Artem Efimov", "url": "https://github.com/efim0v" },
+  "about": { "@id": "https://efim0v.github.io/brow/#app" }
+}
+</script>
+
+<style>
+:root {
+  --paper: #fbfbfa;
+  --ink: #161616;
+  --muted: #5f5e5a;
+  --rule: #e4e3df;
+  --code-bg: #f2f1ee;
+  --button: #161616;
+  --button-ink: #fff;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121212;
+    --ink: #ededec;
+    --muted: #a3a29e;
+    --rule: #2b2b2a;
+    --code-bg: #1c1c1b;
+    --button: #ededec;
+    --button-ink: #121212;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, ul, ol, figure { margin: 0; }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 1.35rem + 2.4vw, 2.75rem); line-height: 1.1; letter-spacing: -.012em; }
+h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 1.875rem); line-height: 1.2; letter-spacing: -.006em; }
+h3 { font-size: 1.125rem; line-height: 1.35; }
+p { text-wrap: pretty; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+strong { font-weight: 600; }
+code, pre { font-family: var(--mono); }
+code {
+  padding: .08em .3em;
+  border-radius: 3px;
+  background: var(--code-bg);
+  font-size: .9em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;   /* long commands wrap inside their block; copying still gives one line */
+  overflow-wrap: anywhere;
+}
+pre code { padding: 0; background: none; font-size: 1em; }
+/* Paths and commands stay in one piece where the column is full width; narrower, they may wrap */
+@media (min-width: 900px) { :not(pre) > code { white-space: nowrap; } }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+.prose { max-width: 40rem; }
+@media (max-width: 480px) {
+  .wrap { padding: 0 16px; }
+  pre { padding: 10px 12px; font-size: 13px; }
+}
+
+.skip {
+  position: absolute; left: 16px; top: -64px; z-index: 1;
+  padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
+  font-weight: 600; text-decoration: none;
+}
+.skip:focus { top: 12px; }
+
+/* Header */
+.site-header { border-bottom: 1px solid var(--rule); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; }
+.brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--ink); font-size: 1.0625rem; font-weight: 600; text-decoration: none;
+}
+.brand svg { width: 22px; height: 22px; flex: none; }
+.site-header ul { display: flex; gap: 20px; padding: 0; list-style: none; }
+.site-header nav a { display: block; padding: 8px 0; color: var(--muted); font-size: .9375rem; text-decoration: none; }
+.site-header nav a:hover { color: var(--ink); text-decoration: underline; }
+
+/* The guide: one column, a hairline between sections */
+.guide { padding: 64px 0 72px; }
+.guide h1 { margin-bottom: 12px; }
+.byline { color: var(--muted); font-size: .875rem; }
+.byline a { color: inherit; }
+.byline a:hover { color: var(--ink); }
+.lead { margin-top: 28px; font-size: 1.1875rem; line-height: 1.5; }
+.lead + p { margin-top: 16px; }
+.guide section { margin-top: 56px; padding-top: 48px; border-top: 1px solid var(--rule); scroll-margin-top: 24px; }
+.guide section > h2 { margin-bottom: 16px; }
+.guide section > * + * { margin-top: 16px; }
+.guide section > h3 { margin-top: 36px; }
+.guide section > h2 + h3 { margin-top: 24px; }
+.guide section > h3 + * { margin-top: 8px; }
+.guide ul, .guide ol { padding-left: 1.25em; }
+.guide li + li { margin-top: 8px; }
+.guide li::marker { color: var(--muted); }
+.shot { max-width: 520px; }
+.shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
+figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
+.guide section > .shot { margin-top: 32px; }
+@media (max-width: 640px) {
+  .guide { padding: 40px 0 56px; }
+  .guide section { margin-top: 40px; padding-top: 36px; }
+  .lead { margin-top: 20px; }
+}
+
+/* Footer */
+.site-footer { color: var(--muted); font-size: .875rem; }
+.site-footer .wrap > div { padding: 24px 0 48px; border-top: 1px solid var(--rule); }
+.site-footer p + p { margin-top: 6px; }
+.site-footer a { color: inherit; }
+.site-footer a:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="/brow/">
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs>
+          <clipPath id="brow-tile"><rect width="64" height="64" rx="15"/></clipPath>
+        </defs>
+        <g clip-path="url(#brow-tile)">
+          <rect width="64" height="64" fill="#7a7b80"/>
+          <path d="M7 0h50v17a11 11 0 0 1-11 11H18A11 11 0 0 1 7 17z" fill="#000"/>
+          <circle cx="19.5" cy="14" r="5.5" fill="#34c759"/>
+          <circle cx="44.5" cy="14" r="5.5" fill="#ff9f0a"/>
+        </g>
+      </svg>
+      <span>Brow</span>
+    </a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="/brow/#install">Install</a></li>
+        <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <article class="guide">
+    <div class="wrap">
+      <div class="prose">
+        <header>
+          <h1>Use multiple Claude Code accounts on one Mac</h1>
+          <p class="byline">By <a href="https://github.com/efim0v">Artem Efimov</a>&nbsp;· Published <time datetime="2026-10-13">13 October 2026</time></p>
+          <p class="lead">Claude Code can stay signed in to several accounts on one Mac, such as a work account and a personal one. Each account gets a configuration folder of its own, and the <code>CLAUDE_CONFIG_DIR</code> variable tells Claude Code which folder, and so which account, to use.</p>
+          <p>Below are the commands for doing it by hand, and the same steps in <a href="/brow/">Brow</a>, a free, open-source macOS app that shows the usage limits of every account beside the MacBook notch.</p>
+        </header>
+
+        <section id="how-it-works" aria-labelledby="how-it-works-title">
+          <h2 id="how-it-works-title">How Claude Code keeps accounts apart</h2>
+          <p>Claude Code keeps its configuration in <code>~/.claude</code>. When <code>CLAUDE_CONFIG_DIR</code> points at another folder, it uses that folder instead. In the words of Anthropic’s <a href="https://code.claude.com/docs/en/env-vars">environment variable reference</a>: “All settings, session history, and plugins are stored under this path.”</p>
+          <p>Anthropic’s guide to <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">logging in with multiple accounts</a> builds on this: give each account its own configuration directory, and each one has its own settings, session history, and claude.ai login or API key.</p>
+          <p>On a Mac the login itself is in the Keychain, in an entry that Claude Code <a href="https://code.claude.com/docs/en/authentication#credential-management">keys to the folder</a>:</p>
+          <ul>
+            <li><code>Claude Code-credentials</code> for <code>~/.claude</code>, with <code>CLAUDE_CONFIG_DIR</code> unset;</li>
+            <li><code>Claude Code-credentials-&lt;hash&gt;</code> for any other folder, where the hash is the first eight hex characters of the SHA-256 of the folder’s full path, without a trailing slash.</li>
+          </ul>
+          <p>To work out the hash for a folder:</p>
+          <pre><code>printf '%s' "$HOME/.claude-accounts/work" | shasum -a 256 | cut -c1-8</code></pre>
+          <p>In practice:</p>
+          <ul>
+            <li><strong>Keep the folder where it is.</strong> Once an account is signed in, don’t rename or move its folder. Claude Code would look for the entry under the new path’s hash and find no login.</li>
+            <li><strong>Leave the variable unset for the default account.</strong> Pointing it at <code>~/.claude</code> is not the same thing: with the variable set, Claude Code reads a hashed entry, not <code>Claude Code-credentials</code>.</li>
+            <li><strong>Settings don’t carry over.</strong> Your personal <code>CLAUDE.md</code>, settings, skills and plugins live in <code>~/.claude</code>, and another account’s folder has its own. A repository’s <code>CLAUDE.md</code> and <code>.claude/</code> folder are read whichever account you use.</li>
+          </ul>
+          <p>One case that separate folders don’t cover, according to the same guide: two Claude Console sign-ins made without an API key. Claude Code stores that kind of sign-in outside the configuration directory.</p>
+        </section>
+
+        <section id="sign-in" aria-labelledby="sign-in-title">
+          <h2 id="sign-in-title">Create a folder for each account and sign it in</h2>
+          <h3>By hand</h3>
+          <p>Any folder will do. Brow and Grove look for accounts in <code>~/.claude-accounts/</code>, so the examples here use it.</p>
+          <pre><code>mkdir -p ~/.claude-accounts/work
+CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
+          <p><code>claude auth login</code> signs the folder in to your Anthropic account, and <code>--email</code> pre-fills the address (<a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a>). You can also skip it: the first <code>claude</code> you start with the variable set walks you through login and setup for the new folder.</p>
+          <p>To check which account a folder holds:</p>
+          <pre><code>CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth status --text</code></pre>
+          <p>It prints the login method, the organisation and the email.</p>
+
+          <h3>With Brow</h3>
+          <p>In Brow, the <strong>Sign in…</strong> button in Settings → Accounts does all of this:</p>
+          <ol>
+            <li>Brow creates the next free folder: <code>~/.claude-accounts/account-1</code>, then <code>account-2</code>, and so on.</li>
+            <li>Terminal opens and runs Anthropic’s own sign-in, <code>claude auth login</code>, for that folder. The first time, macOS asks whether Brow may control Terminal.</li>
+            <li>The sign-in page opens in <a href="#browser">a browser profile that belongs to the new account</a>.</li>
+            <li>Brow watches the folder for up to ten minutes and adds the account once the sign-in lands.</li>
+          </ol>
+          <p>Brow also marks Claude Code’s first-run setup as done in the new folder, so the first <code>claude</code> there skips it. The folder’s name doesn’t matter: Brow shows the account’s email, or a name you type in Settings.</p>
+          <p>Folders you sign in by hand inside <code>~/.claude-accounts/</code> show up at Brow’s next check; Brow skips names that start with a dot. For a folder anywhere else, use <strong>Existing folder…</strong> in the same tab. Brow tells accounts apart by their organisation, so two folders signed in to the same account show up once, with the other folder listed as an alias.</p>
+          <figure class="shot">
+            <img src="../media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Brow’s Accounts settings: an Add an account row with a Sign in button, then an account card with name, email, tier, folder, token state and launch command">
+            <figcaption>Settings → Accounts, with made-up demo data. The demo’s launch command has no <code>BROWSER</code> part; in the installed app it does.</figcaption>
+          </figure>
+        </section>
+
+        <section id="start" aria-labelledby="start-title">
+          <h2 id="start-title">Start Claude Code as a given account</h2>
+          <p>Put the variable in front of <code>claude</code>:</p>
+          <pre><code>CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude</code></pre>
+          <p>Anthropic’s documentation suggests an alias in <code>~/.zshrc</code>, so that <code>claude-work</code> starts the work account while <code>claude</code> keeps the default one:</p>
+          <pre><code>alias claude-work='CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude'</code></pre>
+          <p>To use one account for everything in a terminal window, export the variable there:</p>
+          <pre><code>export CLAUDE_CONFIG_DIR=~/.claude-accounts/work</code></pre>
+          <p><code>unset CLAUDE_CONFIG_DIR</code> goes back to the default account. Inside a session, <code>/status</code> shows the account it runs as.</p>
+          <p>In Brow, the copy button next to each account in the panel, and <strong>Copy launch command</strong> in Settings → Accounts, copy the whole line. With Brow in <code>/Applications</code>, it looks like this:</p>
+          <pre><code>CLAUDE_CONFIG_DIR='/Users/you/.claude-accounts/account-1' BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser' claude</code></pre>
+          <p>For the default account the line starts with <code>env -u CLAUDE_CONFIG_DIR</code> instead, which removes the variable even in a terminal that has one exported:</p>
+          <pre><code>env -u CLAUDE_CONFIG_DIR BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser' claude</code></pre>
+          <p>Paste either line into any terminal. <code>BROWSER</code> points at Brow’s browser router, described next.</p>
+        </section>
+
+        <section id="browser" aria-labelledby="browser-title">
+          <h2 id="browser-title">Keep each account’s browser sign-in apart</h2>
+          <p><code>claude auth login</code> finishes in a browser window, on claude.ai. Brow gives each account a browser profile of its own, with its own cookies, history and saved logins, so signing in to one account never disturbs another.</p>
+          <p>It does this through <code>BROWSER</code>. The sign-in and launch commands that Brow runs or copies set it to a small script inside Brow.app. When Claude Code opens a sign-in link, the script reads <code>CLAUDE_CONFIG_DIR</code> and opens the link in that account’s profile.</p>
+          <ul>
+            <li>The profiles are folders in <code>~/Library/Application Support/Brow/browser-profiles/</code>, each named with the eight-character hash of the account’s folder path.</li>
+            <li>The script uses the first of Google Chrome, Chromium, Brave and Edge that it finds in <code>/Applications</code>. With none of them, the link opens in your default browser, with no isolation.</li>
+            <li>A new account’s profile starts empty. Sign in to claude.ai there once and the profile keeps that sign-in. <strong>Open browser profile</strong> in Settings → Accounts, or the globe next to the account in the panel, opens claude.ai in it.</li>
+            <li>When Claude Code reports “Login expired · Please run /login” for an account, <strong>Sign in again</strong> in Settings → Accounts, or the matching button next to the account in the panel, runs <code>claude auth login</code> for it in its own profile. Other accounts stay signed in.</li>
+          </ul>
+          <p>Sign-ins that Brow starts already go through the script. For sign-ins you start yourself, in cmux or any other terminal, Settings → General → One browser profile per account shows a line to add to <code>~/.zshrc</code> once:</p>
+          <pre><code>export BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser'</code></pre>
+          <p>The script reads <code>CLAUDE_CONFIG_DIR</code> itself, so one line covers every account. The line sets <code>BROWSER</code> for everything you start from that shell, not only Claude Code. Sessions that <a href="/grove/">Grove</a> starts get the script without it, as long as Brow is installed.</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <h2 id="limits-title">See every account’s limits at once</h2>
+          <p>Each account has its own usage limits, a 5-hour limit and a weekly limit, and each resets on its own schedule. Inside Claude Code, <code>/usage</code> shows the plan usage limits of the account the session runs as. Brow shows every account at once, beside the MacBook notch:</p>
+          <ul>
+            <li>the 5-hour limit, the weekly limit and any model-specific weekly limit of each account, as percent used;</li>
+            <li>when each one resets: a countdown such as “resets in 3&nbsp;h 12&nbsp;min” within a day, otherwise a date and time such as “resets 22 Sep 02:00”;</li>
+            <li>a reset calendar with every account’s weekly resets and estimated subscription renewals on one month.</li>
+          </ul>
+          <p>Brow checks every 30 seconds, and again when the Mac wakes or the network comes back. Reading the limits is not a model request. The one thing that can spend a little of an account’s limit is the fallback token refresh, which is on by default and can be turned off; <a href="/brow/#privacy">what Brow does on your machine</a> explains it.</p>
+          <p>For other ways to watch usage, from <code>/usage</code> to ccusage and menu-bar trackers, see <a href="/brow/#compare">how Brow compares with other usage tools</a>.</p>
+          <p>Brow is free and open source, for macOS 26 or later on Apple silicon. Install it with Homebrew:</p>
+          <pre><code>brew install --cask efim0v/tap/brow</code></pre>
+          <p>Or download it from the <a href="https://github.com/efim0v/brow/releases/latest">latest release on GitHub</a>. The build is not notarized, so the first launch needs <strong>Open Anyway</strong>; the <a href="/brow/#install">install notes</a> walk through it.</p>
+        </section>
+
+        <section id="questions" aria-labelledby="questions-title">
+          <h2 id="questions-title">Questions</h2>
+          <h3>How do I switch Claude Code to another account?</h3>
+          <p>Start it with that account’s folder, as above. Nothing is switched for the whole Mac: each <code>claude</code> runs as the account of the folder it started with, so two terminals can work as two accounts at the same time.</p>
+
+          <h3>Can I continue a session under another account?</h3>
+          <p>Not with <code>CLAUDE_CONFIG_DIR</code> alone: a session’s transcript is in the folder of the account that ran it. <a href="/grove/">Grove</a>, Brow’s companion app, moves sessions between accounts. <strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies its transcript, memory, file history and tasks into the other account. <strong>Share</strong> moves it into a store that every linked account can see. Step by step: <a href="/grove/move-session-to-another-account/">continue a Claude Code session on another account</a>.</p>
+
+          <h3>Where does each account keep its history and settings?</h3>
+          <p>In its own folder. With <code>CLAUDE_CONFIG_DIR</code> set, every <code>~/.claude</code> path in Anthropic’s <a href="https://code.claude.com/docs/en/claude-directory">guide to the .claude directory</a> lives under that folder instead: transcripts in <code>projects/</code>, prompt history in <code>history.jsonl</code>, settings in <code>settings.json</code>.</p>
+
+          <h3>Why does every folder use the same account?</h3>
+          <p>Look for <code>ANTHROPIC_API_KEY</code>, <code>ANTHROPIC_AUTH_TOKEN</code> or <code>CLAUDE_CODE_OAUTH_TOKEN</code> in your shell. Each of them ranks above the login stored for a folder (an API key once you have approved it), so Claude Code uses it whichever folder you start with. <code>claude auth status</code> shows which login method is in use, and Anthropic’s <a href="https://code.claude.com/docs/en/authentication#authentication-precedence">authentication precedence</a> has the full order.</p>
+
+          <h3>Is Brow an account switcher?</h3>
+          <p>No. Brow doesn’t change which account <code>claude</code> uses. It shows each account’s limits, copies the command that starts Claude Code as that account, and signs an account in again in its own browser profile.</p>
+
+          <h3>Is it allowed to keep several accounts?</h3>
+          <p>That is for Anthropic’s terms to answer, not for this guide. Read Anthropic’s <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> and <a href="https://www.anthropic.com/legal/aup">Usage Policy</a> for your plans.</p>
+        </section>
+      </div>
+    </div>
+  </article>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <p><a href="/brow/">Brow</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="/grove/">Grove</a></p>
+      <p>Brow is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. The screenshot shows made-up demo data.</p>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

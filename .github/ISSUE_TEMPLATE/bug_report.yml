@@ -1,0 +1,129 @@
+name: Bug report
+description: Something in Brow does not work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. With a notch app, the Mac, the display and the accounts matter as much as the steps, so the form asks for each.
+
+        - Questions and setup help: [Discussions → Q&A](https://github.com/efim0v/brow/discussions/categories/q-a).
+        - Security problems: never here. See [SECURITY.md](https://github.com/efim0v/brow/blob/main/SECURITY.md).
+        - Never paste a token, a Keychain item or a `.credentials.json` file. The panel shows account names or emails; blur them in screenshots if you prefer.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what Brow did instead. A screenshot or screen recording of the notch, the panel or Settings helps a lot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Hover the notch
+        2. …
+
+  - type: input
+    id: brow-version
+    attributes:
+      label: Brow version
+      description: "Run `plutil -extract CFBundleShortVersionString raw /Applications/Brow.app/Contents/Info.plist`. For a build of your own, give the commit."
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installed-from
+    attributes:
+      label: Installed from
+      options:
+        - Brow.zip from the releases page
+        - Homebrew (efim0v/tap/brow)
+        - Built from source
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: "Run `sw_vers -productVersion`."
+      placeholder: "26.1"
+    validations:
+      required: true
+
+  - type: input
+    id: mac-model
+    attributes:
+      label: Mac model
+      description: "Apple menu → About This Mac."
+      placeholder: "MacBook Air 13-inch, M2, 2022"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: display
+    attributes:
+      label: Where Brow draws
+      description: "Brow sits at the top of the main display. The readouts' placement is Settings → General → Ears."
+      options:
+        - Built-in display with a notch, readouts beside the notch
+        - Built-in display with a notch, readouts below the notch
+        - Built-in display without a notch (pill)
+        - External display (pill)
+    validations:
+      required: true
+
+  - type: input
+    id: claude-code-version
+    attributes:
+      label: Claude Code version
+      description: "Run `claude --version`."
+      placeholder: "2.1.296 (Claude Code)"
+    validations:
+      required: true
+
+  - type: input
+    id: accounts
+    attributes:
+      label: Accounts
+      description: "How many accounts Brow shows, and their plans (Tier in Settings → Accounts)."
+      placeholder: "3: Pro, Max 5x, Max 20x"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        #### Log
+
+        Brow writes to the macOS log. To catch the problem as it happens, run this in Terminal, reproduce it, then press Ctrl-C:
+
+        ```sh
+        log stream --level info --style compact --predicate 'subsystem == "dev.artemefimov.brow"'
+        ```
+
+        If it has already happened, this prints what Brow logged in the last hour:
+
+        ```sh
+        log show --last 1h --info --style compact --predicate 'subsystem == "dev.artemefimov.brow"'
+        ```
+
+        The log names account folders and organization IDs. Look it over and remove anything you would rather not post.
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log output
+      description: Paste the lines around the problem. They are formatted as code automatically.
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: "Did it start after an update of Brow, Claude Code or macOS? Do you also use Grove? Which browser opens the account profiles? Is the `claude -p` fallback on (Settings → Accounts)?"

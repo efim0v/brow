@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an idea or an improvement for Brow.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Brow shows the limits of every Claude Code account in the notch and signs each account in with one click. Ideas about workspaces, worktrees or moving sessions between accounts belong to [Grove](https://github.com/efim0v/grove). To talk an idea through before filing it, use [Discussions → Ideas](https://github.com/efim0v/brow/discussions/categories/ideas).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The situation, and what gets in the way today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How it could work in Brow. Sketches and screenshots are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now
+      description: Workarounds or other tools you use for this today.
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to build it?
+      options:
+        - Yes, I would like to open a pull request
+        - Maybe, with some guidance
+        - "No"

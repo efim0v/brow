@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-14
+
+### Fixed
+
+- After a sign-in, Brow marks Claude Code's first-run setup as done in the account's `.claude.json`. It no longer rewrites a `.claude.json` that doesn't parse, such as one caught half-written by Claude Code, which would have left only two keys and dropped the account's sign-in, MCP servers and project trust. The write now goes through Claude Code's lock file and keeps a symlinked `.claude.json` a symlink. The fix is in `GroveCore` 0.2.2 ([efim0v/grove#4](https://github.com/efim0v/grove/issues/4), [#5](https://github.com/efim0v/grove/issues/5)), which Brow now requires.
+
 ## [0.2.1] - 2026-10-13
 
 Update if you run 0.2.0: it kept Claude Code access tokens in a cache file.
@@ -52,6 +58,7 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.2.1...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.2.2...HEAD
+[0.2.2]: https://github.com/efim0v/brow/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/efim0v/brow/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/efim0v/brow/releases/tag/0.2.0

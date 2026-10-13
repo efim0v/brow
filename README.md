@@ -1,6 +1,8 @@
 English · [Русский](README.ru.md) · [简体中文](README.zh-CN.md)
 
-# Brow — Claude Code rate limits in the MacBook notch
+Website: [efim0v.github.io/brow](https://efim0v.github.io/brow/)
+
+# Brow — Claude Code usage limits in the MacBook notch
 
 [![CI](https://github.com/efim0v/brow/actions/workflows/ci.yml/badge.svg)](https://github.com/efim0v/brow/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/efim0v/brow)](https://github.com/efim0v/brow/releases/latest)

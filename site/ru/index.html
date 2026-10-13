@@ -533,8 +533,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       <div class="prose text">
         <h2 id="accounts-title">Несколько аккаунтов Claude&nbsp;Code на&nbsp;одном Mac</h2>
         <p>Claude&nbsp;Code хранит каждый аккаунт в&nbsp;отдельной папке конфигурации: аккаунт по&nbsp;умолчанию&nbsp;— в&nbsp;<code class="nowrap">~/.claude</code>, любой другой&nbsp;— в&nbsp;папке, на&nbsp;которую указывает <code class="nowrap">CLAUDE_CONFIG_DIR</code>. Именно так <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">документация Anthropic</a> предлагает оставаться авторизованным сразу в&nbsp;нескольких аккаунтах, например в&nbsp;рабочем и&nbsp;личном.</p>
-        <p>Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code>. В&nbsp;<span class="nowrap">Settings → Accounts</span> кнопка <strong>Sign in…</strong> создаёт следующую свободную папку, <code class="nowrap">~/.claude-accounts/account-N</code>, и&nbsp;запускает для неё <code class="nowrap">claude auth login</code> в&nbsp;Терминале, а&nbsp;<strong>Existing folder…</strong> добавляет папку, которой вы&nbsp;уже пользуетесь. После этого у&nbsp;каждого аккаунта есть кнопка, которая копирует его команду запуска, например <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>: Claude&nbsp;Code стартует под этим аккаунтом и&nbsp;открывает ссылки в&nbsp;его профиле браузера.</p>
-        <p>У&nbsp;каждой папки свой вход. Claude&nbsp;Code хранит его в&nbsp;связке ключей macOS под именем, привязанным к&nbsp;папке: <code>Claude Code-credentials</code> для <code class="nowrap">~/.claude</code> и&nbsp;<code>Claude Code-credentials-&lt;hash&gt;</code> для любой другой папки. Правила для ваших тарифов смотрите в&nbsp;<a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> Anthropic.</p>
+        <p>Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code>. В&nbsp;<span class="nowrap">Settings → Accounts</span> кнопка <strong>Sign in…</strong> создаёт следующую свободную папку, <code class="nowrap">~/.claude-accounts/account-N</code>, и&nbsp;запускает для неё <code class="nowrap">claude auth login</code> в&nbsp;Терминале, а&nbsp;<strong>Existing folder…</strong> добавляет папку, которой вы&nbsp;уже пользуетесь. После этого у&nbsp;каждого аккаунта есть кнопка, которая копирует его команду запуска, например <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>. С&nbsp;этой командой Claude&nbsp;Code стартует под нужным аккаунтом и&nbsp;открывает ссылки в&nbsp;его профиле браузера.</p>
+        <p>У&nbsp;каждой папки свои учётные данные. Claude&nbsp;Code хранит их в&nbsp;связке ключей macOS под именем, привязанным к&nbsp;папке: <code>Claude Code-credentials</code> для <code class="nowrap">~/.claude</code> и&nbsp;<code>Claude Code-credentials-&lt;hash&gt;</code> для любой другой папки. Правила для ваших тарифов смотрите в&nbsp;<a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> Anthropic.</p>
       </div>
     </div>
   </section>
@@ -543,7 +543,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose">
         <h2 id="compare-title">Как посмотреть лимиты Claude&nbsp;Code: /usage, настройки, ccusage и&nbsp;Brow</h2>
-        <p>Посмотреть лимиты Claude&nbsp;Code можно несколькими способами. Первые три строки таблицы основаны на&nbsp;документации Anthropic, остальные&nbsp;— на&nbsp;сайте или README каждого инструмента.</p>
+        <p>Узнать расход и&nbsp;лимиты Claude&nbsp;Code можно несколькими способами. Первые три строки таблицы составлены по&nbsp;документации Anthropic, остальные&nbsp;— по&nbsp;сайту или README самого инструмента.</p>
       </div>
       <div class="table-scroll" role="region" aria-labelledby="compare-title" tabindex="0">
         <table class="compare">
@@ -578,8 +578,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
               <td>Входит в&nbsp;Claude</td>
             </tr>
             <tr>
-              <th scope="row"><a href="https://code.claude.com/docs/en/statusline">Строка состояния, <code>rate_limits</code></a></th>
-              <td>Сколько процентов <span class="nowrap">5-часового</span> и&nbsp;<span class="nowrap">7-дневного</span> лимита израсходовано и&nbsp;когда сброс&nbsp;— для вашего скрипта строки состояния; только Pro и&nbsp;Max</td>
+              <th scope="row"><a href="https://code.claude.com/docs/en/statusline"><code>rate_limits</code> в&nbsp;строке состояния</a></th>
+              <td>Сколько процентов <span class="nowrap">5-часового</span> и&nbsp;<span class="nowrap">7-дневного</span> лимитов израсходовано и&nbsp;когда они сбросятся&nbsp;— для вашего скрипта строки состояния; только Pro и&nbsp;Max</td>
               <td>Строка состояния Claude&nbsp;Code</td>
               <td>Нет: только аккаунт сессии</td>
               <td>—</td>
@@ -741,7 +741,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Настройки и&nbsp;последние данные на&nbsp;диске</dt>
-          <dd>Свои настройки и&nbsp;последние полученные данные о&nbsp;лимитах Brow хранит в&nbsp;<code>~/Library/Application Support/Brow</code>. Кроме того, он&nbsp;ведёт учёт частоты запросов к&nbsp;эндпоинту расхода, вместе с&nbsp;последними данными каждого аккаунта, в&nbsp;файле <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>. Этот путь задан в&nbsp;GroveCore&nbsp;— библиотеке, общей для Brow и&nbsp;Grove.</dd>
+          <dd>Свои настройки и&nbsp;последние полученные данные о&nbsp;лимитах Brow хранит в&nbsp;<code>~/Library/Application Support/Brow</code>. Кроме того, в&nbsp;файле <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> он&nbsp;ведёт учёт частоты запросов к&nbsp;эндпоинту расхода и&nbsp;хранит последние данные каждого аккаунта. Этот путь задан в&nbsp;GroveCore&nbsp;— библиотеке, общей для Brow и&nbsp;Grove.</dd>
         </div>
       </dl>
       <p class="small">Brow&nbsp;— независимый инструмент. Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его.</p>
@@ -766,7 +766,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Что значит «You’ve hit your session limit»?</h3>
-          <p>Claude&nbsp;Code показывает это сообщение, когда аккаунт исчерпал лимит текущего окна. В&nbsp;сообщении сказано, когда окно сбросится, а&nbsp;переключение модели через <code>/model</code> доступ не&nbsp;вернёт. Сообщение «You’ve hit your weekly limit» работает так же. Brow показывает, у&nbsp;какого из&nbsp;ваших других аккаунтов ещё есть запас, а&nbsp;команду, которая запускает Claude&nbsp;Code под этим аккаунтом, можно скопировать одним кликом.</p>
+          <p>Claude&nbsp;Code показывает это сообщение, когда аккаунт исчерпал лимит текущего окна. В&nbsp;сообщении сказано, когда окно сбросится, а&nbsp;переключение модели через <code>/model</code> доступ не&nbsp;вернёт. То&nbsp;же относится к&nbsp;сообщению «You’ve hit your weekly limit». Brow показывает, у&nbsp;какого из&nbsp;ваших других аккаунтов ещё есть запас, а&nbsp;команду, которая запускает Claude&nbsp;Code под этим аккаунтом, можно скопировать одним кликом.</p>
         </div>
         <div>
           <h3>Можно ли&nbsp;видеть лимиты нескольких аккаунтов Claude&nbsp;Code сразу?</h3>
@@ -775,7 +775,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Тратит ли&nbsp;Brow мои лимиты?</h3>
           <p>Только через запасное обновление токена, и&nbsp;его можно отключить. Чтение лимитов&nbsp;— это запрос к&nbsp;эндпоинту Anthropic с&nbsp;данными о&nbsp;расходе, а&nbsp;не&nbsp;к&nbsp;модели. Токен простаивающего аккаунта Brow обновляет через <code class="nowrap">claude doctor</code>, который к&nbsp;модели тоже не&nbsp;обращается.</p>
-          <p>Запасное обновление включено по&nbsp;умолчанию. Когда токену осталось жить 30&nbsp;минут или меньше, а&nbsp;<code class="nowrap">claude doctor</code> его не&nbsp;продлил, Brow выполняет запрос <code class="nowrap">claude -p</code> в&nbsp;один ход на&nbsp;Haiku. Это тратит крошечную долю лимита аккаунта и&nbsp;запускает его <span class="nowrap">5-часовое</span> окно. Такой запрос уходит не&nbsp;чаще раза в&nbsp;30&nbsp;минут на&nbsp;аккаунт. Выключить его можно в&nbsp;<span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong>.</p>
+          <p>Запасное обновление включено по&nbsp;умолчанию. Когда токену осталось жить 30&nbsp;минут или меньше, а&nbsp;<code class="nowrap">claude doctor</code> его не&nbsp;продлил, Brow выполняет запрос <code class="nowrap">claude -p</code> в&nbsp;один ход на&nbsp;Haiku. Это тратит крошечную долю лимита аккаунта и&nbsp;запускает его <span class="nowrap">5-часовое</span> окно. Такой запрос уходит не&nbsp;чаще раза в&nbsp;30&nbsp;минут на&nbsp;аккаунт. Выключить запасное обновление можно в&nbsp;<span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong>.</p>
         </div>
         <div>
           <h3>Brow&nbsp;— это приложение для строки меню? Работает ли&nbsp;он&nbsp;без чёлки?</h3>
@@ -799,7 +799,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Откуда Brow берёт мой токен и&nbsp;уходит ли&nbsp;что-нибудь с&nbsp;моего Mac?</h3>
-          <p>Из&nbsp;записи в&nbsp;связке ключей, которую Claude&nbsp;Code хранит для каждой папки аккаунта, или из&nbsp;<code class="nowrap">.credentials.json</code> в&nbsp;этой папке, если Claude&nbsp;Code хранит вход там. Brow берёт только access-токен, а&nbsp;продлевать его оставляет самому Claude&nbsp;Code.</p>
+          <p>Из&nbsp;записи в&nbsp;связке ключей, которую Claude&nbsp;Code хранит для каждой папки аккаунта, или из&nbsp;файла <code class="nowrap">.credentials.json</code> в&nbsp;этой папке, если Claude&nbsp;Code хранит учётные данные в&nbsp;нём. Brow берёт только access-токен, а&nbsp;продлевать его оставляет самому Claude&nbsp;Code.</p>
           <p>Собственные запросы Brow идут только к&nbsp;<code>api.anthropic.com/api/oauth/usage</code> и, примерно раз в&nbsp;день на&nbsp;аккаунт, к&nbsp;<code>api.anthropic.com/api/oauth/profile</code>. Ни&nbsp;аналитики, ни&nbsp;проверки обновлений в&nbsp;Brow нет. Команды <code class="nowrap">claude</code>, которые он&nbsp;запускает, ходят в&nbsp;сеть так же, как обычно ходит Claude&nbsp;Code, а&nbsp;профили браузера открывают claude.ai.</p>
         </div>
         <div>
@@ -808,7 +808,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Истекла авторизация в&nbsp;Claude&nbsp;Code. Как войти в&nbsp;нужный аккаунт?</h3>
-          <p>Если сохранённый вход не&nbsp;удаётся обновить, Claude&nbsp;Code сообщает «Login expired&nbsp;· Please run /login». В&nbsp;Brow кнопка входа рядом с&nbsp;этим аккаунтом запускает для него <code class="nowrap">claude auth login</code>. При этом открывается профиль браузера, который принадлежит этому аккаунту, поэтому вход происходит именно в&nbsp;нужный аккаунт. Остальные аккаунты остаются авторизованными.</p>
+          <p>Если сохранённую авторизацию не&nbsp;удаётся обновить, Claude&nbsp;Code сообщает «Login expired&nbsp;· Please run /login». В&nbsp;Brow кнопка входа рядом с&nbsp;этим аккаунтом запускает для него <code class="nowrap">claude auth login</code>. При этом открывается профиль браузера, который принадлежит этому аккаунту, поэтому вход происходит именно в&nbsp;нужный аккаунт. Остальные аккаунты остаются авторизованными.</p>
         </div>
         <div>
           <h3>На&nbsp;каких Mac работает Brow?</h3>

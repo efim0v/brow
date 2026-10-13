@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found – Brow</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
+<link rel="icon" href="/brow/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/brow/favicon-32.png" type="image/png" sizes="32x32">
+<!-- Served for any unknown path under /brow/, at any depth: every link and asset path is absolute. -->
+<style>
+:root {
+  --paper: #fbfbfa;
+  --ink: #161616;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #121212; --ink: #ededec; }
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 36rem; margin: 15vh auto; padding: 0 16px; }
+h1 { margin: 0 0 16px; font-size: 1.75rem; line-height: 1.2; font-weight: 600; }
+p { margin: 0; text-wrap: pretty; }
+p + p { margin-top: 12px; }
+a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Page not found</h1>
+  <p>Go to <a href="/brow/">Brow — Claude Code usage limits for every account, in the MacBook notch</a>.</p>
+  <p><a href="https://github.com/efim0v/brow">Brow on GitHub</a>&nbsp;· <a href="/grove/">Grove</a></p>
+</main>
+</body>
+</html>

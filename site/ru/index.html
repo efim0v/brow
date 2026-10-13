@@ -680,7 +680,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           </li>
           <li>
             <h3>Разрешите первый запуск</h3>
-            <p>Сборка подписана ad hoc и&nbsp;не&nbsp;нотаризована Apple, поэтому macOS заблокирует первый запуск, каким бы&nbsp;способом вы&nbsp;ни&nbsp;установили Brow.</p>
+            <p>Сборка подписана ad hoc и&nbsp;не&nbsp;нотаризована Apple, поэтому macOS заблокирует первый запуск, каким&nbsp;бы способом вы&nbsp;ни&nbsp;установили Brow.</p>
             <p>Откройте <strong>Системные настройки → Конфиденциальность и&nbsp;безопасность</strong>, найдите в&nbsp;разделе «Безопасность» сообщение о&nbsp;Brow, нажмите <strong>Все равно открыть</strong> и&nbsp;введите пароль для входа в&nbsp;систему. Кнопка остаётся там примерно час после заблокированного запуска.</p>
           </li>
           <li>
@@ -737,7 +737,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Для входа открывается Терминал</dt>
-          <dd>Вход запускает <code class="nowrap">claude auth login</code> в&nbsp;Терминале, и&nbsp;macOS один раз спросит, можно ли&nbsp;Brow управлять Терминалом.</dd>
+          <dd>Вход запускает <code class="nowrap">claude auth login</code> в&nbsp;Терминале, и&nbsp;macOS один раз спросит, можно&nbsp;ли Brow управлять Терминалом.</dd>
         </div>
         <div>
           <dt>Настройки и&nbsp;последние данные на&nbsp;диске</dt>
@@ -769,24 +769,24 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>Claude&nbsp;Code показывает это сообщение, когда аккаунт исчерпал лимит текущего окна. В&nbsp;сообщении сказано, когда окно сбросится, а&nbsp;переключение модели через <code>/model</code> доступ не&nbsp;вернёт. То&nbsp;же относится к&nbsp;сообщению «You’ve hit your weekly limit». Brow показывает, у&nbsp;какого из&nbsp;ваших других аккаунтов ещё есть запас, а&nbsp;команду, которая запускает Claude&nbsp;Code под этим аккаунтом, можно скопировать одним кликом.</p>
         </div>
         <div>
-          <h3>Можно ли&nbsp;видеть лимиты нескольких аккаунтов Claude&nbsp;Code сразу?</h3>
+          <h3>Можно&nbsp;ли видеть лимиты нескольких аккаунтов Claude&nbsp;Code сразу?</h3>
           <p>Да. Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code> и&nbsp;показывает лимиты всех аккаунтов рядом друг с&nbsp;другом. Claude&nbsp;Code хранит каждый аккаунт в&nbsp;своей папке конфигурации, которая задаётся через <code class="nowrap">CLAUDE_CONFIG_DIR</code>; подробнее&nbsp;— в&nbsp;разделе «<a href="#accounts">Несколько аккаунтов Claude&nbsp;Code на&nbsp;одном Mac</a>» выше.</p>
         </div>
         <div>
-          <h3>Тратит ли&nbsp;Brow мои лимиты?</h3>
+          <h3>Тратит&nbsp;ли Brow мои лимиты?</h3>
           <p>Только через запасное обновление токена, и&nbsp;его можно отключить. Чтение лимитов&nbsp;— это запрос к&nbsp;эндпоинту Anthropic с&nbsp;данными о&nbsp;расходе, а&nbsp;не&nbsp;к&nbsp;модели. Токен простаивающего аккаунта Brow обновляет через <code class="nowrap">claude doctor</code>, который к&nbsp;модели тоже не&nbsp;обращается.</p>
           <p>Запасное обновление включено по&nbsp;умолчанию. Когда токену осталось жить 30&nbsp;минут или меньше, а&nbsp;<code class="nowrap">claude doctor</code> его не&nbsp;продлил, Brow выполняет запрос <code class="nowrap">claude -p</code> в&nbsp;один ход на&nbsp;Haiku. Это тратит крошечную долю лимита аккаунта и&nbsp;запускает его <span class="nowrap">5-часовое</span> окно. Такой запрос уходит не&nbsp;чаще раза в&nbsp;30&nbsp;минут на&nbsp;аккаунт. Выключить запасное обновление можно в&nbsp;<span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong>.</p>
         </div>
         <div>
-          <h3>Brow&nbsp;— это приложение для строки меню? Работает ли&nbsp;он&nbsp;без чёлки?</h3>
+          <h3>Brow&nbsp;— это приложение для строки меню? Работает&nbsp;ли он&nbsp;без чёлки?</h3>
           <p>У&nbsp;Brow нет значка ни&nbsp;в&nbsp;строке меню, ни&nbsp;в&nbsp;Dock. Он&nbsp;находится вверху основного дисплея. На&nbsp;MacBook с&nbsp;чёлкой два показателя стоят по&nbsp;бокам от&nbsp;неё или в&nbsp;полосе под ней. На&nbsp;дисплее без чёлки, например на&nbsp;внешнем мониторе, Brow показывает капсулу вверху по&nbsp;центру.</p>
         </div>
         <div>
-          <h3>Есть ли&nbsp;в&nbsp;Brow уведомления?</h3>
+          <h3>Есть&nbsp;ли в&nbsp;Brow уведомления?</h3>
           <p>Нет. Точка рядом с&nbsp;каждым показателем становится оранжевой при 70&nbsp;% и&nbsp;красной при 90&nbsp;%.</p>
         </div>
         <div>
-          <h3>Есть ли&nbsp;виджет для рабочего стола?</h3>
+          <h3>Есть&nbsp;ли виджет для рабочего стола?</h3>
           <p>Нет. Brow живёт в&nbsp;чёлке, а&nbsp;на&nbsp;других дисплеях&nbsp;— в&nbsp;капсуле: наведите на&nbsp;неё курсор, чтобы открыть панель.</p>
         </div>
         <div>
@@ -798,7 +798,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>Да. Brow бесплатный, а&nbsp;<a href="https://github.com/efim0v/brow">его исходный код лежит на&nbsp;GitHub</a> под лицензией GNU GPL&nbsp;v3. Версии 0.2.0 и&nbsp;более ранние выходили под лицензией MIT.</p>
         </div>
         <div>
-          <h3>Откуда Brow берёт мой токен и&nbsp;уходит ли&nbsp;что-нибудь с&nbsp;моего Mac?</h3>
+          <h3>Откуда Brow берёт мой токен и&nbsp;уходит&nbsp;ли что-нибудь с&nbsp;моего Mac?</h3>
           <p>Из&nbsp;записи в&nbsp;связке ключей, которую Claude&nbsp;Code хранит для каждой папки аккаунта, или из&nbsp;файла <code class="nowrap">.credentials.json</code> в&nbsp;этой папке, если Claude&nbsp;Code хранит учётные данные в&nbsp;нём. Brow берёт только access-токен, а&nbsp;продлевать его оставляет самому Claude&nbsp;Code.</p>
           <p>Собственные запросы Brow идут только к&nbsp;<code>api.anthropic.com/api/oauth/usage</code> и, примерно раз в&nbsp;день на&nbsp;аккаунт, к&nbsp;<code>api.anthropic.com/api/oauth/profile</code>. Ни&nbsp;аналитики, ни&nbsp;проверки обновлений в&nbsp;Brow нет. Команды <code class="nowrap">claude</code>, которые он&nbsp;запускает, ходят в&nbsp;сеть так же, как обычно ходит Claude&nbsp;Code, а&nbsp;профили браузера открывают claude.ai.</p>
         </div>

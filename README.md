@@ -1,10 +1,15 @@
 # Brow — Claude Code rate limits in the MacBook notch
 
+[![CI](https://github.com/efim0v/brow/actions/workflows/ci.yml/badge.svg)](https://github.com/efim0v/brow/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/efim0v/brow)](https://github.com/efim0v/brow/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/github/license/efim0v/brow)](LICENSE)
+[![Platform: macOS 26+ · Apple silicon](https://img.shields.io/badge/platform-macOS%2026%2B%20%C2%B7%20Apple%20silicon-lightgrey)](#requirements)
+
 A macOS app that shows the **usage and rate limits of every [Claude Code](https://claude.com/claude-code) account** you have, right in the MacBook notch: the 5-hour limit, the weekly limit, and when each resets. One click signs you in to an account in a browser profile that belongs to that account alone.
 
-It is for people who keep several Claude subscriptions and run a separate stream of AI-assisted work on each. Brow shows at a glance which account is close to its limit, which has room, and when each one frees up.
+It is for people who keep several Claude subscriptions and run a separate stream of AI-assisted work on each. Brow shows at a glance which account is close to its limit, which has room, and when each one frees up. It works with a single account too: Brow picks up `~/.claude` by itself and shows that account's limits.
 
-**[Download Brow for macOS](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** · macOS 26 or later, Apple silicon · [install notes](#install)
+**[Download Brow for macOS](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** or `brew install --cask efim0v/tap/brow` · macOS 26 or later, Apple silicon · [install notes](#install)
 
 ### Which account still has room
 
@@ -61,6 +66,77 @@ Collapsed, Brow shows two numbers beside the notch: how much of the 5-hour limit
   <img alt="Readouts below the notch" src="docs/screenshots/brow-notch-collapsed-below.png" width="640" />
 </p>
 
+## What Brow does on your machine
+
+Worth knowing before you run it:
+
+- **Brow reads Claude Code's sign-in token from the macOS Keychain** and uses it only to call Anthropic's usage and profile endpoints. Those endpoints are not a documented public API and may change. No token is written to disk or logged, and nothing is sent anywhere else. If macOS withholds an account's token, that account shows a key; pressing it asks macOS for access.
+- **The fallback token refresh is on by default.** If the normal refresh stops working Brow runs a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. Turn it off in Settings → Accounts; the [FAQ](#does-brow-use-up-my-limits) says exactly when it runs.
+- **Each account's browser profile is a separate directory** under `~/Library/Application Support/Brow/browser-profiles/`. Brow sets the profile's name and allows third-party cookies in it so that sign-in works.
+- **Signing in opens Terminal** with `claude auth login`; macOS asks once for permission to control Terminal.
+
+This is an independent tool, not affiliated with or endorsed by Anthropic.
+
+## Requirements
+
+- macOS 26 or later; the prebuilt app is Apple silicon only. The notch layout is for MacBooks with a notch; on other displays Brow shows a pill.
+- Xcode with Swift 6.2, to build.
+- [Claude Code](https://claude.com/claude-code).
+- For separate browser profiles: Chrome, Chromium, Brave or Edge.
+
+## Install
+
+```sh
+brew install --cask efim0v/tap/brow
+```
+
+Or download **[Brow.zip](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** from the [latest release](https://github.com/efim0v/brow/releases/latest), unzip it and move `Brow.app` to `/Applications`.
+
+The build is signed ad hoc and is not notarized by Apple, so macOS blocks the first launch whichever way you installed it. Open **System Settings → Privacy & Security**, find the message about Brow and press **Open Anyway** — or clear the quarantine flag yourself:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Brow.app
+```
+
+If macOS withholds an account's Keychain item from Brow, that account shows an orange key and Settings → Accounts lists its token as *Keychain access needed*: press the key, or **Grant Keychain access** there, and choose **Always Allow**. Because the build is signed ad hoc, the key can come back after you update to a newer build.
+
+`SHA256SUMS.txt` in the release is there to check the download against: with both files in one folder, run `shasum -a 256 -c SHA256SUMS.txt`.
+
+Brow has no Dock icon: it lives in the notch, and its settings open from the ⚙ in the panel. Turn on **Launch at login** in Settings → General to start it when you log in.
+
+## FAQ
+
+### Does Brow use up my limits?
+
+Only through the fallback token refresh, and you can turn that off. Reading the limits is a request to Anthropic's usage endpoint, not to a model, and an idle account's token is kept fresh with `claude doctor`, which makes no model call.
+
+The fallback is on by default. When an account's token has 30 minutes or less left and `claude doctor` did not renew it, Brow runs a one-turn `claude -p` request on Haiku in that account. That spends a sliver of the account's limit and starts its 5-hour window. Brow skips it when Anthropic has rejected the token or `claude doctor` timed out or could not start, runs it at most once every 30 minutes per account, and stops using it for an account after three attempts in a row that did not help. Settings → Accounts → **Allow `claude -p` fallback** turns it off.
+
+### Where does Brow read my token, and does anything leave my Mac?
+
+From the Keychain item Claude Code keeps for each account: `Claude Code-credentials` for `~/.claude`, `Claude Code-credentials-<hash>` for any other account folder. Brow reads it with macOS's `security` tool and falls back to the Keychain API; with older Claude Code installs it reads `.credentials.json` in the account folder instead. It uses the access token only and leaves renewing it to Claude Code.
+
+Brow's own network requests go to two Anthropic endpoints and nowhere else: `api.anthropic.com/api/oauth/usage` for the numbers and, about once a day per account, `api.anthropic.com/api/oauth/profile` for the renewal estimate in the calendar. Brow has no analytics and no update check. The `claude` commands it runs talk to Anthropic as Claude Code always does, and the per-account browser profiles open claude.ai.
+
+### Which Macs does it run on, and where does it sit?
+
+macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch.
+
+## Uninstall
+
+1. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with ⌘Q while its Settings window is in front.
+2. Delete the app: `brew uninstall --cask efim0v/tap/brow`, or move `Brow.app` from `/Applications` to the Trash.
+3. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings and per-account browser profiles (cookies and saved passwords included), and the request-pacing file it keeps in Grove's folder:
+
+   ```sh
+   rm -rf ~/Library/Application\ Support/Brow
+   rm -f ~/Library/Application\ Support/Grove/oauth-usage-ledger.json
+   ```
+
+4. If you added Brow's `export BROWSER=…` line to `~/.zshrc`, remove it.
+
+If you deleted the app first and Brow is still listed in System Settings → General → Login Items & Extensions, remove it there. Account folders under `~/.claude-accounts` belong to Claude Code and keep working without Brow.
+
 ## How Brow and Grove fit together
 
 Claude Code keeps each account in its own directory: `~/.claude` for the default account and `~/.claude-accounts/<name>` for the others. Both apps read those directories; neither talks to the other directly.
@@ -74,38 +150,6 @@ The full picture, including how sessions are shared between accounts, is in [Gro
 <p align="center">
   <a href="https://github.com/efim0v/grove"><img alt="Grove: workspaces of a multi-repo project" src="https://raw.githubusercontent.com/efim0v/grove/main/docs/screenshots/grove-workspaces.png" width="420" /></a>
 </p>
-
-## What Brow does on your machine
-
-Worth knowing before you run it:
-
-- **Brow reads Claude Code's sign-in token from the macOS Keychain** — macOS asks once per account — and uses it only to call Anthropic's usage and profile endpoints. Those endpoints are not a documented public API and may change. No token is written to disk or logged, and nothing is sent anywhere else.
-- **The fallback token refresh is on by default.** If the normal refresh stops working Brow runs a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. Turn it off in Settings → Accounts.
-- **Each account's browser profile is a separate directory** under `~/Library/Application Support/Brow/browser-profiles/`. Brow sets the profile's name and allows third-party cookies in it so that sign-in works.
-- **Signing in opens Terminal** with `claude auth login`; macOS asks once for permission to control Terminal.
-
-This is an independent tool, not affiliated with or endorsed by Anthropic.
-
-## Requirements
-
-- macOS 26 or later. The notch layout is for MacBooks with a notch; on other displays Brow shows a pill.
-- Xcode with Swift 6.2, to build.
-- [Claude Code](https://claude.com/claude-code).
-- For separate browser profiles: Chrome, Chromium, Brave or Edge.
-
-## Install
-
-Download **[Brow.zip](https://github.com/efim0v/brow/releases/latest/download/Brow.zip)** from the [latest release](https://github.com/efim0v/brow/releases/latest), unzip it and move `Brow.app` to `/Applications`.
-
-The build is signed ad hoc and is not notarized by Apple, so macOS blocks the first launch. Open **System Settings → Privacy & Security**, find the message about Brow and press **Open Anyway** — or clear the quarantine flag yourself:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/Brow.app
-```
-
-On first launch macOS asks once per account for access to Claude Code's Keychain item — choose **Always Allow**. Because the build is signed ad hoc, macOS asks again after you update to a newer build.
-
-`SHA256SUMS.txt` in the release is there to check the download against.
 
 ## Build
 

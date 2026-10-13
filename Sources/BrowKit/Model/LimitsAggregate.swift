@@ -12,8 +12,9 @@ public struct EarReadout: Sendable, Equatable {
     public let stale: Bool
 }
 
-/// Tier-weighted aggregate over the visible accounts, computed the same way
-/// Grove's "Overall" is (`RateLimitModel.aggregateRemaining`), expressed as used %.
+/// Tier-weighted aggregate over the visible accounts that have a reading, computed
+/// the same way Grove's "Overall" is (`RateLimitModel.aggregateRemaining`), expressed
+/// as used %.
 public struct LimitsAggregate: Sendable, Equatable {
     public let fiveHour: Double
     public let weekly: Double
@@ -40,8 +41,14 @@ public struct LimitsAggregate: Sendable, Equatable {
         func used(_ pick: (LimitSnapshot) -> CapturedWindow?, onlyIfPresent: Bool) -> Double? {
             var contributors: [RateLimitModel.AccountWindow] = []
             for account in accounts {
-                let window = snapshots[account.organizationUuid].flatMap(pick)
+                // An account with no reading at all (just added, Keychain item withheld,
+                // every fetch failed) has nothing to say about its load. Read as 0 % used
+                // at its tier's weight, a Max 20x with no reading took a Pro at 90 % down
+                // to 4 %. It stays out of the numbers; `stale` still flags it.
+                guard let snapshot = snapshots[account.organizationUuid] else { continue }
+                let window = pick(snapshot)
                 if window == nil && onlyIfPresent { continue }
+                // A reading without the window ("not started") is 0 % used.
                 contributors.append(.init(tier: account.tier, usedPercentage: window?.usedPercentage ?? 0))
             }
             guard !contributors.isEmpty else { return onlyIfPresent ? nil : 0 }

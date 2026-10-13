@@ -508,6 +508,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <p>Claude Code keeps each account in its own configuration folder: <code class="nowrap">~/.claude</code> for the default account, and any other folder you point <code class="nowrap">CLAUDE_CONFIG_DIR</code> at. <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">Anthropic’s documentation</a> describes this as the way to stay signed in to several accounts at once, such as a work and a personal one.</p>
         <p>Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>. In <span class="nowrap">Settings → Accounts</span>, <strong>Sign in…</strong> creates the next free folder, <code class="nowrap">~/.claude-accounts/account-N</code>, and starts <code class="nowrap">claude auth login</code> for it in Terminal; <strong>Existing folder…</strong> adds a folder you already use. Each account then has a button that copies its launch command, such as <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>, so Claude Code starts as that account and opens links in that account’s browser profile.</p>
         <p>Each folder keeps its own sign-in. Claude Code stores it in the macOS Keychain under a name tied to the folder: <code>Claude Code-credentials</code> for <code class="nowrap">~/.claude</code>, <code>Claude Code-credentials-&lt;hash&gt;</code> for any other folder. Check Anthropic’s <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> for your plans.</p>
+        <p>Step by step: <a href="/brow/multiple-claude-accounts/">Use multiple Claude Code accounts on one Mac</a>.</p>
       </div>
     </div>
   </section>
@@ -743,7 +744,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Can I see the limits of several Claude Code accounts at once?</h3>
-          <p>Yes. Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>, and shows each account’s limits side by side. Claude Code keeps each account in its own configuration folder, chosen with <code class="nowrap">CLAUDE_CONFIG_DIR</code>; see <a href="#accounts">Several Claude Code accounts on one Mac</a> above.</p>
+          <p>Yes. Brow reads <code class="nowrap">~/.claude</code> and every folder in <code class="nowrap">~/.claude-accounts/</code>, and shows each account’s limits side by side. Claude Code keeps each account in its own configuration folder, chosen with <code class="nowrap">CLAUDE_CONFIG_DIR</code>; see <a href="/brow/multiple-claude-accounts/">Use multiple Claude Code accounts on one Mac</a>.</p>
         </div>
         <div>
           <h3>Does Brow use up my limits?</h3>
@@ -798,7 +799,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
   <section class="section companion" id="grove" aria-labelledby="grove-title">
     <div class="wrap">
       <h2 id="grove-title"><img src="grove-mark.png" width="20" height="20" alt=""><span><span>Brow tells you which account has room.</span> <span>Grove moves the work there.</span></span></h2>
-      <p class="prose">Grove gives each feature of a multi-repo project its own workspace for Claude Code and <a href="https://efim0v.github.io/grove/#accounts">moves a session from one account to another</a>. Each app runs on its own, and they are built to be used together.</p>
+      <p class="prose">Grove gives each feature of a multi-repo project its own workspace for Claude Code and <a href="https://efim0v.github.io/grove/#accounts">moves a session from one account to another</a>. Each app runs on its own, and they are built to be used together. Step by step: <a href="/grove/move-session-to-another-account/">Continue a Claude Code session on another account</a>.</p>
       <p class="links"><a href="https://efim0v.github.io/grove/">Grove — parallel Claude Code sessions across multiple repositories</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove on GitHub</a></p>
     </div>
   </section>

@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brow: лимиты Claude Code всех аккаунтов в чёлке MacBook</title>
+<meta name="description" content="Бесплатное приложение для macOS с открытым кодом: 5-часовой и недельный лимиты Claude Code одного или нескольких аккаунтов в чёлке MacBook и время сброса.">
+<link rel="canonical" href="https://efim0v.github.io/brow/ru/">
+<link rel="alternate" hreflang="en" href="https://efim0v.github.io/brow/">
+<link rel="alternate" hreflang="ru" href="https://efim0v.github.io/brow/ru/">
+<link rel="alternate" hreflang="zh-Hans" href="https://efim0v.github.io/brow/zh-cn/">
+<link rel="alternate" hreflang="x-default" href="https://efim0v.github.io/brow/">
+<meta name="robots" content="max-image-preview:large">
+<meta name="author" content="Artem Efimov">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212">
+<link rel="icon" href="/brow/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/brow/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/brow/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Brow">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:url" content="https://efim0v.github.io/brow/ru/">
+<meta property="og:title" content="Brow: лимиты Claude Code всех аккаунтов в чёлке MacBook">
+<meta property="og:description" content="5-часовой и недельный лимиты каждого аккаунта Claude Code и время их сброса — прямо в чёлке MacBook. Бесплатно и с открытым кодом, для macOS 26 или новее.">
+<meta property="og:image" content="https://efim0v.github.io/brow/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Карточка Brow с заголовком «Claude Code usage limits in the MacBook notch» (лимиты Claude Code в чёлке MacBook), рядом — панель Brow с 5-часовыми и недельными лимитами трёх аккаунтов Claude Code и временем сброса каждого; у одного аккаунта есть ещё лимит Opus.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Brow: лимиты Claude Code всех аккаунтов в чёлке MacBook">
+<meta name="twitter:description" content="5-часовой и недельный лимиты каждого аккаунта Claude Code и время их сброса — прямо в чёлке MacBook. Бесплатно и с открытым кодом, для macOS 26 или новее.">
+<meta name="twitter:image" content="https://efim0v.github.io/brow/og.png">
+<meta name="twitter:image:alt" content="Карточка Brow с заголовком «Claude Code usage limits in the MacBook notch» (лимиты Claude Code в чёлке MacBook), рядом — панель Brow с 5-часовыми и недельными лимитами трёх аккаунтов Claude Code и временем сброса каждого; у одного аккаунта есть ещё лимит Opus.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://efim0v.github.io/brow/#app",
+      "name": "Brow",
+      "description": "Бесплатное приложение для macOS с открытым кодом. Для каждого аккаунта Claude Code оно показывает в чёлке MacBook 5-часовой лимит, недельный лимит и недельный лимит отдельной модели, если такой есть: сколько процентов израсходовано и когда каждый лимит сбросится.",
+      "url": "https://efim0v.github.io/brow/",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS 26 или новее",
+      "processorRequirements": "Apple silicon (arm64)",
+      "softwareRequirements": "Claude Code",
+      "softwareVersion": "0.2.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.2.0",
+      "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
+      "inLanguage": "en",
+      "isAccessibleForFree": true,
+      "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "image": "https://efim0v.github.io/brow/media/hero-still.webp",
+      "screenshot": [
+        {
+          "@type": "ImageObject",
+          "url": "https://efim0v.github.io/brow/media/hero-still.webp",
+          "width": 1280,
+          "height": 800,
+          "caption": "Панель Brow под чёлкой MacBook: 5-часовые и недельные лимиты трёх аккаунтов Claude Code и время сброса каждого; у одного аккаунта есть ещё лимит Opus"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efim0v.github.io/brow/media/calendar-still.webp",
+          "width": 1280,
+          "height": 800,
+          "caption": "Календарь сбросов Brow: недельные сбросы и примерные даты продления подписок"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efim0v.github.io/brow/media/settings.webp",
+          "width": 1108,
+          "height": 900,
+          "caption": "Настройки аккаунтов в Brow: почта, тариф, папка, состояние токена и команда запуска аккаунта"
+        }
+      ],
+      "featureList": [
+        "Для каждого аккаунта Claude Code: 5-часовой лимит, недельный лимит и недельный лимит отдельной модели, если такой есть, — сколько процентов израсходовано",
+        "Когда сбросится каждый лимит: обратный отсчёт, если до сброса меньше суток, иначе дата и время",
+        "Календарь сбросов: недельные сбросы и примерные даты продления подписок на сетке месяца",
+        "Копирование команды, которая запускает Claude Code под нужным аккаунтом",
+        "Повторный вход в собственном профиле браузера аккаунта",
+        "Новый аккаунт в один клик",
+        "Токены простаивающих аккаунтов обновляются в фоне",
+        "Проверка лимитов каждые 30 секунд, после выхода из сна, при восстановлении сети и при наведении курсора"
+      ],
+      "softwareHelp": { "@type": "CreativeWork", "name": "Brow в подробностях", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
+      "author": { "@id": "https://efim0v.github.io/#person" },
+      "sameAs": ["https://github.com/efim0v/brow"]
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://efim0v.github.io/brow/#source",
+      "name": "Исходный код Brow",
+      "codeRepository": "https://github.com/efim0v/brow",
+      "programmingLanguage": "Swift",
+      "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "author": { "@id": "https://efim0v.github.io/#person" },
+      "targetProduct": { "@id": "https://efim0v.github.io/brow/#app" }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://efim0v.github.io/#person",
+      "name": "Artem Efimov",
+      "url": "https://github.com/efim0v",
+      "sameAs": ["https://github.com/efim0v"]
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://efim0v.github.io/brow/ru/#webpage",
+      "url": "https://efim0v.github.io/brow/ru/",
+      "name": "Brow: лимиты Claude Code всех аккаунтов в чёлке MacBook",
+      "description": "Бесплатное приложение для macOS с открытым кодом: 5-часовой и недельный лимиты Claude Code одного или нескольких аккаунтов в чёлке MacBook и время сброса.",
+      "inLanguage": "ru",
+      "about": { "@id": "https://efim0v.github.io/brow/#app" }
+    }
+  ]
+}
+</script>
+
+<style>
+:root {
+  --paper: #fbfbfa;
+  --ink: #161616;
+  --muted: #5f5e5a;
+  --rule: #e4e3df;
+  --code-bg: #f2f1ee;
+  --button: #161616;
+  --button-ink: #fff;
+  --button-hover: #333;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121212;
+    --ink: #ededec;
+    --muted: #a3a29e;
+    --rule: #2b2b2a;
+    --code-bg: #1c1c1b;
+    --button: #ededec;
+    --button-ink: #121212;
+    --button-hover: #fff;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, ul, ol, dl, dd, figure { margin: 0; }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 1.35rem + 2.4vw, 2.75rem); line-height: 1.1; letter-spacing: -.012em; }
+h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 1.875rem); line-height: 1.2; letter-spacing: -.006em; }
+h3 { font-size: 1.125rem; line-height: 1.35; }
+p { text-wrap: pretty; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+strong { font-weight: 600; }
+code, pre { font-family: var(--mono); }
+code {
+  padding: .08em .3em;
+  border-radius: 3px;
+  background: var(--code-bg);
+  font-size: .9em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;   /* short commands: wrap rather than hide the end behind a scrollbar */
+  overflow-wrap: anywhere;
+}
+pre code { padding: 0; background: none; font-size: 1em; }
+/* Paths and commands stay in one piece where there is room; on a phone they may wrap */
+@media (min-width: 641px) { :not(pre) > code { white-space: nowrap; } }
+.nowrap { white-space: nowrap; }
+.select-all { -webkit-user-select: all; user-select: all; }
+.prose { max-width: 40rem; }
+.text > :is(p, ul) + :is(p, ul) { margin-top: 16px; }
+.small { color: var(--muted); font-size: .875rem; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 480px) {
+  .wrap { padding: 0 16px; }
+  pre { padding: 10px 12px; font-size: 13px; }
+}
+
+.skip {
+  position: absolute; left: 16px; top: -64px; z-index: 1;
+  padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
+  font-weight: 600; text-decoration: none;
+}
+.skip:focus { top: 12px; }
+
+/* Header */
+.site-header { border-bottom: 1px solid var(--rule); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; }
+.brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--ink); font-size: 1.0625rem; font-weight: 600; text-decoration: none;
+}
+.brand svg { width: 22px; height: 22px; flex: none; }
+.site-header ul { display: flex; gap: 20px; padding: 0; list-style: none; }
+.site-header nav a { display: block; padding: 8px 0; color: var(--muted); font-size: .9375rem; text-decoration: none; }
+.site-header nav a:hover { color: var(--ink); text-decoration: underline; }
+@media (max-width: 600px) { .site-header .optional { display: none; } }
+
+/* Language switcher: at the end of the header bar, on its own row below it on narrow
+   screens, and again in the footer */
+.bar > nav:not(.lang) { margin-left: auto; }
+.lang { white-space: nowrap; }
+.lang a[aria-current="page"] { color: var(--ink); }
+.lang :lang(zh-Hans) { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", var(--sans); }
+.site-header .lang { padding-left: 20px; border-left: 1px solid var(--rule); color: var(--muted); font-size: .9375rem; }
+.site-header .lang a { display: inline; }
+@media (max-width: 860px) {
+  .bar { flex-wrap: wrap; height: auto; column-gap: 16px; row-gap: 0; }
+  .bar > :not(.lang) { min-height: 56px; display: flex; align-items: center; }
+  .site-header .lang { flex-basis: 100%; margin-top: -8px; padding: 0 0 10px; border-left: 0; text-align: right; font-size: .875rem; }
+}
+
+/* Sections: one paper colour, a hairline between them */
+section { scroll-margin-top: 24px; }
+.section > .wrap { padding-block: 72px; }
+.section + .section > .wrap { padding-top: 0; }
+.section + .section > .wrap::before { content: ""; display: block; margin-bottom: 72px; border-top: 1px solid var(--rule); }
+.section h2 { margin-bottom: 16px; }
+@media (max-width: 640px) {
+  .section > .wrap { padding-block: 48px; }
+  .section + .section > .wrap { padding-top: 0; }
+  .section + .section > .wrap::before { margin-bottom: 48px; }
+}
+
+/* Hero */
+.hero h1 { margin-bottom: 16px; }
+.lead { font-size: 1.1875rem; line-height: 1.5; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 28px; }
+.button {
+  display: inline-block; padding: 10px 16px; border-radius: 6px;
+  background: var(--button); color: var(--button-ink);
+  font: 600 1rem/1.2 var(--sans); text-decoration: none;
+}
+.button:hover { background: var(--button-hover); }
+.brew { margin-top: 16px; color: var(--muted); font-size: 1rem; }
+@media (max-width: 360px) { .brew code { white-space: normal; } }
+.meta { margin-top: 8px; color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.meta span, .meta a { white-space: nowrap; }
+.meta a { color: inherit; }
+.meta a:hover { color: var(--ink); }
+.hero-shot { margin-top: 40px; }
+figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size: .875rem; }
+.demo-note { display: block; }
+
+/* Tour: text in the margin on the left, the picture on the right */
+.tour-row { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 40px; align-items: start; margin-top: 72px; }
+.prose + .tour-row { margin-top: 48px; }
+.tour-row h3 { margin-bottom: 8px; }
+.tour-row p { color: var(--muted); font-size: 1rem; }
+.tour-row p + p { margin-top: 12px; }
+.settings-shot { max-width: 520px; }
+.settings-shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
+@media (max-width: 860px) {
+  .tour-row { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 48px; }
+}
+
+/* What it does: a spec sheet */
+.spec { margin-top: 32px; }
+.spec > div {
+  display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); column-gap: 32px;
+  padding: 14px 0 16px; border-top: 1px solid var(--rule);
+}
+.spec > div:last-child { border-bottom: 1px solid var(--rule); }
+.spec dt { font-weight: 600; }
+.spec dd { max-width: 40rem; color: var(--muted); }
+.spec-note { max-width: 40rem; margin-top: 24px; color: var(--muted); font-size: 1rem; }
+@media (max-width: 640px) {
+  .spec > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+}
+
+/* Comparison: one plain table; on a narrow screen it scrolls sideways in its own box */
+.table-scroll { margin-top: 32px; overflow-x: auto; }
+.compare { width: 100%; min-width: 60rem; border-collapse: separate; border-spacing: 0; font-size: .9375rem; line-height: 1.5; }
+.compare th, .compare td { padding: 10px 16px 12px 0; border-top: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.compare th { font-weight: 600; }
+.compare tr > :last-child { padding-right: 0; white-space: nowrap; }
+.compare tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+/* Where the table scrolls (content narrower than 60rem), the tool names stay in view */
+@media (max-width: 1007px) {
+  .compare tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: inset -1px 0 0 var(--rule); }
+  .compare tr > :nth-child(2) { padding-left: 12px; }
+}
+.table-note { max-width: 40rem; margin-top: 12px; }
+.table-note + .text { margin-top: 32px; }
+
+/* Install */
+.install { display: grid; gap: 48px; margin-top: 32px; }
+.steps { padding: 0; list-style: none; counter-reset: step; }
+.steps > li {
+  display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); align-items: baseline;
+  padding: 16px 0 24px; border-top: 1px solid var(--rule); counter-increment: step;
+}
+.steps > li::before {
+  content: counter(step); grid-area: 1 / 1;
+  color: var(--muted); font: 15px/1 var(--mono);
+}
+.steps > li > * { grid-column: 2; }
+.steps > li > * + * { margin-top: 10px; }
+.steps > li > h3 + * { margin-top: 6px; }
+.install aside { font-size: 1rem; }
+.install aside > div + div { margin-top: 32px; }
+.install aside h3 { margin-bottom: 8px; }
+.reqs li::marker { color: var(--muted); }
+.install aside pre { margin-top: 10px; }
+.reqs { padding-left: 1.15em; }
+.reqs li + li { margin-top: 6px; }
+.licence { max-width: 40rem; margin-top: 48px; color: var(--muted); font-size: .9375rem; }
+@media (min-width: 900px) {
+  .install { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .install aside { padding: 17px 0 0 32px; border-left: 1px solid var(--rule); }
+}
+@media (max-width: 899px) {
+  .install { gap: 24px; }
+  .install aside { padding-top: 16px; border-top: 1px solid var(--rule); }
+}
+
+/* Privacy, and the questions: the same plain list */
+.facts, .faq { max-width: 46rem; margin-top: 32px; }
+.facts > div, .faq > div { padding: 14px 0 16px; border-top: 1px solid var(--rule); }
+.facts > div:last-child, .faq > div:last-child { border-bottom: 1px solid var(--rule); }
+.facts dt { font-weight: 600; }
+.facts dd { margin-top: 4px; }
+.facts + .small { margin-top: 24px; }
+.faq h3 { font-size: 1em; line-height: inherit; }
+.faq h3 + p { margin-top: 4px; }
+.faq p + p { margin-top: 10px; }
+
+/* Grove */
+.companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
+.companion h2 img { flex: none; width: 20px; height: 20px; margin-top: calc((1.3em - 20px) / 2); }
+.companion h2 span span { display: inline-block; }   /* break between the two sentences, not inside one */
+.companion .links { margin-top: 16px; }
+
+/* Footer */
+.site-footer { color: var(--muted); font-size: .875rem; }
+.site-footer .wrap > div { padding: 24px 0 48px; border-top: 1px solid var(--rule); }
+.site-footer p + p { margin-top: 6px; }
+.site-footer a { color: inherit; }
+.site-footer a:hover { color: var(--ink); }
+.site-footer .lang { margin-top: 12px; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Перейти к&nbsp;содержанию</a>
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs>
+          <clipPath id="brow-tile"><rect width="64" height="64" rx="15"/></clipPath>
+        </defs>
+        <g clip-path="url(#brow-tile)">
+          <rect width="64" height="64" fill="#7a7b80"/>
+          <path d="M7 0h50v17a11 11 0 0 1-11 11H18A11 11 0 0 1 7 17z" fill="#000"/>
+          <circle cx="19.5" cy="14" r="5.5" fill="#34c759"/>
+          <circle cx="44.5" cy="14" r="5.5" fill="#ff9f0a"/>
+        </g>
+      </svg>
+      <span>Brow</span>
+    </a>
+    <nav aria-label="Главное меню">
+      <ul>
+        <li class="optional"><a href="#features">Возможности</a></li>
+        <li><a href="#install">Установка</a></li>
+        <li class="optional"><a href="#privacy">Приватность</a></li>
+        <li><a href="#faq">Вопросы</a></li>
+        <li><a href="https://github.com/efim0v/brow">GitHub</a></li>
+      </ul>
+    </nav>
+    <nav class="lang" aria-label="Язык">
+      <a href="/brow/" hreflang="en" lang="en">English</a>&nbsp;·
+      <a href="/brow/ru/" hreflang="ru" lang="ru" aria-current="page">Русский</a>&nbsp;·
+      <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans">简体中文</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="section hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="prose">
+        <h1 id="hero-title">Лимиты Claude&nbsp;Code всех ваших аккаунтов&nbsp;— в&nbsp;чёлке MacBook</h1>
+        <p class="lead">Brow&nbsp;— бесплатное приложение для macOS с&nbsp;открытым кодом. Для каждого аккаунта Claude&nbsp;Code он&nbsp;показывает <span class="nowrap">5-часовой</span> лимит, недельный лимит и&nbsp;недельный лимит отдельной модели, если такой есть: сколько процентов израсходовано и&nbsp;когда каждый лимит сбросится. Работает с&nbsp;одним аккаунтом (сам находит <code class="nowrap">~/.claude</code>) или с&nbsp;несколькими. Интерфейс приложения&nbsp;— на&nbsp;английском.</p>
+        <p class="actions">
+          <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Скачать Brow</a>
+          <a href="https://github.com/efim0v/brow">Исходный код на&nbsp;GitHub</a>
+        </p>
+        <p class="brew">Или через Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
+      </div>
+      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.2.0,</span> <span><time datetime="2026-10-05">5&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
+
+      <figure class="hero-shot">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="../media/hero-still.webp" type="image/webp">
+          <img src="../media/hero.webp" width="1280" height="800" fetchpriority="high" alt="При наведении на чёлку MacBook раскрывается панель Brow с 5-часовыми и недельными лимитами каждого аккаунта Claude Code; команда запуска аккаунта, у которого есть запас, копируется, и Claude Code запускается под этим аккаунтом">
+        </picture>
+        <figcaption>Наведите курсор на&nbsp;чёлку&nbsp;— из&nbsp;неё раскроются <span class="nowrap">5-часовые</span> и&nbsp;недельные лимиты всех аккаунтов. Скопируйте команду запуска аккаунта, и&nbsp;Claude&nbsp;Code стартует под этим аккаунтом. <span class="demo-note">Во&nbsp;всех демо&nbsp;— выдуманные данные.</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="tour" aria-labelledby="tour-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="tour-title">У&nbsp;какого аккаунта Claude ещё есть запас и&nbsp;когда сбросится каждый лимит</h2>
+        <p>Если аккаунтов несколько, в&nbsp;Brow с&nbsp;одного взгляда видно, какой из&nbsp;них почти упёрся в&nbsp;лимит, где ещё есть запас и&nbsp;когда какой освободится.</p>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Время сброса и&nbsp;календарь сбросов</h3>
+          <p>У&nbsp;каждого лимита видно, когда он&nbsp;сбросится: если до&nbsp;сброса меньше суток, то&nbsp;обратным отсчётом («<span class="nowrap">resets in 3&nbsp;h 12&nbsp;min</span>»), а&nbsp;если больше&nbsp;— датой и&nbsp;временем («<span class="nowrap">resets 22&nbsp;Sep 02:00</span>»).</p>
+          <p>В&nbsp;календаре отмечены недельные сбросы всех аккаунтов и&nbsp;примерные даты продления подписок. Наведите курсор на&nbsp;день, чтобы увидеть, что в&nbsp;этот день освободится.</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/calendar-still.webp" type="image/webp">
+            <img src="../media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Календарь сбросов Brow: недельные сбросы и примерные даты продления подписок каждого аккаунта на сетке месяца; при наведении на день видно, какой лимит в этот день сбрасывается или какая подписка продлевается">
+          </picture>
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Повторный вход в&nbsp;собственном профиле браузера аккаунта</h3>
+          <p>Если у&nbsp;аккаунта истекла авторизация, достаточно одного клика рядом с&nbsp;ним: Brow запустит для этого аккаунта <code class="nowrap">claude auth login</code> и&nbsp;откроет его собственный профиль браузера, где вход в&nbsp;аккаунт уже выполнен. Остальные аккаунты остаются авторизованными.</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/signin-still.webp" type="image/webp">
+            <img src="../media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Истекла авторизация в Claude Code: один клик запускает claude auth login для этого аккаунта и открывает его собственный профиль браузера, где вход в claude.ai уже выполнен">
+          </picture>
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Два числа у&nbsp;чёлки, на&nbsp;других дисплеях&nbsp;— капсула</h3>
+          <p>В&nbsp;свёрнутом виде Brow показывает, сколько <span class="nowrap">5-часового</span> и&nbsp;недельного лимита израсходовано в&nbsp;целом по&nbsp;вашим аккаунтам. Точка рядом с&nbsp;каждым числом становится оранжевой при 70&nbsp;% и&nbsp;красной при 90&nbsp;%. Наведите курсор&nbsp;— и&nbsp;откроется панель.</p>
+          <p>Показатели можно вынести и&nbsp;в&nbsp;полосу под чёлкой. На&nbsp;дисплее без чёлки Brow вместо них показывает капсулу.</p>
+        </div>
+        <figure>
+          <img src="../media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow в свёрнутом виде у чёлки MacBook: слева израсходовано 54&nbsp;% 5-часового лимита по всем аккаунтам, справа&nbsp;— 72&nbsp;% недельного">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Все аккаунты в&nbsp;настройках</h3>
+          <p>В&nbsp;<span class="nowrap">Settings → Accounts</span> перечислены все аккаунты, у&nbsp;каждого&nbsp;— почта, тариф, папка, состояние токена и&nbsp;команда запуска. Кнопка <strong>Sign in…</strong> добавляет ещё один аккаунт: Brow создаёт папку и&nbsp;открывает штатный вход Anthropic в&nbsp;Терминале.</p>
+        </div>
+        <figure class="settings-shot">
+          <img src="../media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Настройки аккаунтов в Brow: строка Add an account с кнопкой Sign in, под ней карточка аккаунта с именем, почтой, тарифом, папкой, состоянием токена и командой запуска">
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title">Что Brow делает для каждого аккаунта</h2>
+      <dl class="spec">
+        <div>
+          <dt>Все аккаунты перед глазами</dt>
+          <dd>Для каждого аккаунта: <span class="nowrap">5-часовой</span> лимит (<span class="nowrap">5-hour</span> limit), недельный лимит (weekly limit) и&nbsp;недельный лимит отдельной модели, если он&nbsp;есть,&nbsp;— сколько процентов израсходовано и&nbsp;сколько времени осталось до&nbsp;сброса каждого.</dd>
+        </div>
+        <div>
+          <dt>Календарь сбросов</dt>
+          <dd>Недельные сбросы и&nbsp;примерные даты продления подписок на&nbsp;сетке месяца: видно, какой аккаунт когда освободится.</dd>
+        </div>
+        <div>
+          <dt>Команда запуска в&nbsp;буфер обмена</dt>
+          <dd>Одна кнопка копирует команду, которая запускает Claude&nbsp;Code под этим аккаунтом.</dd>
+        </div>
+        <div>
+          <dt>Повторный вход в&nbsp;собственном браузере аккаунта</dt>
+          <dd>У&nbsp;каждого аккаунта отдельный профиль браузера со&nbsp;своими cookie, историей и&nbsp;сохранёнными логинами, поэтому вход в&nbsp;один аккаунт никак не&nbsp;мешает другому. Вторая кнопка открывает этот профиль напрямую.</dd>
+        </div>
+        <div>
+          <dt>Новый аккаунт в&nbsp;один клик</dt>
+          <dd>Brow создаёт папку аккаунта и&nbsp;запускает штатный вход Anthropic.</dd>
+        </div>
+        <div>
+          <dt>Свежие токены</dt>
+          <dd>Токены простаивающих аккаунтов обновляются в&nbsp;фоне, так что цифры не&nbsp;устаревают.</dd>
+        </div>
+        <div>
+          <dt>Проверка каждые 30&nbsp;секунд</dt>
+          <dd>Brow проверяет лимиты каждые 30&nbsp;секунд, а&nbsp;также после выхода Mac из&nbsp;сна, когда возвращается сеть, и&nbsp;при наведении курсора, если цифрам на&nbsp;экране больше 30&nbsp;секунд. На&nbsp;панели видно, насколько они свежие.</dd>
+        </div>
+      </dl>
+      <p class="spec-note">Для отдельных профилей браузера нужен Google Chrome, Chromium, Brave или Edge. Если их&nbsp;нет, ссылки открываются в&nbsp;браузере по&nbsp;умолчанию, без изоляции. Подробнее о&nbsp;частоте запросов, обновлении и&nbsp;вариантах расположения&nbsp;— в&nbsp;документе «<a href="https://github.com/efim0v/brow/blob/main/docs/brow.md">Brow в&nbsp;подробностях</a>» (на&nbsp;английском).</p>
+    </div>
+  </section>
+
+  <section class="section" id="accounts" aria-labelledby="accounts-title">
+    <div class="wrap">
+      <div class="prose text">
+        <h2 id="accounts-title">Несколько аккаунтов Claude&nbsp;Code на&nbsp;одном Mac</h2>
+        <p>Claude&nbsp;Code хранит каждый аккаунт в&nbsp;отдельной папке конфигурации: аккаунт по&nbsp;умолчанию&nbsp;— в&nbsp;<code class="nowrap">~/.claude</code>, любой другой&nbsp;— в&nbsp;папке, на&nbsp;которую указывает <code class="nowrap">CLAUDE_CONFIG_DIR</code>. Именно так <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">документация Anthropic</a> предлагает оставаться авторизованным сразу в&nbsp;нескольких аккаунтах, например в&nbsp;рабочем и&nbsp;личном.</p>
+        <p>Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code>. В&nbsp;<span class="nowrap">Settings → Accounts</span> кнопка <strong>Sign in…</strong> создаёт следующую свободную папку, <code class="nowrap">~/.claude-accounts/account-N</code>, и&nbsp;запускает для неё <code class="nowrap">claude auth login</code> в&nbsp;Терминале, а&nbsp;<strong>Existing folder…</strong> добавляет папку, которой вы&nbsp;уже пользуетесь. После этого у&nbsp;каждого аккаунта есть кнопка, которая копирует его команду запуска, например <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>. С&nbsp;этой командой Claude&nbsp;Code стартует под нужным аккаунтом и&nbsp;открывает ссылки в&nbsp;его профиле браузера.</p>
+        <p>У&nbsp;каждой папки свои учётные данные. Claude&nbsp;Code хранит их в&nbsp;связке ключей macOS под именем, привязанным к&nbsp;папке: <code>Claude Code-credentials</code> для <code class="nowrap">~/.claude</code> и&nbsp;<code>Claude Code-credentials-&lt;hash&gt;</code> для любой другой папки. Правила для ваших тарифов смотрите в&nbsp;<a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> Anthropic.</p>
+        <p>Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском).</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="compare" aria-labelledby="compare-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="compare-title">Как посмотреть лимиты Claude&nbsp;Code: /usage, настройки, ccusage и&nbsp;Brow</h2>
+        <p>Узнать расход и&nbsp;лимиты Claude&nbsp;Code можно несколькими способами. Первые три строки таблицы составлены по&nbsp;документации Anthropic, остальные&nbsp;— по&nbsp;сайту или README самого инструмента.</p>
+      </div>
+      <div class="table-scroll" role="region" aria-labelledby="compare-title" tabindex="0">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th scope="col">Инструмент</th>
+              <th scope="col">Что показывает</th>
+              <th scope="col">Где находится</th>
+              <th scope="col">Несколько аккаунтов Claude сразу</th>
+              <th scope="col">Другие провайдеры</th>
+              <th scope="col">Платформы</th>
+              <th scope="col">Лицензия, цена</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/costs"><code>/usage</code> в&nbsp;Claude&nbsp;Code</a></th>
+              <td>Шкалы расхода по&nbsp;тарифу для аккаунта, в&nbsp;который выполнен вход</td>
+              <td>Внутри Claude&nbsp;Code</td>
+              <td>Нет: только аккаунт, под которым запущена сессия</td>
+              <td>—</td>
+              <td>Везде, где работает Claude&nbsp;Code</td>
+              <td>Входит в&nbsp;Claude&nbsp;Code</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://support.claude.com/en/articles/17007452-what-is-a-limit-reset">Settings → Usage на&nbsp;claude.ai</a></th>
+              <td>Расход аккаунта, в&nbsp;который выполнен вход</td>
+              <td>Веб, Claude&nbsp;Desktop</td>
+              <td>Нет</td>
+              <td>—</td>
+              <td>Браузер, Claude&nbsp;Desktop</td>
+              <td>Входит в&nbsp;Claude</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://code.claude.com/docs/en/statusline"><code>rate_limits</code> в&nbsp;строке состояния</a></th>
+              <td>Сколько процентов <span class="nowrap">5-часового</span> и&nbsp;<span class="nowrap">7-дневного</span> лимитов израсходовано и&nbsp;когда они сбросятся&nbsp;— для вашего скрипта строки состояния; только Pro и&nbsp;Max</td>
+              <td>Строка состояния Claude&nbsp;Code</td>
+              <td>Нет: только аккаунт сессии</td>
+              <td>—</td>
+              <td>Везде, где работает Claude&nbsp;Code</td>
+              <td>Входит в&nbsp;Claude&nbsp;Code</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://ccusage.com/">ccusage</a></th>
+              <td>Расход токенов и&nbsp;примерная стоимость по&nbsp;локальным логам</td>
+              <td>Терминал</td>
+              <td>Не&nbsp;указано</td>
+              <td>Codex, OpenCode, Gemini CLI и&nbsp;другие</td>
+              <td>Не&nbsp;указано</td>
+              <td>MIT, бесплатно</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor">Claude&nbsp;Code Usage Monitor</a></th>
+              <td>Монитор токенов, сообщений и&nbsp;стоимости в&nbsp;терминале, с&nbsp;прогнозами</td>
+              <td>Терминал</td>
+              <td>Просматривает несколько папок конфигурации; показ аккаунтов рядом друг с&nbsp;другом не&nbsp;описан</td>
+              <td>Не&nbsp;указано</td>
+              <td>Python&nbsp;3.9+; команды установки для macOS, Linux и&nbsp;Windows</td>
+              <td>MIT, бесплатно</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://codexbar.app/">CodexBar</a></th>
+              <td>Окна лимитов, кредиты, расходы и&nbsp;сбросы по&nbsp;каждому провайдеру</td>
+              <td>Строка меню macOS, а&nbsp;также CLI и&nbsp;виджеты</td>
+              <td>Не&nbsp;указано</td>
+              <td>Много, в&nbsp;том числе Codex, Cursor и&nbsp;Gemini</td>
+              <td>macOS&nbsp;14+; CLI также для Linux</td>
+              <td>MIT, бесплатно</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudetracker.com/">Claude Tracker</a></th>
+              <td>Расход Claude за&nbsp;5&nbsp;часов, за&nbsp;неделю и&nbsp;по&nbsp;моделям; уведомления при достижении порогов</td>
+              <td>Строка меню, а&nbsp;также HUD у&nbsp;чёлки</td>
+              <td>Да, «все аккаунты сразу»</td>
+              <td>Не&nbsp;указано</td>
+              <td>macOS&nbsp;14+, Apple&nbsp;silicon и&nbsp;Intel</td>
+              <td>MIT, бесплатно</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://u4c.fi5h.xyz/">Usage4Claude</a></th>
+              <td>Расход Claude и&nbsp;Codex за&nbsp;5&nbsp;часов и&nbsp;за&nbsp;неделю, extra usage; уведомления</td>
+              <td>Строка меню</td>
+              <td>Несколько аккаунтов, переключение из&nbsp;строки меню</td>
+              <td>Codex</td>
+              <td>macOS&nbsp;13+, Intel и&nbsp;Apple&nbsp;silicon</td>
+              <td>MIT, бесплатно</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="https://claudebar.tddworks.com/">ClaudeBar</a></th>
+              <td>Квоты многих <span class="nowrap">ИИ-инструментов</span> для программирования; уведомления при пороговых значениях и&nbsp;сбросах</td>
+              <td>Строка меню</td>
+              <td>Не&nbsp;указано</td>
+              <td>Много, в&nbsp;том числе Codex, Gemini и&nbsp;Copilot</td>
+              <td>macOS&nbsp;15+</td>
+              <td>Apache-2.0, бесплатно</td>
+            </tr>
+            <tr>
+              <th scope="row">Brow</th>
+              <td>Лимиты каждого аккаунта: <span class="nowrap">5-часовой</span>, недельный и&nbsp;недельный лимит отдельной модели; время сброса; календарь сбросов; свой профиль браузера у&nbsp;каждого аккаунта</td>
+              <td>У&nbsp;чёлки MacBook; на&nbsp;других дисплеях&nbsp;— капсула</td>
+              <td>Да, рядом друг с&nbsp;другом</td>
+              <td>Только Claude</td>
+              <td>macOS&nbsp;26+, Apple&nbsp;silicon</td>
+              <td>GPL-3.0, бесплатно</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note small">Данные проверены <time datetime="2026-10-13">13&nbsp;октября 2026&nbsp;года</time>. «Не&nbsp;указано» значит, что на&nbsp;собственной странице инструмента об&nbsp;этом не&nbsp;сказано. Claude Tracker&nbsp;— новое название Claude Usage Tracker.</p>
+      <div class="prose text">
+        <ul class="reqs">
+          <li>Нужны цифры прямо в&nbsp;Claude&nbsp;Code&nbsp;— <code>/usage</code> или скрипт строки состояния на&nbsp;Pro и&nbsp;Max.</li>
+          <li>Нужны отчёты о&nbsp;токенах и&nbsp;стоимости&nbsp;— ccusage.</li>
+          <li>Нужна панель в&nbsp;терминале с&nbsp;прогнозами&nbsp;— Claude&nbsp;Code Usage Monitor.</li>
+          <li>Пользуетесь ещё Codex, Gemini или другими провайдерами&nbsp;— CodexBar или ClaudeBar.</li>
+          <li>Нужны уведомления, Mac с&nbsp;процессором Intel или более старая macOS&nbsp;— Usage4Claude (macOS&nbsp;13+) или Claude Tracker (macOS&nbsp;14+).</li>
+          <li>Нужно видеть у&nbsp;чёлки несколько аккаунтов Claude сразу, с&nbsp;календарём сбросов и&nbsp;отдельным профилем браузера для каждого&nbsp;— Brow.</li>
+        </ul>
+        <p>Ограничения самого Brow: он&nbsp;работает только с&nbsp;Claude; ему нужна macOS&nbsp;26 или новее, а&nbsp;готовая сборка есть только для Apple&nbsp;silicon; уведомлений он&nbsp;не&nbsp;присылает; сборка не&nbsp;нотаризована, поэтому при первом запуске придётся нажать <strong>Все равно открыть</strong>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <h2 id="install-title">Установка Brow на&nbsp;Mac</h2>
+      <div class="install">
+        <ol class="steps">
+          <li>
+            <h3>Установите Brow</h3>
+            <p>Через Homebrew:</p>
+            <pre><code class="select-all">brew install --cask efim0v/tap/brow</code></pre>
+            <p>Или скачайте <a href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Brow.zip</a> из&nbsp;<a href="https://github.com/efim0v/brow/releases/latest">последнего релиза</a>, распакуйте его и&nbsp;перенесите <code class="nowrap">Brow.app</code> в&nbsp;<code class="nowrap">/Applications</code>.</p>
+          </li>
+          <li>
+            <h3>Разрешите первый запуск</h3>
+            <p>Сборка подписана ad hoc и&nbsp;не&nbsp;нотаризована Apple, поэтому macOS заблокирует первый запуск, каким&nbsp;бы способом вы&nbsp;ни&nbsp;установили Brow.</p>
+            <p>Откройте <strong>Системные настройки → Конфиденциальность и&nbsp;безопасность</strong>, найдите в&nbsp;разделе «Безопасность» сообщение о&nbsp;Brow, нажмите <strong>Все равно открыть</strong> и&nbsp;введите пароль для входа в&nbsp;систему. Кнопка остаётся там примерно час после заблокированного запуска.</p>
+          </li>
+          <li>
+            <h3>Найдите Brow в&nbsp;чёлке</h3>
+            <p>Значка в&nbsp;Dock у&nbsp;Brow нет: наведите курсор на&nbsp;чёлку, и&nbsp;откроется панель. Кнопка ⚙ на&nbsp;панели открывает настройки, а&nbsp;чтобы Brow запускался при входе в&nbsp;систему, включите <strong>Launch at login</strong> в&nbsp;<span class="nowrap">Settings → General</span>.</p>
+            <p>Если macOS не&nbsp;отдаёт Brow запись аккаунта из&nbsp;связки ключей, у&nbsp;этого аккаунта появляется оранжевый ключ. Нажмите на&nbsp;него и&nbsp;выберите <strong>Разрешать всегда</strong>.</p>
+          </li>
+        </ol>
+        <aside aria-label="Требования и проверка">
+          <div id="requirements">
+            <h3>Требования</h3>
+            <ul class="reqs">
+              <li>macOS&nbsp;26 или новее</li>
+              <li>Mac с&nbsp;Apple&nbsp;silicon (готовая сборка&nbsp;— только arm64)</li>
+              <li><a href="https://claude.com/claude-code">Claude&nbsp;Code</a></li>
+              <li>MacBook с&nbsp;чёлкой&nbsp;— для интерфейса вокруг чёлки; на&nbsp;других дисплеях Brow показывает капсулу</li>
+              <li>Google Chrome, Chromium, Brave или Edge&nbsp;— для отдельных профилей браузера</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Проверка загрузки</h3>
+            <p>В&nbsp;релизе есть файл <code class="nowrap">SHA256SUMS.txt</code>. Положите его рядом с&nbsp;<code class="nowrap">Brow.zip</code> и&nbsp;выполните:</p>
+            <pre><code>shasum -a 256 -c SHA256SUMS.txt</code></pre>
+          </div>
+          <div>
+            <h3>Сборка из&nbsp;исходников</h3>
+            <p>Brow&nbsp;— Swift-пакет. Понадобится Xcode; шаги описаны в&nbsp;<a href="https://github.com/efim0v/brow#build">README</a> (на&nbsp;английском).</p>
+          </div>
+        </aside>
+      </div>
+      <p class="licence">Brow распространяется под лицензией <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU&nbsp;GPL&nbsp;v3</a>; версии 0.2.0 и&nbsp;более ранние выходили под лицензией MIT. <a href="https://github.com/efim0v/brow">Исходный код</a>, <a href="https://github.com/efim0v/brow/releases">релизы</a> и&nbsp;<a href="https://github.com/efim0v/brow/issues">трекер задач</a>&nbsp;— на&nbsp;GitHub.</p>
+    </div>
+  </section>
+
+  <section class="section" id="privacy" aria-labelledby="privacy-title">
+    <div class="wrap">
+      <h2 id="privacy-title">Что Brow делает на&nbsp;вашем Mac</h2>
+      <dl class="facts">
+        <div>
+          <dt>Токен берётся из&nbsp;связки ключей</dt>
+          <dd>Brow читает токен авторизации Claude&nbsp;Code каждого аккаунта из&nbsp;связки ключей macOS (Keychain) и&nbsp;использует его только для запросов к&nbsp;эндпоинтам Anthropic на&nbsp;<code class="nowrap">api.anthropic.com</code>, которые отдают расход лимитов и&nbsp;данные профиля. Эти эндпоинты не&nbsp;входят в&nbsp;документированный публичный API и&nbsp;могут измениться.</dd>
+        </div>
+        <div>
+          <dt>Ни&nbsp;аналитики, ни&nbsp;проверки обновлений</dt>
+          <dd>Токен не&nbsp;пишется на&nbsp;диск и&nbsp;не&nbsp;попадает в&nbsp;логи, а&nbsp;больше никуда ничего не&nbsp;отправляется.</dd>
+        </div>
+        <div>
+          <dt>Запасное обновление токена включено по&nbsp;умолчанию</dt>
+          <dd>Если обычное обновление перестаёт работать, Brow выполняет крошечный запрос <code class="nowrap">claude -p</code>: он&nbsp;тратит немного лимита и&nbsp;запускает <span class="nowrap">5-часовое</span> окно этого аккаунта. Отключается в&nbsp;<span class="nowrap">Settings → Accounts</span>.</dd>
+        </div>
+        <div>
+          <dt>Отдельный профиль браузера для каждого аккаунта</dt>
+          <dd>Каждый профиль&nbsp;— отдельная папка в&nbsp;<code>~/Library/Application Support/Brow/browser-profiles/</code>. Brow задаёт имя профиля и&nbsp;разрешает в&nbsp;нём сторонние cookie, чтобы работал вход.</dd>
+        </div>
+        <div>
+          <dt>Для входа открывается Терминал</dt>
+          <dd>Вход запускает <code class="nowrap">claude auth login</code> в&nbsp;Терминале, и&nbsp;macOS один раз спросит, можно&nbsp;ли Brow управлять Терминалом.</dd>
+        </div>
+        <div>
+          <dt>Настройки и&nbsp;последние данные на&nbsp;диске</dt>
+          <dd>Свои настройки и&nbsp;последние полученные данные о&nbsp;лимитах Brow хранит в&nbsp;<code>~/Library/Application Support/Brow</code>. Кроме того, в&nbsp;файле <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> он&nbsp;ведёт учёт частоты запросов к&nbsp;эндпоинту расхода и&nbsp;хранит последние данные каждого аккаунта. Этот путь задан в&nbsp;GroveCore&nbsp;— библиотеке, общей для Brow и&nbsp;Grove.</dd>
+        </div>
+      </dl>
+      <p class="small">Brow&nbsp;— независимый инструмент. Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его.</p>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title">Частые вопросы о&nbsp;Brow и&nbsp;лимитах Claude&nbsp;Code</h2>
+      <div class="faq">
+        <div>
+          <h3>Как посмотреть лимиты Claude&nbsp;Code?</h3>
+          <p>В&nbsp;Claude&nbsp;Code выполните <code>/usage</code>: подписчики Pro и&nbsp;Max увидят там шкалы расхода по&nbsp;своему тарифу. На&nbsp;claude.ai или в&nbsp;Claude&nbsp;Desktop откройте Settings → Usage. Оба способа показывают тот аккаунт, в&nbsp;который вы&nbsp;вошли. Brow показывает все аккаунты сразу: каждый лимит и&nbsp;время его сброса.</p>
+        </div>
+        <div>
+          <h3>Когда сбрасывается недельный лимит Claude и&nbsp;в&nbsp;какой день?</h3>
+          <p>Недельные лимиты сбрасываются раз в&nbsp;неделю, в&nbsp;обычные для аккаунта день и&nbsp;время. Ближайший сброс каждого аккаунта Brow показывает обратным отсчётом, если до&nbsp;него меньше суток, а&nbsp;иначе&nbsp;— датой и&nbsp;временем, например «<span class="nowrap">resets 22&nbsp;Sep 02:00</span>». Календарь сбросов собирает недельные сбросы всех аккаунтов на&nbsp;одной сетке месяца.</p>
+        </div>
+        <div>
+          <h3>Как работает <span class="nowrap">5-часовой</span> лимит Claude?</h3>
+          <p>На&nbsp;платных тарифах есть лимит на&nbsp;сессию, который сбрасывается каждые пять часов. Brow показывает, какую его часть израсходовал каждый аккаунт и&nbsp;сколько времени осталось до&nbsp;сброса.</p>
+        </div>
+        <div>
+          <h3>Что значит «You’ve hit your session limit»?</h3>
+          <p>Claude&nbsp;Code показывает это сообщение, когда аккаунт исчерпал лимит текущего окна. В&nbsp;сообщении сказано, когда окно сбросится, а&nbsp;переключение модели через <code>/model</code> доступ не&nbsp;вернёт. То&nbsp;же относится к&nbsp;сообщению «You’ve hit your weekly limit». Brow показывает, у&nbsp;какого из&nbsp;ваших других аккаунтов ещё есть запас, а&nbsp;команду, которая запускает Claude&nbsp;Code под этим аккаунтом, можно скопировать одним кликом.</p>
+        </div>
+        <div>
+          <h3>Можно&nbsp;ли видеть лимиты нескольких аккаунтов Claude&nbsp;Code сразу?</h3>
+          <p>Да. Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code> и&nbsp;показывает лимиты всех аккаунтов рядом друг с&nbsp;другом. Claude&nbsp;Code хранит каждый аккаунт в&nbsp;своей папке конфигурации, которая задаётся через <code class="nowrap">CLAUDE_CONFIG_DIR</code>; подробнее&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском).</p>
+        </div>
+        <div>
+          <h3>Тратит&nbsp;ли Brow мои лимиты?</h3>
+          <p>Только через запасное обновление токена, и&nbsp;его можно отключить. Чтение лимитов&nbsp;— это запрос к&nbsp;эндпоинту Anthropic с&nbsp;данными о&nbsp;расходе, а&nbsp;не&nbsp;к&nbsp;модели. Токен простаивающего аккаунта Brow обновляет через <code class="nowrap">claude doctor</code>, который к&nbsp;модели тоже не&nbsp;обращается.</p>
+          <p>Запасное обновление включено по&nbsp;умолчанию. Когда токену осталось жить 30&nbsp;минут или меньше, а&nbsp;<code class="nowrap">claude doctor</code> его не&nbsp;продлил, Brow выполняет запрос <code class="nowrap">claude -p</code> в&nbsp;один ход на&nbsp;Haiku. Это тратит крошечную долю лимита аккаунта и&nbsp;запускает его <span class="nowrap">5-часовое</span> окно. Такой запрос уходит не&nbsp;чаще раза в&nbsp;30&nbsp;минут на&nbsp;аккаунт. Выключить запасное обновление можно в&nbsp;<span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong>.</p>
+        </div>
+        <div>
+          <h3>Brow&nbsp;— это приложение для строки меню? Работает&nbsp;ли он&nbsp;без чёлки?</h3>
+          <p>У&nbsp;Brow нет значка ни&nbsp;в&nbsp;строке меню, ни&nbsp;в&nbsp;Dock. Он&nbsp;находится вверху основного дисплея. На&nbsp;MacBook с&nbsp;чёлкой два показателя стоят по&nbsp;бокам от&nbsp;неё или в&nbsp;полосе под ней. На&nbsp;дисплее без чёлки, например на&nbsp;внешнем мониторе, Brow показывает капсулу вверху по&nbsp;центру.</p>
+        </div>
+        <div>
+          <h3>Есть&nbsp;ли в&nbsp;Brow уведомления?</h3>
+          <p>Нет. Точка рядом с&nbsp;каждым показателем становится оранжевой при 70&nbsp;% и&nbsp;красной при 90&nbsp;%.</p>
+        </div>
+        <div>
+          <h3>Есть&nbsp;ли виджет для рабочего стола?</h3>
+          <p>Нет. Brow живёт в&nbsp;чёлке, а&nbsp;на&nbsp;других дисплеях&nbsp;— в&nbsp;капсуле: наведите на&nbsp;неё курсор, чтобы открыть панель.</p>
+        </div>
+        <div>
+          <h3>Как часто Brow обновляет цифры?</h3>
+          <p>Он&nbsp;проверяет их&nbsp;каждые 30&nbsp;секунд, а&nbsp;также после выхода из&nbsp;сна, когда возвращается сеть, и&nbsp;при наведении курсора, если цифрам на&nbsp;экране больше 30&nbsp;секунд. Эндпоинт Anthropic с&nbsp;данными о&nbsp;расходе ограничивает частоту запросов, поэтому слишком ранняя проверка берёт последние полученные данные. На&nbsp;панели видно, насколько свежие цифры.</p>
+        </div>
+        <div>
+          <h3>Brow бесплатный и&nbsp;с&nbsp;открытым кодом?</h3>
+          <p>Да. Brow бесплатный, а&nbsp;<a href="https://github.com/efim0v/brow">его исходный код лежит на&nbsp;GitHub</a> под лицензией GNU&nbsp;GPL&nbsp;v3. Версии 0.2.0 и&nbsp;более ранние выходили под лицензией MIT.</p>
+        </div>
+        <div>
+          <h3>Откуда Brow берёт мой токен и&nbsp;уходит&nbsp;ли что-нибудь с&nbsp;моего Mac?</h3>
+          <p>Из&nbsp;записи в&nbsp;связке ключей, которую Claude&nbsp;Code хранит для каждой папки аккаунта, или из&nbsp;файла <code class="nowrap">.credentials.json</code> в&nbsp;этой папке, если Claude&nbsp;Code хранит учётные данные в&nbsp;нём. Brow берёт только access-токен, а&nbsp;продлевать его оставляет самому Claude&nbsp;Code.</p>
+          <p>Собственные запросы Brow идут только к&nbsp;<code>api.anthropic.com/api/oauth/usage</code> и, примерно раз в&nbsp;день на&nbsp;аккаунт, к&nbsp;<code>api.anthropic.com/api/oauth/profile</code>. Ни&nbsp;аналитики, ни&nbsp;проверки обновлений в&nbsp;Brow нет. Команды <code class="nowrap">claude</code>, которые он&nbsp;запускает, ходят в&nbsp;сеть так же, как обычно ходит Claude&nbsp;Code, а&nbsp;профили браузера открывают claude.ai.</p>
+        </div>
+        <div>
+          <h3>Чем Brow отличается от&nbsp;ccusage и&nbsp;<code>/usage</code>?</h3>
+          <p><code>/usage</code> показывает расход по&nbsp;тарифу для аккаунта, под которым запущена сессия. ccusage считает расход токенов и&nbsp;примерную стоимость по&nbsp;локальным логам. Brow показывает лимиты, которые сообщает Anthropic, для всех аккаунтов рядом друг с&nbsp;другом, вместе со&nbsp;временем сброса и&nbsp;календарём.</p>
+        </div>
+        <div>
+          <h3>Истекла авторизация в&nbsp;Claude&nbsp;Code. Как войти в&nbsp;нужный аккаунт?</h3>
+          <p>Если сохранённую авторизацию не&nbsp;удаётся обновить, Claude&nbsp;Code сообщает «Login expired&nbsp;· Please run /login». В&nbsp;Brow кнопка входа рядом с&nbsp;этим аккаунтом запускает для него <code class="nowrap">claude auth login</code>. При этом открывается профиль браузера, который принадлежит этому аккаунту, поэтому вход происходит именно в&nbsp;нужный аккаунт. Остальные аккаунты остаются авторизованными.</p>
+        </div>
+        <div>
+          <h3>На&nbsp;каких Mac работает Brow?</h3>
+          <p>macOS&nbsp;26 или новее; готовая сборка&nbsp;— только для Apple&nbsp;silicon. Интерфейс вокруг чёлки рассчитан на&nbsp;MacBook, у&nbsp;которых она есть; на&nbsp;других дисплеях Brow показывает капсулу.</p>
+        </div>
+        <div>
+          <h3>Brow&nbsp;— продукт Anthropic?</h3>
+          <p>Нет. Автор Brow&nbsp;— Artem Efimov; Anthropic не&nbsp;имеет к&nbsp;приложению отношения и&nbsp;не&nbsp;одобряла его.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section companion" id="grove" aria-labelledby="grove-title">
+    <div class="wrap">
+      <h2 id="grove-title"><img src="../grove-mark.png" width="20" height="20" alt=""><span><span>Brow подсказывает, у&nbsp;какого аккаунта есть запас.</span> <span>Grove переносит туда работу.</span></span></h2>
+      <p class="prose">Grove выделяет каждой фиче проекта из&nbsp;нескольких репозиториев своё рабочее пространство для Claude&nbsp;Code и&nbsp;<a href="https://efim0v.github.io/grove/ru/#accounts">переносит сессию с&nbsp;одного аккаунта на&nbsp;другой</a>. Каждое приложение работает и&nbsp;само по&nbsp;себе, но&nbsp;задуманы они как пара. Пошагово&nbsp;— в&nbsp;руководстве «<a href="/grove/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
+      <p class="links"><a href="https://efim0v.github.io/grove/ru/">Grove&nbsp;— параллельные сессии Claude&nbsp;Code в&nbsp;нескольких репозиториях</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove на&nbsp;GitHub</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU&nbsp;GPL&nbsp;v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Список изменений</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Релизы</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Трекер задач</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efim0v.github.io/grove/ru/">Grove</a></p>
+      <p>Автор Brow&nbsp;— <a href="https://github.com/efim0v">Artem Efimov</a>. Это независимый инструмент: Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его. Во&nbsp;всех демо&nbsp;— выдуманные данные.</p>
+      <nav class="lang" aria-label="Язык">
+        <a href="/brow/" hreflang="en" lang="en">English</a>&nbsp;·
+        <a href="/brow/ru/" hreflang="ru" lang="ru" aria-current="page">Русский</a>&nbsp;·
+        <a href="/brow/zh-cn/" hreflang="zh-Hans" lang="zh-Hans">简体中文</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

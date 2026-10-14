@@ -53,6 +53,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     private var triggers: RefreshTriggers!
     private var panel: NotchPanelController!
     private var addFlow: AddAccountFlow!
+    private var notifier: LimitNotifier!
     private let clock = PanelClock()
     private var settingsWindow: NSWindow?
     /// Names typed into Settings but not committed yet. Owned here, not by the
@@ -127,6 +128,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                           onSettings: { [weak self] in self?.showSettings() })
         self.panel.show()
         BrowLog.panel.info("panel shown")
+        // Off until the user turns it on; even then it reads only what the store has.
+        notifier = LimitNotifier(poster: SystemNotifications.isSupported ? SystemNotifications() : UnavailableNotifications())
+        notifier.start(store: store)
         // Before detection and before `bootstrap()` (spec, The cycle §8): both of
         // those can sit for minutes behind a login shell or a Keychain prompt, and a
         // hover, a wake or the network returning in that window has to be live. The
@@ -181,6 +185,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         // Cmd-Q with the settings window still open never reaches `windowWillClose`.
         if let store { drafts.flush(into: store) }
         triggers?.stop()
+        notifier?.stop()
         panel?.hide()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver); self.screenObserver = nil }
         cancellables.removeAll()
@@ -261,7 +266,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             // The detected path is NOT passed in: the window is built once and cached,
             // and detection can still be running. `SettingsView` reads it live off the
             // store instead (`store.claudeDetection`).
-            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts)
+            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts, notifier: notifier)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 460),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Brow Settings"

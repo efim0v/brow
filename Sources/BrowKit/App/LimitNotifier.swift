@@ -163,14 +163,23 @@ public final class LimitNotifier: ObservableObject {
 
     /// Runs even while notifications are denied, so the baselines stay what they would
     /// have been; only the posting waits for `.allowed`.
+    ///
+    /// The status is asked again, not read from `authorization`: a change made in System
+    /// Settings is announced to nobody, Brow (an accessory app behind a non-activating
+    /// panel) may not become active again for days, and at launch the first read may
+    /// not have come back yet.
     func evaluate(rows: [AccountRow], settings: BrowSettings) {
         let notices = warnings.evaluate(rows: rows, settings: settings, now: now())
         guard !notices.isEmpty else { return }
-        guard authorization == .allowed else {
-            BrowLog.notify.info("\(notices.count) notice(s) not posted: notifications are not allowed")
-            return
+        enqueue { [weak self, poster] in
+            let status = await poster.authorization()
+            if let self, self.authorization != status { self.authorization = status }
+            guard status == .allowed else {
+                BrowLog.notify.info("\(notices.count) notice(s) not posted: notifications are not allowed")
+                return
+            }
+            for notice in notices { await poster.post(notice) }
         }
-        enqueue { [poster] in for notice in notices { await poster.post(notice) } }
     }
 
     func settingsChanged(to new: BrowSettings) {

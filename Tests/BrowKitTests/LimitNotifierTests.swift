@@ -90,6 +90,31 @@ final class LimitNotifierTests: XCTestCase {
         XCTAssertEqual(poster.posted, [])
     }
 
+    /// Turned on in System Settings, which tells Brow nothing — and Brow, an accessory
+    /// app behind a non-activating panel, may not become active again for days.
+    func testAllowingInSystemSettingsIsPickedUpByTheNextNotice() async {
+        let poster = FakePoster(.denied)
+        let n = notifier(poster)
+        await n.refreshAuthorization()
+        n.evaluate(rows: [row(five: 70)], settings: settings(on: true))
+        poster.status = .allowed
+        n.evaluate(rows: [row(five: 96)], settings: settings(on: true))
+        await settle(n)
+        XCTAssertEqual(poster.posted.map(\.kind), [.warning(level: 95)])
+        XCTAssertEqual(n.authorization, .allowed, "and Settings shows it")
+    }
+
+    /// A relaunch within 3 min finds a fresh `limits.json`: the baseline at launch owes a
+    /// reset notice before the status has been read.
+    func testANoticeDueBeforeTheStatusIsKnownIsNotLost() async {
+        let poster = FakePoster(.allowed)
+        let n = notifier(poster)
+        XCTAssertEqual(n.authorization, .unknown)
+        n.evaluate(rows: [row(five: 85)], settings: settings(on: true, resets: true))
+        await settle(n)
+        XCTAssertEqual(poster.posted.map(\.kind), [.reset])
+    }
+
     func testAllowedPostsTheEvaluatorsNotices() async {
         let poster = FakePoster(.allowed)
         let n = notifier(poster)

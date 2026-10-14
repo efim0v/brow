@@ -53,6 +53,8 @@ All demos show made-up demo data.
 
 - **Every account at a glance.** For each account: the 5-hour limit, the weekly limit and any model-specific weekly limit, as percent used, with the time until each resets.
 - **A reset calendar.** Weekly resets and estimated subscription renewals on a month grid, so you can see which account frees up when.
+- **Limit warnings.** Off by default. Turn them on and Brow posts a macOS notification when an account passes 80 % and 95 % of a limit, once per level until it resets.
+- **Copy my week.** One button copies a picture of your limits, ready to paste into a chat or a post. Accounts are numbered unless you choose to show their names, and emails never appear.
 - **Copy the launch command.** One button copies the command that starts Claude Code as that account.
 - **Sign in again, in that account's own browser.** Each account gets a separate browser profile — its own cookies, history and saved logins — so signing in to one never disturbs another. A second button opens that profile directly.
 - **Add an account in one click.** Brow creates the account folder and opens Anthropic's own sign-in flow.

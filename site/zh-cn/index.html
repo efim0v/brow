@@ -52,8 +52,8 @@
       "operatingSystem": "macOS 26 或更高版本",
       "processorRequirements": "Apple 芯片（arm64）",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.2.3",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.2.3",
+      "softwareVersion": "0.3.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.3.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
@@ -90,6 +90,8 @@
         "复制以指定账号身份启动 Claude Code 的命令",
         "在账号自己的浏览器配置文件中重新登录",
         "一键添加账号",
+        "限额预警：账号用到某项限额的 80% 和 95% 时发出 macOS 通知，默认关闭",
+        "把所有账号的限额复制成一张图片，可直接粘贴到聊天或帖子里",
         "空闲账号的令牌在后台保持有效",
         "每 30 秒检查一次限额，Mac 唤醒、网络恢复和指针悬停时也会检查"
       ],
@@ -431,7 +433,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </p>
         <p class="brew">或者用 Homebrew 安装：<code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.2.3，</span><span><time datetime="2026-10-14">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;14&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
+      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.3.0，</span><span><time datetime="2026-10-15">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;15&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
 
       <figure class="hero-shot">
         <picture>
@@ -511,6 +513,14 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <dt>重置日历</dt>
           <dd>在月历上标出每周重置日和预计的订阅续费日，哪个账号什么时候恢复，一看便知。</dd>
+        </div>
+        <div>
+          <dt>限额预警</dt>
+          <dd>开启后，账号用到某项限额的 80% 和 95% 时，Brow 会发出 macOS 通知；每个阈值在限额重置前只提醒一次。默认关闭。</dd>
+        </div>
+        <div>
+          <dt>复制“我的一周”</dt>
+          <dd>面板底部的一个按钮可以把各账号的限额复制成一张图片，直接粘贴到聊天或帖子里。除非你选择显示名称，图片上的账号只显示编号，也不会出现邮箱。</dd>
         </div>
         <div>
           <dt>复制启动命令</dt>
@@ -652,7 +662,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
             </tr>
             <tr>
               <th scope="row">Brow</th>
-              <td>每个账号的 5&nbsp;小时限额、每周限额和特定模型的每周限额；重置时间；重置日历；每个账号一个浏览器配置文件</td>
+              <td>每个账号的 5&nbsp;小时限额、每周限额和特定模型的每周限额；重置时间；重置日历；每个账号一个浏览器配置文件；限额预警</td>
               <td>MacBook 刘海两侧；其他显示器上显示为胶囊</td>
               <td>是，并排显示</td>
               <td>仅限 Claude</td>
@@ -669,10 +679,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <li>想看 token 用量和费用报告：ccusage。</li>
           <li>想要带预测的终端仪表盘：Claude Code Usage Monitor。</li>
           <li>同时在用 Codex、Gemini 或其他服务：CodexBar 或 ClaudeBar。</li>
-          <li>需要通知、用的是 Intel Mac 或较旧的 macOS：Usage4Claude（macOS 13+）或 Claude Tracker（macOS 14+）。</li>
+          <li>用的是 Intel Mac 或较旧的 macOS：Usage4Claude（macOS 13+）或 Claude Tracker（macOS 14+）。</li>
           <li>想在刘海处并排查看多个 Claude 账号，还想要重置日历和每个账号独立的浏览器配置文件：Brow。</li>
         </ul>
-        <p>Brow 自身的局限：只支持 Claude；需要 macOS 26 或更高版本，且预编译版本仅支持 Apple 芯片；不发送通知；构建未经公证，所以首次启动需要点击<strong>仍要打开</strong>。</p>
+        <p>Brow 自身的局限：只支持 Claude；需要 macOS 26 或更高版本，且预编译版本仅支持 Apple 芯片；构建未经公证，所以首次启动需要点击<strong>仍要打开</strong>。</p>
       </div>
     </div>
   </section>
@@ -793,7 +803,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Brow 会发通知吗？</h3>
-          <p>不会。每个读数旁的圆点在达到 70% 时变成橙色，达到 90% 时变成红色。</p>
+          <p>会，但需要先在 <span class="nowrap">Settings → General → Notifications</span> 中开启：账号用到 5&nbsp;小时或每周限额的 80% 和 95% 时，Brow 会发出 macOS 通知，每个阈值在限额重置前只提醒一次。阈值可以调整。此外，每个读数旁的圆点在达到 70% 时变成橙色，达到 90% 时变成红色。</p>
         </div>
         <div>
           <h3>有桌面小组件吗？</h3>

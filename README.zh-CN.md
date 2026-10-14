@@ -79,7 +79,7 @@ Brow 适合同时持有多个 Claude 订阅、在每个订阅上分别进行 AI 
 运行之前，值得了解这些：
 
 - **Brow 从 macOS 钥匙串读取 Claude Code 的登录令牌**，只用它调用 Anthropic 的用量（usage）和个人资料（profile）接口。这些接口并非有公开文档的 API，可能会发生变化。令牌不会写入磁盘，也不会记入日志，任何数据都不会发往别处。如果 macOS 不让 Brow 读取某个账号的令牌，该账号旁会显示一把钥匙；点击它，Brow 会向 macOS 申请访问权限。
-- **Brow 会查看正在运行的 Claude Code 进程**：只在某个账号的令牌需要刷新时查看，以免刷新正被会话使用的令牌。它只读取这些进程的命令行和 `CLAUDE_CONFIG_DIR`，不读取环境中的其他内容，另外还会读取每个账号最近一次保存提示词的时间（`history.jsonl`）。原因见[常见问题](#brow-会刷新-claude-code-正在使用的令牌吗)。
+- **Brow 会查看正在运行的 Claude Code 进程**：只在某个账号的令牌需要刷新或被 Anthropic 拒绝时查看，以免刷新正被会话使用的令牌。它读取 `claude`、node、bun 和 deno 进程的命令行，以判断哪些是 Claude Code，从它们的环境中只取 `CLAUDE_CONFIG_DIR`，另外还会读取每个账号最近一次保存提示词的时间（`history.jsonl`）。原因见[常见问题](#brow-会刷新-claude-code-正在使用的令牌吗)。
 - **备用令牌刷新默认开启**。如果常规刷新失效，Brow 会运行一个很小的 `claude -p` 请求，这会消耗少量限额，并开启该账号的 5 小时窗口。可在 Settings → Accounts 中关闭；它具体何时运行，见[常见问题](#brow-会消耗我的限额吗)。
 - **每个账号的浏览器配置文件都是一个单独的目录**，位于 `~/Library/Application Support/Brow/browser-profiles/` 下。Brow 会设置配置文件的名称，并在其中允许第三方 Cookie，以便登录正常进行。
 - **登录时会打开“终端”**，在其中运行 `claude auth login`；macOS 会询问一次是否允许 Brow 控制“终端”。

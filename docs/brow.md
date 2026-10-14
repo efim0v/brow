@@ -22,11 +22,13 @@
   in Settings reads *in use by Claude Code, waiting for it to refresh*. If the token has already expired,
   the panel says *Token in use by Claude Code* instead of asking you to sign in,
   and the numbers come back once the session refreshes it (as soon as you use
-  it) or you close it. Brow checks only when a refresh is due: it reads the
-  process list (each Claude Code process's command line and its
-  `CLAUDE_CONFIG_DIR`, nothing else from its environment) and the modification
-  time of `history.jsonl`. It reads no file's contents and nothing from the
-  Keychain for this, and starts no process.
+  it) or you close it. Brow checks only when a refresh is due or Anthropic has
+  rejected the token. It reads the process list: the command line of each
+  `claude`, node, bun or deno process, to tell which ones are Claude Code, and
+  from a Claude Code process's environment only `CLAUDE_CONFIG_DIR`. A session
+  still counts after an update has deleted the binary it was started from. It
+  also reads the modification time of `history.jsonl`. It reads no file's
+  contents and nothing from the Keychain for this, and starts no process.
 - The usage endpoint is rate-limited server-side (measured: a small token bucket
   refilled at roughly one request per 100 s, `retry-after: 0`, and 429s that do
   not extend the window). Brow paces itself to it: background polls that arrive

@@ -21,6 +21,11 @@
   Claude Code as that account (`CLAUDE_CONFIG_DIR='…' claude`), sign in again, and
   open that account's browser profile. The launch command also sits in each
   account's Settings card.
+- The share button in the panel's footer copies "my week": a picture (1200 × 630,
+  or 1080 × 1080 per Settings → General → Usage image) of the visible accounts'
+  limits and when they reset — up to four accounts, with any more counted.
+  Accounts are numbered unless **Show account names** is on, and even then only
+  names set in Settings are used — never an email, a folder or a plan.
 - Add an account from Settings with one click (**Sign in…**): Brow creates
   `~/.claude-accounts/account-N` itself and opens Terminal with `claude auth login`;
   sign-in happens in Anthropic's own flow.

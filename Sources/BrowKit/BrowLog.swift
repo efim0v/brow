@@ -7,6 +7,7 @@ public enum BrowLog {
     public static let limits = Logger(subsystem: "dev.artemefimov.brow", category: "limits")
     public static let tokens = Logger(subsystem: "dev.artemefimov.brow", category: "tokens")
     public static let panel  = Logger(subsystem: "dev.artemefimov.brow", category: "panel")
+    public static let notify = Logger(subsystem: "dev.artemefimov.brow", category: "notify")
 }
 
 /// "Say this once per process." For conditions that are real failures but are

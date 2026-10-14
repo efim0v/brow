@@ -28,10 +28,17 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     public var showEars: Bool = true
     /// The month of weekly resets and renewals under the accounts in the panel.
     public var showCalendar: Bool = true
+    /// A macOS notification when a visible account passes one of `notifyThresholds`
+    /// on any of its windows — see `LimitWarnings`. Off until the user opts in.
+    public var notifyLimits: Bool = false
+    /// Percent levels, 1...100 ascending. Read through `LimitWarnings.sanitized`.
+    public var notifyThresholds: [Int] = LimitWarnings.defaultLevels
+    /// A second notice when a window Brow warned about resets.
+    public var notifyResets: Bool = false
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar, notifyLimits, notifyThresholds, notifyResets }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         accounts = try c.decodeIfPresent([String: AccountOverride].self, forKey: .accounts) ?? [:]
@@ -40,6 +47,15 @@ public struct BrowSettings: Codable, Sendable, Equatable {
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
         showEars = (try? c.decodeIfPresent(Bool.self, forKey: .showEars)) ?? true
         showCalendar = (try? c.decodeIfPresent(Bool.self, forKey: .showCalendar)) ?? true
+        notifyLimits = (try? c.decodeIfPresent(Bool.self, forKey: .notifyLimits)) ?? false
+        // Never allowed to throw, for the reason spelled out under `earsPlacement`.
+        do {
+            notifyThresholds = LimitWarnings.sanitized(try c.decodeIfPresent([Int].self, forKey: .notifyThresholds) ?? [])
+        } catch {
+            BrowLog.notify.error("config.json: notifyThresholds is not a list of numbers; using 80 and 95")
+            notifyThresholds = LimitWarnings.defaultLevels
+        }
+        notifyResets = (try? c.decodeIfPresent(Bool.self, forKey: .notifyResets)) ?? false
         // Decoded through its raw value, not as the enum, and never allowed to throw.
         // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT
         // with an unmatched value (a hand-edited config — the plan's own Task 10 asks

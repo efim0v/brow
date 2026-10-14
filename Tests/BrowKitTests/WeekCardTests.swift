@@ -190,6 +190,10 @@ final class WeekCardTests: XCTestCase {
         XCTAssertEqual(CardShape.square.points, CGSize(width: 540, height: 540))
         XCTAssertEqual((1...4).map(CardShape.wide.columns), [1, 2, 3, 4])
         XCTAssertEqual((1...4).map(CardShape.square.columns), [1, 1, 2, 2])
+        // Larger type only where it fits; the panel's own sizes are the last resort,
+        // so a full card is drawn exactly as before.
+        XCTAssertEqual(WeekCardView.scales.last, 1)
+        XCTAssertEqual(WeekCardView.scales, WeekCardView.scales.sorted(by: >))
     }
 
     // MARK: settings

@@ -128,16 +128,50 @@ struct WeekCardView: View {
     let model: WeekCardModel
     let shape: CardShape
 
-    /// The app icon's tile and its two dots.
+    /// The app icon's tile.
     private static let tile = Color(red: 0x7A / 255, green: 0x7B / 255, blue: 0x80 / 255)
-    private static let green = Color(red: 0x34 / 255, green: 0xC7 / 255, blue: 0x59 / 255)
-    private static let orange = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     private static let margin: CGFloat = 20
-    private static let divider = Color.white.opacity(0.15)
+    /// How much larger than the panel's own sizes the content is drawn, largest
+    /// first; the first that fits the black panel wins. A chat or a feed shows the
+    /// picture at a third of its size or less, where the panel's 9.5 pt reset line is
+    /// a few pixels tall — and one or two accounts at the panel's sizes left most of
+    /// the canvas empty. A full card falls through to 1, the panel's sizes.
+    static let scales: [CGFloat] = [2, 1.75, 1.5, 1.35, 1.2, 1.1, 1]
 
     var body: some View {
         let size = shape.points
-        VStack(alignment: .leading, spacing: 12) {
+        ViewThatFits(in: [.horizontal, .vertical]) {
+            ForEach(Self.scales, id: \.self) { k in
+                WeekCardContent(model: model, shape: shape, k: k)
+            }
+        }
+        .frame(width: size.width - 2 * Self.margin, height: size.height - Self.margin, alignment: .top)
+        .background(NotchShape(topFlare: NotchGeometry.flare, bottomRadius: NotchGeometry.expandedBottomRadius)
+            .fill(Color.black))
+        .frame(width: size.width, height: size.height, alignment: .top)
+        .background(Self.tile)
+        // Resolves the severity colours (`EarsView.color`) to the panel's dark variants.
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+/// What sits inside the black panel, every size multiplied by `k`.
+private struct WeekCardContent: View {
+    let model: WeekCardModel
+    let shape: CardShape
+    let k: CGFloat
+
+    /// The app icon's two dots.
+    private static let green = Color(red: 0x34 / 255, green: 0xC7 / 255, blue: 0x59 / 255)
+    private static let orange = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
+    private static let divider = Color.white.opacity(0.15)
+
+    private func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size * k, weight: weight)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12 * k) {
             header
             if let overall = model.overall {
                 overallRow(overall)
@@ -147,34 +181,27 @@ struct WeekCardView: View {
             Spacer(minLength: 0)
             footer
         }
-        .padding(EdgeInsets(top: 18, leading: 18 + NotchGeometry.flare, bottom: 16,
-                            trailing: 18 + NotchGeometry.flare))
-        .frame(width: size.width - 2 * Self.margin, height: size.height - Self.margin, alignment: .top)
-        .background(NotchShape(topFlare: NotchGeometry.flare, bottomRadius: NotchGeometry.expandedBottomRadius)
-            .fill(Color.black))
-        .frame(width: size.width, height: size.height, alignment: .top)
-        .background(Self.tile)
-        // Resolves the severity colours (`EarsView.color`) to the panel's dark variants.
-        .environment(\.colorScheme, .dark)
+        .padding(EdgeInsets(top: 18 * k, leading: 18 * k + NotchGeometry.flare, bottom: 16 * k,
+                            trailing: 18 * k + NotchGeometry.flare))
     }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Claude Code usage").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-            Spacer()
-            Text(model.stamp).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.5))
+            Text("Claude Code usage").font(font(13, .semibold)).foregroundStyle(.white)
+            Spacer(minLength: 12 * k)
+            Text(model.stamp).font(font(10)).foregroundStyle(Color.white.opacity(0.5))
         }
     }
 
     private func overallRow(_ lines: [WeekCardModel.Line]) -> some View {
-        HStack(spacing: 14) {
-            Text("Overall").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+        HStack(spacing: 14 * k) {
+            Text("Overall").font(font(12, .semibold)).foregroundStyle(.white)
             Spacer()
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                HStack(spacing: 4) {
-                    Text(line.title).font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.55))
+                HStack(spacing: 4 * k) {
+                    Text(line.title).font(font(11)).foregroundStyle(Color.white.opacity(0.55))
                     Text(line.used.map(Formatting.percent) ?? "—")
-                        .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        .font(font(12, .semibold)).monospacedDigit()
                         .foregroundStyle(line.used == nil ? Color.gray : color(line))
                 }
             }
@@ -184,16 +211,16 @@ struct WeekCardView: View {
     @ViewBuilder
     private var accounts: some View {
         if model.accounts.isEmpty {
-            Text("No Claude accounts").font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.5))
+            Text("No Claude accounts").font(font(12)).foregroundStyle(Color.white.opacity(0.5))
         } else {
             let columns = shape.columns(model.accounts.count)
             let grid = stride(from: 0, to: model.accounts.count, by: columns).map {
                 Array(model.accounts[$0..<min($0 + columns, model.accounts.count)])
             }
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12 * k) {
                 ForEach(Array(grid.enumerated()), id: \.offset) { index, row in
                     if index > 0 { Self.divider.frame(height: 1) }
-                    HStack(alignment: .top, spacing: 16) {
+                    HStack(alignment: .top, spacing: 16 * k) {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, account in
                             block(account).frame(maxWidth: .infinity, alignment: .topLeading)
                         }
@@ -208,38 +235,39 @@ struct WeekCardView: View {
     }
 
     private func block(_ account: WeekCardModel.Account) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 7 * k) {
             if let label = account.label {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 6 * k) {
+                    Text(label).font(font(12, .semibold)).foregroundStyle(.white).lineLimit(1)
                         .layoutPriority(1)
                     Spacer(minLength: 0)
                     if let age = account.age {
-                        Text(age).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
+                        Text(age).font(font(10)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
                     }
                 }
             } else if let age = account.age {
                 // One account, so no label to sit beside: the panel footer's wording.
-                Text("Updated \(age)").font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
+                Text("Updated \(age)").font(font(10)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
             }
             ForEach(Array(account.lines.enumerated()), id: \.offset) { _, line in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(line.title).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.55))
-                            .lineLimit(1).frame(width: 40, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2 * k) {
+                    HStack(spacing: 6 * k) {
+                        Text(line.title).font(font(10)).foregroundStyle(Color.white.opacity(0.55))
+                            .lineLimit(1).frame(width: 40 * k, alignment: .leading)
                         bar(line)
                         Text(line.used.map(Formatting.percent) ?? "—")
-                            .font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.white)
-                            .frame(width: 34, alignment: .trailing)
+                            .font(font(11, .medium)).monospacedDigit().foregroundStyle(.white)
+                            .frame(width: 34 * k, alignment: .trailing)
                     }
-                    Text(line.resets).font(.system(size: 9.5)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
+                    Text(line.resets).font(font(9.5)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
                 }
             }
         }
     }
 
     /// Its own bar, not `AccountBlockView`'s: that one has the panel's widths and
-    /// `.secondary` text.
+    /// `.secondary` text. The ideal width only counts when `WeekCardView` asks which
+    /// scale fits — a bar is never drawn wider or narrower for it.
     private func bar(_ line: WeekCardModel.Line) -> some View {
         let used = line.used ?? 0
         return GeometryReader { geo in
@@ -248,18 +276,19 @@ struct WeekCardView: View {
                 Capsule().fill(color(line)).frame(width: max(0, geo.size.width * used / 100))
             }
         }
-        .frame(height: 6)
+        .frame(minWidth: 0, idealWidth: 30 * k, maxWidth: .infinity)
+        .frame(height: 6 * k)
     }
 
     private var footer: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 5 * k) {
             if model.more > 0 {
-                Text("+\(model.more) more").font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.5))
+                Text("+\(model.more) more").font(font(10)).foregroundStyle(Color.white.opacity(0.5))
             }
             Spacer()
-            Circle().fill(Self.green).frame(width: 5, height: 5)
-            Circle().fill(Self.orange).frame(width: 5, height: 5)
-            Text("Brow").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.white.opacity(0.4))
+            Circle().fill(Self.green).frame(width: 5 * k, height: 5 * k)
+            Circle().fill(Self.orange).frame(width: 5 * k, height: 5 * k)
+            Text("Brow").font(font(10, .semibold)).foregroundStyle(Color.white.opacity(0.4))
         }
     }
 

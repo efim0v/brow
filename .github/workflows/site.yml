@@ -37,4 +37,4 @@ jobs:
           persist-credentials: false
 
       - name: Check site/
-        run: python3 Scripts/check_seo.py site https://efim0v.github.io/brow/
+        run: python3 Scripts/check_seo.py site https://efimov.page/brow/

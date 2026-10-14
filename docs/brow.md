@@ -10,6 +10,25 @@
   account's 5-hour window. It is never used after a 401/403 or a `doctor` that
   timed out — neither is evidence the token itself can be fixed — and it is
   dropped for good after three ineffective rounds.
+- An account Claude Code is using is left to Claude Code: Brow runs neither
+  `claude doctor` nor `claude -p` in it, whether the token is about to expire or
+  Anthropic has rejected it. A running session refreshes its own token, and the
+  refresh token changes on every refresh, so two refreshes at about the same
+  time leave one side with a dead token and the session asks you to `/login`.
+  "Using" means a running `claude` process whose `CLAUDE_CONFIG_DIR` is that
+  account's folder (not set means `~/.claude`), however long it has sat idle, or
+  a prompt typed in that account in the last 15 minutes (going by when its
+  `history.jsonl` was last written). While Brow waits, the account's token line
+  in Settings reads *in use by Claude Code, waiting for it to refresh*. If the token has already expired,
+  the panel says *Token in use by Claude Code* instead of asking you to sign in,
+  and the numbers come back once the session refreshes it (as soon as you use
+  it) or you close it. Brow checks only when a refresh is due or Anthropic has
+  rejected the token. It reads the process list: the command line of each
+  `claude`, node, bun or deno process, to tell which ones are Claude Code, and
+  from a Claude Code process's environment only `CLAUDE_CONFIG_DIR`. A session
+  still counts after an update has deleted the binary it was started from. It
+  also reads the modification time of `history.jsonl`. It reads no file's
+  contents and nothing from the Keychain for this, and starts no process.
 - The usage endpoint is rate-limited server-side (measured: a small token bucket
   refilled at roughly one request per 100 s, `retry-after: 0`, and 429s that do
   not extend the window). Brow paces itself to it: background polls that arrive

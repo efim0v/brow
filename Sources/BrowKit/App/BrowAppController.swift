@@ -106,7 +106,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                             now: { Date() },
                                             profileClient: OAuthProfileClient(fetcher: URLSessionUsageFetcher(),
                                                                               userAgent: nil, credentials: credentials),
-                                            statusline: FileStatuslineCaptures()))
+                                            statusline: FileStatuslineCaptures(),
+                                            // A due refresh is left to Claude Code while it runs as the account.
+                                            activity: ClaudeCodeActivity()))
         self.store = store
         // Settings can change either of these at any time; keep the boxes the keeper
         // reads — and the "`claude` not found" banner — in step with the live values.

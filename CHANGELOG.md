@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Limit warnings, off by default. Turn them on in Settings → General → Notifications and Brow posts a macOS notification when an account passes 80 % and 95 % of its 5-hour, weekly or model-specific weekly limit: once per level, per account and per reset period, with the time the limit resets. The levels can be changed to 70 % and 90 %, or 90 % only. An optional second notice says when a limit Brow warned about has reset. Brow asks macOS for permission only when you turn warnings on; the notifications are made on your Mac and nothing is sent anywhere.
+
 ## [0.2.3] - 2026-10-14
 
 ### Fixed

@@ -52,8 +52,8 @@
       "operatingSystem": "macOS 26 или новее",
       "processorRequirements": "Apple silicon (arm64)",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.2.3",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.2.3",
+      "softwareVersion": "0.3.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.3.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
@@ -90,6 +90,8 @@
         "Копирование команды, которая запускает Claude Code под нужным аккаунтом",
         "Повторный вход в собственном профиле браузера аккаунта",
         "Новый аккаунт в один клик",
+        "Предупреждения о лимитах: уведомление macOS, когда аккаунт израсходует 80 % и 95 % лимита; по умолчанию выключены",
+        "Картинка с лимитами всех аккаунтов, чтобы вставить её в чат или пост",
         "Токены простаивающих аккаунтов обновляются в фоне",
         "Проверка лимитов каждые 30 секунд, после выхода из сна, при восстановлении сети и при наведении курсора"
       ],
@@ -422,7 +424,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </p>
         <p class="brew">Или через Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.2.3,</span> <span><time datetime="2026-10-14">14&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
+      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.3.0,</span> <span><time datetime="2026-10-15">15&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
 
       <figure class="hero-shot">
         <picture>
@@ -502,6 +504,14 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <dt>Календарь сбросов</dt>
           <dd>Недельные сбросы и&nbsp;примерные даты продления подписок на&nbsp;сетке месяца: видно, какой аккаунт когда освободится.</dd>
+        </div>
+        <div>
+          <dt>Предупреждения о&nbsp;лимитах</dt>
+          <dd>Если их&nbsp;включить, Brow присылает уведомление macOS, когда аккаунт израсходует 80&nbsp;% и&nbsp;95&nbsp;% лимита, по&nbsp;одному на&nbsp;каждый порог до&nbsp;сброса. По&nbsp;умолчанию выключены.</dd>
+        </div>
+        <div>
+          <dt>Картинка с&nbsp;лимитами</dt>
+          <dd>Кнопка внизу панели копирует картинку с&nbsp;лимитами ваших аккаунтов, чтобы вставить её&nbsp;в&nbsp;чат или пост. Аккаунты на&nbsp;ней пронумерованы, если не&nbsp;включить показ имён, а&nbsp;адресов почты там нет.</dd>
         </div>
         <div>
           <dt>Команда запуска в&nbsp;буфер обмена</dt>
@@ -643,7 +653,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
             </tr>
             <tr>
               <th scope="row">Brow</th>
-              <td>Лимиты каждого аккаунта: <span class="nowrap">5-часовой</span>, недельный и&nbsp;недельный лимит отдельной модели; время сброса; календарь сбросов; свой профиль браузера у&nbsp;каждого аккаунта</td>
+              <td>Лимиты каждого аккаунта: <span class="nowrap">5-часовой</span>, недельный и&nbsp;недельный лимит отдельной модели; время сброса; календарь сбросов; свой профиль браузера у&nbsp;каждого аккаунта; предупреждения о&nbsp;лимитах</td>
               <td>У&nbsp;чёлки MacBook; на&nbsp;других дисплеях&nbsp;— капсула</td>
               <td>Да, рядом друг с&nbsp;другом</td>
               <td>Только Claude</td>
@@ -660,10 +670,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <li>Нужны отчёты о&nbsp;токенах и&nbsp;стоимости&nbsp;— ccusage.</li>
           <li>Нужна панель в&nbsp;терминале с&nbsp;прогнозами&nbsp;— Claude&nbsp;Code Usage Monitor.</li>
           <li>Пользуетесь ещё Codex, Gemini или другими провайдерами&nbsp;— CodexBar или ClaudeBar.</li>
-          <li>Нужны уведомления, Mac с&nbsp;процессором Intel или более старая macOS&nbsp;— Usage4Claude (macOS&nbsp;13+) или Claude Tracker (macOS&nbsp;14+).</li>
+          <li>Нужен Mac с&nbsp;процессором Intel или более старая macOS&nbsp;— Usage4Claude (macOS&nbsp;13+) или Claude Tracker (macOS&nbsp;14+).</li>
           <li>Нужно видеть у&nbsp;чёлки несколько аккаунтов Claude сразу, с&nbsp;календарём сбросов и&nbsp;отдельным профилем браузера для каждого&nbsp;— Brow.</li>
         </ul>
-        <p>Ограничения самого Brow: он&nbsp;работает только с&nbsp;Claude; ему нужна macOS&nbsp;26 или новее, а&nbsp;готовая сборка есть только для Apple&nbsp;silicon; уведомлений он&nbsp;не&nbsp;присылает; сборка не&nbsp;нотаризована, поэтому при первом запуске придётся нажать <strong>Все равно открыть</strong>.</p>
+        <p>Ограничения самого Brow: он&nbsp;работает только с&nbsp;Claude; ему нужна macOS&nbsp;26 или новее, а&nbsp;готовая сборка есть только для Apple&nbsp;silicon; сборка не&nbsp;нотаризована, поэтому при первом запуске придётся нажать <strong>Все равно открыть</strong>.</p>
       </div>
     </div>
   </section>
@@ -784,7 +794,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Есть&nbsp;ли в&nbsp;Brow уведомления?</h3>
-          <p>Нет. Точка рядом с&nbsp;каждым показателем становится оранжевой при 70&nbsp;% и&nbsp;красной при 90&nbsp;%.</p>
+          <p>Да, если включить их&nbsp;в&nbsp;<span class="nowrap">Settings → General → Notifications</span>: Brow присылает уведомление macOS, когда аккаунт израсходует 80&nbsp;% и&nbsp;95&nbsp;% 5-часового или недельного лимита, по&nbsp;одному на&nbsp;каждый порог до&nbsp;сброса. Пороги можно поменять. Кроме того, точка рядом с&nbsp;каждым показателем становится оранжевой при 70&nbsp;% и&nbsp;красной при 90&nbsp;%.</p>
         </div>
         <div>
           <h3>Есть&nbsp;ли виджет для рабочего стола?</h3>

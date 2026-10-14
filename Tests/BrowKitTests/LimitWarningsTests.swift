@@ -13,7 +13,9 @@ final class LimitWarningsTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    private func row(_ org: String = "org-a", name: String = "Work",
+    /// `name` is what the panel shows, `displayName`: for an account with no name set
+    /// in Settings, its email. A notice goes by the settings instead (`LimitWarnings.title`).
+    private func row(_ org: String = "org-a",
                      five: Double? = nil, fiveResets: String? = nil,
                      week: Double? = nil, weekResets: String? = nil,
                      scoped: Double? = nil, scopedResets: String? = nil, model: String? = "Fable",
@@ -27,11 +29,14 @@ final class LimitWarningsTests: XCTestCase {
                                      weeklyScoped: scoped.map { CapturedWindow(usedPercentage: $0, resetsAt: scopedResets ?? self.weekReset) },
                                      weeklyScopedModel: scoped == nil ? nil : model,
                                      scopedFetchedAt: scopedFetchedAt)
-        return AccountRow(account: account, name: name, snapshot: snapshot, status: .ok, tokenStatus: "valid")
+        return AccountRow(account: account, name: "\(org)@example.com", snapshot: snapshot, status: .ok,
+                          tokenStatus: "valid")
     }
 
-    private func on(_ levels: [Int] = [80, 95], resets: Bool = false) -> BrowSettings {
+    /// `names`: the names set in Settings, by organization.
+    private func on(_ levels: [Int] = [80, 95], resets: Bool = false, names: [String: String] = [:]) -> BrowSettings {
         var s = BrowSettings()
+        s.accounts = names.mapValues { AccountOverride(name: $0, hidden: false) }
         s.notifyLimits = true
         s.notifyThresholds = levels
         s.notifyResets = resets
@@ -69,7 +74,7 @@ final class LimitWarningsTests: XCTestCase {
         XCTAssertEqual(kinds(at95), [.warning(level: 95)])
         XCTAssertEqual(try XCTUnwrap(at80.first).id, try XCTUnwrap(at95.first).id,
                        "the 95 replaces the 80 in Notification Center")
-        XCTAssertEqual(at80.first?.title, "Work")
+        XCTAssertEqual(at80.first?.title, "Account 1")
         XCTAssertNil(at80.first?.deliverAt)
     }
 
@@ -185,14 +190,14 @@ final class LimitWarningsTests: XCTestCase {
 
     func testAccountsAndWindowsAreIndependent() {
         var w = LimitWarnings()
-        let a = { (five: Double, week: Double) in self.row("org-a", name: "Personal", five: five, week: week) }
-        let b = { (five: Double, week: Double) in self.row("org-b", name: "Work", five: five, week: week) }
+        let a = { (five: Double, week: Double) in self.row("org-a", five: five, week: week) }
+        let b = { (five: Double, week: Double) in self.row("org-b", five: five, week: week) }
         XCTAssertEqual(eval(&w, [a(70, 70), b(70, 70)]), [])
         let fiveA = eval(&w, [a(82, 70), b(70, 70)])
-        XCTAssertEqual(fiveA.map(\.title), ["Personal"])
+        XCTAssertEqual(fiveA.map(\.title), ["Account 1"])
         XCTAssertTrue(fiveA[0].id.hasPrefix("limit.org-a.fiveHour."), fiveA[0].id)
         let weekB = eval(&w, [a(82, 70), b(70, 81)])
-        XCTAssertEqual(weekB.map(\.title), ["Work"])
+        XCTAssertEqual(weekB.map(\.title), ["Account 2"])
         XCTAssertTrue(weekB[0].id.hasPrefix("limit.org-b.weekly."), weekB[0].id)
         XCTAssertNotEqual(fiveA[0].id, weekB[0].id)
     }
@@ -224,7 +229,7 @@ final class LimitWarningsTests: XCTestCase {
 
     func testARemovedAccountStartsOverWithABaseline() {
         var w = LimitWarnings()
-        let a = row("org-a", name: "Personal", five: 70)
+        let a = row("org-a", five: 70)
         _ = eval(&w, [a, row("org-b", five: 70)])
         _ = eval(&w, [a])                                  // org-b hidden: pruned
         XCTAssertEqual(eval(&w, [a, row("org-b", five: 96)]), [], "back: its first reading is a baseline")
@@ -268,7 +273,7 @@ final class LimitWarningsTests: XCTestCase {
         let reset = try XCTUnwrap(crossed.last)
         XCTAssertEqual(reset.deliverAt, Formatting.resetInstant(fiveReset))
         XCTAssertEqual(reset.id, "reset.org-a.fiveHour.\(Int(Formatting.resetInstant(fiveReset)!.timeIntervalSince1970))")
-        XCTAssertEqual(reset.title, "Work")
+        XCTAssertEqual(reset.title, "Account 1")
         XCTAssertEqual(kinds(eval(&w, [row(five: 96)], settings)), [.warning(level: 95)], "one per period")
     }
 
@@ -339,7 +344,49 @@ final class LimitWarningsTests: XCTestCase {
         XCTAssertEqual(NoticeText.testBody(levels: [80, 95]), "Test: limit warnings are on. Brow warns at 80% and 95%.")
     }
 
-    // MARK: - 12. Wording
+    // MARK: - 12. Titles
+
+    /// The name set in Settings, or "Account N" by the account's place among the rows,
+    /// the visible accounts in panel order: the week card's numbering, so "Account 2" is
+    /// the same account in both.
+    func testATitleIsTheSetNameOrTheAccountsPlaceInThePanel() {
+        let names = ["org-b": "Work", "org-d": "  "]          // a blank name is no name
+        let settings = on(resets: true, names: names)
+        let orgs = ["org-a", "org-b", "org-c", "org-d"]
+        var w = LimitWarnings()
+        _ = eval(&w, orgs.map { row($0, five: 70) }, settings)
+        let notices = eval(&w, orgs.map { row($0, five: 82) }, settings)
+        let expected = ["Account 1", "Work", "Account 3", "Account 4"]
+        XCTAssertEqual(notices.filter { $0.kind == .warning(level: 80) }.map(\.title), expected)
+        XCTAssertEqual(notices.filter { $0.kind == .reset }.map(\.title), expected)
+
+        // org-a hidden: the panel, the week card and the next notice all count from org-b.
+        let next = eval(&w, orgs.dropFirst().map { row($0, five: 96) }, settings)
+        XCTAssertEqual(next.map(\.title), ["Work", "Account 2", "Account 3"])
+        XCTAssertEqual(LimitWarnings.title(for: row("org-c"), index: 1, settings: settings),
+                       BrowSettings.numberedName(index: 1))
+    }
+
+    /// `displayName` falls back to the email and then the folder; a notification shows
+    /// on the lock screen and in a screen share, so neither is ever in one.
+    func testNoEmailOrFolderInANotice() {
+        let orgs = ["org-a", "org-b"]
+        var w = LimitWarnings()
+        let settings = on(resets: true)
+        _ = eval(&w, orgs.map { row($0, five: 70, week: 70, scoped: 70) }, settings)
+        let notices = eval(&w, orgs.map { row($0, five: 96, week: 85, scoped: 82) }, settings)
+        XCTAssertEqual(notices.count, 12, "three warnings and three reset notices per account")
+        XCTAssertEqual(Set(notices.map(\.title)), ["Account 1", "Account 2"])
+        for notice in notices {
+            for text in [notice.title, notice.body] {
+                for leak in ["@", "example.com", "org-a", "org-b", ".claude-accounts"] {
+                    XCTAssertFalse(text.contains(leak), "\"\(text)\" has \"\(leak)\"")
+                }
+            }
+        }
+    }
+
+    // MARK: - 13. Wording
 
     /// Warnings say where an account stands and when it resets. Nothing else.
     func testNoWordingSuggestsWorkingAroundALimit() throws {
@@ -353,6 +400,7 @@ final class LimitWarningsTests: XCTestCase {
             testAccountsAndWindowsAreIndependent, testChangingResetNoticesClearsTheState,
             testCrossingTheLowestLevelSchedulesOneResetNotice, testABaselineAtOrAboveTheLowestLevelSchedulesOne,
             testNoResetNoticesWhileTheyAreOff, testTheEvaluatorNamesTheModelOrSaysModel,
+            testATitleIsTheSetNameOrTheAccountsPlaceInThePanel, testNoEmailOrFolderInANotice,
         ]
         for scenario in scenarios { try scenario() }
         let reset = Formatting.resetInstant(weekReset)!
@@ -374,7 +422,7 @@ final class LimitWarningsTests: XCTestCase {
         }
     }
 
-    // MARK: - 13. Settings file
+    // MARK: - 14. Settings file
 
     func testNotificationSettingsDefaults() {
         let s = BrowSettings()

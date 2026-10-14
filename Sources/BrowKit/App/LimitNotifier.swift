@@ -104,7 +104,7 @@ public final class LimitNotifier: ObservableObject {
     private var warnings = LimitWarnings()
     /// Reset notices handed to macOS and not due yet, by id. Hidden accounts never
     /// notify, so the ones for an account that leaves the panel are taken back.
-    private var pendingResets: [String: Date] = [:]
+    private var pendingResets: [String: LimitNotice] = [:]
     /// The last settings seen, for the on/off edges in `settingsChanged`.
     private var settings: BrowSettings?
     private var cancellables: Set<AnyCancellable> = []
@@ -177,15 +177,30 @@ public final class LimitNotifier: ObservableObject {
     /// not have come back yet.
     func evaluate(rows: [AccountRow], settings: BrowSettings) {
         let now = self.now()
-        let notices = warnings.evaluate(rows: rows, settings: settings, now: now)
-        let shown = rows.map { "reset.\($0.id)." }      // `LimitNotice.id`
-        pendingResets = pendingResets.filter { $0.value > now }
-        let gone = pendingResets.keys.filter { id in !shown.contains { id.hasPrefix($0) } }.sorted()
+        let found = warnings.evaluate(rows: rows, settings: settings, now: now)
+        // What each account on the panel is called now, by its reset ids' prefix (`LimitNotice.id`).
+        let titles = rows.enumerated().map { index, row in
+            (prefix: "reset.\(row.id).", title: LimitWarnings.title(for: row, index: index, settings: settings))
+        }
+        func title(of id: String) -> String? { titles.first { id.hasPrefix($0.prefix) }?.title }
+        pendingResets = pendingResets.filter { ($0.value.deliverAt ?? .distantPast) > now }
+        let gone = pendingResets.keys.filter { title(of: $0) == nil }.sorted()
         if !gone.isEmpty {
             for id in gone { pendingResets[id] = nil }
             enqueue { [poster] in poster.removePending(ids: gone) }
         }
-        for notice in notices where notice.kind == .reset { pendingResets[notice.id] = notice.deliverAt }
+        // A rename, or an account hidden or added above it, moves what the panel calls
+        // an account ("Account 2" becomes "Account 1"): a reset notice still waiting is
+        // handed over again under the new title. Same id, so macOS replaces the request.
+        let fresh = Set(found.map(\.id))
+        let retitled = pendingResets.values.compactMap { notice -> LimitNotice? in
+            guard !fresh.contains(notice.id), let current = title(of: notice.id), current != notice.title
+            else { return nil }
+            return LimitNotice(id: notice.id, kind: notice.kind, title: current, body: notice.body,
+                               deliverAt: notice.deliverAt)
+        }.sorted { $0.id < $1.id }
+        let notices = retitled + found
+        for notice in notices where notice.kind == .reset { pendingResets[notice.id] = notice }
         guard !notices.isEmpty else { return }
         enqueue { [weak self, poster] in
             let status = await poster.authorization()

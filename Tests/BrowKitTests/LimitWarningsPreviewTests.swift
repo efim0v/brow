@@ -35,12 +35,14 @@ final class LimitWarningsPreviewTests: XCTestCase {
         return f.string(from: date)
     }
 
+    /// `name`: the name set in Settings, nil for none.
     private struct Account {
-        let org: String, name: String, email: String, folder: String
+        let org: String, name: String?, email: String, folder: String
     }
     private let personal = Account(org: "org-demo-personal", name: "Personal", email: "alex@example.com", folder: "personal")
     private let work = Account(org: "org-demo-work", name: "Work", email: "alex.morgan@example.com", folder: "work")
-    private let team = Account(org: "org-demo-team", name: "Team", email: "platform-team@example.com", folder: "team")
+    /// No name set: the panel shows its email, a notice "Account 3" (third in the panel).
+    private let team = Account(org: "org-demo-team", name: nil, email: "platform-team@example.com", folder: "team")
 
     private func row(_ a: Account, fetchedAt: Date, five: (Double, Date)?, week: (Double, Date)?,
                      scoped: (Double, Date)? = nil) -> AccountRow {
@@ -48,7 +50,7 @@ final class LimitWarningsPreviewTests: XCTestCase {
                                         configDir: "/tmp/brow-demo-home/.claude-accounts/\(a.folder)",
                                         aliasDirs: [], tokenExpiresAt: nil)
         let window = { (w: (Double, Date)?) in w.map { CapturedWindow(usedPercentage: $0.0, resetsAt: self.iso($0.1)) } }
-        return AccountRow(account: account, name: a.name,
+        return AccountRow(account: account, name: a.name ?? a.email,      // `displayName`
                           snapshot: LimitSnapshot(organizationUuid: a.org, fetchedAt: fetchedAt,
                                                   fiveHour: window(five), sevenDay: window(week),
                                                   weeklyScoped: window(scoped),
@@ -56,7 +58,7 @@ final class LimitWarningsPreviewTests: XCTestCase {
                           status: .ok, tokenStatus: "valid")
     }
 
-    func testWriteSampleNotices() throws {
+    func testWriteSampleNotices() async throws {
         let out = try reviewDir()
         let workFive = local(15, 18, 40), workFiveNext = local(15, 23, 40)
         let personalWeek = local(19, 2, 0), workWeek = local(21, 2, 0), teamWeek = local(17, 9, 0)
@@ -85,13 +87,13 @@ final class LimitWarningsPreviewTests: XCTestCase {
         let steps: [(String, Date, [AccountRow])] = [
             ("Launch: limits.json from 3 days ago, Work 5-hour at 84%", local(15, 14, 20),
              rows(at: local(15, 14, 20), workFive: (84, workFive), personalWeek: 62, teamOpus: 70, persisted: true)),
-            ("First fresh readings: Work 5-hour 84%, Personal weekly 62%, Team Opus 70%", local(15, 14, 21),
+            ("First fresh readings: Work 5-hour 84%, Personal weekly 62%, Account 3 Opus 70%", local(15, 14, 21),
              rows(at: local(15, 14, 21), workFive: (84, workFive), personalWeek: 62, teamOpus: 70)),
             ("Work 5-hour goes to 96%", local(15, 15, 5),
              rows(at: local(15, 15, 5), workFive: (96, workFive), personalWeek: 62, teamOpus: 70)),
             ("Personal weekly goes from 62% to 81%", local(15, 15, 30),
              rows(at: local(15, 15, 30), workFive: (96, workFive), personalWeek: 81, teamOpus: 70)),
-            ("Team Opus jumps from 70% to 93%", local(15, 16, 0),
+            ("Account 3 (no name set) Opus jumps from 70% to 93%", local(15, 16, 0),
              rows(at: local(15, 16, 0), workFive: (96, workFive), personalWeek: 81, teamOpus: 93)),
             ("Work's 5-hour window has reset: 5% in the new period", local(15, 18, 50),
              rows(at: local(15, 18, 50), workFive: (5, workFiveNext), personalWeek: 81, teamOpus: 93)),
@@ -102,15 +104,19 @@ final class LimitWarningsPreviewTests: XCTestCase {
         var lines = [
             "Limit warnings: what Brow would post, from the real evaluator (LimitWarnings + NoticeText).",
             "Levels 80% and 95% (the default), reset notices ON, time zone \(TimeZone.current.identifier).",
-            "Accounts: Personal, Work, Team (fictional, example.com). Title — body.",
+            "Accounts, in panel order: Personal and Work (names set in Settings), then one with no name set,",
+            "shown as Account 3 (its email, platform-team@example.com, is never in a notice).",
+            "Fictional, example.com. Title — body.",
             "",
         ]
         var warnings = LimitWarnings()
         var scheduled: [(step: Int, notice: LimitNotice)] = []
+        var all: [LimitNotice] = []
         for (index, (label, now, stepRows)) in steps.enumerated() {
             let step = index + 1
             lines.append("[step \(step)] \(f.string(from: now)) — \(label)")
             let notices = warnings.evaluate(rows: stepRows, settings: settings, now: now)
+            all += notices
             let posted = notices.filter { $0.kind != .reset }
             scheduled += notices.filter { $0.kind == .reset }.map { (step, $0) }
             if posted.isEmpty {
@@ -130,6 +136,32 @@ final class LimitWarningsPreviewTests: XCTestCase {
             lines.append("[step 8] \(f.string(from: notice.deliverAt!)) \(notice.title) — \(notice.body)  (id \(notice.id), scheduled in step \(step))")
         }
         lines.append("")
+
+        // Step 9 goes through `LimitNotifier`, which keeps the reset notices handed to macOS.
+        let hiddenAt = local(15, 19, 40)
+        lines.append("[step 9] \(f.string(from: hiddenAt)) — Personal is hidden. Work keeps its name; the account with no name")
+        lines.append("[step 9] set is second in the panel now, so Account 2, on the week card and in its waiting reset notice:")
+        let recorder = RecordingPoster()
+        var clock = steps[0].1
+        let notifier = LimitNotifier(poster: recorder, now: { clock })
+        for (_, now, stepRows) in steps {
+            clock = now
+            notifier.evaluate(rows: stepRows, settings: settings)
+        }
+        await notifier.delivery?.value
+        recorder.posted = []
+        clock = hiddenAt
+        notifier.evaluate(rows: rows(at: hiddenAt, workFive: (82, workFiveNext), personalWeek: 81, teamOpus: 93)
+                            .filter { $0.id != personal.org }, settings: settings)
+        await notifier.delivery?.value
+        for id in recorder.withdrawn.joined() {
+            lines.append("[step 9]   taken back: \(id)")
+        }
+        for notice in recorder.posted {
+            lines.append("[step 9]   replaced, still for \(f.string(from: notice.deliverAt!)): \(notice.title) — \(notice.body)  (id \(notice.id))")
+        }
+        all += recorder.posted
+        lines.append("")
         lines.append("Settings › General › Notifications › Send a test notification:")
         for levels in LimitWarnings.presets + [[85]] {
             lines.append("  Brow — \(NoticeText.testBody(levels: levels))")
@@ -148,6 +180,21 @@ final class LimitWarningsPreviewTests: XCTestCase {
         print(text)
         try text.write(to: out.appendingPathComponent("notices.txt"), atomically: true, encoding: .utf8)
         XCTAssertEqual(scheduled.count, 4)
+        XCTAssertTrue(all.contains { $0.title == "Account 3" })
+        XCTAssertEqual(recorder.posted.map(\.title), ["Account 2"])
+        XCTAssertEqual(recorder.withdrawn.joined().filter { $0.hasPrefix("reset.\(personal.org).") }.count, 1)
+        XCTAssertFalse(all.contains { ($0.title + $0.body).contains("@") }, "no email in any notice")
+    }
+
+    /// Posts nothing; keeps what it was handed.
+    private final class RecordingPoster: NotificationPosting {
+        var posted: [LimitNotice] = []
+        var withdrawn: [[String]] = []
+        func authorization() async -> NotificationAuthorization { .allowed }
+        func requestAuthorization() async -> NotificationAuthorization { .allowed }
+        func post(_ notice: LimitNotice) async { posted.append(notice) }
+        func removePending() {}
+        func removePending(ids: [String]) { withdrawn.append(ids) }
     }
 
     // MARK: - Settings section

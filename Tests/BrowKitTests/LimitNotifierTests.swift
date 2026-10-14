@@ -165,6 +165,38 @@ final class LimitNotifierTests: XCTestCase {
         XCTAssertEqual(poster.removals, 0, "the other account's notice stays")
     }
 
+    /// "Account 2" is a place in the panel. When an account above it is hidden it
+    /// becomes "Account 1", and the reset notice still waiting in macOS has to say so;
+    /// a name set later replaces the number the same way.
+    func testAPendingResetNoticeFollowsTheAccountsTitle() async throws {
+        let poster = FakePoster(.allowed)
+        let n = notifier(poster)
+        var s = settings(on: true, resets: true)
+        n.evaluate(rows: [row(five: 70), row("org-b", five: 70)], settings: s)
+        n.evaluate(rows: [row(five: 82), row("org-b", five: 82)], settings: s)
+        await settle(n)
+        let resetB = try XCTUnwrap(poster.posted.first { $0.kind == .reset && $0.id.hasPrefix("reset.org-b.") })
+        XCTAssertEqual(resetB.title, "Account 2")
+        poster.posted = []
+
+        n.evaluate(rows: [row("org-b", five: 83)], settings: s)       // org-a hidden
+        await settle(n)
+        XCTAssertEqual(poster.posted.map(\.id), [resetB.id], "the same request, replaced")
+        XCTAssertEqual(poster.posted.map(\.title), ["Account 1"])
+        XCTAssertEqual(poster.posted.first?.body, resetB.body)
+        XCTAssertEqual(poster.posted.first?.deliverAt, resetB.deliverAt)
+
+        n.evaluate(rows: [row("org-b", five: 84)], settings: s)
+        await settle(n)
+        XCTAssertEqual(poster.posted.count, 1, "handed over once, not on every reading")
+
+        s.accounts = ["org-b": AccountOverride(name: "Work", hidden: false)]
+        n.evaluate(rows: [row("org-b", five: 84)], settings: s)
+        await settle(n)
+        XCTAssertEqual(poster.posted.map(\.title), ["Account 1", "Work"])
+        XCTAssertEqual(Set(poster.posted.map(\.id)), [resetB.id])
+    }
+
     func testTheTestNotification() async {
         let poster = FakePoster(.allowed)
         let n = notifier(poster)

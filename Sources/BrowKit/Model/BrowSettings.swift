@@ -91,6 +91,20 @@ public struct BrowSettings: Codable, Sendable, Equatable {
         return (account.configDir as NSString).lastPathComponent
     }
 
+    /// The name set in Settings, trimmed; nil without one. Unlike `displayName`, never
+    /// the email or the folder: this is for what leaves the panel (a notification, the
+    /// week card).
+    public func setName(for organizationUuid: String) -> String? {
+        guard let name = accounts[organizationUuid]?.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else { return nil }
+        return name
+    }
+
+    /// "Account 1", "Account 2": an account by its place among the visible accounts in
+    /// panel order (`LimitsStore.rows`), `index` counting from 0. Limit warnings and the
+    /// week card number the same way, so "Account 2" is the same account in both.
+    public static func numberedName(index: Int) -> String { "Account \(index + 1)" }
+
     public func isHidden(_ organizationUuid: String) -> Bool {
         accounts[organizationUuid]?.hidden ?? false
     }

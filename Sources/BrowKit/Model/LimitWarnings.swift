@@ -38,6 +38,13 @@ public struct LimitWarnings: Sendable {
     /// two 5-hour periods are never this close.
     static let samePeriod: TimeInterval = 600
 
+    /// What a notice calls an account: the name set in Settings, or "Account N" by its
+    /// place in `rows`, the panel's order, as on the week card. Never `row.name`, which
+    /// falls back to the email.
+    static func title(for row: AccountRow, index: Int, settings: BrowSettings) -> String {
+        settings.setName(for: row.id) ?? BrowSettings.numberedName(index: index)
+    }
+
     /// 1...100, unique, ascending; empty -> `defaultLevels`.
     public static func sanitized(_ levels: [Int]) -> [Int] {
         let clean = Set(levels.filter { (1...100).contains($0) }).sorted()
@@ -67,8 +74,9 @@ public struct LimitWarnings: Sendable {
         guard settings.notifyLimits, let lowest = levels.first else { return [] }
 
         var notices: [LimitNotice] = []
-        for row in rows {
+        for (index, row) in rows.enumerated() {
             guard let snap = row.snapshot else { continue }
+            let title = Self.title(for: row, index: index, settings: settings)
             let scopedModel = snap.weeklyScopedModel ?? "Model"
             let windows: [(LimitWindowKind, CapturedWindow?, Bool, String?)] = [
                 (.fiveHour, snap.fiveHour, snap.isStale(now: now), nil),
@@ -104,7 +112,7 @@ public struct LimitWarnings: Sendable {
                 if let level = crossed.last {
                     notices.append(LimitNotice(
                         id: "limit.\(row.id).\(scope).\(epoch)", kind: .warning(level: level),
-                        title: row.name,
+                        title: title,
                         body: NoticeText.warningBody(used: used, kind: kind, model: model, reset: reset,
                                                      now: now, timeZone: timeZone),
                         deliverAt: nil))
@@ -113,7 +121,7 @@ public struct LimitWarnings: Sendable {
                 let warned = baseline ? shown >= Double(lowest) : crossed.contains(lowest)
                 if settings.notifyResets && warned {
                     notices.append(LimitNotice(
-                        id: "reset.\(row.id).\(scope).\(epoch)", kind: .reset, title: row.name,
+                        id: "reset.\(row.id).\(scope).\(epoch)", kind: .reset, title: title,
                         body: NoticeText.resetBody(kind: kind, model: model), deliverAt: reset))
                 }
             }

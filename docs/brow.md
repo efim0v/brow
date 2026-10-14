@@ -31,10 +31,12 @@
 - **Settings → General → Notifications** (off by default) posts a macOS
   notification when an account passes a level (80 % and 95 % by default) of its
   5-hour, weekly or model weekly limit: once per level, account and reset period.
-  Only fresh readings count — never a persisted or stale one, never a window that
-  has already reset — and levels already passed when Brow starts are not
-  announced. Notifications are local (`UserNotifications`); macOS is asked for
-  permission when the toggle is turned on.
+  Only fresh readings count (never a persisted or stale one, never a window that
+  has already reset), and levels already passed when Brow starts are not
+  announced. A notification names the account by the name set in Settings, or
+  else as "Account 2" by its place in the panel; never by its email or folder.
+  Notifications are local (`UserNotifications`); macOS is asked for permission
+  when the toggle is turned on.
 - **Settings → General → Ears** chooses where the two readouts sit on a built-in
   display: `Beside the notch` (default — one wing each side, the notch itself left
   clear) or `Below the notch` (one centred row in a 22 pt strip under it). It takes

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Brow no longer refreshes the token of an account Claude Code is using. It ran `claude doctor`, and if that did not help `claude -p`, in an account whose token was about to expire or had been rejected, even while a Claude Code session was running in that account. The session refreshes its own token, and two refreshes at about the same time could leave it with a dead token and a request to run `/login`. Now an account with a running `claude` process for its folder, or with a prompt typed in it in the last 15 minutes, is left to Claude Code. Its token line in Settings reads *in use by Claude Code, waiting for it to refresh*, and a rejected token shows *Token in use by Claude Code* in the panel instead of asking you to sign in. To tell, Brow reads the command line and `CLAUDE_CONFIG_DIR` of running Claude Code processes and the modification time of the account's `history.jsonl`, only when a refresh is due. Idle accounts are refreshed as before.
+
 ## [0.3.0] - 2026-10-15
 
 ### Added

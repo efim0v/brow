@@ -58,7 +58,7 @@ All demos show made-up demo data.
 - **Copy the launch command.** One button copies the command that starts Claude Code as that account.
 - **Sign in again, in that account's own browser.** Each account gets a separate browser profile — its own cookies, history and saved logins — so signing in to one never disturbs another. A second button opens that profile directly.
 - **Add an account in one click.** Brow creates the account folder and opens Anthropic's own sign-in flow.
-- **Tokens kept fresh.** Idle accounts are refreshed in the background, so the numbers do not go stale.
+- **Tokens kept fresh.** Idle accounts are refreshed in the background, so the numbers do not go stale. An account a Claude Code session is using is left to that session, which refreshes its own token.
 
 Separate browser profiles need Google Chrome, Chromium, Brave or Edge. Without one of them links open in your default browser, with no isolation. More detail on pacing, refresh and layout options is in [`docs/brow.md`](docs/brow.md).
 
@@ -77,6 +77,7 @@ Collapsed, Brow shows two numbers beside the notch: how much of the 5-hour limit
 Worth knowing before you run it:
 
 - **Brow reads Claude Code's sign-in token from the macOS Keychain** and uses it only to call Anthropic's usage and profile endpoints. Those endpoints are not a documented public API and may change. No token is written to disk or logged, and nothing is sent anywhere else. If macOS withholds an account's token, that account shows a key; pressing it asks macOS for access.
+- **Brow looks at your running Claude Code processes** when an account's token is due for a refresh, so that it never refreshes a token a session is using. It reads their command line and `CLAUDE_CONFIG_DIR`, nothing else from their environment, and the time each account last saved a prompt (`history.jsonl`). The [FAQ](#does-brow-refresh-a-token-claude-code-is-using) says why.
 - **The fallback token refresh is on by default.** If the normal refresh stops working Brow runs a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. Turn it off in Settings → Accounts; the [FAQ](#does-brow-use-up-my-limits) says exactly when it runs.
 - **Each account's browser profile is a separate directory** under `~/Library/Application Support/Brow/browser-profiles/`. Brow sets the profile's name and allows third-party cookies in it so that sign-in works.
 - **Signing in opens Terminal** with `claude auth login`; macOS asks once for permission to control Terminal.
@@ -117,6 +118,10 @@ Brow has no Dock icon: it lives in the notch, and its settings open from the ⚙
 Only through the fallback token refresh, and you can turn that off. Reading the limits is a request to Anthropic's usage endpoint, not to a model, and an idle account's token is kept fresh with `claude doctor`, which makes no model call.
 
 The fallback is on by default. When an account's token has 30 minutes or less left and `claude doctor` did not renew it, Brow runs a one-turn `claude -p` request on Haiku in that account. That spends a sliver of the account's limit and starts its 5-hour window. Brow skips it when Anthropic has rejected the token or `claude doctor` timed out or could not start, runs it at most once every 30 minutes per account, and stops using it for an account after three attempts in a row that did not help. Settings → Accounts → **Allow `claude -p` fallback** turns it off.
+
+### Does Brow refresh a token Claude Code is using?
+
+No. Claude Code renews its token with a refresh token that changes on every renewal, so two renewals at about the same time can leave a session with a dead token and a request to run `/login`. Brow leaves alone any account with a running `claude` process for its folder (no `CLAUDE_CONFIG_DIR` means `~/.claude`), however long that session has sat idle, and any account with a prompt typed in the last 15 minutes. The session renews the token itself. Until it does, Settings → Accounts lists the token as *in use by Claude Code, waiting for it to refresh*. If the token has already expired, the panel shows *Token in use by Claude Code* instead of asking you to sign in, and the numbers come back once you use that session again or close it.
 
 ### Where does Brow read my token, and does anything leave my Mac?
 

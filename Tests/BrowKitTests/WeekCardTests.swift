@@ -138,23 +138,33 @@ final class WeekCardTests: XCTestCase {
     }
 
     func testStalenessAndMissingWindows() {
+        // The stamp is when the picture was made, so a stale reading carries its own age.
         let stale = F.model([F.row(F.work, now: now, fetchedAgo: 3 * 86_400)], settings: BrowSettings(), now: now)
         XCTAssertEqual(stale.accounts[0].lines.map(\.stale), [true, true, true])
+        XCTAssertEqual(stale.accounts[0].age, "3 d ago")
+        let twoStale = F.model([F.row(F.personal, now: now, fetchedAgo: 20 * 60), F.row(F.work, now: now)],
+                               settings: BrowSettings(), now: now)
+        XCTAssertEqual(twoStale.accounts.map(\.age), ["20 min ago", nil])
 
         // A statusline merge refreshes 5h and Weekly but not the model window.
         let scoped = F.model([F.row(F.work, now: now, scopedAgo: 600)], settings: BrowSettings(), now: now)
         XCTAssertEqual(scoped.accounts[0].lines.map(\.stale), [false, false, true])
         XCTAssertEqual(scoped.accounts[0].lines[0].resets, "resets in 1 h 40 min")
+        XCTAssertNil(scoped.accounts[0].age, "the reading itself is fresh")
 
         let fresh = F.model([F.row(F.work, now: now)], settings: BrowSettings(), now: now)
         XCTAssertEqual(fresh.accounts[0].lines.map(\.stale), [false, false, false])
+        XCTAssertNil(fresh.accounts[0].age)
 
+        // No reading at all is "no data", never "not started": nothing says the
+        // windows have not begun.
         let none = F.model([F.row(F.personal, now: now, snapshot: false), F.row(F.team, now: now)],
                            settings: BrowSettings(), now: now)
         XCTAssertEqual(none.accounts[0].lines, [
-            .init(title: "5h", used: nil, resets: "not started", stale: true),
-            .init(title: "Weekly", used: nil, resets: "not started", stale: true),
+            .init(title: "5h", used: nil, resets: "no data", stale: true),
+            .init(title: "Weekly", used: nil, resets: "no data", stale: true),
         ])
+        XCTAssertNil(none.accounts[0].age)
 
         let started = LimitSnapshot(organizationUuid: F.personal.org, fetchedAt: now, fiveHour: nil,
                                     sevenDay: CapturedWindow(usedPercentage: 20, resetsAt: "2026-10-19T00:00:00Z"),

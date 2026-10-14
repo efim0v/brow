@@ -50,6 +50,7 @@ final class WeekCardRenderTests: XCTestCase {
             ("wide-3-names", rows(F.three), true, .wide),
             ("wide-6-overflow", rows(F.six), false, .wide),
             ("wide-stale", stale, false, .wide),
+            ("wide-1-stale", [F.row(F.work, now: now, fetchedAgo: 3 * 86_400)], false, .wide),
             ("square-1", rows([F.work]), false, .square),
             ("square-2", rows([F.personal, F.work]), false, .square),
             ("square-3", rows(F.three), false, .square),

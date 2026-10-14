@@ -15,8 +15,9 @@ public struct WeekCardModel: Sendable, Equatable {
         let title: String
         /// nil: this window has no reading ("—").
         let used: Double?
-        /// `Formatting.countdown`, "not started" without a window; empty on the
-        /// overall row, which has no single reset.
+        /// `Formatting.countdown`, "not started" without a window, "no data" without
+        /// any reading for the account; empty on the overall row, which has no single
+        /// reset.
         let resets: String
         let stale: Bool
     }
@@ -24,6 +25,10 @@ public struct WeekCardModel: Sendable, Equatable {
     public struct Account: Sendable, Equatable {
         /// nil when the card has one account: there is nothing to tell apart.
         let label: String?
+        /// How old the reading is ("3 d ago"), only once it is stale. The stamp says
+        /// when the picture was made, not when the numbers were read: grey bars alone
+        /// would leave a three-day-old reading undated once the picture is shared.
+        let age: String?
         let lines: [Line]
     }
 
@@ -39,6 +44,7 @@ public struct WeekCardModel: Sendable, Equatable {
         let single = rows.count == 1
         let accounts = rows.prefix(shape.capacity).enumerated().map { index, row in
             Account(label: single ? nil : label(for: row, index: index, settings: settings),
+                    age: row.snapshot.flatMap { $0.isStale(now: now) ? Formatting.age($0.fetchedAt, now: now) : nil },
                     lines: lines(for: row, now: now))
         }
         var overall: [Line]?
@@ -72,11 +78,14 @@ public struct WeekCardModel: Sendable, Equatable {
 
     /// The same three windows `AccountBlockView` draws, greyed by the same rules: the
     /// snapshot's age for 5h and Weekly, the scoped window's own age for the model.
+    /// Without any reading it is "no data", not "not started": the panel's tag says
+    /// "no data" beside its bars, and the card has no tag to say it.
     private static func lines(for row: AccountRow, now: Date) -> [Line] {
         let snapshot = row.snapshot
         func line(_ title: String, _ window: CapturedWindow?, stale: Bool) -> Line {
             Line(title: title, used: window?.usedPercentage,
-                 resets: window.map { Formatting.countdown($0.resetsAt, now: now) } ?? "not started",
+                 resets: window.map { Formatting.countdown($0.resetsAt, now: now) }
+                    ?? (snapshot == nil ? "no data" : "not started"),
                  stale: stale)
         }
         let stale = snapshot?.isStale(now: now) ?? true
@@ -201,7 +210,17 @@ struct WeekCardView: View {
     private func block(_ account: WeekCardModel.Account) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             if let label = account.label {
-                Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                        .layoutPriority(1)
+                    Spacer(minLength: 0)
+                    if let age = account.age {
+                        Text(age).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
+                    }
+                }
+            } else if let age = account.age {
+                // One account, so no label to sit beside: the panel footer's wording.
+                Text("Updated \(age)").font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
             }
             ForEach(Array(account.lines.enumerated()), id: \.offset) { _, line in
                 VStack(alignment: .leading, spacing: 2) {

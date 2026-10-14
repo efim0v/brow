@@ -66,14 +66,11 @@ public struct WeekCardModel: Sendable, Equatable {
     }
 
     /// "Account N" by position in `rows`, or — only with `cardShowNames` on — the name
-    /// set in Settings. An account without one stays numbered.
+    /// set in Settings. An account without one stays numbered. The numbering is the
+    /// limit warnings' (`BrowSettings.numberedName`): "Account 2" is one account in both.
     static func label(for row: AccountRow, index: Int, settings: BrowSettings) -> String {
-        if settings.cardShowNames,
-           let name = settings.accounts[row.id]?.name?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !name.isEmpty {
-            return name
-        }
-        return "Account \(index + 1)"
+        if settings.cardShowNames, let name = settings.setName(for: row.id) { return name }
+        return BrowSettings.numberedName(index: index)
     }
 
     /// The same three windows `AccountBlockView` draws, greyed by the same rules: the

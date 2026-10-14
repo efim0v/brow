@@ -90,6 +90,21 @@ final class WeekCardTests: XCTestCase {
         XCTAssertEqual(model.accounts.map(\.label), ["Personal", "Account 2", "Account 3"])
     }
 
+    /// "Account 2" on the card and in a limit warning is the same account: both count
+    /// the panel's rows the same way. A notice uses a set name even with names off on
+    /// the card, so only the numbered accounts have to agree.
+    func testTheNumberingIsTheLimitWarnings() {
+        var settings = F.settings(names: false)
+        settings.accounts[F.work.org] = nil
+        let rows = rows()
+        let titles = rows.enumerated().map { LimitWarnings.title(for: $1, index: $0, settings: settings) }
+        XCTAssertEqual(titles, ["Personal", "Account 2", "Team"])
+        XCTAssertEqual(F.model(rows, settings: settings, now: now).accounts.map(\.label),
+                       ["Account 1", "Account 2", "Account 3"])
+        settings.cardShowNames = true
+        XCTAssertEqual(F.model(rows, settings: settings, now: now).accounts.map(\.label), titles)
+    }
+
     func testNothingIdentifiesAnAccount() {
         let identifying = F.six.flatMap { [$0.email, $0.org, $0.configDir] }
             + ["Max 20x", "Max 5x", "Pro", "example.com", ".claude-accounts"]

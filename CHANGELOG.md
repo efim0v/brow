@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
 ### Added
 
 - Limit warnings, off by default. Turn them on in Settings → General → Notifications and Brow posts a macOS notification when an account passes 80 % and 95 % of its 5-hour, weekly or model-specific weekly limit: once per level, per account and per reset period, with the time the limit resets. The levels can be changed to 70 % and 90 %, or 90 % only. An optional second notice says when a limit Brow warned about has reset. Each notification names the account by the name you gave it in Settings, or else as "Account 1", "Account 2" in panel order, never by its email. Brow asks macOS for permission only when you turn warnings on; the notifications are made on your Mac and nothing is sent anywhere.
@@ -69,7 +71,8 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.2.3...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/efim0v/brow/compare/0.2.3...0.3.0
 [0.2.3]: https://github.com/efim0v/brow/compare/0.2.2...0.2.3
 [0.2.2]: https://github.com/efim0v/brow/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/efim0v/brow/compare/0.2.0...0.2.1

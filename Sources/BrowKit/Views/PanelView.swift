@@ -50,6 +50,8 @@ public struct PanelView: View {
     let onRefresh: () -> Void
     /// The calendar's hovered day, driven by the controller's mouse monitor.
     @ObservedObject var hover: CalendarHoverTracker
+    /// The share button's checkmark, like the copy button's in `AccountBlockView`.
+    @State private var copiedCard = false
 
     /// The panel's own top/bottom/side padding. `topInset` is the notch clearance and
     /// REPLACES the top padding, so on a screen with no notch to clear (inset 8) it
@@ -154,6 +156,23 @@ public struct PanelView: View {
                     .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
             Spacer()
+            // Left of ⟳ on purpose: `PanelRefreshGateTests` finds ⟳ at a fixed offset
+            // from the bottom-right corner. The clipboard needs no activation, so this
+            // works from the non-activating panel; saving a file lives in Settings.
+            Button {
+                guard let png = WeekCardExport.png(store: store, now: clock.now) else { return }
+                WeekCardExport.copy(png)
+                copiedCard = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_200_000_000)
+                    copiedCard = false
+                }
+            } label: {
+                Image(systemName: copiedCard ? "checkmark" : "square.and.arrow.up")
+                    .foregroundStyle(copiedCard ? Color.green : Color.white)
+                    .frame(width: 20, height: 20).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).disabled(!store.aggregate.hasData).help("Copy my week as an image")
             // The button STAYS: the 30 s background poll must not take the only manual
             // refresh off the screen — a cycle is budgeted at up to 210 s of CLI work,
             // and a dead ⟳ for minutes at a time is the failure this whole spec exists

@@ -159,6 +159,7 @@ final class LimitWarningsPreviewTests: XCTestCase {
         func requestAuthorization() async -> NotificationAuthorization { status }
         func post(_ notice: LimitNotice) async {}
         func removePending() {}
+        func removePending(ids: [String]) {}
     }
 
     /// The real section between stand-ins for its neighbours in the General tab.

@@ -12,6 +12,7 @@ public protocol NotificationPosting: AnyObject {
     func requestAuthorization() async -> NotificationAuthorization
     func post(_ notice: LimitNotice) async
     func removePending()
+    func removePending(ids: [String])
 }
 
 /// `UNUserNotificationCenter`. Local notifications only: nothing here talks to a server.
@@ -60,6 +61,8 @@ final class SystemNotifications: NSObject, NotificationPosting, UNUserNotificati
     /// clearing those.
     func removePending() { center.removeAllPendingNotificationRequests() }
 
+    func removePending(ids: [String]) { center.removePendingNotificationRequests(withIdentifiers: ids) }
+
     /// Brow is frontmost while Settings is open; without this a test notification
     /// sent from there would go straight to the list, unseen.
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
@@ -86,6 +89,7 @@ final class UnavailableNotifications: NotificationPosting {
     func requestAuthorization() async -> NotificationAuthorization { log(); return .unavailable }
     func post(_ notice: LimitNotice) async { log() }
     func removePending() {}
+    func removePending(ids: [String]) {}
 }
 
 /// Watches the store, runs `LimitWarnings` over every change and hands what it finds
@@ -98,6 +102,9 @@ public final class LimitNotifier: ObservableObject {
     private let poster: NotificationPosting
     private let now: () -> Date
     private var warnings = LimitWarnings()
+    /// Reset notices handed to macOS and not due yet, by id. Hidden accounts never
+    /// notify, so the ones for an account that leaves the panel are taken back.
+    private var pendingResets: [String: Date] = [:]
     /// The last settings seen, for the on/off edges in `settingsChanged`.
     private var settings: BrowSettings?
     private var cancellables: Set<AnyCancellable> = []
@@ -169,7 +176,16 @@ public final class LimitNotifier: ObservableObject {
     /// panel) may not become active again for days, and at launch the first read may
     /// not have come back yet.
     func evaluate(rows: [AccountRow], settings: BrowSettings) {
-        let notices = warnings.evaluate(rows: rows, settings: settings, now: now())
+        let now = self.now()
+        let notices = warnings.evaluate(rows: rows, settings: settings, now: now)
+        let shown = rows.map { "reset.\($0.id)." }      // `LimitNotice.id`
+        pendingResets = pendingResets.filter { $0.value > now }
+        let gone = pendingResets.keys.filter { id in !shown.contains { id.hasPrefix($0) } }.sorted()
+        if !gone.isEmpty {
+            for id in gone { pendingResets[id] = nil }
+            enqueue { [poster] in poster.removePending(ids: gone) }
+        }
+        for notice in notices where notice.kind == .reset { pendingResets[notice.id] = notice.deliverAt }
         guard !notices.isEmpty else { return }
         enqueue { [weak self, poster] in
             let status = await poster.authorization()
@@ -193,6 +209,7 @@ public final class LimitNotifier: ObservableObject {
             }
         }
         if (old.notifyLimits && !new.notifyLimits) || (old.notifyResets && !new.notifyResets) {
+            pendingResets.removeAll()
             enqueue { [poster] in poster.removePending() }
         }
     }

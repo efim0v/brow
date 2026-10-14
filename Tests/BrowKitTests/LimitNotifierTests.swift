@@ -12,21 +12,23 @@ final class LimitNotifierTests: XCTestCase {
         var requests = 0
         var posted: [LimitNotice] = []
         var removals = 0
+        var withdrawn: [[String]] = []
         init(_ status: NotificationAuthorization) { self.status = status }
         func authorization() async -> NotificationAuthorization { status }
         func requestAuthorization() async -> NotificationAuthorization { requests += 1; status = answer; return status }
         func post(_ notice: LimitNotice) async { posted.append(notice) }
         func removePending() { removals += 1 }
+        func removePending(ids: [String]) { withdrawn.append(ids) }
     }
 
     private let t0 = Date(timeIntervalSince1970: 1_792_065_600)   // 2026-10-15 12:00:00 UTC
 
-    private func row(five: Double) -> AccountRow {
-        let account = DiscoveredAccount(organizationUuid: "org-a", email: "a@example.com", tier: nil,
-                                        configDir: "/tmp/brow-tests/.claude-accounts/a", aliasDirs: [],
+    private func row(_ org: String = "org-a", five: Double) -> AccountRow {
+        let account = DiscoveredAccount(organizationUuid: org, email: "\(org)@example.com", tier: nil,
+                                        configDir: "/tmp/brow-tests/.claude-accounts/\(org)", aliasDirs: [],
                                         tokenExpiresAt: nil)
         return AccountRow(account: account, name: "Work",
-                          snapshot: LimitSnapshot(organizationUuid: "org-a", fetchedAt: t0.addingTimeInterval(-10),
+                          snapshot: LimitSnapshot(organizationUuid: org, fetchedAt: t0.addingTimeInterval(-10),
                                                   fiveHour: CapturedWindow(usedPercentage: five, resetsAt: "2026-10-15T18:40:00Z"),
                                                   sevenDay: nil, weeklyScoped: nil, weeklyScopedModel: nil),
                           status: .ok, tokenStatus: "valid")
@@ -143,6 +145,24 @@ final class LimitNotifierTests: XCTestCase {
         n.settingsChanged(to: settings(on: true))
         await settle(n)
         XCTAssertEqual(poster.removals, 2, "turning things on removes nothing")
+    }
+
+    /// Hidden accounts never notify: a reset notice already handed to macOS for one is
+    /// taken back when it leaves the panel.
+    func testHidingAnAccountTakesBackItsResetNotice() async {
+        let poster = FakePoster(.allowed)
+        let n = notifier(poster)
+        let s = settings(on: true, resets: true)
+        n.evaluate(rows: [row(five: 70), row("org-b", five: 70)], settings: s)
+        n.evaluate(rows: [row(five: 82), row("org-b", five: 82)], settings: s)
+        await settle(n)
+        let resets = poster.posted.filter { $0.kind == .reset }.map(\.id)
+        XCTAssertEqual(resets.count, 2)
+        n.evaluate(rows: [row("org-b", five: 83)], settings: s)       // org-a hidden
+        n.evaluate(rows: [row("org-b", five: 84)], settings: s)
+        await settle(n)
+        XCTAssertEqual(poster.withdrawn, [resets.filter { $0.hasPrefix("reset.org-a.") }], "once, and only org-a's")
+        XCTAssertEqual(poster.removals, 0, "the other account's notice stays")
     }
 
     func testTheTestNotification() async {

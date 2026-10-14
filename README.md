@@ -1,6 +1,6 @@
 English · [Русский](README.ru.md) · [简体中文](README.zh-CN.md)
 
-Website: [efim0v.github.io/brow](https://efim0v.github.io/brow/)
+Website: [efimov.page/brow](https://efimov.page/brow/)
 
 # Brow — Claude Code usage limits in the MacBook notch
 

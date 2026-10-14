@@ -54,7 +54,7 @@ jobs:
         continue-on-error: true
         env:
           KEY: 936194525e90ed123a03aad1d30dc935   # public by design; same value as site/<KEY>.txt
-          BASE: https://efim0v.github.io/brow/
+          BASE: https://efimov.page/brow/
           BEFORE: ${{ github.event.before }}
           EVENT: ${{ github.event_name }}
         run: |
@@ -79,7 +79,7 @@ jobs:
             [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$KEY.txt")" = 200 ] && break
             sleep 10
           done
-          body="{\"host\":\"efim0v.github.io\",\"key\":\"$KEY\",\"keyLocation\":\"$BASE$KEY.txt\",\"urlList\":[${urls%,}]}"
+          body="{\"host\":\"efimov.page\",\"key\":\"$KEY\",\"keyLocation\":\"$BASE$KEY.txt\",\"urlList\":[${urls%,}]}"
           echo "$body"
           curl -sS -X POST 'https://api.indexnow.org/indexnow' \
             -H 'Content-Type: application/json; charset=utf-8' \

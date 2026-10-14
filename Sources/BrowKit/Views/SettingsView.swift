@@ -7,12 +7,15 @@ public struct SettingsView: View {
     /// Names typed but not committed yet. Held outside the view tree so closing the
     /// window cannot discard them — see `SettingsDrafts`.
     let drafts: SettingsDrafts
+    /// nil where nothing can post (the README screenshots): the permission row is left out.
+    let notifier: LimitNotifier?
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
-    public init(store: LimitsStore, addFlow: AddAccountFlow, drafts: SettingsDrafts) {
+    public init(store: LimitsStore, addFlow: AddAccountFlow, drafts: SettingsDrafts, notifier: LimitNotifier? = nil) {
         self.store = store
         self.addFlow = addFlow
         self.drafts = drafts
+        self.notifier = notifier
     }
 
     /// The RAW auto-detection result, never the effective path: its only job is to
@@ -179,6 +182,7 @@ public struct SettingsView: View {
                     do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
                     catch { BrowLog.panel.error("launch at login: \(error.localizedDescription, privacy: .public)") }
                 }
+            NotificationSettings(settings: $store.settings, notifier: notifier)
             Section {
                 Toggle("Show the reset calendar in the panel", isOn: $store.settings.showCalendar)
                 Text("A month under the accounts: a dot per weekly reset in the account's colour, a diamond for the estimated subscription renewal. Hover a day for the details.")
@@ -234,5 +238,65 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Settings › General › Notifications. A view of its own so the review render can draw
+/// it without the rest of the tab.
+struct NotificationSettings: View {
+    @Binding var settings: BrowSettings
+    let notifier: LimitNotifier?
+
+    var body: some View {
+        Section("Notifications") {
+            Toggle("Warn when an account nears a limit", isOn: $settings.notifyLimits)
+            Picker("Warn at", selection: $settings.notifyThresholds) {
+                ForEach(LimitWarnings.presets, id: \.self) { levels in
+                    Text(NoticeText.levels(levels)).tag(levels)
+                }
+                // A hand-edited config.json: shown as it is rather than as a blank picker.
+                if !LimitWarnings.presets.contains(settings.notifyThresholds) {
+                    Text(NoticeText.levels(settings.notifyThresholds)).tag(settings.notifyThresholds)
+                }
+            }
+            .disabled(!settings.notifyLimits)
+            Toggle("Also notify when that limit resets", isOn: $settings.notifyResets)
+                .disabled(!settings.notifyLimits)
+            Text("For each account's 5-hour and weekly limits, once per level until the limit resets. Levels already passed when Brow starts are not announced. Made on this Mac; nothing is sent anywhere.")
+                .font(.caption).foregroundStyle(.secondary)
+            if settings.notifyLimits, let notifier {
+                NotificationStatusRow(notifier: notifier)
+            }
+        }
+    }
+}
+
+/// What macOS says about Brow's notifications, and the one thing to do about it.
+struct NotificationStatusRow: View {
+    @ObservedObject var notifier: LimitNotifier
+
+    var body: some View {
+        switch notifier.authorization {
+        case .unknown:
+            EmptyView()
+        case .notDetermined:
+            Button("Allow notifications…") { Task { await notifier.requestPermission() } }
+        case .denied:
+            HStack {
+                Text("Notifications for Brow are off in System Settings.")
+                    .font(.caption).foregroundStyle(.orange)
+                Spacer()
+                Button("Open Notification Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=dev.artemefimov.brow") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        case .unavailable:
+            Text("This build runs without an app bundle, so it can't post notifications.")
+                .font(.caption).foregroundStyle(.secondary)
+        case .allowed:
+            Button("Send a test notification") { notifier.sendTest() }
+        }
     }
 }

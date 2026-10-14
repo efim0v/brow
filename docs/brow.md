@@ -23,10 +23,11 @@
   account's Settings card.
 - The share button in the panel's footer copies "my week": a picture (1200 × 630,
   or 1080 × 1080 per Settings → General → Usage image) of the visible accounts'
-  limits and when they reset — up to four accounts, with any more counted. A
+  limits and when they reset: up to four accounts, with any more counted. A
   reading more than 3 min old is grey, as in the panel, and carries its age.
-  Accounts are numbered unless **Show account names** is on, and even then only
-  names set in Settings are used — never an email, a folder or a plan.
+  Accounts are numbered as in limit warnings unless **Show account names** is
+  on, and even then only names set in Settings are used, never an email, a
+  folder or a plan.
 - Add an account from Settings with one click (**Sign in…**): Brow creates
   `~/.claude-accounts/account-N` itself and opens Terminal with `claude auth login`;
   sign-in happens in Anthropic's own flow.

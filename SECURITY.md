@@ -15,7 +15,7 @@ Security fixes go into the latest release.
 
 **Please do not report it in a public issue, discussion or pull request.**
 
-Use GitHub's private vulnerability reporting: **[Report a vulnerability](https://github.com/efim0v/brow/security/advisories/new)**. The report stays private between you and the maintainer. If you cannot use GitHub, email artem.efimov.k@gmail.com instead.
+Use GitHub's private vulnerability reporting: **[Report a vulnerability](https://github.com/efim0v/brow/security/advisories/new)**. The report stays private between you and the maintainer. If you cannot use GitHub, email a.efimov@mizzle.studio instead.
 
 Please include:
 

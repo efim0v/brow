@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-14
+
+### Fixed
+
+- Brow has its own app icon: the grey tile with the notch and the two dots from the website. Earlier builds shipped Grove's tree icon by mistake, so Finder, Launchpad, Spotlight, Login Items and the first-launch dialogs showed Grove's icon for Brow.
+
 ## [0.2.2] - 2026-10-14
 
 ### Fixed
@@ -58,7 +64,8 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.2.2...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.2.3...HEAD
+[0.2.3]: https://github.com/efim0v/brow/compare/0.2.2...0.2.3
 [0.2.2]: https://github.com/efim0v/brow/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/efim0v/brow/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/efim0v/brow/releases/tag/0.2.0

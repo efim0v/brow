@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-15
+
 ### Fixed
 
 - Brow no longer refreshes the token of an account Claude Code is using. It ran `claude doctor`, and if that did not help `claude -p`, in an account whose token was about to expire or had been rejected, even while a Claude Code session was running in that account. The session refreshes its own token, and two refreshes at about the same time could leave it with a dead token and a request to run `/login`. Now an account with a running `claude` process for its folder, or with a prompt typed in it in the last 15 minutes, is left to Claude Code. Its token line in Settings reads *in use by Claude Code, waiting for it to refresh*, and a rejected token shows *Token in use by Claude Code* in the panel instead of asking you to sign in. To tell, Brow reads the command line of running `claude`, node, bun and deno processes, takes only `CLAUDE_CONFIG_DIR` from their environment, and reads the modification time of the account's `history.jsonl`. It does this only when a refresh is due or the token was rejected. Idle accounts are refreshed as before.
@@ -75,7 +77,8 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.3.1...HEAD
+[0.3.1]: https://github.com/efim0v/brow/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/efim0v/brow/compare/0.2.3...0.3.0
 [0.2.3]: https://github.com/efim0v/brow/compare/0.2.2...0.2.3
 [0.2.2]: https://github.com/efim0v/brow/compare/0.2.1...0.2.2

@@ -80,15 +80,25 @@ struct ProcessArguments: Sendable, Equatable {
 enum ClaudeCodeMatcher {
     /// JavaScript runtimes an npm install of Claude Code runs under.
     static let runtimes: Set<String> = ["node", "bun", "deno"]
+    /// npm packages whose script, run under a runtime, is a Claude Code session: the CLI
+    /// itself, and older Agent SDK releases, which start their bundled `cli.js` with
+    /// `node` and sign in the same way. Newer SDK releases ship a binary called `claude`.
+    static let packages = ["/@anthropic-ai/claude-code/", "/@anthropic-ai/claude-agent-sdk/"]
 
     /// The native installer names its binary after its version
     /// (`~/.local/share/claude/versions/2.1.299`, started through `~/.local/bin/claude`),
     /// so the name alone is not enough; Homebrew and the editor extensions ship a file
     /// called `claude`; an npm install runs under a runtime.
+    ///
+    /// `path` can also be the kernel's short name alone, with no slash: that is all
+    /// there is once the file has been deleted under a running process (an update or
+    /// `brew upgrade` removing the old version while a session still runs it). The
+    /// native installer's binary then shows up as its bare version number.
     static func mayBeClaudeCode(executable path: String) -> Bool {
         let name = basename(path)
-        return name == "claude" || runtimes.contains(name)
-            || path.contains("/claude/") || path.contains("claude-code")
+        if name == "claude" || runtimes.contains(name)
+            || path.contains("/claude/") || path.contains("claude-code") { return true }
+        return !path.contains("/") && isVersionNumber(name)
     }
 
     static func isClaudeCode(executable path: String, arguments: ProcessArguments) -> Bool {
@@ -97,12 +107,18 @@ enum ClaudeCodeMatcher {
         if arguments.argv.contains("--chrome-native-host") { return false }
         if basename(path) == "claude" || basename(arguments.executablePath) == "claude" { return true }
         if let first = arguments.argv.first, basename(first) == "claude" { return true }
-        if path.contains("/claude/versions/") { return true }
+        if path.contains("/claude/versions/") || arguments.executablePath.contains("/claude/versions/") { return true }
         // `node /opt/homebrew/bin/claude …` or `node …/@anthropic-ai/claude-code/cli.js …`,
         // with the runtime's own flags possibly in between.
         guard runtimes.contains(basename(path)) else { return false }
         guard let script = arguments.argv.dropFirst().first(where: { !$0.hasPrefix("-") }) else { return false }
-        return basename(script) == "claude" || script.contains("/@anthropic-ai/claude-code/")
+        return basename(script) == "claude" || packages.contains { script.contains($0) }
+    }
+
+    /// `2.1.299`: digits in at least two dot-separated groups.
+    static func isVersionNumber(_ name: String) -> Bool {
+        let groups = name.split(separator: ".", omittingEmptySubsequences: false)
+        return groups.count >= 2 && groups.allSatisfy { !$0.isEmpty && $0.allSatisfy { ("0"..."9").contains($0) } }
     }
 
     static func basename(_ path: String) -> String {
@@ -116,13 +132,19 @@ enum ClaudeCodeMatcher {
 enum ProcessTable {
     /// Live Claude Code processes. `parent`'s children are left out: those are the
     /// `claude doctor` and `claude -p` runs Brow started itself.
+    ///
+    /// A process whose executable file is gone has no path any more (`proc_pidpath`
+    /// fails), but it is still running and still holds its account's tokens; it is
+    /// judged by the kernel's short name for it instead of being skipped.
     static func claudeCodeProcesses(excludingChildrenOf parent: pid_t = getpid(),
-                                    candidate: (String) -> Bool = ClaudeCodeMatcher.mayBeClaudeCode)
+                                    candidate: (String) -> Bool = ClaudeCodeMatcher.mayBeClaudeCode,
+                                    pathOf: (pid_t) -> String? = { ProcessTable.executablePath(of: $0) })
         -> [ClaudeCodeProcess] {
         let me = getpid()
         return userProcesses().compactMap { process in
-            guard process.pid != me, process.ppid != parent,
-                  let path = executablePath(of: process.pid), candidate(path),
+            guard process.pid != me, process.ppid != parent else { return nil }
+            let path = pathOf(process.pid) ?? process.name
+            guard !path.isEmpty, candidate(path),
                   let arguments = arguments(of: process.pid),
                   ClaudeCodeMatcher.isClaudeCode(executable: path, arguments: arguments) else { return nil }
             let dir = arguments.claudeConfigDir
@@ -132,8 +154,10 @@ enum ProcessTable {
         }
     }
 
-    /// Every live (not zombie) process of this user.
-    static func userProcesses() -> [(pid: pid_t, ppid: pid_t)] {
+    /// Every live (not zombie) process of this user, with the kernel's short name for
+    /// its executable (`p_comm`: the file name it was started from, at most 16 bytes,
+    /// which the process cannot change).
+    static func userProcesses() -> [(pid: pid_t, ppid: pid_t, name: String)] {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_UID, Int32(bitPattern: getuid())]
         for _ in 0..<3 {
             var size = 0
@@ -145,7 +169,12 @@ enum ProcessTable {
             if sysctl(&mib, u_int(mib.count), &table, &size, nil, 0) == 0 {
                 return table.prefix(size / MemoryLayout<kinfo_proc>.stride)
                     .filter { $0.kp_proc.p_pid > 0 && Int32($0.kp_proc.p_stat) != SZOMB }
-                    .map { ($0.kp_proc.p_pid, $0.kp_eproc.e_ppid) }
+                    .map { entry in
+                        let name = withUnsafeBytes(of: entry.kp_proc.p_comm) {
+                            String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self)
+                        }
+                        return (entry.kp_proc.p_pid, entry.kp_eproc.e_ppid, name)
+                    }
             }
             guard errno == ENOMEM else { return [] }
         }

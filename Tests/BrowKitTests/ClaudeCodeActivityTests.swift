@@ -89,6 +89,12 @@ final class ClaudeCodeActivityTests: XCTestCase {
              ["node", "--no-warnings", "/Users/u/.nvm/versions/node/v22.0.0/lib/node_modules/@anthropic-ai/claude-code/cli.js"],
              "npm global, runtime flags first"),
             ("/opt/homebrew/bin/bun", ["bun", "/Users/u/.bun/install/global/node_modules/@anthropic-ai/claude-code/cli.js"], "bun"),
+            ("/opt/homebrew/bin/node",
+             ["node", "/Users/u/app/node_modules/@anthropic-ai/claude-agent-sdk/cli.js", "--output-format", "stream-json"],
+             "an older Agent SDK running its bundled CLI"),
+            ("/Users/u/app/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude",
+             ["/Users/u/app/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude", "--output-format", "stream-json"],
+             "a newer Agent SDK running its bundled binary"),
             ("/opt/homebrew/bin/node", ["claude"], "node after process.title = claude"),
         ]
         for c in cases {
@@ -113,6 +119,30 @@ final class ClaudeCodeActivityTests: XCTestCase {
         XCTAssertFalse(ClaudeCodeMatcher.isClaudeCode(
             executable: "/Users/u/.local/share/claude/versions/2.1.299",
             arguments: args(["/Users/u/.local/bin/claude", "--chrome-native-host"])))
+    }
+
+    /// An update can delete the binary a running session was started from (`brew
+    /// upgrade`, an editor extension update, the native installer's clean-up). The
+    /// kernel then has no path for the process, only its short name: the file name it
+    /// was started from, which for the native installer is the version number.
+    func testAProcessWhoseFileIsGoneIsJudgedByItsKernelName() {
+        for name in ["2.1.290", "claude", "node", "bun"] {
+            XCTAssertTrue(ClaudeCodeMatcher.mayBeClaudeCode(executable: name), name)
+        }
+        for name in ["zsh", "Claude", "1", "2.", ".1", "v2.1.0", "2.1.0-beta", "1..2"] {
+            XCTAssertFalse(ClaudeCodeMatcher.mayBeClaudeCode(executable: name), name)
+        }
+        XCTAssertFalse(ClaudeCodeMatcher.mayBeClaudeCode(executable: "/usr/local/lib/tool/1.2.3"),
+                       "with a full path a version-named file counts only under claude/")
+
+        let viaLink = ProcessArguments(executablePath: "/Users/u/.local/bin/claude",
+                                       argv: ["/Users/u/.local/bin/claude", "--resume"], claudeConfigDir: "/d")
+        XCTAssertTrue(ClaudeCodeMatcher.isClaudeCode(executable: "2.1.290", arguments: viaLink))
+        let direct = ProcessArguments(executablePath: "/Users/u/.local/share/claude/versions/2.1.290",
+                                      argv: ["2.1.290"], claudeConfigDir: "/d")
+        XCTAssertTrue(ClaudeCodeMatcher.isClaudeCode(executable: "2.1.290", arguments: direct))
+        XCTAssertFalse(ClaudeCodeMatcher.isClaudeCode(executable: "1.2.3", arguments: args(["/usr/local/lib/tool/1.2.3"])),
+                       "a version-named program that is not Claude Code")
     }
 
     // MARK: - one spelling per config dir
@@ -239,6 +269,29 @@ final class ClaudeCodeActivityTests: XCTestCase {
         XCTAssertEqual(count.value, 2)
     }
 
+    /// The store asks about every due account at once, one task each. Those arriving
+    /// while a walk is under way wait for it rather than each walking the table again.
+    func testQuestionsAskedAtTheSameTimeShareOneWalk() {
+        final class Count: @unchecked Sendable {
+            private let lock = NSLock()
+            private var count = 0
+            var value: Int { lock.withLock { count } }
+            func add() { lock.withLock { count += 1 } }
+        }
+        let count = Count()
+        let activity = ClaudeCodeActivity(home: home.path, processes: {
+            Thread.sleep(forTimeInterval: 0.05)
+            count.add()
+            return []
+        })
+        let now = Date()
+        let dirs = [".claude", ".claude-accounts/a", ".claude-accounts/b"].map { home.path + "/" + $0 }
+        DispatchQueue.concurrentPerform(iterations: 9) { i in
+            _ = activity.use(configDir: dirs[i % dirs.count], now: now)
+        }
+        XCTAssertEqual(count.value, 1)
+    }
+
     // MARK: - the real process table
 
     /// A real process under the name `claude`, with the environment the test chooses:
@@ -303,6 +356,24 @@ final class ClaudeCodeActivityTests: XCTestCase {
         let child = try spawnStandIn(configDir: home.path + "/.claude-accounts/a")
         XCTAssertTrue(Self.liveTable(excludingChildrenOf: -1).contains { $0.pid == child.processIdentifier })
         XCTAssertFalse(Self.liveTable(excludingChildrenOf: getpid()).contains { $0.pid == child.processIdentifier })
+    }
+
+    /// The real kernel short name stands in for a deleted file: the process is still
+    /// found, with its account. (`proc_pidpath` really does fail once the file is
+    /// deleted; the test makes it fail for the stand-in rather than delete the runner.)
+    func testALiveProcessWithNoPathIsStillFound() throws {
+        let a = home.path + "/.claude-accounts/a"
+        let child = try spawnStandIn(configDir: a)
+        let runner = try XCTUnwrap(ProcessTable.executablePath(of: getpid()))
+        let kernelName = String(ClaudeCodeMatcher.basename(runner).utf8.prefix(16))!
+        let row = try XCTUnwrap(ProcessTable.userProcesses().first { $0.pid == child.processIdentifier })
+        XCTAssertEqual(row.name, kernelName, "the file the process runs, not the link it was started through")
+
+        let table = ProcessTable.claudeCodeProcesses(
+            excludingChildrenOf: -1,
+            candidate: { $0 == runner || $0 == kernelName },
+            pathOf: { $0 == child.processIdentifier ? nil : ProcessTable.executablePath(of: $0) })
+        XCTAssertTrue(table.contains(ClaudeCodeProcess(pid: child.processIdentifier, configDir: a)))
     }
 
     func testARelativeConfigDirIsResolvedAgainstTheProcessesCwd() throws {

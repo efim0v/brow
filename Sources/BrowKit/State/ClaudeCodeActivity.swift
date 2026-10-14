@@ -80,17 +80,17 @@ public final class ClaudeCodeActivity: ClaudeCodeActivityProbing, @unchecked Sen
         return nil
     }
 
+    /// The walk happens under the lock: the store asks about every due account at once
+    /// (one task per account), and the ones that arrive while a walk is running wait for
+    /// it (about 25 ms) and reuse its list instead of each walking the table again.
     private func processes(now: Date) -> [ClaudeCodeProcess] {
         lock.lock()
+        defer { lock.unlock() }
         if let last = lastList, abs(now.timeIntervalSince(last.at)) < Self.processListReuse {
-            lock.unlock()
             return last.processes
         }
-        lock.unlock()
         let fresh = listProcesses()
-        lock.lock()
         lastList = (now, fresh)
-        lock.unlock()
         return fresh
     }
 

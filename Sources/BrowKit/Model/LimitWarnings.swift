@@ -11,7 +11,8 @@ public struct LimitNotice: Sendable, Equatable {
     public enum Kind: Sendable, Equatable { case warning(level: Int), reset, test }
     /// `limit.<org>.<kind>.<periodEpoch>`: the same id for every level of one period, so
     /// the 95 replaces the 80 in Notification Center instead of stacking under it.
-    /// A reset notice is `reset.<org>.<kind>.<periodEpoch>`.
+    /// A reset notice is `reset.<org>.<kind>.<periodEpoch>`. The model-scoped kind
+    /// carries its model, `weeklyScoped.<model>`: each model's window is its own.
     public let id: String
     public let kind: Kind
     public let title: String
@@ -43,7 +44,10 @@ public struct LimitWarnings: Sendable {
         return clean.isEmpty ? defaultLevels : clean
     }
 
-    private struct Key: Hashable { let org: String; let kind: LimitWindowKind }
+    /// `model` only for `.weeklyScoped`: the endpoint reports the active model's window,
+    /// so the bar can turn from Fable to Opus and back, and the two have their own
+    /// readings and can have their own resets.
+    private struct Key: Hashable { let org: String; let kind: LimitWindowKind; let model: String? }
     private struct Seen { let period: Date; var highest: Double }
     private struct Config: Equatable { let on: Bool; let levels: [Int]; let resets: Bool }
 
@@ -76,7 +80,7 @@ public struct LimitWarnings: Sendable {
                 // whose reset has passed say nothing about now: no notice, no baseline.
                 guard !stale, let window, let reset = Formatting.resetInstant(window.resetsAt), reset > now
                 else { continue }
-                let key = Key(org: row.id, kind: kind)
+                let key = Key(org: row.id, kind: kind, model: model)
                 let used = window.usedPercentage
                 let baseline: Bool
                 let previous: Double
@@ -95,10 +99,11 @@ public struct LimitWarnings: Sendable {
                 // that announced 80 must not announce it again at 79.7.
                 let shown = used.rounded(), before = previous.rounded()
                 let crossed = levels.filter { before < Double($0) && Double($0) <= shown }
+                let scope = model.map { "\(kind.rawValue).\($0)" } ?? kind.rawValue
                 let epoch = Int(period.timeIntervalSince1970)
                 if let level = crossed.last {
                     notices.append(LimitNotice(
-                        id: "limit.\(row.id).\(kind.rawValue).\(epoch)", kind: .warning(level: level),
+                        id: "limit.\(row.id).\(scope).\(epoch)", kind: .warning(level: level),
                         title: row.name,
                         body: NoticeText.warningBody(used: used, kind: kind, model: model, reset: reset,
                                                      now: now, timeZone: timeZone),
@@ -108,7 +113,7 @@ public struct LimitWarnings: Sendable {
                 let warned = baseline ? shown >= Double(lowest) : crossed.contains(lowest)
                 if settings.notifyResets && warned {
                     notices.append(LimitNotice(
-                        id: "reset.\(row.id).\(kind.rawValue).\(epoch)", kind: .reset, title: row.name,
+                        id: "reset.\(row.id).\(scope).\(epoch)", kind: .reset, title: row.name,
                         body: NoticeText.resetBody(kind: kind, model: model), deliverAt: reset))
                 }
             }

@@ -197,6 +197,31 @@ final class LimitWarningsTests: XCTestCase {
         XCTAssertNotEqual(fiveA[0].id, weekB[0].id)
     }
 
+    /// The endpoint can list a scoped window per model and reports the active one, so
+    /// the panel's model bar can turn from Fable to Opus and back between two readings.
+    /// Each model is its own window: going back to Fable is not a new period, and Opus
+    /// does not inherit Fable's highest reading.
+    func testEachModelsScopedWindowIsItsOwn() {
+        var w = LimitWarnings()
+        let opusReset = "2026-10-20T10:00:00Z"
+        _ = eval(&w, [row(scoped: 70)])
+        let fable = eval(&w, [row(scoped: 85)])
+        XCTAssertEqual(kinds(fable), [.warning(level: 80)])
+        XCTAssertEqual(eval(&w, [row(scoped: 30, scopedResets: opusReset, model: "Opus")]), [], "Opus: a baseline")
+        XCTAssertEqual(eval(&w, [row(scoped: 85)]), [], "back to Fable: 80 was already announced")
+        let opus = eval(&w, [row(scoped: 82, scopedResets: opusReset, model: "Opus")])
+        XCTAssertEqual(kinds(opus), [.warning(level: 80)])
+        XCTAssertEqual(opus.first?.body, "82% of the Opus weekly limit used. Resets 20 Oct 10:00.")
+        XCTAssertNotEqual(fable.first?.id, opus.first?.id)
+
+        // One reset instant for both models: Opus still starts from its own reading.
+        var v = LimitWarnings()
+        _ = eval(&v, [row(scoped: 70)])
+        _ = eval(&v, [row(scoped: 85)])
+        _ = eval(&v, [row(scoped: 30, model: "Opus")])
+        XCTAssertEqual(kinds(eval(&v, [row(scoped: 82, model: "Opus")])), [.warning(level: 80)])
+    }
+
     func testARemovedAccountStartsOverWithABaseline() {
         var w = LimitWarnings()
         let a = row("org-a", name: "Personal", five: 70)

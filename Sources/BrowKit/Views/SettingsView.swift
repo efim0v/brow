@@ -175,6 +175,56 @@ public struct SettingsView: View {
         }
     }
 
+    /// The picture the panel's share button copies: who is named on it, its shape, a
+    /// half-size preview, and Save — which needs a window that can become key, so it
+    /// lives here and not in the panel.
+    struct UsageImageSection: View {
+        @ObservedObject var store: LimitsStore
+        @State private var copied = false
+
+        var body: some View {
+            Section("Usage image") {
+                Toggle("Show account names on the image", isOn: $store.settings.cardShowNames)
+                Text("Off: accounts appear as “Account 1”, “Account 2”. On: the names you gave them under Accounts; an account without a name stays numbered. Emails, folders and plans are never on the image.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Shape", selection: $store.settings.cardShape) {
+                    Text("Wide (1200 × 630)").tag(CardShape.wide)
+                    Text("Square (1080 × 1080)").tag(CardShape.square)
+                }
+                .pickerStyle(.segmented)
+                // Half size, redrawn once a minute so the countdowns and the time stamp
+                // keep up while the window stays open. Scaled from the top-leading corner:
+                // scaled about its centre, the card left a gap above it in the row.
+                TimelineView(.everyMinute) { context in
+                    let shape = store.settings.cardShape
+                    WeekCardView(model: WeekCardModel.make(rows: store.rows, aggregate: store.aggregate,
+                                                           settings: store.settings, shape: shape, now: context.date),
+                                 shape: shape)
+                        .frame(width: shape.points.width, height: shape.points.height)
+                        .scaleEffect(0.5, anchor: .topLeading)
+                        .frame(width: shape.points.width / 2, height: shape.points.height / 2, alignment: .topLeading)
+                        .frame(width: 300)
+                        .frame(maxWidth: .infinity)
+                }
+                HStack {
+                    Button(copied ? "Copied" : "Copy image") {
+                        guard let png = WeekCardExport.png(store: store, now: Date()) else { return }
+                        WeekCardExport.copy(png)
+                        copied = true
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_200_000_000)
+                            copied = false
+                        }
+                    }
+                    Button("Save as PNG…") {
+                        if let png = WeekCardExport.png(store: store, now: Date()) { WeekCardExport.save(png) }
+                    }
+                }
+                .disabled(!store.aggregate.hasData)
+            }
+        }
+    }
+
     private var general: some View {
         Form {
             Toggle("Launch at login", isOn: $launchAtLogin)
@@ -204,6 +254,7 @@ public struct SettingsView: View {
                 Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            UsageImageSection(store: store)
             Section("One browser profile per account") {
                 if let line = AddAccountFlow.shellProfileLine {
                     Text("Every sign-in Brow starts already opens the account's own Chrome profile. For sign-ins started elsewhere (cmux, any terminal), add this to your ~/.zshrc once — the router reads CLAUDE_CONFIG_DIR itself:")

@@ -7,6 +7,11 @@ public enum EarsPlacement: String, Codable, Sendable, CaseIterable {
     case beside, below
 }
 
+/// The "my week" image: 1200 × 630, the size link previews use, or 1080 × 1080.
+public enum CardShape: String, Codable, Sendable, CaseIterable {
+    case wide, square
+}
+
 public struct AccountOverride: Codable, Sendable, Equatable {
     public var name: String?
     public var hidden: Bool
@@ -23,6 +28,10 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     public var allowPromptFallback: Bool = true
     public var claudePath: String? = nil
     public var earsPlacement: EarsPlacement = .beside
+    /// The "my week" image numbers its accounts unless this is on; even then only a
+    /// name set here is used, never the email or the folder `displayName` falls back to.
+    public var cardShowNames: Bool = false
+    public var cardShape: CardShape = .wide
     /// False: nothing is drawn while collapsed — the notch is just the notch — and the
     /// panel appears only when the pointer reaches the notch itself.
     public var showEars: Bool = true
@@ -38,13 +47,23 @@ public struct BrowSettings: Codable, Sendable, Equatable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar, notifyLimits, notifyThresholds, notifyResets }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         accounts = try c.decodeIfPresent([String: AccountOverride].self, forKey: .accounts) ?? [:]
         extraDirs = try c.decodeIfPresent([String].self, forKey: .extraDirs) ?? []
         allowPromptFallback = try c.decodeIfPresent(Bool.self, forKey: .allowPromptFallback) ?? true
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
+        cardShowNames = (try? c.decodeIfPresent(Bool.self, forKey: .cardShowNames)) ?? false
+        // Through its raw value and never throwing, for the reasons `earsPlacement`
+        // gives below: an unknown shape costs this one field, not the whole file.
+        let rawShape: String?? = try? c.decodeIfPresent(String.self, forKey: .cardShape)
+        cardShape = rawShape.flatMap { $0 }.flatMap(CardShape.init(rawValue:)) ?? .wide
+        if case .some(.some(let raw)) = rawShape, CardShape(rawValue: raw) == nil {
+            BrowLog.panel.error("config.json: unknown cardShape \"\(raw, privacy: .public)\"; using wide")
+        } else if rawShape == nil {
+            BrowLog.panel.error("config.json: cardShape is not a string; using wide")
+        }
         showEars = (try? c.decodeIfPresent(Bool.self, forKey: .showEars)) ?? true
         showCalendar = (try? c.decodeIfPresent(Bool.self, forKey: .showCalendar)) ?? true
         notifyLimits = (try? c.decodeIfPresent(Bool.self, forKey: .notifyLimits)) ?? false

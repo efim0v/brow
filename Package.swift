@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .executable(name: "BrowApp", targets: ["BrowApp"]),
-        .executable(name: "grove", targets: ["grove-cli"]),
+        // The command-line tool. `grove`, its second name, is a symlink made by packaging.
+        .executable(name: "brow", targets: ["brow-cli"]),
     ],
     targets: [
         // Accounts, credentials, usage and token refresh (used by the notch), and
@@ -35,7 +36,7 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "grove-cli",
+            name: "brow-cli",
             dependencies: ["GroveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

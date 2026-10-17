@@ -1,6 +1,6 @@
 import Foundation
 
-// Pure text formatters used by grove-cli. Public so they are unit-testable
+// Pure text formatters used by brow-cli. Public so they are unit-testable
 // and reusable; they never touch git or the filesystem.
 
 public func renderSnapshotTree(_ snapshot: ProjectSnapshot) -> String {

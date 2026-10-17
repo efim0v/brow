@@ -1,6 +1,10 @@
 import Foundation
 import GroveCore
 
+/// `brow`, or `grove` when run through the second name Grove's scripts call it by:
+/// usage and error text say the one that was typed (see `ToolName`).
+let toolName = ToolName.resolve(argv0: CommandLine.arguments.first ?? ToolName.primary)
+
 // MARK: - output helpers
 
 func eprint(_ message: String) {
@@ -76,7 +80,7 @@ func makeWorkspaceService() -> WorkspaceService {
 func cmdScan(_ rest: [String]) async -> Int32 {
     guard let parsed = parseArgs(rest, flagNames: ["--json"], optionNames: []),
           parsed.positionals.count == 1 else {
-        eprint("usage: grove scan <path> [--json]")
+        eprint("usage: \(toolName) scan <path> [--json]")
         return 2
     }
     let path = absolutePath(parsed.positionals[0])
@@ -111,7 +115,7 @@ func cmdScan(_ rest: [String]) async -> Int32 {
 func cmdWorkspaces(_ rest: [String]) async -> Int32 {
     guard let parsed = parseArgs(rest, flagNames: ["--json"], optionNames: []),
           parsed.positionals.count == 1 else {
-        eprint("usage: grove workspaces <path> [--json]")
+        eprint("usage: \(toolName) workspaces <path> [--json]")
         return 2
     }
     let project = adhocProject(path: parsed.positionals[0])
@@ -127,7 +131,7 @@ func cmdWorkspaces(_ rest: [String]) async -> Int32 {
 func cmdSessions(_ rest: [String]) async -> Int32 {
     guard let parsed = parseArgs(rest, flagNames: ["--json"], optionNames: []),
           parsed.positionals.count == 1 else {
-        eprint("usage: grove sessions <cwd> [--json]")
+        eprint("usage: \(toolName) sessions <cwd> [--json]")
         return 2
     }
     // Canonicalize the same way WorkspaceService.scan does, so /var vs
@@ -183,7 +187,7 @@ func cmdCreate(_ rest: [String]) async -> Int32 {
     guard let parsed = parseArgs(filteredRest, flagNames: ["--json"],
                                  optionNames: ["--repos", "--branch", "--from"]),
           parsed.positionals.count == 2 else {
-        eprint("usage: grove create <path> <name> [--repos a,b] [--branch x] [--from workspace] [--from-branch <repoDir>=<branch>] [--json]")
+        eprint("usage: \(toolName) create <path> <name> [--repos a,b] [--branch x] [--from workspace] [--from-branch <repoDir>=<branch>] [--json]")
         return 2
     }
     let project = adhocProject(path: parsed.positionals[0])
@@ -244,7 +248,7 @@ func cmdCreate(_ rest: [String]) async -> Int32 {
 func cmdGraph(_ rest: [String]) async -> Int32 {
     guard let parsed = parseArgs(rest, flagNames: ["--json"], optionNames: ["--limit"]),
           parsed.positionals.count == 1 else {
-        eprint("usage: grove graph <repoPath> [--limit N] [--json]")
+        eprint("usage: \(toolName) graph <repoPath> [--limit N] [--json]")
         return 2
     }
     var limit = 300
@@ -317,25 +321,7 @@ func cmdDoctor(_ rest: [String]) async -> Int32 {
 
 // MARK: - dispatch (top-level code)
 
-let usageText = """
-grove — git-worktree / Claude Code orchestration
-
-usage:
-  grove scan <path> [--json]
-  grove workspaces <path> [--json]
-  grove sessions <cwd> [--json]
-  grove create <path> <name> [--repos a,b] [--branch x] [--from workspace] [--from-branch <repoDir>=<branch>] [--json]
-  grove graph <repoPath> [--limit N] [--json]
-  grove doctor [--json]
-  grove --version
-
-create flags:
-  --from-branch <repoDir>=<branch>   Fork a specific repo from <branch> instead of the default
-                                     start point. Repeatable; takes precedence over --from.
-
-doctor:
-  Exits 1 when it can't run git or claude. cmux is optional.
-"""
+let usageText = ToolName.usage(toolName)
 
 let argv = Array(CommandLine.arguments.dropFirst())
 guard let command = argv.first else {

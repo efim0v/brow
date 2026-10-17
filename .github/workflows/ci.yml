@@ -50,7 +50,8 @@ jobs:
       - name: Test (release)
         run: Scripts/test-in-empty-home.sh -c release
 
-      - name: Build the app bundle
+      - name: Build the app and the tool
         run: |
           Scripts/build-brow.sh
           codesign --verify --deep --strict --verbose=2 dist/Brow.app
+          dist/brow --version

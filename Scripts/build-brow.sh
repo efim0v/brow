@@ -1,6 +1,11 @@
 #!/bin/zsh
-# Builds dist/Brow.app from the BrowApp release binary.
+# Builds the release: dist/Brow.app (the app) and dist/brow (the command-line tool).
 # Usage: Scripts/build-brow.sh [--launch]
+#
+# The version is BrowVersion.current (Sources/GroveCore/BrowVersion.swift), the one
+# place it is written; the bundle's Info.plist is Resources/Info.plist filled in with it.
+# Signed with BROW_SIGN_IDENTITY when that identity is in the keychain (GROVE_SIGN_IDENTITY
+# is still read), ad hoc otherwise. Scripts/release.sh packages what this builds.
 set -euo pipefail
 
 # `${0:a:h}` is the script's own absolute directory, resolved BEFORE the cd so
@@ -11,66 +16,48 @@ cd "$SCRIPT_DIR/.."
 # swift/git/xcrun at the toolchain directly.
 source "$SCRIPT_DIR/xcode-env.sh"
 
+VERSION=$(sed -n 's/.*static let current = "\(.*\)".*/\1/p' Sources/GroveCore/BrowVersion.swift)
+if [[ ! "$VERSION" =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
+    echo "build-brow: no x.y.z version in Sources/GroveCore/BrowVersion.swift (found '$VERSION')" >&2
+    exit 1
+fi
+
 swift build -c release --product BrowApp
+swift build -c release --product brow
+BIN=$(swift build -c release --show-bin-path)
 
 APP="dist/Brow.app"
-rm -rf "$APP"
+rm -rf "$APP" dist/brow
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/BrowApp "$APP/Contents/MacOS/Brow"
+cp "$BIN/BrowApp" "$APP/Contents/MacOS/Brow"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # The browser router Claude Code is pointed at via BROWSER= (see Resources/brow-browser.sh).
 # Under Resources, not MacOS: codesign treats anything in MacOS/ as a nested code
 # object that needs its own signature; a resource is simply sealed with the bundle.
 cp Resources/brow-browser.sh "$APP/Contents/Resources/brow-browser"
 chmod +x "$APP/Contents/Resources/brow-browser"
+# GPL-3.0: the licence travels with the binary.
+cp LICENSE "$APP/Contents/Resources/LICENSE"
+sed "s/@VERSION@/$VERSION/g" Resources/Info.plist > "$APP/Contents/Info.plist"
+plutil -lint -s "$APP/Contents/Info.plist"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleIdentifier</key>
-	<string>dev.artemefimov.brow</string>
-	<key>CFBundleName</key>
-	<string>Brow</string>
-	<key>CFBundleExecutable</key>
-	<string>Brow</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<!-- Keep in sync with GroveVersion.current (Sources/GroveCore/GroveVersion.swift). -->
-	<key>CFBundleShortVersionString</key>
-	<string>0.3.1</string>
-	<key>CFBundleVersion</key>
-	<string>0.3.1</string>
-	<key>LSUIElement</key>
-	<true/>
-	<key>LSMinimumSystemVersion</key>
-	<string>26.0</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>Brow opens Terminal to run Claude Code sign-in.</string>
-</dict>
-</plist>
-PLIST
+cp "$BIN/brow" dist/brow
 
-# Sign with the stable development identity when present so the macOS
-# automation (Apple Events -> Terminal) consent survives rebuilds: ad-hoc
-# signatures change every build, which voids the TCC grant each time.
-# Set GROVE_SIGN_IDENTITY to your own "Apple Development: Name (TEAMID)" identity.
-IDENTITY="${GROVE_SIGN_IDENTITY:-}"
+# Sign with the stable development identity when present so the macOS automation
+# consent (Apple Events -> Terminal, cmux) survives rebuilds: ad hoc signatures change
+# every build, which voids the TCC grant each time. Set BROW_SIGN_IDENTITY to your own
+# "Apple Development: Name (TEAMID)" identity.
+IDENTITY="${BROW_SIGN_IDENTITY:-${GROVE_SIGN_IDENTITY:-}}"
 if [[ -n "$IDENTITY" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -qF "$IDENTITY"; then
-    codesign --force --sign "$IDENTITY" "$APP"
-    echo "signed: $IDENTITY"
+    SIGN=("$IDENTITY"); SIGNED_AS="$IDENTITY"
 else
-    codesign --force --sign - "$APP"
-    echo "signed: ad-hoc (stable identity not found; automation consent will reset on rebuild)"
+    SIGN=(-); SIGNED_AS="ad hoc (no stable identity found; automation consent resets on every rebuild)"
 fi
-echo "built: $APP"
+codesign --force --sign "${SIGN[@]}" --identifier dev.artemefimov.brow.cli dist/brow
+codesign --force --sign "${SIGN[@]}" "$APP"
+codesign --verify --deep --strict "$APP"
+echo "signed: $SIGNED_AS"
+echo "built: $APP and dist/brow, version $VERSION"
 
 if [[ "${1:-}" == "--launch" ]]; then
     open "$APP"

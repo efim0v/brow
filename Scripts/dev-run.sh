@@ -1,21 +1,23 @@
 #!/bin/zsh
-# Builds and runs the dev binary SIGNED with the stable development identity.
-# Usage: Scripts/dev-run.sh [--release] [-- <args passed to Grove>]
+# Builds and runs the development binary of Brow under an identifier of its own.
+# Usage: Scripts/dev-run.sh [--release] [-- <args passed to Brow>]
 #
-# Why this exists: macOS keys every per-app consent (Automation/Apple Events for
-# cmux, and any future TCC grant) by how the binary is signed:
+# Why its own identifier: macOS keys per-app state on how a binary is signed and
+# named. The menu-bar item's slot is one of them, and on macOS 26.4 rebuild churn
+# under the shipping id corrupted that slot (Grove had to move to a new bundle id).
+# A dev build signed as dev.artemefimov.brow.dev cannot do that to dev.artemefimov.brow,
+# and consents (Automation for Terminal and cmux) given to it stay with it:
 #
-#   ad-hoc (what SwiftPM produces)  -> keyed by cdhash  -> DIES on every rebuild
+#   ad hoc (what SwiftPM produces)  -> keyed by cdhash  -> DIES on every rebuild
 #   stable identity                 -> keyed by identifier + leaf certificate
 #
-# Signing the dev binary with the same identity AND the same identifier as
-# dist/Grove.app makes it satisfy the requirement the app bundle is already
-# trusted under, so a consent survives rebuilds. (Grove no longer reads Claude
-# Code's Keychain credentials — Brow does — so the login-Keychain prompts that
-# first motivated this script are gone either way.)
+# Set BROW_SIGN_IDENTITY to your own "Apple Development: Name (TEAMID)" identity to
+# keep consents across rebuilds. The dev binary reads and writes the same settings
+# folders as the app (~/Library/Application Support/Brow and …/Grove).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+source Scripts/xcode-env.sh
 
 CONFIGURATION="debug"
 if [[ "${1:-}" == "--release" ]]; then
@@ -24,22 +26,18 @@ if [[ "${1:-}" == "--release" ]]; then
 fi
 [[ "${1:-}" == "--" ]] && shift
 
-# Keep in sync with Scripts/build-app.sh — the ACL entry is keyed on BOTH, so a
-# drift in either one silently reintroduces the prompt.
-# Set GROVE_SIGN_IDENTITY to your own "Apple Development: Name (TEAMID)" identity.
-IDENTITY="${GROVE_SIGN_IDENTITY:-}"
-BUNDLE_ID="dev.artemefimov.grove3"
+IDENTITY="${BROW_SIGN_IDENTITY:-${GROVE_SIGN_IDENTITY:-}}"
+IDENTIFIER="dev.artemefimov.brow.dev"
 
-swift build -c "$CONFIGURATION" --product GroveApp
-BINARY=".build/$CONFIGURATION/GroveApp"
+swift build -c "$CONFIGURATION" --product BrowApp
+BINARY="$(swift build -c "$CONFIGURATION" --show-bin-path)/BrowApp"
 
 if [[ -n "$IDENTITY" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -qF "$IDENTITY"; then
-    codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$BINARY"
-    echo "signed: $IDENTITY ($BUNDLE_ID)"
+    codesign --force --sign "$IDENTITY" --identifier "$IDENTIFIER" "$BINARY"
+    echo "signed: $IDENTITY ($IDENTIFIER)"
 else
-    echo "WARNING: '$IDENTITY' not found; leaving the ad-hoc signature in place." >&2
-    echo "         The keychain will pin this build by cdhash and re-prompt after" >&2
-    echo "         the next rebuild." >&2
+    codesign --force --sign - --identifier "$IDENTIFIER" "$BINARY"
+    echo "signed: ad hoc ($IDENTIFIER); consents reset on every rebuild" >&2
 fi
 
 exec "$BINARY" "$@"

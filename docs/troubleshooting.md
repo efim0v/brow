@@ -23,8 +23,8 @@ Workspaces runs in one copy of Brow at a time: two would write the same `config.
 too. A second copy — another install of `Brow.app`, or the build `Scripts/dev-run.sh`
 starts — waits while the first runs Workspaces, and starts it when that copy quits or
 turns Workspaces off (press **Try Again** after the latter). The copy that runs it holds
-`~/Library/Application Support/Grove/workspaces.lock`; the lock goes away with its
-process, so there is nothing to delete by hand.
+a lock on `~/Library/Application Support/Grove/workspaces.lock`, which macOS lets go of
+when that copy quits, even if it crashed; the empty file can stay.
 
 ## "cmux unavailable" although cmux is running
 

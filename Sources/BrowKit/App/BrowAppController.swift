@@ -137,8 +137,20 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                           onExpandedChange: { [weak self] in self?.triggers.setExpanded($0) },
                                           onSettings: { [weak self] in self?.showSettings() },
                                           onWorkspaces: { [weak self] in self?.workspaces?.togglePanel() })
-        self.panel.show()
-        BrowLog.panel.info("panel shown")
+        // Unless Settings › General has it off: then nothing at the top of the screen.
+        if settings.showNotch { self.panel.show() }
+        BrowLog.panel.info("panel \(settings.showNotch ? "shown" : "off", privacy: .public)")
+        store.$settings
+            .map(\.showNotch)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] show in
+                Task { @MainActor in
+                    guard let panel = self?.panel else { return }
+                    if show { panel.show() } else { panel.hide() }
+                }
+            }
+            .store(in: &cancellables)
         // After the notch is up, like everything that may touch the disk.
         let workspaces = WorkspacesHost(store: store)
         self.workspaces = workspaces

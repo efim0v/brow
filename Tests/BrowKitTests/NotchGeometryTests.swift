@@ -18,6 +18,23 @@ final class NotchGeometryTests: XCTestCase {
     private let plain = ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
                                       topLeftArea: nil, topRightArea: nil, menuBarHeight: 24, notchHeight: 0)
 
+    // MARK: the black outline
+
+    /// Readouts off: the black hides in the physical notch. Without a notch there is
+    /// nothing to hide in, so nothing is drawn — no empty black pill at the top centre.
+    func testWithTheReadoutsOffNothingIsDrawnWithoutANotch() {
+        let pill = NotchGeometry.frames(for: plain, expandedHeight: 300)
+        XCTAssertEqual(NotchRootView.outlineSize(frames: pill, expanded: false, showEars: false),
+                       CGSize(width: NotchGeometry.pillWidth, height: 0))
+        XCTAssertEqual(NotchRootView.outlineSize(frames: pill, expanded: false, showEars: true), pill.collapsed.size)
+        XCTAssertEqual(NotchRootView.outlineSize(frames: pill, expanded: true, showEars: false), pill.expanded.size)
+
+        let notch = NotchGeometry.frames(for: notched, expandedHeight: 300)
+        XCTAssertEqual(NotchRootView.outlineSize(frames: notch, expanded: false, showEars: false),
+                       CGSize(width: 185 + 2 * NotchGeometry.flare, height: 32))
+        XCTAssertEqual(NotchRootView.outlineSize(frames: notch, expanded: false, showEars: true), notch.collapsed.size)
+    }
+
     // MARK: beside
 
     func testBesideCollapsedIsTheNotchPlusTwoWingsPlusFlares() {

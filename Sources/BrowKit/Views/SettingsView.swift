@@ -159,8 +159,13 @@ public struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
+                Toggle("Show Brow in the notch", isOn: $store.settings.showNotch)
+                Text("Off: Brow draws nothing at the top of the screen and no panel opens there. Limit warnings still arrive, Workspaces still opens from its menu-bar item, and opening Brow again from Finder or Spotlight shows Workspaces or this window.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Toggle("Show readouts next to the notch", isOn: $store.settings.showEars)
-                Text("Off: nothing is drawn until the pointer reaches the notch itself; the panel then opens with its animation.")
+                    .disabled(!store.settings.showNotch)
+                Text("Off: nothing is drawn until the pointer reaches the notch itself — on a display without one, the top centre of the screen — and the panel then opens with its animation.")
                     .font(.caption).foregroundStyle(.secondary)
                 // The store writes config.json and publishes on every change, and the
                 // panel re-reads `earsPlacement` on every render — so the strip reshapes
@@ -170,7 +175,7 @@ public struct SettingsView: View {
                     Text("Below the notch").tag(EarsPlacement.below)
                 }
                 .pickerStyle(.segmented)
-                .disabled(!store.settings.showEars)
+                .disabled(!store.settings.showNotch || !store.settings.showEars)
                 Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
                     .font(.caption).foregroundStyle(.secondary)
             }

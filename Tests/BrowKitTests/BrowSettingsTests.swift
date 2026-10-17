@@ -12,11 +12,28 @@ final class BrowSettingsTests: XCTestCase {
 
     func testDefaults() {
         let s = BrowSettings()
+        XCTAssertTrue(s.showNotch, "the notch is on unless turned off")
         XCTAssertTrue(s.allowPromptFallback)
         XCTAssertNil(s.claudePath)
         XCTAssertTrue(s.accounts.isEmpty)
         XCTAssertTrue(s.extraDirs.isEmpty)
         XCTAssertEqual(s.earsPlacement, .beside)
+    }
+
+    /// A file from before the switch shows the notch; the switch round-trips; a bad value
+    /// costs only that field.
+    func testShowNotchLoadsFromOlderFilesAndRoundTrips() throws {
+        let dir = try Fixture.tempDir("settings-notch").path
+        let store = BrowSettingsStore(directory: dir)
+        try #"{"showEars":false}"#.write(toFile: dir + "/config.json", atomically: true, encoding: .utf8)
+        XCTAssertTrue(store.load().showNotch)
+        var settings = store.load()
+        settings.showNotch = false
+        try store.save(settings)
+        XCTAssertFalse(store.load().showNotch)
+        try #"{"showNotch":"no","claudePath":"/opt/claude"}"#.write(toFile: dir + "/config.json", atomically: true, encoding: .utf8)
+        XCTAssertTrue(store.load().showNotch)
+        XCTAssertEqual(store.load().claudePath, "/opt/claude")
     }
 
     /// The picker's order is the setting's order.

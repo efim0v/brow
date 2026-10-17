@@ -20,6 +20,7 @@ Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees
 - One Settings window with four tabs. General gains Show Workspaces in the menu bar. Each card in Accounts gains a Workspaces section: Share sessions, Capture the status line, and the account's default model and effort; a Workspaces account with no card of its own, such as a second folder of the same login, gets a section after the cards. Workspaces holds the projects, the workspace folder, the transcript safety net and the panel material. About has the version, the licence and the credits.
 - The command-line tool is `brow`, with `grove` as a second name, so scripts written for Grove's tool keep working unchanged. `brow --version` prints Brow's version. It ships as `brow-cli.zip`.
 - The model pickers offer Claude Code's aliases (`opus`, `sonnet`, `haiku`), pinned versions, and Other… for any model id.
+- Settings → General → Show Brow in the notch. Off, Brow draws nothing at the top of the screen and no panel opens there, for someone who uses Brow for Workspaces only. Limit warnings still arrive, and opening Brow again shows Workspaces or Settings.
 
 ### Changed
 
@@ -39,6 +40,7 @@ Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees
 - The model pickers no longer miss new models ([efim0v/grove#10](https://github.com/efim0v/grove/issues/10)).
 - The launch-at-login toggle can no longer show on while it is off, and says when macOS is waiting for your approval ([#8](https://github.com/efim0v/brow/issues/8)).
 - The build has no compiler warnings again ([efim0v/grove#11](https://github.com/efim0v/grove/issues/11)).
+- With Show readouts next to the notch off, a display without a notch no longer shows an empty black pill: nothing is drawn until the pointer reaches the top centre, as the setting says.
 
 ## [0.3.1] - 2026-10-15
 

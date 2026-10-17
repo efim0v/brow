@@ -176,7 +176,7 @@ Brow's own network requests go to two Anthropic endpoints and nowhere else: `api
 
 ### Which Macs does it run on, and where does it sit?
 
-macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead.
+macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead, and with the readouts off, nothing until the pointer reaches the top centre. If you use Brow for Workspaces only, turn off **Show Brow in the notch** and it draws nothing at the top of the screen at all; limit warnings still arrive.
 
 ### I don't see Brow's item in the menu bar.
 

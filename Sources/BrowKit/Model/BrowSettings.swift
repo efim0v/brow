@@ -61,6 +61,10 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     /// name set here is used, never the email or the folder `displayName` falls back to.
     public var cardShowNames: Bool = false
     public var cardShape: CardShape = .wide
+    /// False: Brow draws nothing at the top of the screen and no panel opens there — for
+    /// someone who uses Brow for Workspaces only. Limit warnings still post, and opening
+    /// Brow again shows Workspaces or Settings.
+    public var showNotch: Bool = true
     /// False: nothing is drawn while collapsed — the notch is just the notch — and the
     /// panel appears only when the pointer reaches the notch itself.
     public var showEars: Bool = true
@@ -79,7 +83,7 @@ public struct BrowSettings: Codable, Sendable, Equatable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets, workspaces }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showNotch, showEars, showCalendar, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets, workspaces }
 
     // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT with a
     // value of the wrong type or an unmatched raw value (a hand edit, or a value a later
@@ -104,6 +108,7 @@ public struct BrowSettings: Codable, Sendable, Equatable {
         claudePath = field(.claudePath, String.self)
         cardShowNames = field(.cardShowNames, Bool.self) ?? false
         cardShape = Self.rawValue(field(.cardShape, String.self), CardShape.self, key: "cardShape", issues) ?? .wide
+        showNotch = field(.showNotch, Bool.self) ?? true
         showEars = field(.showEars, Bool.self) ?? true
         showCalendar = field(.showCalendar, Bool.self) ?? true
         notifyLimits = field(.notifyLimits, Bool.self) ?? false

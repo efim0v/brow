@@ -50,11 +50,19 @@ struct NotchRootView: View {
     private var frames: NotchFrames { model.frames }
 
     private var shapeSize: CGSize {
-        if model.expanded { return frames.expanded.size }
-        if !model.showEars, let notch = frames.notch {
-            return CGSize(width: notch.width + 2 * frames.flare, height: notch.height)
-        }
-        return frames.collapsed.size
+        Self.outlineSize(frames: frames, expanded: model.expanded, showEars: model.showEars)
+    }
+
+    /// The black outline's size. Expanded, the panel's. Collapsed with the readouts on,
+    /// the strip's. With them off, the physical notch, which the black then hides in — and
+    /// on a display without a notch, nothing at all: the pill's width at no height, so
+    /// nothing is drawn until the pointer reaches the top centre, and the panel unrolls
+    /// from the top edge.
+    static func outlineSize(frames: NotchFrames, expanded: Bool, showEars: Bool) -> CGSize {
+        if expanded { return frames.expanded.size }
+        guard !showEars else { return frames.collapsed.size }
+        guard let notch = frames.notch else { return CGSize(width: frames.collapsed.width, height: 0) }
+        return CGSize(width: notch.width + 2 * frames.flare, height: notch.height)
     }
 
     private var outline: AnyShape {
@@ -160,7 +168,12 @@ public final class NotchPanelController {
         }.store(in: &cancellables)
     }
 
+    /// Whether the panel is up, its pointer monitors with it.
+    public private(set) var isShown = false
+
     public func show() {
+        guard !isShown else { return }
+        isShown = true
         render()
         panel.orderFrontRegardless()
         // Only once the window is ordered in does it have a window number to add.
@@ -177,6 +190,9 @@ public final class NotchPanelController {
     /// Tears down the global monitors and any pending collapse. Without this the two
     /// `NSEvent` monitors installed by `show()` outlive the controller.
     public func hide() {
+        guard isShown else { return }
+        isShown = false
+        if expanded { setExpanded(false) }
         collapseWork?.cancel(); collapseWork = nil
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
         if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }

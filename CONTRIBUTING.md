@@ -61,13 +61,13 @@ To run what you built:
   ```
 
   The notch logs under the categories `limits`, `tokens`, `panel` and `notify`, Workspaces under `workspaces` and `perf`; `TokenKeeper`, `ProcessRunner`, `ClaudeService` and `keychain` log under the same subsystem.
-- The README screenshots are rendered from made-up accounts and projects:
+- The README screenshots are rendered from made-up accounts and projects, one set of accounts (`Tests/DemoFixture`) for the notch, Settings and Workspaces, so the pictures agree where they meet:
 
   ```sh
   DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
   ```
 
-  The panel shots carry the current date and time, so they can change between runs. Commit them only with a change that alters what they show.
+  The notch's shots are drawn at 09:41 today, and Workspaces' ages count back from the moment of the render, so the pictures change from one day to the next. Commit them only with a change that alters what they show.
 
 [Layout](README.md#layout) in the README says where the code lives. [`docs/brow.md`](docs/brow.md) and [`docs/workspaces.md`](docs/workspaces.md) describe the behaviour in detail, and [`docs/architecture.md`](docs/architecture.md) lists the modules and the contracts between them.
 

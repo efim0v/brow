@@ -43,6 +43,14 @@ let package = Package(
             dependencies: ["GroveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // The made-up accounts of the README screenshots, shared by both test bundles that
+        // render them so the pictures agree. For tests only: no product links it.
+        .target(
+            name: "DemoFixture",
+            dependencies: ["GroveCore"],
+            path: "Tests/DemoFixture",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(
             name: "GroveCoreTests",
             dependencies: ["GroveCore"],
@@ -50,12 +58,12 @@ let package = Package(
         ),
         .testTarget(
             name: "GroveAppKitTests",
-            dependencies: ["GroveAppKit"],
+            dependencies: ["GroveAppKit", "DemoFixture"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "BrowKitTests",
-            dependencies: ["BrowKit", "GroveAppKit", "GroveCore"],
+            dependencies: ["BrowKit", "GroveAppKit", "GroveCore", "DemoFixture"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

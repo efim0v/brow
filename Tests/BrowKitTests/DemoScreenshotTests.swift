@@ -4,11 +4,13 @@
 import AppKit
 import SwiftUI
 import XCTest
+import DemoFixture
 import GroveAppKit
 import GroveCore
 @testable import BrowKit
 
-/// README screenshots for Brow, rendered from FICTIONAL accounts. Nothing real is read:
+/// README screenshots for Brow, rendered from FICTIONAL accounts — `DemoAccounts`, the
+/// ones Workspaces' screenshots show too, so the pictures agree. Nothing real is read:
 /// the accounts are handed to the store as a scan would find them, in a home folder that
 /// does not exist, the "Keychain" is a canned reader, the app-support directory is a
 /// temp dir, and no refresh cycle ever runs (no network, no `claude`).
@@ -34,37 +36,38 @@ final class DemoScreenshotTests: XCTestCase {
         try await renderAll(into: URL(fileURLWithPath: dir, isDirectory: true))
     }
 
-    // MARK: - Fixture
-
-    /// Settings prints each account's folder and launch command, so the demo accounts
-    /// live in a home that reads like one. Nothing exists there, and nothing is read
-    /// from it or written to it.
-    private static let demoHome = "/Users/demo"
-
-    private struct DemoAccount {
-        let folder: String, org: String, email: String, tier: String, name: String
-        let five: Double, fiveResetHours: Double
-        let week: Double, weekResetDays: Double
-        let scoped: Double?
-        let tokenHours: Double
-        /// Days until the (estimated) renewal; nil = no subscription facts.
-        let renewsInDays: Int?
+    /// The weekday on the menu bar's clock is the date's own: 17 October 2026 was a
+    /// Saturday, which an earlier render printed as a Friday.
+    func testTheMenuBarClockNamesTheRightWeekday() throws {
+        var components = DateComponents(year: 2026, month: 10, day: 17, hour: 9, minute: 41)
+        components.calendar = Calendar(identifier: .gregorian)
+        let date = try XCTUnwrap(components.date)
+        XCTAssertEqual(Self.menuBarClock(date), "Sat 17 Oct  09:41")
     }
 
-    private static let accounts: [DemoAccount] = [
-        DemoAccount(folder: ".claude-accounts/personal", org: "org-demo-personal", email: "alex@example.com",
-                    tier: "default_claude_max_5x", name: "Personal",
-                    five: 12, fiveResetHours: 3.7, week: 34, weekResetDays: 4.3, scoped: nil,
-                    tokenHours: 6.4, renewsInDays: 9),
-        DemoAccount(folder: ".claude-accounts/work", org: "org-demo-work", email: "alex.morgan@example.com",
-                    tier: "default_claude_max_20x", name: "Work",
-                    five: 78, fiveResetHours: 1.2, week: 61, weekResetDays: 2.1, scoped: 45,
-                    tokenHours: 3.1, renewsInDays: 20),
-        DemoAccount(folder: ".claude-accounts/team", org: "org-demo-team", email: "platform-team@example.com",
-                    tier: "default_claude_max_20x", name: "Team",
-                    five: 41, fiveResetHours: 4.4, week: 93, weekResetDays: 0.9, scoped: nil,
-                    tokenHours: 7.8, renewsInDays: nil),
-    ]
+    /// The plans in Settings are the ones Workspaces' screenshots print.
+    func testTheDemoPlansAreThePanelsOwn() {
+        for account in DemoAccounts.all {
+            XCTAssertEqual(PanelText.tierLabel(account.tier), account.plan)
+        }
+    }
+
+    // MARK: - Fixture
+
+    /// The demo's clock: today at 09:41, in the time zone the render runs in. The menu
+    /// bar's clock and the panel's calendar are both drawn from it, so they agree on the
+    /// date and its weekday.
+    private static func demoNow() -> Date {
+        Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date()
+    }
+
+    /// "Sat 17 Oct  09:41", the menu bar's date and time.
+    static func menuBarClock(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE d MMM  HH:mm"
+        return formatter.string(from: date)
+    }
 
     private final class DemoCredentials: CredentialsReading, @unchecked Sendable {
         let expiries: [String: Date]
@@ -97,11 +100,11 @@ final class DemoScreenshotTests: XCTestCase {
         var snapshots: [String: LimitSnapshot] = [:]
         var subscriptions: [String: SubscriptionInfo] = [:]
         var settings = BrowSettings()
-        for account in Self.accounts {
-            let dir = Self.demoHome + "/" + account.folder
+        for account in DemoAccounts.all {
+            let dir = DemoAccounts.home + "/" + account.folder
             let expiry = now.addingTimeInterval(account.tokenHours * 3600)
             expiries[dir] = expiry
-            discovered.append(DiscoveredAccount(organizationUuid: account.org, email: account.email,
+            discovered.append(DiscoveredAccount(organizationUuid: account.organizationUUID, email: account.email,
                                                 tier: account.tier, configDir: dir, aliasDirs: [],
                                                 tokenExpiresAt: expiry))
 
@@ -110,22 +113,22 @@ final class DemoScreenshotTests: XCTestCase {
                 let at = (now.addingTimeInterval(seconds).timeIntervalSince1970 / 3600).rounded() * 3600
                 return CapturedWindow(usedPercentage: used, resetsAt: iso.string(from: Date(timeIntervalSince1970: at)))
             }
-            snapshots[account.org] = LimitSnapshot(
-                organizationUuid: account.org, fetchedAt: now.addingTimeInterval(-25),
-                fiveHour: window(account.five, in: account.fiveResetHours * 3600),
-                sevenDay: window(account.week, in: account.weekResetDays * 86_400),
-                weeklyScoped: account.scoped.map { window($0, in: account.weekResetDays * 86_400) },
-                weeklyScopedModel: account.scoped == nil ? nil : "Opus")
+            snapshots[account.organizationUUID] = LimitSnapshot(
+                organizationUuid: account.organizationUUID, fetchedAt: now.addingTimeInterval(-25),
+                fiveHour: window(account.fiveHour, in: account.fiveHourResetHours * 3600),
+                sevenDay: window(account.weekly, in: account.weeklyResetDays * 86_400),
+                weeklyScoped: account.opusWeekly.map { window($0, in: account.weeklyResetDays * 86_400) },
+                weeklyScopedModel: account.opusWeekly == nil ? nil : "Opus")
             if let days = account.renewsInDays {
                 // Started 3 months minus N days ago, so the next monthly anniversary is in N days.
                 var utc = Calendar(identifier: .gregorian)
                 utc.timeZone = TimeZone(identifier: "UTC")!
                 let renewal = utc.date(byAdding: .day, value: days, to: now)!
-                subscriptions[account.org] = SubscriptionInfo(
-                    organizationUuid: account.org, status: "active", billingType: "stripe_subscription",
+                subscriptions[account.organizationUUID] = SubscriptionInfo(
+                    organizationUuid: account.organizationUUID, status: "active", billingType: "stripe_subscription",
                     createdAt: utc.date(byAdding: .month, value: -3, to: renewal), fetchedAt: now)
             }
-            settings.accounts[account.org] = AccountOverride(name: account.name, hidden: false)
+            settings.accounts[account.organizationUUID] = AccountOverride(name: account.name, hidden: false)
         }
         try LimitSnapshotStore(directory: appDir)
             .saveFile(LimitsFile(snapshots: snapshots, accounts: [], subscriptions: subscriptions))
@@ -135,7 +138,7 @@ final class DemoScreenshotTests: XCTestCase {
         let client = OAuthUsageClient(fetcher: NoNetwork(), userAgent: nil, credentials: credentials)
         let keeper = TokenKeeper(runner: NoCommands(), credentials: credentials, claudePath: "claude",
                                  allowPromptFallback: { false }, now: { now })
-        let store = LimitsStore(deps: .init(directory: AccountDirectory(home: Self.demoHome, credentials: credentials),
+        let store = LimitsStore(deps: .init(directory: AccountDirectory(home: DemoAccounts.home, credentials: credentials),
                                             keeper: keeper, client: client,
                                             snapshotStore: LimitSnapshotStore(directory: appDir),
                                             settingsStore: BrowSettingsStore(directory: appDir),
@@ -143,41 +146,41 @@ final class DemoScreenshotTests: XCTestCase {
         // The accounts as a scan would hand them over, without one. `refresh` is never called.
         store.preview(accounts: discovered)
         store.setClaudeDetection(.found("/opt/homebrew/bin/claude"))
-        XCTAssertEqual(store.rows.map(\.name).sorted(), Self.accounts.map(\.name).sorted())
+        XCTAssertEqual(store.rows.map(\.name), DemoAccounts.all.map(\.name))
         return store
     }
 
-    /// Workspaces on a fixture: two projects, the three demo accounts (two of them sharing
-    /// sessions, two capturing their status line), each account's Claude Code retention.
-    /// A temp config file, so every folder the state could write is beside it.
+    /// Workspaces on a fixture: two projects and the three demo accounts — Personal the
+    /// default account, the other two sharing sessions into it, two capturing their status
+    /// line — with each account's Claude Code retention. A temp config file, so every
+    /// folder the state could write is beside it; the default account is the demo home's
+    /// `.claude`, as the cards have it.
     @MainActor
     private func makeWorkspaces(store: LimitsStore, appDir: String) -> WorkspacesHost {
         let config = URL(fileURLWithPath: appDir).appendingPathComponent("grove/config.json")
-        let state = AppState(configStore: ConfigStore(url: config))
-        let home = Self.demoHome
+        let home = DemoAccounts.home
+        var folders = WorkspacesFolders.beside(configFile: config)
+        folders.canonicalDir = home + "/" + DemoAccounts.personal.folder
+        let state = AppState(configStore: ConfigStore(url: config), folders: folders)
+        // A render writes nothing: the safety net's pass, which the tab starts, stops at once.
+        state.mayWrite = { false }
         state.config = GroveConfig(
             version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
-            projects: [ProjectConfig(name: "acme-shop", path: "/Users/demo/Code/acme-shop", defaultAccount: "work"),
-                       ProjectConfig(name: "field-notes", path: "/Users/demo/Code/field-notes")],
-            accounts: [
-                AccountConfig(name: "alex@example.com", configDir: home + "/.claude-accounts/personal",
-                              monitoring: true, defaultModel: "sonnet"),
-                AccountConfig(name: "alex.morgan@example.com", configDir: home + "/.claude-accounts/work",
-                              sharedStore: true, monitoring: true, defaultModel: "opus", defaultEffort: "high"),
-                AccountConfig(name: "platform-team@example.com", configDir: home + "/.claude-accounts/team",
-                              sharedStore: true),
-            ],
+            projects: [ProjectConfig(name: "acme-shop", path: DemoAccounts.shopPath,
+                                     defaultAccount: DemoAccounts.work.configName),
+                       ProjectConfig(name: "field-notes", path: DemoAccounts.notesPath)],
+            accounts: DemoAccounts.all.map { $0.accountConfig(root: home) },
             transcriptMirror: TranscriptMirrorSettings(enabled: true, maxDays: 30, maxMB: 500))
         state.transcriptRetention = [
-            "alex@example.com": .init(days: 30, source: .claudeDefault),
-            "alex.morgan@example.com": .init(days: 14, source: .managedFile),
-            "platform-team@example.com": .init(days: 7, source: .accountSettings),
+            DemoAccounts.personal.configName: .init(days: 30, source: .claudeDefault),
+            DemoAccounts.work.configName: .init(days: 14, source: .managedFile),
+            DemoAccounts.team.configName: .init(days: 7, source: .accountSettings),
         ]
         // Two transcripts gone from Claude Code's folders that the safety net can put back.
         let mirror = home + "/.claude/grove/transcripts"
         state.restorableTranscripts = [
-            ("alex.morgan@example.com", "/Users/demo/Workspaces/acme-shop/checkout-redesign", 2.2, "2f6a9c41"),
-            ("alex@example.com", "/Users/demo/Code/field-notes", 9.6, "8d03b7e2"),
+            (DemoAccounts.work.configName, home + "/Workspaces/acme-shop/checkout-redesign", 2.2, "2f6a9c41"),
+            (DemoAccounts.personal.configName, DemoAccounts.notesPath, 9.6, "8d03b7e2"),
         ].map { account, cwd, daysAgo, id in
             let folder = ClaudeService.mangle(cwd)
             return RestorableTranscript(
@@ -202,7 +205,7 @@ final class DemoScreenshotTests: XCTestCase {
         try fm.createDirectory(at: out, withIntermediateDirectories: true)
         let appDir = fm.temporaryDirectory.appendingPathComponent("brow-demo-\(UUID().uuidString)").path
         defer { try? fm.removeItem(atPath: appDir) }
-        let now = Date()
+        let now = Self.demoNow()
         let store = try makeStore(now: now, appDir: appDir)
         let clock = PanelClock(now: { now })
 
@@ -241,12 +244,12 @@ final class DemoScreenshotTests: XCTestCase {
 
         // (4) The Workspaces item in the menu bar: Brow's mark, as a template image tinted
         // by the bar.
-        try renderOnDesktop(menuBarItem(), canvas: CGSize(width: 320, height: 60),
+        try renderOnDesktop(menuBarItem(now: now), canvas: CGSize(width: 320, height: 60),
                             to: out.appendingPathComponent("brow-menu-bar-item.png"))
 
         // (5) Settings: Accounts, where each card carries its Workspaces section, and
         // Workspaces. General and About only for review (see the type's comment).
-        let flow = AddAccountFlow(store: store, home: Self.demoHome)
+        let flow = AddAccountFlow(store: store, home: DemoAccounts.home)
         let workspaces = makeWorkspaces(store: store, appDir: appDir)
         let navigation = SettingsNavigation()
         var panes: [(SettingsPane, URL)] = [(.accounts, out.appendingPathComponent("brow-settings-accounts.png")),
@@ -289,16 +292,16 @@ final class DemoScreenshotTests: XCTestCase {
     }
 
     /// A strip of menu bar with Brow's item among two stand-ins, the way the bar tints a
-    /// template image: white on a dark bar.
+    /// template image: white on a dark bar, and the clock at the demo's time.
     @MainActor
-    private func menuBarItem() -> some View {
+    private func menuBarItem(now: Date) -> some View {
         let mark = BrowMark.templateImage(width: 22)
         return HStack(spacing: 14) {
             Spacer()
             Image(systemName: "wifi").foregroundStyle(.white)
             Image(nsImage: mark).renderingMode(.template).foregroundStyle(.white)
             Image(systemName: "battery.75percent").foregroundStyle(.white)
-            Text("Fri 17 Oct  09:41").font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+            Text(Self.menuBarClock(now)).font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
         }
         .padding(.horizontal, 14)
         .frame(width: 320, height: 33)

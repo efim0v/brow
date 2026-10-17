@@ -4,11 +4,14 @@
 import AppKit
 import SwiftUI
 import XCTest
+import DemoFixture
 import GroveCore
 @testable import GroveAppKit
 
 /// README screenshots of Workspaces, rendered offscreen from a FICTIONAL project
-/// ("acme-shop") — no git, no disk scan, no real config, nothing from `~/.claude`.
+/// ("acme-shop") — no git, no disk scan, no real config, nothing from `~/.claude`. The
+/// accounts are `DemoAccounts`, the ones Brow's screenshots show too: the same folders,
+/// names, plans and limits.
 ///
 /// Skipped unless `DEMO_SCREENSHOTS_DIR` is set, so a plain `swift test` never
 /// writes files:
@@ -165,16 +168,16 @@ final class DemoScreenshotTests: XCTestCase {
     }
 }
 
-/// Each demo account's 5-hour and weekly use, as Brow's notch would report it.
+/// Each demo account as Brow's notch would report it: its 5-hour and weekly use, the
+/// name given in Settings and the plan.
 @MainActor
 final class DemoLimits: AccountLimitsProviding {
     static let shared = DemoLimits()
     func limits(forConfigDirs dirs: [String]) -> AccountLimits? {
-        guard let dir = dirs.first else { return nil }
-        if dir.hasSuffix("/.claude-accounts/work") { return AccountLimits(fiveHour: 64, weekly: 41, stale: false) }
-        if dir.hasSuffix("/.claude-accounts/team") { return AccountLimits(fiveHour: 22, weekly: 78, stale: false) }
-        if dir.hasSuffix("/.claude") { return AccountLimits(fiveHour: 8, weekly: 19, stale: false) }
-        return nil
+        DemoAccounts.account(owning: dirs).map { AccountLimits(fiveHour: $0.fiveHour, weekly: $0.weekly, stale: false) }
+    }
+    func label(forConfigDirs dirs: [String]) -> AccountLabel? {
+        DemoAccounts.account(owning: dirs).map { AccountLabel(name: $0.name, plan: $0.plan) }
     }
 }
 
@@ -183,22 +186,18 @@ final class DemoLimits: AccountLimitsProviding {
 enum DemoFixture {
     static let shopID = UUID(uuidString: "D0000000-0000-0000-0000-000000000001")!
     static let notesID = UUID(uuidString: "D0000000-0000-0000-0000-000000000002")!
-    static let projectPath = "/Users/demo/Code/acme-shop"
+    static let projectPath = DemoAccounts.shopPath
     static let workspacesRoot = "/Users/demo/Workspaces/acme-shop"
 
+    /// The demo accounts' names in Grove's config, which their sessions carry.
+    static let personal = DemoAccounts.personal.configName
+    static let work = DemoAccounts.work.configName
+    static let team = DemoAccounts.team.configName
+
     static func identity(_ account: AccountConfig) -> AccountIdentity? {
-        switch account.name {
-        case "personal":
-            return AccountIdentity(email: "alex@example.com", organization: "Personal",
-                                   tier: "max_5x", organizationRateLimitTier: "default_claude_max_5x")
-        case "work":
-            return AccountIdentity(email: "alex.morgan@example.com", organization: "Acme Shop",
-                                   tier: "max_20x", organizationRateLimitTier: "default_claude_max_20x")
-        case "team":
-            return AccountIdentity(email: "platform-team@example.com", organization: "Acme Platform",
-                                   tier: "max_20x", organizationRateLimitTier: "default_claude_max_20x")
-        default:
-            return nil
+        DemoAccounts.account(configName: account.name).map {
+            AccountIdentity(email: $0.email, organization: $0.organizationName, tier: nil,
+                            organizationRateLimitTier: $0.tier)
         }
     }
 
@@ -214,18 +213,14 @@ enum DemoFixture {
                                  workspacesRoot: workspacesRoot,
                                  baseBranchOverrides: ["api-server": "develop", "server-config": "production",
                                                        "web-client": "develop"],
-                                 defaultAccount: "work")
-        let notes = ProjectConfig(id: notesID, name: "field-notes", path: "/Users/demo/Code/field-notes",
+                                 defaultAccount: work)
+        let notes = ProjectConfig(id: notesID, name: "field-notes", path: DemoAccounts.notesPath,
                                   workspacesRoot: "/Users/demo/Workspaces/field-notes")
         state.config = GroveConfig(
             version: 1,
             workspacesRootTemplate: "~/Workspaces/{project}",
             projects: [shop, notes],
-            accounts: [
-                AccountConfig(name: "personal", configDir: "~/.claude"),
-                AccountConfig(name: "work", configDir: "~/.claude-accounts/work", sharedStore: true),
-                AccountConfig(name: "team", configDir: "~/.claude-accounts/team", sharedStore: true),
-            ])
+            accounts: DemoAccounts.all.map { $0.accountConfig(root: "~") })
         state.snapshots = [shopID: shopSnapshot(project: shop, now: now),
                            notesID: notesSnapshot(project: notes, now: now)]
         state.selectedProjectID = shopID
@@ -248,17 +243,17 @@ enum DemoFixture {
             shopID: [
                 ProjectSessionRow(sessionId: "s-co-1", title: "Checkout: address step validation",
                                   cwd: workspacesRoot + "/checkout-redesign", location: "checkout-redesign",
-                                  accountName: "work", lastActivity: now.addingTimeInterval(-240),
+                                  accountName: work, lastActivity: now.addingTimeInterval(-240),
                                   status: .running, cmuxWorkspaceId: "ws-201"),
                 ProjectSessionRow(sessionId: "s-pw-1", title: "Retry failed webhook deliveries",
                                   cwd: workspacesRoot + "/fix-payment-webhooks", location: "fix-payment-webhooks",
-                                  accountName: "team", lastActivity: now.addingTimeInterval(-660),
+                                  accountName: team, lastActivity: now.addingTimeInterval(-660),
                                   status: .waiting, cmuxWorkspaceId: nil),
             ],
             notesID: [
                 ProjectSessionRow(sessionId: "s-fn-1", title: "Offline sync conflict resolution",
                                   cwd: "/Users/demo/Workspaces/field-notes/offline-sync", location: "offline-sync",
-                                  accountName: "personal", lastActivity: now.addingTimeInterval(-5_400),
+                                  accountName: personal, lastActivity: now.addingTimeInterval(-5_400),
                                   status: .waiting, cmuxWorkspaceId: nil),
             ],
         ]
@@ -308,12 +303,12 @@ enum DemoFixture {
             parentName: nil,
             sessions: [
                 ClaudeSession(id: "s-co-1", cwd: co, title: "Checkout: address step validation",
-                              lastActivity: minutes(4), accountName: "work", gitBranch: "feat/checkout-redesign"),
+                              lastActivity: minutes(4), accountName: work, gitBranch: "feat/checkout-redesign"),
                 ClaudeSession(id: "s-co-2", cwd: co, title: "Order summary component",
-                              lastActivity: day(1), accountName: "personal", gitBranch: "feat/checkout-redesign"),
+                              lastActivity: day(1), accountName: personal, gitBranch: "feat/checkout-redesign"),
             ],
             liveProcesses: [
-                LiveProcess(pid: 5101, sessionId: "s-co-1", cwd: co, status: "busy", accountName: "work",
+                LiveProcess(pid: 5101, sessionId: "s-co-1", cwd: co, status: "busy", accountName: work,
                             startedAt: minutes(52)),
             ],
             cmuxWorkspaces: [CmuxWorkspace(id: "ws-201", title: "checkout-redesign", currentDirectory: co)])
@@ -332,7 +327,7 @@ enum DemoFixture {
             parentName: "checkout-redesign",
             sessions: [
                 ClaudeSession(id: "s-pc-1", cwd: pc, title: "Promo code endpoint and tests",
-                              lastActivity: day(0.25), accountName: "work", gitBranch: "feat/checkout-promo-codes"),
+                              lastActivity: day(0.25), accountName: work, gitBranch: "feat/checkout-promo-codes"),
             ],
             liveProcesses: [], cmuxWorkspaces: [])
 
@@ -350,10 +345,10 @@ enum DemoFixture {
             parentName: nil,
             sessions: [
                 ClaudeSession(id: "s-pw-1", cwd: pw, title: "Retry failed webhook deliveries",
-                              lastActivity: minutes(11), accountName: "team", gitBranch: "fix/payment-webhooks"),
+                              lastActivity: minutes(11), accountName: team, gitBranch: "fix/payment-webhooks"),
             ],
             liveProcesses: [
-                LiveProcess(pid: 5202, sessionId: "s-pw-1", cwd: pw, status: "waiting", accountName: "team",
+                LiveProcess(pid: 5202, sessionId: "s-pw-1", cwd: pw, status: "waiting", accountName: team,
                             startedAt: minutes(38)),
             ],
             cmuxWorkspaces: [])
@@ -375,9 +370,9 @@ enum DemoFixture {
             parentName: nil,
             sessions: [
                 ClaudeSession(id: "s-sv-1", cwd: sv, title: "Search relevance tuning",
-                              lastActivity: day(3), accountName: "team", gitBranch: "feat/search-v2"),
+                              lastActivity: day(3), accountName: team, gitBranch: "feat/search-v2"),
                 ClaudeSession(id: "s-sv-2", cwd: sv, title: "Index rebuild job",
-                              lastActivity: day(5), accountName: "work", gitBranch: "feat/search-v2"),
+                              lastActivity: day(5), accountName: work, gitBranch: "feat/search-v2"),
             ],
             liveProcesses: [], cmuxWorkspaces: [])
 
@@ -392,7 +387,7 @@ enum DemoFixture {
             parentName: nil,
             sessions: [
                 ClaudeSession(id: "s-la-1", cwd: la, title: "Autumn sale hero copy",
-                              lastActivity: day(22), accountName: "personal", gitBranch: "feat/landing-autumn-sale"),
+                              lastActivity: day(22), accountName: personal, gitBranch: "feat/landing-autumn-sale"),
             ],
             liveProcesses: [], cmuxWorkspaces: [])
 
@@ -404,7 +399,7 @@ enum DemoFixture {
                                dirtyCount: 0, lastCommitDate: day(8), lastCommitSubject: "audit log table"),
             sessions: [
                 ClaudeSession(id: "s-al-1", cwd: loosePath, title: "Audit log spike",
-                              lastActivity: day(8), accountName: "personal", gitBranch: "spike/audit-log"),
+                              lastActivity: day(8), accountName: personal, gitBranch: "spike/audit-log"),
             ],
             liveProcesses: [], cmuxWorkspaces: [])
 
@@ -436,12 +431,12 @@ enum DemoFixture {
             parentName: nil,
             sessions: [
                 ClaudeSession(id: "s-fn-1", cwd: root + "/offline-sync", title: "Offline sync conflict resolution",
-                              lastActivity: now.addingTimeInterval(-5_400), accountName: "personal",
+                              lastActivity: now.addingTimeInterval(-5_400), accountName: personal,
                               gitBranch: "feat/offline-sync"),
             ],
             liveProcesses: [
                 LiveProcess(pid: 5303, sessionId: "s-fn-1", cwd: root + "/offline-sync", status: "waiting",
-                            accountName: "personal", startedAt: now.addingTimeInterval(-7_200)),
+                            accountName: personal, startedAt: now.addingTimeInterval(-7_200)),
             ],
             cmuxWorkspaces: [])
         return ProjectSnapshot(project: project, repos: [notesRepo("notes-ios"), notesRepo("notes-sync")],
@@ -507,19 +502,21 @@ enum DemoFixture {
                           sevenDay: CapturedWindow(usedPercentage: week, resetsAt: reset(weekReset)),
                           sevenDaySonnet: nil)
         }
+        // The limits each capture carries are the notch's, as in Brow's screenshots.
+        let (p, w, t) = (DemoAccounts.personal, DemoAccounts.work, DemoAccounts.team)
         return [
-            "work": [snap("work", "s-co-1", workspace: "checkout-redesign", ago: 240,
-                          modelId: "claude-opus-4-8", model: "Opus 4.8", effort: "high", context: 47,
-                          tokens: 212_400, cost: 7.18, five: 64, fiveReset: 1.4 * 3_600,
-                          week: 41, weekReset: 3.2 * 86_400)],
-            "team": [snap("team", "s-pw-1", workspace: "fix-payment-webhooks", ago: 660,
-                          modelId: "claude-sonnet-4-6", model: "Sonnet 4.6", effort: "medium", context: 23,
-                          tokens: 88_900, cost: 1.42, five: 22, fiveReset: 3.6 * 3_600,
-                          week: 78, weekReset: 1.1 * 86_400)],
-            "personal": [snap("personal", "s-co-2", workspace: "checkout-redesign", ago: 86_400,
-                              modelId: "claude-sonnet-4-6", model: "Sonnet 4.6", effort: "medium", context: 61,
-                              tokens: 143_000, cost: 2.05, five: 8, fiveReset: 4.5 * 3_600,
-                              week: 19, weekReset: 5.4 * 86_400)],
+            work: [snap(work, "s-co-1", workspace: "checkout-redesign", ago: 240,
+                        modelId: "claude-opus-4-8", model: "Opus 4.8", effort: "high", context: 47,
+                        tokens: 212_400, cost: 7.18, five: w.fiveHour, fiveReset: w.fiveHourResetHours * 3_600,
+                        week: w.weekly, weekReset: w.weeklyResetDays * 86_400)],
+            team: [snap(team, "s-pw-1", workspace: "fix-payment-webhooks", ago: 660,
+                        modelId: "claude-sonnet-4-6", model: "Sonnet 4.6", effort: "medium", context: 23,
+                        tokens: 88_900, cost: 1.42, five: t.fiveHour, fiveReset: t.fiveHourResetHours * 3_600,
+                        week: t.weekly, weekReset: t.weeklyResetDays * 86_400)],
+            personal: [snap(personal, "s-co-2", workspace: "checkout-redesign", ago: 86_400,
+                            modelId: "claude-sonnet-4-6", model: "Sonnet 4.6", effort: "medium", context: 61,
+                            tokens: 143_000, cost: 2.05, five: p.fiveHour, fiveReset: p.fiveHourResetHours * 3_600,
+                            week: p.weekly, weekReset: p.weeklyResetDays * 86_400)],
         ]
     }
 

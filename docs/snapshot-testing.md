@@ -16,7 +16,8 @@ temp dir beside its config file); see the coverage matrix in that file.
 Ages are relative to render-time `Date()`, so badge buckets stay truthful.
 
 The notch, the Settings window and the README's pictures are rendered by the two
-`DemoScreenshotTests` instead:
+`DemoScreenshotTests` instead, from one set of made-up accounts (`Tests/DemoFixture`)
+so the notch's and Workspaces' pictures agree:
 
     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
 

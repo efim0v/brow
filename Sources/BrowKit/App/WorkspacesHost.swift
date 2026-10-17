@@ -30,12 +30,29 @@ public final class WorkspacesHost: ObservableObject {
     private let groveGuard: GroveAppGuard
     private let groveConfigExists: () -> Bool
     private let groveDefaults: () -> UserDefaults?
+    private let watchRunningApps: RunningAppsWatch
     private var controller: WorkspacesMenuBarController?
-    private var observers: [any NSObjectProtocol] = []
+    /// Keeps the running-apps watch alive while started.
+    private var runningAppsWatch: AnyObject?
+    /// Grove.app instances `quitGrove()` asked to quit, watched until they have.
+    private var quitting: [ObjectIdentifier: NSKeyValueObservation] = [:]
     private var cancellables: Set<AnyCancellable> = []
     /// Keeps the notch's scan in step with the folders Workspaces knows.
     private var accountsWatch: AnyCancellable?
     private var started = false
+
+    /// Starts telling `onChange` about every app that launches or quits, for as long as
+    /// the returned object is kept.
+    public typealias RunningAppsWatch = @MainActor (_ onChange: @escaping @MainActor @Sendable () -> Void) -> AnyObject
+
+    /// NSWorkspace's list of running apps, observed. Not its launch and quit
+    /// notifications: those leave out apps that run as agents (`LSUIElement`), which
+    /// Grove.app is, as Brow is. The list is complete, and documented as observable.
+    public static let watchWorkspaceApps: RunningAppsWatch = { onChange in
+        NSWorkspace.shared.observe(\.runningApplications, options: [.new, .old]) { _, _ in
+            Task { @MainActor in onChange() }
+        }
+    }
 
     public init(store: LimitsStore,
                 folders: WorkspacesFolders = .live(),
@@ -43,28 +60,24 @@ public final class WorkspacesHost: ObservableObject {
                     NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
                 }),
                 groveConfigExists: (() -> Bool)? = nil,
-                groveDefaults: @escaping () -> UserDefaults? = { UserDefaults(suiteName: GroveAppGuard.bundleIdentifiers[0]) }) {
+                groveDefaults: @escaping () -> UserDefaults? = { UserDefaults(suiteName: GroveAppGuard.bundleIdentifiers[0]) },
+                watchRunningApps: RunningAppsWatch? = nil) {
         self.store = store
         self.folders = folders
         self.groveGuard = groveGuard
         let configPath = folders.configFile.path
         self.groveConfigExists = groveConfigExists ?? { FileManager.default.fileExists(atPath: configPath) }
         self.groveDefaults = groveDefaults
+        self.watchRunningApps = watchRunningApps ?? Self.watchWorkspaceApps
     }
 
     /// Decides once, then again whenever Grove.app launches or quits, or the settings
-    /// that decide change.
+    /// that decide change — and at every background tick of the engine, in case a
+    /// launch or a quit went unreported.
     public func start() {
         guard !started else { return }
         started = true
-        let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-                guard GroveAppGuard.isGrove(app?.bundleIdentifier) else { return }
-                Task { @MainActor in self?.refresh() }
-            })
-        }
+        runningAppsWatch = watchRunningApps { [weak self] in self?.refreshIfChanged() }
         // `@Published` fires in willSet: the new value is the argument, not the store's.
         store.$settings
             .map(\.workspaces)
@@ -77,9 +90,8 @@ public final class WorkspacesHost: ObservableObject {
     }
 
     public func stop() {
-        let center = NSWorkspace.shared.notificationCenter
-        for observer in observers { center.removeObserver(observer) }
-        observers.removeAll()
+        runningAppsWatch = nil
+        quitting.removeAll()
         cancellables.removeAll()
         controller?.stop()
         controller = nil
@@ -89,6 +101,19 @@ public final class WorkspacesHost: ObservableObject {
     /// Re-decides from the current settings, the Grove config and Grove.app.
     public func refresh() {
         apply(workspaces: store.settings.workspaces)
+    }
+
+    /// What `decide` says now, from the current settings, the Grove config and Grove.app.
+    private var decision: WorkspacesActivation {
+        WorkspacesActivation.decide(setting: store.settings.workspaces.enabled,
+                                    groveConfigExists: groveConfigExists(),
+                                    groveRunning: groveGuard.isGroveRunning)
+    }
+
+    /// An app launched or quit: re-decides only if that changes the answer, since most
+    /// of them are not Grove.
+    func refreshIfChanged() {
+        if decision != activation { refresh() }
     }
 
     private func apply(workspaces settings: WorkspacesSettings) {
@@ -148,6 +173,9 @@ public final class WorkspacesHost: ObservableObject {
         // Brow asks before it edits an account's settings.json: capture is turned on
         // per account, in Settings › Accounts, or kept where Grove had it on.
         state.capturesByDefault = false
+        // Never two engines writing one config.json: a Grove.app that started since the
+        // last decision stops every write until Workspaces has paused.
+        state.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
         // The pickers show each account's limits, from the notch's own readings.
         state.limitsProvider = store
         state.onPanelMaterialChange = { [weak self] style in self?.setPanelMaterial(style) }
@@ -164,6 +192,13 @@ public final class WorkspacesHost: ObservableObject {
             state: state, icon: BrowMark.templateImage(), fallbackTitle: "Brow",
             accessibilityLabel: "Brow Workspaces", showsStatusItem: store.settings.workspaces.showInMenuBar)
         controller.onVisibilityChange = { [weak self] visible in self?.onPanelVisibilityChange?(visible) }
+        // Every background tick re-checks for Grove.app first: a tick that finds it pauses
+        // Workspaces instead of running.
+        controller.tickGate = { [weak self] in
+            guard let self else { return false }
+            self.refreshIfChanged()
+            return self.activation == .on
+        }
         self.controller = controller
         return controller
     }
@@ -176,11 +211,27 @@ public final class WorkspacesHost: ObservableObject {
         refresh()
     }
 
-    /// Asks Grove.app to quit; Workspaces starts when it has.
+    /// Asks Grove.app to quit; Workspaces starts when it has — told by the app itself,
+    /// as well as by the running-apps watch.
     public func quitGrove() {
         for app in NSWorkspace.shared.runningApplications where GroveAppGuard.isGrove(app.bundleIdentifier) {
+            let id = ObjectIdentifier(app)
+            if quitting[id] == nil {
+                quitting[id] = app.observe(\.isTerminated, options: [.new]) { [weak self] app, _ in
+                    guard app.isTerminated else { return }
+                    Task { @MainActor in
+                        self?.quitting[id] = nil
+                        self?.refresh()
+                    }
+                }
+            }
             app.terminate()
         }
+    }
+
+    /// One background tick of the engine, as its timer runs it; for tests.
+    func backgroundTick() async {
+        await controller?.runBackgroundTick()
     }
 
     /// Offscreen renders and tests: this state and activation, nothing started.

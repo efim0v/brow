@@ -201,6 +201,11 @@ public final class AppState: ObservableObject {
     /// files are only edited when they asked for it.
     public var capturesByDefault = true
 
+    /// Asked before the engine writes Grove's `config.json` or the transcript safety net;
+    /// false refuses the write. A host that knows of another engine writing the same
+    /// files — Grove.app, still running — says no until that has stopped.
+    public var mayWrite: (() -> Bool)?
+
     /// The host keeps the panel's material in its own settings: the in-panel picker
     /// hands a change to it here (and the host sets `WindowSubstrateStyle.current`).
     public var onPanelMaterialChange: ((WindowSubstrateStyle) -> Void)?
@@ -299,6 +304,10 @@ public final class AppState: ObservableObject {
     // MARK: - Persistence
 
     private func persist() {
+        if let mayWrite, !mayWrite() {
+            actionError = "Not saved: Grove.app is running and writes the same settings. Quit Grove, then make the change again."
+            return
+        }
         do {
             try configStore.save(config)
         } catch {
@@ -994,6 +1003,7 @@ extension AppState {
 
     @discardableResult
     private func reconcileTranscripts(restore: RestoreMode) async -> ReconcileReport? {
+        if let mayWrite, !mayWrite() { return nil }
         let retention = folders.claudeRetention
         let dirsByAccount = accountDirs()
         let enabled = config.transcriptMirror.enabled && canonicalAccount != nil

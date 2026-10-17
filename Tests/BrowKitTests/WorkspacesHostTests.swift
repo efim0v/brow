@@ -107,6 +107,101 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertFalse(host.state === whilePaused, "a new state, read after Grove quit")
     }
 
+    // MARK: - Grove.app launching or quitting while Brow runs
+
+    /// Running apps as a test drives them: Grove's flag, and the running-apps watch the
+    /// host installs, which the test fires the way NSWorkspace's list would.
+    private final class RunningApps: @unchecked Sendable {
+        var grove = false
+        var onChange: (@MainActor @Sendable () -> Void)?
+        weak var token: NSObject?
+    }
+
+    private func makeWatchedHost(_ apps: RunningApps, store: LimitsStore) -> WorkspacesHost {
+        let host = WorkspacesHost(store: store, folders: folders,
+                                  groveGuard: GroveAppGuard(runningBundleIdentifiers: {
+                                      apps.grove ? ["dev.artemefimov.grove3"] : ["dev.artemefimov.brow"]
+                                  }),
+                                  groveConfigExists: { true }, groveDefaults: { nil },
+                                  watchRunningApps: { onChange in
+                                      apps.onChange = onChange
+                                      let token = NSObject()
+                                      apps.token = token
+                                      return token
+                                  })
+        addTeardownBlock { @MainActor in host.stop() }
+        return host
+    }
+
+    /// Grove.app started after Brow (both login items, say): the running-apps list
+    /// changes, and Workspaces pauses at once; when Grove quits, it runs again. No one
+    /// calls `refresh()`.
+    func testGroveStartingOrQuittingIsNoticedWithoutARefresh() throws {
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore())
+        host.start()
+        XCTAssertEqual(host.activation, .on)
+        XCTAssertNotNil(apps.onChange, "the host watches the running apps")
+
+        apps.grove = true
+        apps.onChange?()
+        XCTAssertEqual(host.activation, .paused)
+        XCTAssertFalse(host.isEngineRunning)
+
+        apps.grove = false
+        apps.onChange?()
+        XCTAssertEqual(host.activation, .on)
+        XCTAssertTrue(host.isEngineRunning)
+    }
+
+    /// Some other app launching changes nothing: the engine is not restarted.
+    func testAnotherAppLaunchingLeavesTheEngineAlone() throws {
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore())
+        host.start()
+        let state = try XCTUnwrap(host.state)
+        apps.onChange?()
+        XCTAssertTrue(host.state === state)
+        XCTAssertTrue(host.isEngineRunning)
+    }
+
+    /// A launch nothing reported is caught at the next background tick, which then
+    /// pauses Workspaces instead of running.
+    func testABackgroundTickChecksForGroveFirst() async throws {
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore())
+        host.start()
+        XCTAssertTrue(host.isEngineRunning)
+        apps.grove = true
+        await host.backgroundTick()
+        XCTAssertEqual(host.activation, .paused)
+        XCTAssertFalse(host.isEngineRunning)
+    }
+
+    /// And until then, nothing is written to Grove's config: Grove.app writes it too.
+    func testNoConfigWriteWhileGroveRuns() throws {
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore())
+        host.start()
+        let state = try XCTUnwrap(host.state)
+        apps.grove = true
+        state.addProject(at: "/Users/demo/Code/shop")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folders.configFile.path), "nothing saved")
+        XCTAssertTrue(state.actionError?.contains("Grove.app is running") == true, state.actionError ?? "")
+        apps.grove = false
+        state.addProject(at: "/Users/demo/Code/notes")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folders.configFile.path))
+    }
+
+    func testStoppingReleasesTheWatch() throws {
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore())
+        host.start()
+        XCTAssertNotNil(apps.token)
+        host.stop()
+        XCTAssertNil(apps.token)
+    }
+
     /// Workspaces' accounts outside the usual folders join the notch's scan, and the
     /// pickers read the notch's numbers.
     func testWorkspacesAccountsJoinTheScanAndThePickersReadTheStore() throws {

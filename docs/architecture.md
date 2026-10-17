@@ -30,6 +30,8 @@ The module names `GroveCore` and `GroveAppKit` are kept for 0.4.0 so history and
 - **on** — when Brow's own setting says so, or, before the user has chosen, when `~/Library/Application Support/Grove/config.json` exists. The host creates the state with `capturesByDefault = false`, the menu-bar controller and the engine (`startEngine()`: adopting signed-in folders, the first capture read, account names, the 90 s cadence of captures and safety net, the offscreen pre-render).
 - **paused** — wanted, but Grove.app (`dev.artemefimov.grove3`, or the older `dev.artemefimov.grove`) is running. No engine runs; the panel says why and offers **Quit Grove**. Two engines would race on Grove's `config.json` (an atomic replace, the last writer wins) and run two safety nets. Leaving pause, the host reads the config afresh.
 
+Grove.app starting or quitting while Brow runs is seen through NSWorkspace's `runningApplications`, observed: its launch and quit notifications leave out agent apps (`LSUIElement`), which Grove.app is. The engine's 90 s tick checks again before it runs, **Quit Grove** watches the app it asked to quit, and `AppState.mayWrite` refuses a config write in the moment before Workspaces has paused.
+
 The notch panel's Workspaces button collapses the notch and latches its hover off until the pointer has left the expanded area once (`NotchHoverLatch`): the notch's window sits above the Workspaces panel, which opens right under it. The Workspaces panel hangs under its menu-bar item, or at the screen's top-right corner when macOS hides the item (`PanelAnchor`).
 
 ## Files on disk

@@ -101,6 +101,10 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
         didSet { host?.rootView = rootContent() }
     }
 
+    /// Asked before each background tick; false skips it. A host re-checks there whatever
+    /// decides that the engine may run, and may stop the engine from inside it.
+    public var tickGate: (() -> Bool)?
+
     /// Whether the menu-bar item exists. Turning it off removes the item; the panel can
     /// still be shown with `show(at:)`.
     public var showsStatusItem: Bool {
@@ -151,18 +155,24 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
         backgroundTimer = Timer.scheduledTimer(withTimeInterval: 90, repeats: true) { [weak self] _ in
             // The timer's closure is Sendable; the state is the main actor's, so the
             // check runs inside the main-actor task, not out here.
-            Task { @MainActor in
-                // Skip while the panel is open — RootView's 15s loop already refreshes,
-                // so the two cadences never overlap (which could land out-of-order and
-                // overwrite newer data).
-                guard let self, self.isEngineRunning, !self.state.isPanelOpen else { return }
-                await self.state.refreshUsage(now: Date())
-                await self.state.reconcileTranscripts()
-            }
+            Task { @MainActor in await self?.runBackgroundTick() }
         }
         // Warm the heavier screens offscreen shortly after launch so the first
         // navigation is snappy (deferred so the menu-bar icon appears instantly).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { SnapshotMode.prewarm() }
+    }
+
+    /// The captures and the transcript safety net, every 90 s while the engine runs.
+    /// Skipped while the panel is open — RootView's 15 s loop already refreshes, so the
+    /// two cadences never overlap (which could land out of order and overwrite newer
+    /// data) — and when the host's `tickGate` says no.
+    public func runBackgroundTick() async {
+        guard isEngineRunning, !state.isPanelOpen else { return }
+        if let tickGate, !tickGate() { return }
+        // The gate may have stopped the engine.
+        guard isEngineRunning else { return }
+        await state.refreshUsage(now: Date())
+        await state.reconcileTranscripts()
     }
 
     /// Stops the background cadence and closes the panel (whose refresh loop is engine

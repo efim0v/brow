@@ -110,7 +110,7 @@ Workspaces 部分，只在你开启它之后（或 Brow 找到 Grove 的设置�
 
 - **只有在 Settings → Accounts 中为某个账号开启 Capture the status line 后，它才会修改该账号的 `settings.json`**（Grove 已经在捕获的账号保持不变）。它会把 `statusLine.command` 指向 Brow 的包装脚本：脚本记录每个会话的模型、上下文用量和限额，然后把同样的输入交给你原来的命令，所以你自己的状态栏照常工作。关闭后会恢复你原来的命令。
 - **为账号开启会话共享会把它的会话文件移入 `~/.claude`**。任何会被覆盖的内容都会先备份到 `<账号>/grove-backup/` 下。
-- **转录安全网默认关闭，除非你开启它**（Grove 的设置会保留）。开启后，Brow 会在 `~/.claude/grove/transcripts/` 下为每份转录保留一个硬链接，这样意外删除的转录可以恢复。它绝不会保留或恢复比 Claude Code 自己保留期限还旧的转录（[`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)，从账号设置和你所在组织的托管设置中读取），并且还会再提前一天。
+- **转录安全网默认关闭，除非你开启它**（Grove 的设置会保留）。开启后，Brow 会在 `~/.claude/grove/transcripts/` 下为每份转录保留一个硬链接。消失的转录会列在 Settings → Workspaces 中，只有在你点击 **Restore** 后才会恢复。任何转录的保存时间都不会超过 Claude Code 自己的保留期限：[`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)，取你所在组织的托管设置、账号设置以及该账号的会话运行过的各个项目文件夹的项目设置中最短的一个（多个账号共享的工作区，取所有这些账号中最短的期限）；距期限结束不到一天的转录也不会提供恢复。Brow 唯一无法看到的，是通过 `--settings` 传给 `claude` 的期限。
 - **它会在你的仓库中运行 git**：创建工作区时在每个仓库里执行 `git worktree add` 并创建分支，以及运行你配置的创建后钩子。它从不自行删除 worktree 或分支。
 - **它会操控 cmux**：通过 cmux 的套接字（如果 cmux 需要，会使用 `~/.config/cmux/cmux.json` 中的密码），以及通过 AppleScript，macOS 会询问你一次是否允许。
 - **只有在你要求时才使用 `--dangerously-skip-permissions`**，可以按项目或按单次启动设置。
@@ -156,7 +156,7 @@ Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打�
 - **先退出 Grove.app**。它运行期间，Workspaces 会等待，并提供 **Quit Grove**，以免两者同时写同一批文件。然后删除 `Grove.app`（或运行 `brew uninstall --cask grove`）；如果你把它加入过登录项，请在那里移除，并改为在 Brow 中开启 **Launch at login**。
 - **东西都去了哪里**。菜单栏里的树变成了 Brow 的标志：带两个点的刘海。面板的设置页移到了 **Settings → Workspaces**；添加账号、共享会话和捕获状态栏移到了 **Settings → Accounts**，在那里用 Brow 的一键 **Sign in…** 添加账号。各项目自己的设置仍在面板中。
 - **命令行工具现在叫 `brow`**。`brow-cli.zip` 安装 `brow`，并以 `grove` 作为第二个名字，所以你的脚本无需修改即可继续使用。
-- **转录安全网现在止步于 Claude Code 的保留期限**。以前它会恢复任何不到 90 天的转录，包括被 Claude Code 自己的清理删除的转录。
+- **转录安全网不再自行恢复转录**。以前它会自行恢复任何不到 90 天的转录，包括被 Claude Code 自己的清理删除的转录。现在它不会保留超过 Claude Code 保留期限的转录，消失的转录会列在 Settings → Workspaces 中，并附有 **Restore** 按钮。
 
 ## 常见问题
 

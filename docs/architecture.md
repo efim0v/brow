@@ -46,7 +46,7 @@ Nothing moved in 0.4.0. Brow keeps its own folder; Workspaces keeps Grove's.
 | Status-line wrappers | `…/Grove/bin/grove-statusline-<dir>.sh` | Workspaces. Never moved: every captured account's `settings.json` names its script by absolute path |
 | Code statistics | `…/Grove/stats/<project>.json` | Workspaces |
 | Status-line captures | `<account>/grove/usage/<session>.json` | the wrapper |
-| Transcript safety net | `~/.claude/grove/transcripts/<accountKey>/<cwd>/<id>.jsonl` | Workspaces, within Claude Code's retention |
+| Transcript safety net | `~/.claude/grove/transcripts/<accountKey>/<cwd>/<id>.jsonl` | Workspaces, within Claude Code's retention; put back only on Restore |
 | Shared-store links and backups | `<account>/{file-history,tasks,session-env}`, `projects/<cwd>`; `<account>/grove-backup/` | Workspaces |
 
 ## Contracts

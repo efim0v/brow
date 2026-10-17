@@ -25,13 +25,14 @@ Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees
 
 - Capturing an account's status line is a choice per account. Grove installed its wrapper into every account's `settings.json` at launch; Brow installs it only where you turn capture on, and keeps it where Grove already had it.
 - The transcript safety net is off for a setup Brow creates; a Grove setup keeps its setting.
+- The transcript safety net no longer puts a transcript back by itself. The transcripts that vanish are listed in Settings → Workspaces, newest first, with Restore: a period passed to `claude --settings` cannot be read from outside, so only you can tell a transcript deleted by accident from one cleaned up on purpose.
 - Sessions Workspaces starts use Brow's own browser router and Settings → General → Path to claude.
 - Brow's settings decode field by field: a value that cannot be read costs that one setting instead of all of them, and the file as it was is kept as `config.json.bak` ([#7](https://github.com/efim0v/brow/issues/7)).
 - One log subsystem, `dev.artemefimov.brow`, for the whole app.
 
 ### Fixed
 
-- The transcript safety net no longer brings back transcripts Claude Code's own retention deleted. It restored every mirrored transcript under 90 days old; it now reads `cleanupPeriodDays` from the account's settings, server-managed settings and your organization's managed settings, takes the shortest, and keeps or restores nothing past it ([efim0v/grove#6](https://github.com/efim0v/grove/issues/6)).
+- The transcript safety net no longer brings back, or keeps, transcripts Claude Code's own retention deleted. It restored every mirrored transcript under 90 days old; it now reads `cleanupPeriodDays` from your organization's managed settings, server-managed settings, the account's settings and the project settings of every folder the account's sessions ran in, takes the shortest — for a workspace shared between accounts, the shortest of all of theirs — and keeps nothing past it. Migrate to… follows the same rule when it falls back on the safety net's copy ([efim0v/grove#6](https://github.com/efim0v/grove/issues/6)).
 - Opening Accounts no longer shows a red "unknown session store" banner for the folders Claude Code itself writes ([efim0v/grove#7](https://github.com/efim0v/grove/issues/7)).
 - Launch no longer re-creates an account folder you deleted ([efim0v/grove#12](https://github.com/efim0v/grove/issues/12)).
 - Reading a token through the `security` tool gives up after ten seconds, as it was meant to ([efim0v/grove#9](https://github.com/efim0v/grove/issues/9)).

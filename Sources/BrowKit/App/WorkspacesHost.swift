@@ -229,9 +229,9 @@ public final class WorkspacesHost: ObservableObject {
     }
 
     /// What `account` is called where the notch shows it, with or without the engine: the
-    /// name from Settings › Accounts, else Grove's own.
+    /// name from Settings › Accounts, else Grove's own — as the engine names it.
     public func displayName(for account: AccountConfig) -> String {
-        store.label(forConfigDirs: account.allConfigDirs.map(expandTilde))?.name ?? account.name
+        store.displayName(for: account, among: dormantAccounts)
     }
 
     /// Re-reads `dormantAccounts` from Grove's config. Reads only: no engine starts, and
@@ -312,6 +312,8 @@ public final class WorkspacesHost: ObservableObject {
         let engine = AppState(folders: folders)
         engine.capturesByDefault = false
         engine.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
+        // What goes wrong names the account as Settings does.
+        engine.limitsProvider = store
         let failure = engine.attempt { change(engine) }
         reloadDormantAccounts()
         return failure

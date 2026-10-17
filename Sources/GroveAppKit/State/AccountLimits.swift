@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Artem Efimov
 
 import Foundation
+import GroveCore
 
 /// One account's use of its 5-hour and weekly limits as the host app last read them —
 /// Brow's notch — for the account pickers: "which account has room" next to "move the
@@ -59,4 +60,18 @@ public protocol AccountLimitsProviding: AnyObject {
 
 public extension AccountLimitsProviding {
     func label(forConfigDirs dirs: [String]) -> AccountLabel? { nil }
+
+    /// What `account`, one of Grove's `accounts`, is called: the host's name for it, else
+    /// Grove's own. Two of Grove's accounts can get one name from the host — two folders of
+    /// an organisation the notch shows as one account — and would then read alike in every
+    /// picker. Only the first keeps the host's name, as Settings › Accounts gives the
+    /// notch's card the first; the others keep Grove's own names, which tell them apart.
+    func displayName(for account: AccountConfig, among accounts: [AccountConfig]) -> String {
+        func hostName(_ account: AccountConfig) -> String? {
+            label(forConfigDirs: account.allConfigDirs.map(expandTilde))?.name
+        }
+        guard let name = hostName(account) else { return account.name }
+        let first = accounts.first { hostName($0) == name }
+        return first == nil || first?.name == account.name ? name : account.name
+    }
 }

@@ -227,9 +227,10 @@ public final class AppState: ObservableObject {
     /// What the account is called wherever Workspaces shows it — pickers, session rows,
     /// the Accounts screen: the host's name for it, the one the notch shows, else the name
     /// in Grove's config (its email, as the engine names accounts). The config name stays
-    /// the account's key; only what is shown follows the host.
+    /// the account's key; only what is shown follows the host. A second account the host
+    /// names the same keeps its config name (`AccountLimitsProviding.displayName`).
     public func displayName(for account: AccountConfig) -> String {
-        limitsProvider?.label(forConfigDirs: account.allConfigDirs.map(expandTilde))?.name ?? account.name
+        limitsProvider?.displayName(for: account, among: config.accounts) ?? account.name
     }
 
     /// The same for a session's or a row's account, which they carry by its config name.

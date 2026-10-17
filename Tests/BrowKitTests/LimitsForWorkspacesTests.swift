@@ -67,6 +67,20 @@ final class LimitsForWorkspacesTests: XCTestCase {
         XCTAssertNil(store.label(forConfigDirs: ["/x/nobody"]))
     }
 
+    /// The notch shows one organisation's folders as one account, which Grove may hold as
+    /// two: only the first is called by the notch's name, so the two read apart.
+    func testTwoWorkspacesAccountsOfOneCardReadApart() throws {
+        let store = try makeStore(now: Date())
+        store.preview(accounts: [DiscoveredAccount(organizationUuid: "org-work", email: "w@example.com", tier: nil,
+                                                   configDir: "/x/work", aliasDirs: ["/x/work-2"], tokenExpiresAt: nil)])
+        store.settings.accounts["org-work"] = AccountOverride(name: "Work", hidden: false)
+        let accounts = [AccountConfig(name: "w@example.com", configDir: "/x/work"),
+                        AccountConfig(name: "s@example.com", configDir: "/x/work-2")]
+        XCTAssertEqual(accounts.map { store.label(forConfigDirs: $0.allConfigDirs)?.name }, ["Work", "Work"],
+                       "fixture: one card for both")
+        XCTAssertEqual(accounts.map { store.displayName(for: $0, among: accounts) }, ["Work", "s@example.com"])
+    }
+
     func testAnOldReadingIsMarkedStale() throws {
         let store = try makeStore(now: Date(), readingAge: 3_600)
         XCTAssertEqual(store.limits(forConfigDirs: ["/x/work"])?.stale, true)

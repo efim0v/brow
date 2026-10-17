@@ -69,4 +69,38 @@ final class AccountLimitsTests: XCTestCase {
         XCTAssertEqual(state.displayName(for: old), "old", "an account the host does not know keeps its name")
         XCTAssertEqual(state.displayName(forAccountNamed: "gone"), "gone")
     }
+
+    /// One organisation in two folders, which the notch shows as one account, "Work".
+    private final class OneCardProvider: AccountLimitsProviding {
+        func limits(forConfigDirs dirs: [String]) -> AccountLimits? { nil }
+        func label(forConfigDirs dirs: [String]) -> AccountLabel? {
+            dirs.contains { $0 == "/x/work" || $0 == "/x/work-2" } ? AccountLabel(name: "Work", plan: "Team") : nil
+        }
+    }
+
+    /// Two of Grove's accounts the notch shows as one would both read "Work" in every
+    /// picker and session row. The first keeps the notch's name, as Settings › Accounts
+    /// joins the first to the card; the other keeps Grove's own, the name Settings lists
+    /// it under.
+    func testTwoAccountsTheHostShowsAsOneStayApart() throws {
+        let url = try FixtureLite.tempDir("one-card").appendingPathComponent("config.json")
+        let state = AppState(configStore: ConfigStore(url: url))
+        let alex = AccountConfig(name: "alex@example.com", configDir: "/x/work")
+        let sam = AccountConfig(name: "sam@example.com", configDir: "/x/work-2")
+        let solo = AccountConfig(name: "solo", configDir: "/x/solo")
+        state.config.accounts = [alex, sam, solo]
+        let provider = OneCardProvider()
+        state.limitsProvider = provider
+
+        XCTAssertEqual(state.displayName(for: alex), "Work")
+        XCTAssertEqual(state.displayName(for: sam), "sam@example.com")
+        XCTAssertEqual(state.displayName(forAccountNamed: "sam@example.com"), "sam@example.com", "a session's account")
+        XCTAssertEqual(state.menuTitle("Resume as", sam), "Resume as sam@example.com")
+        XCTAssertEqual(state.plan(for: sam), "Team", "the plan is the organisation's all the same")
+        XCTAssertEqual(state.displayName(for: solo), "solo")
+
+        state.config.accounts = [sam, alex, solo]
+        XCTAssertEqual(state.displayName(for: sam), "Work", "the first in Grove's config keeps the notch's name")
+        XCTAssertEqual(state.displayName(for: alex), "alex@example.com")
+    }
 }

@@ -238,7 +238,7 @@ cp -R dist/Brow.app /Applications/
 | `Sources/BrowApp` | 入口 |
 | `Sources/brow-cli` | 命令行工具 `brow` |
 | `Resources` | 应用图标、按账号区分的浏览器路由脚本、Info.plist 模板 |
-| `Tests` | 约 1320 个测试 |
+| `Tests` | 约 1350 个测试 |
 | `docs` | [刘海详解](docs/brow.md)、[Workspaces](docs/workspaces.md)、[架构](docs/architecture.md)、[故障排除](docs/troubleshooting.md)（均为英文） |
 
 没有任何第三方依赖。模块名 `GroveCore` 和 `GroveAppKit` 来自 Grove，本仓库包含了它的历史。

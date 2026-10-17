@@ -236,7 +236,7 @@ The app is signed ad hoc by default. macOS then forgets the Keychain and Automat
 | `Sources/BrowApp` | Entry point |
 | `Sources/brow-cli` | The `brow` command-line tool |
 | `Resources` | The app icon, the per-account browser router, the Info.plist template |
-| `Tests` | About 1,320 tests |
+| `Tests` | About 1,350 tests |
 | `docs` | [The notch in detail](docs/brow.md), [Workspaces](docs/workspaces.md), [architecture](docs/architecture.md), [troubleshooting](docs/troubleshooting.md) |
 
 There are no third-party dependencies. The module names `GroveCore` and `GroveAppKit` come from Grove, whose history this repository includes.

@@ -238,7 +238,7 @@ cp -R dist/Brow.app /Applications/
 | `Sources/BrowApp` | Точка входа |
 | `Sources/brow-cli` | Утилита командной строки `brow` |
 | `Resources` | Значок приложения, маршрутизатор браузера по аккаунтам, шаблон Info.plist |
-| `Tests` | Около 1320 тестов |
+| `Tests` | Около 1350 тестов |
 | `docs` | [Чёлка подробно](docs/brow.md), [Workspaces](docs/workspaces.md), [архитектура](docs/architecture.md), [решение проблем](docs/troubleshooting.md) |
 
 Сторонних зависимостей нет. Имена модулей `GroveCore` и `GroveAppKit` пришли из Grove, история которого есть в этом репозитории.

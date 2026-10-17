@@ -245,7 +245,7 @@ struct SessionsScreen: View {
             } else {
                 Menu {
                     ForEach(others, id: \.name) { targetAccount in
-                        Button("Migrate to \(targetAccount.name)") {
+                        Button(state.menuTitle("Migrate to", targetAccount)) {
                             let cwd = row.cwd
                             let sid = row.sessionId
                             let src = sourceAccount
@@ -299,7 +299,7 @@ struct SessionsScreen: View {
             } else {
                 Menu {
                     ForEach(others, id: \.name) { account in
-                        Button("Resume as \(account.name)") {
+                        Button(state.menuTitle("Resume as", account)) {
                             if isExternal {
                                 resumeExternal(row, as: account)
                             } else {

@@ -186,6 +186,11 @@ struct AccountsScreen: View {
             }
             Label("\(usage.sessionCount) sessions", systemImage: "text.bubble")
                 .foregroundStyle(.secondary)
+            if let limits = state.limits(for: account), let label = limits.label {
+                Label(label, systemImage: "gauge.with.dots.needle.50percent")
+                    .foregroundStyle(limits.stale ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+                    .help("This account's 5-hour and weekly use, as the notch last read it")
+            }
         }
         .font(.caption)
         if !usage.entries.isEmpty {

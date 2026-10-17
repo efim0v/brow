@@ -1,4 +1,5 @@
 import Foundation
+import GroveAppKit
 import GroveCore
 
 public enum AccountStatus: Sendable, Equatable {
@@ -176,6 +177,17 @@ public final class LimitsStore: ObservableObject {
         }
     }
 
+    /// Folders Workspaces knows that the scan would not find by itself (anything outside
+    /// `~/.claude` and `~/.claude-accounts`), scanned along with `settings.extraDirs`.
+    /// Not saved: they are Workspaces' own, and come back with it.
+    public var runtimeExtraDirs: [String] = []
+
+    /// Every extra folder a scan walks.
+    var scanExtraDirs: [String] {
+        var seen = Set<String>()
+        return (settings.extraDirs + runtimeExtraDirs).filter { seen.insert(expandTilde($0)).inserted }
+    }
+
     /// The path auto-detection found, or nil while it is pending / found nothing.
     public var claudeDetected: String? {
         if case .found(let path) = claudeDetection { return path }
@@ -350,7 +362,7 @@ public final class LimitsStore: ObservableObject {
     /// Keyed on `extraDirs`: a scan started before a dir was typed into Settings never
     /// looked at that dir and cannot answer for it.
     private func liveScan() -> Task<[DiscoveredAccount], Never> {
-        let dirs = settings.extraDirs
+        let dirs = scanExtraDirs
         if let live = scanInFlight, live.extraDirs == dirs {
             BrowLog.limits.info("joining the account scan already in flight")
             return live.task
@@ -593,7 +605,7 @@ public final class LimitsStore: ObservableObject {
             deps.directory.invalidate(configDir: account.configDir)
             for alias in account.aliasDirs { deps.directory.invalidate(configDir: alias) }
         }
-        deps.directory.invalidateCandidates(extraDirs: settings.extraDirs)
+        deps.directory.invalidateCandidates(extraDirs: scanExtraDirs)
     }
 
     /// One account's token upkeep and usage request, off the main actor. Sampled
@@ -965,5 +977,19 @@ public final class LimitsStore: ObservableObject {
             return "Offline"
         default: return (error as NSError).localizedDescription
         }
+    }
+}
+
+/// The account pickers in Workspaces show each account's limits: the notch's reading
+/// for the account that owns any of the folders asked about.
+extension LimitsStore: AccountLimitsProviding {
+    public func limits(forConfigDirs dirs: [String]) -> AccountLimits? {
+        let wanted = Set(dirs.map(WorkspacesAccountJoin.normalized))
+        guard let row = allRows.first(where: { row in
+            !wanted.isDisjoint(with: ([row.account.configDir] + row.account.aliasDirs).map(WorkspacesAccountJoin.normalized))
+        }), let snapshot = row.snapshot else { return nil }
+        return AccountLimits(fiveHour: snapshot.fiveHour?.usedPercentage,
+                             weekly: snapshot.sevenDay?.usedPercentage,
+                             stale: snapshot.isStale(now: deps.now()))
     }
 }

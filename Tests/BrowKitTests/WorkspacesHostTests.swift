@@ -104,6 +104,21 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertFalse(host.state === whilePaused, "a new state, read after Grove quit")
     }
 
+    /// Workspaces' accounts outside the usual folders join the notch's scan, and the
+    /// pickers read the notch's numbers.
+    func testWorkspacesAccountsJoinTheScanAndThePickersReadTheStore() throws {
+        try ConfigStore(url: folders.configFile).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
+            accounts: [AccountConfig(name: "old", configDir: "/Volumes/ext/claude-old")]))
+        let store = try makeStore()
+        let host = makeHost(store, groveConfig: true, groveRunning: false)
+        host.start()
+        XCTAssertEqual(store.runtimeExtraDirs, ["/Volumes/ext/claude-old"])
+        XCTAssertTrue(host.state?.limitsProvider === store)
+        host.setEnabled(false)
+        XCTAssertEqual(store.runtimeExtraDirs, [], "off, the scan is the notch's own again")
+    }
+
     func testTurningItOffTearsTheEngineDown() throws {
         let store = try makeStore()
         let host = makeHost(store, groveConfig: true, groveRunning: false)

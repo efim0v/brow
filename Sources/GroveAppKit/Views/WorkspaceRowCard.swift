@@ -327,7 +327,7 @@ struct WorkspaceRowCard: View {
             } else {
                 Menu {
                     ForEach(others, id: \.name) { targetAccount in
-                        Button("Migrate to \(targetAccount.name)") {
+                        Button(state.menuTitle("Migrate to", targetAccount)) {
                             let cwd = session.cwd
                             let sid = session.id
                             let src = sourceAccount

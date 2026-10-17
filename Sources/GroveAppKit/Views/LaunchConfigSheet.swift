@@ -25,7 +25,9 @@ struct LaunchConfigSheet: View {
             }
             row("Account") {
                 Picker("", selection: $request.account) {
-                    ForEach(state.config.accounts, id: \.name) { Text($0.name).tag($0.name) }
+                    // With each account's limits: the sheet is where a launch picks the
+                    // account that still has room.
+                    ForEach(state.config.accounts, id: \.name) { Text(state.menuTitle("", $0)).tag($0.name) }
                 }.pickerStyle(.menu).labelsHidden().fixedSize()
             }
             row("Model") {

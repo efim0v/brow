@@ -200,6 +200,23 @@ public final class AppState: ObservableObject {
     /// Workspaces' own (the footer's gear) or an account's (the Accounts screen).
     public var openSettings: ((WorkspacesSettingsLink) -> Void)?
 
+    /// Each account's 5-hour and weekly use, from the host (Brow's limits store), for
+    /// the account pickers. nil: no numbers, just names.
+    public weak var limitsProvider: AccountLimitsProviding?
+
+    /// What the host last read for `account`, by its config folders.
+    public func limits(for account: AccountConfig) -> AccountLimits? {
+        limitsProvider?.limits(forConfigDirs: account.allConfigDirs.map(expandTilde))
+    }
+
+    /// An account as the pickers list it: "Resume as work — 5h 42% · week 61%". The
+    /// numbers are what Brow says about room; the menu is where the work moves.
+    public func menuTitle(_ verb: String, _ account: AccountConfig) -> String {
+        let base = verb.isEmpty ? account.name : "\(verb) \(account.name)"
+        guard let label = limits(for: account)?.label else { return base }
+        return "\(base) — \(label)"
+    }
+
     /// Test observability: incremented each time `runCodeStatsScan` begins a scan. nil
     /// in production (never read); tests set it to 0 before calling `setStatsBranch`
     /// and assert it equals 1 after the debounce fires to verify coalescing.

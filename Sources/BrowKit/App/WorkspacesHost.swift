@@ -30,6 +30,8 @@ public final class WorkspacesHost: ObservableObject {
     private var controller: WorkspacesMenuBarController?
     private var observers: [any NSObjectProtocol] = []
     private var cancellables: Set<AnyCancellable> = []
+    /// Keeps the notch's scan in step with the folders Workspaces knows.
+    private var accountsWatch: AnyCancellable?
     private var started = false
 
     public init(store: LimitsStore,
@@ -100,6 +102,8 @@ public final class WorkspacesHost: ObservableObject {
             controller?.stop()
             controller = nil
             state = nil
+            accountsWatch = nil
+            store.runtimeExtraDirs = []
         case .paused:
             let controller = ensureController()
             controller.stopEngine()
@@ -115,12 +119,21 @@ public final class WorkspacesHost: ObservableObject {
                 stale.stop()
                 controller = nil
                 state = nil
+                accountsWatch = nil
             }
             let controller = ensureController()
             controller.notice = nil
             controller.showsStatusItem = settings.showInMenuBar
             controller.start()
             controller.startEngine()
+            // Accounts Workspaces knows outside ~/.claude and ~/.claude-accounts join the
+            // notch's scan, so their limits show in the pickers too.
+            if accountsWatch == nil, let state {
+                accountsWatch = state.$config
+                    .map { WorkspacesAccountJoin.extraDirs(for: $0.accounts) }
+                    .removeDuplicates()
+                    .sink { [weak store = self.store] dirs in store?.runtimeExtraDirs = dirs }
+            }
         }
         // The store's, not the argument's: importing Grove's material just changed it.
         WindowSubstrateStyle.current = WindowSubstrateStyle(stored: store.settings.workspaces.panelMaterial)
@@ -132,6 +145,8 @@ public final class WorkspacesHost: ObservableObject {
         // Brow asks before it edits an account's settings.json: capture is turned on
         // per account, in Settings › Accounts, or kept where Grove had it on.
         state.capturesByDefault = false
+        // The pickers show each account's limits, from the notch's own readings.
+        state.limitsProvider = store
         state.onPanelMaterialChange = { [weak self] style in self?.setPanelMaterial(style) }
         state.openSettings = { [weak self] link in
             self?.hidePanel()

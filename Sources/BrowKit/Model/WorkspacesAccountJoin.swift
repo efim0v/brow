@@ -18,6 +18,16 @@ public enum WorkspacesAccountJoin {
         return accounts.first { !dirs.isDisjoint(with: ([$0.configDir] + $0.aliasDirs).map(normalized)) }
     }
 
+    /// Workspaces' folders the notch's scan would not find by itself — anything outside
+    /// `~/.claude` and `~/.claude-accounts` — so they are scanned too.
+    public static func extraDirs(for accounts: [AccountConfig], home: String = NSHomeDirectory()) -> [String] {
+        var seen = Set<String>()
+        return accounts.flatMap(\.allConfigDirs).map(normalized).filter { dir in
+            guard dir != home + "/.claude", !dir.hasPrefix(home + "/.claude-accounts/") else { return false }
+            return seen.insert(dir).inserted
+        }
+    }
+
     /// Tilde expanded, no trailing slash: the form both halves compare in.
     static func normalized(_ path: String) -> String {
         var dir = expandTilde(path)

@@ -209,6 +209,25 @@ final class AppStateConfigTests: XCTestCase {
         XCTAssertEqual(reloadedConfig().accounts.map { $0.name }, ["default"])
     }
 
+    /// Removing an account (Settings offers it once its folder is gone) also clears it as
+    /// a project's default account, which then launches on the first account.
+    func testRemoveAccountClearsItAsAProjectsDefault() throws {
+        let state = try makeStateWithTempAccountsRoot()
+        state.addAccount(name: "work")
+        state.addProject(at: "/tmp/grove-shop")
+        var project = try XCTUnwrap(state.selectedProject)
+        project.defaultAccount = "work"
+        state.updateProject(project)
+        state.addProject(at: "/tmp/grove-notes")
+
+        state.removeAccount(name: "work")
+
+        XCTAssertNil(state.config.projects.first { $0.id == project.id }?.defaultAccount)
+        XCTAssertEqual(reloadedConfig().projects.compactMap(\.defaultAccount), [])
+        state.selectedProjectID = project.id
+        XCTAssertEqual(state.defaultLaunchAccount?.name, "default")
+    }
+
     /// Phase 5A: in an engine that captures by default, addAccount creates the new
     /// account's config dir and auto-installs the grove statusline wrapper there, marking
     /// it monitored — so a freshly-added account (e.g. icloud) captures usage from its

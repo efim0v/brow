@@ -27,7 +27,8 @@ public final class WorkspacesHost: ObservableObject {
     /// under Claude Code whatever Workspaces does, so Settings keeps the switch that gives
     /// it back. Empty while Workspaces is on — the engine's state has them then.
     @Published public private(set) var dormantAccounts: [AccountConfig] = []
-    /// What went wrong giving a status line back, for Settings.
+    /// What went wrong changing Grove's config while Workspaces is not on — giving a
+    /// status line back, taking out an account whose folder is gone — for Settings.
     @Published public private(set) var captureError: String?
     /// Folders picked as projects in the introduction while Workspaces could not take
     /// them — paused, with Grove.app or another copy of Brow writing the same config —
@@ -229,29 +230,48 @@ public final class WorkspacesHost: ObservableObject {
                 state.disableMonitoring(current)
             }
         case .paused:
-            captureError = Self.pausedCaptureNote(pause)
+            captureError = Self.pausedChangeNote(pause)
         case .off:
-            // Not under the feet of another copy of Brow whose engine runs on this config.
-            guard engineLock.acquire() else {
-                captureError = Self.pausedCaptureNote(.anotherBrow)
-                return
+            captureError = withoutEngine { engine in
+                if let current = engine.config.accounts.first(where: { $0.name == account.name }), current.monitoring {
+                    engine.disableMonitoring(current)
+                }
             }
-            defer { engineLock.release() }
-            let engine = AppState(folders: folders)
-            engine.capturesByDefault = false
-            engine.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
-            if let current = engine.config.accounts.first(where: { $0.name == account.name }), current.monitoring {
-                engine.disableMonitoring(current)
-                captureError = engine.actionError
-            }
-            reloadDormantAccounts()
         }
     }
 
-    /// Why a captured status line can't be given back while Workspaces is paused.
-    static func pausedCaptureNote(_ pause: WorkspacesPause?) -> String {
+    /// Takes `account` out of Workspaces' config, folder untouched: what Settings offers
+    /// for an account whose folder is gone, which nothing else can change any more.
+    public func removeAccount(_ account: AccountConfig) {
+        captureError = nil
+        switch activation {
+        case .on:
+            captureError = state.flatMap { state in state.attempt { state.removeAccount(name: account.name) } }
+        case .paused:
+            captureError = Self.pausedChangeNote(pause)
+        case .off:
+            captureError = withoutEngine { $0.removeAccount(name: account.name) }
+        }
+    }
+
+    /// Makes one change to Grove's config while Workspaces is off: a state read for just
+    /// this, no engine started, and the dormant list read again after. Not under the feet
+    /// of another copy of Brow whose engine runs on this config. Returns what went wrong.
+    private func withoutEngine(_ change: (AppState) -> Void) -> String? {
+        guard engineLock.acquire() else { return Self.pausedChangeNote(.anotherBrow) }
+        defer { engineLock.release() }
+        let engine = AppState(folders: folders)
+        engine.capturesByDefault = false
+        engine.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
+        let failure = engine.attempt { change(engine) }
+        reloadDormantAccounts()
+        return failure
+    }
+
+    /// Why Grove's config can't be changed from here while Workspaces is paused.
+    static func pausedChangeNote(_ pause: WorkspacesPause?) -> String {
         pause == .anotherBrow
-            ? "Another copy of Brow runs Workspaces: turn capture off there, or quit it first."
+            ? "Another copy of Brow runs Workspaces: make the change there, or quit it first."
             : "Quit Grove first: it writes the same settings."
     }
 

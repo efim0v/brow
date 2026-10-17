@@ -53,7 +53,7 @@ struct WorkspacesSettingsTab: View {
             Text("Status lines still captured")
         } footer: {
             Text(host.activation == .paused
-                 ? WorkspacesHost.pausedCaptureNote(host.pause)
+                 ? WorkspacesHost.pausedChangeNote(host.pause)
                  : "Each of these accounts' status line goes through Brow's wrapper, which records each session for the notch, then runs your own command. Give them back to put your own commands in place.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

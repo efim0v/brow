@@ -50,6 +50,17 @@ final class SettingsJoinTests: XCTestCase {
         XCTAssertTrue(WorkspacesAccountJoin.unmatched([], cards: cards).isEmpty)
     }
 
+    /// An account is gone only when every folder of it is: Settings then offers to take it
+    /// out of Workspaces, since nothing re-creates a deleted folder any more.
+    func testAnAccountIsGoneWhenEveryFolderOfItIs() {
+        let account = AccountConfig(name: "work", configDir: "/x/main/", aliasDirs: ["/x/second"])
+        XCTAssertTrue(WorkspacesAccountJoin.isGone(account, exists: { _ in false }))
+        XCTAssertFalse(WorkspacesAccountJoin.isGone(account, exists: { $0 == "/x/second" }), "one folder left")
+        XCTAssertFalse(WorkspacesAccountJoin.isGone(account, exists: { $0 == "/x/main" }),
+                       "compared without the trailing slash")
+        XCTAssertFalse(WorkspacesAccountJoin.isGone(AccountConfig(name: "tmp", configDir: NSTemporaryDirectory())))
+    }
+
     func testThePanelsLinksLandOnTheirTabs() {
         XCTAssertEqual(SettingsPane(.workspaces), .workspaces)
         XCTAssertEqual(SettingsPane(.accounts), .accounts)

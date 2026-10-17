@@ -288,7 +288,7 @@ final class WorkspacesHostTests: XCTestCase {
 
         host.releaseStatusLine(host.dormantCaptures[0])
         XCTAssertEqual(try statusLine(dir), before, "left as it was")
-        XCTAssertEqual(host.captureError, WorkspacesHost.pausedCaptureNote(.anotherBrow))
+        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.anotherBrow))
 
         other.release()
         host.releaseStatusLine(host.dormantCaptures[0])
@@ -371,6 +371,37 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertTrue(DormantCaptureSwitch.explanation(.groveRunning).contains("Quit Grove"))
         XCTAssertTrue(DormantCaptureSwitch.explanation(.anotherBrow).contains("another copy of Brow"))
         XCTAssertTrue(DormantCaptureSwitch.explanation(nil).contains("Workspaces is off"))
+    }
+
+    /// An account Grove captured whose folder is gone can't be given back — there is no
+    /// settings.json left — so it is taken out of Workspaces instead, with no engine.
+    func testAnAccountWhoseFolderIsGoneCanBeRemovedWithWorkspacesOff() throws {
+        let dir = try capturedAccount(original: "/bin/echo mine")
+        try FileManager.default.removeItem(at: dir)
+        let host = makeHost(try makeStore(enabled: false), groveConfig: true, groveRunning: false)
+        host.start()
+        let gone = try XCTUnwrap(host.dormantCaptures.first)
+        XCTAssertTrue(WorkspacesAccountJoin.isGone(gone))
+
+        host.releaseStatusLine(gone)
+        XCTAssertNotNil(host.captureError, "no folder, no status line to give back")
+        host.removeAccount(gone)
+
+        XCTAssertNil(host.captureError)
+        XCTAssertTrue(host.dormantCaptures.isEmpty)
+        XCTAssertEqual(ConfigStore(url: folders.configFile).load().config.accounts.map(\.name), [])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.path), "nothing re-created")
+        XCTAssertNil(host.state)
+    }
+
+    /// While Grove.app runs, not even that: it writes the same config.
+    func testRemovingWaitsForGrove() throws {
+        _ = try capturedAccount(original: "/bin/echo mine")
+        let host = makeHost(try makeStore(), groveConfig: true, groveRunning: true)
+        host.start()
+        host.removeAccount(host.dormantCaptures[0])
+        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.groveRunning))
+        XCTAssertEqual(ConfigStore(url: folders.configFile).load().config.accounts.map(\.name), ["work"])
     }
 
     /// While Workspaces is on, the engine's state has the accounts.

@@ -31,6 +31,14 @@ public enum WorkspacesAccountJoin {
         return accounts.filter { !shown.contains($0.name) }
     }
 
+    /// Whether every folder of `account` is gone — deleted, or on a volume no longer
+    /// there. Nothing re-creates it any more (grove#12), so Settings offers to take the
+    /// account out of Workspaces.
+    public static func isGone(_ account: AccountConfig,
+                              exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> Bool {
+        !account.allConfigDirs.map(normalized).contains(where: exists)
+    }
+
     /// Workspaces' folders the notch's scan would not find by itself — anything outside
     /// `~/.claude` and `~/.claude-accounts` — so they are scanned too.
     public static func extraDirs(for accounts: [AccountConfig], home: String = NSHomeDirectory()) -> [String] {

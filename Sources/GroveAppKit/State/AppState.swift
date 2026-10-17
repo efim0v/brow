@@ -484,9 +484,14 @@ public final class AppState: ObservableObject {
         return nil
     }
 
-    /// Removes the account from Workspaces' config only — the directory is untouched.
+    /// Removes the account from Workspaces' config only — the directory is untouched —
+    /// and from the projects that launched on it by default, which fall back to the first
+    /// account. What Settings offers for an account whose folder is gone.
     public func removeAccount(name: String) {
         config.accounts.removeAll { $0.name == name }
+        for i in config.projects.indices where config.projects[i].defaultAccount == name {
+            config.projects[i].defaultAccount = nil
+        }
         persist()
     }
 }

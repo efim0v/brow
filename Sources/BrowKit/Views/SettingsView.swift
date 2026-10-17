@@ -369,13 +369,21 @@ private struct WorkspacesOtherAccounts: View {
             WorkspacesOtherAccountList(state: state, cards: cards)
         } else {
             ForEach(WorkspacesAccountJoin.unmatched(host.dormantCaptures, cards: cards), id: \.name) { account in
+                let gone = WorkspacesAccountJoin.isGone(account)
                 Section {
                     LabeledContent("Folder") {
                         Text(account.configDir).font(.caption).textSelection(.enabled)
                     }
-                    DormantCaptureSwitch(host: host, account: account)
+                    if gone {
+                        GoneAccountRow(disabled: host.activation == .paused) { host.removeAccount(account) }
+                        if let error = host.captureError { FailureNote(text: error) }
+                    } else {
+                        DormantCaptureSwitch(host: host, account: account)
+                    }
                 } header: {
                     Text("Workspaces account “\(account.name)”")
+                } footer: {
+                    if gone { GoneAccountRow.footer }
                 }
             }
         }
@@ -418,23 +426,63 @@ struct DormantCaptureSwitch: View {
 private struct WorkspacesOtherAccountList: View {
     @ObservedObject var state: AppState
     let cards: [DiscoveredAccount]
+    /// What the last Remove could not do.
+    @State private var failure: String?
 
     var body: some View {
         ForEach(WorkspacesAccountJoin.unmatched(state.config.accounts, cards: cards), id: \.name) { account in
+            let gone = WorkspacesAccountJoin.isGone(account)
             Section {
                 LabeledContent("Folder") {
                     Text(account.configDir).font(.caption).textSelection(.enabled)
                 }
-                WorkspacesAccountSection(state: state, account: account)
+                if gone {
+                    GoneAccountRow(disabled: false) {
+                        failure = state.attempt { state.removeAccount(name: account.name) }
+                    }
+                    if let failure { FailureNote(text: failure) }
+                } else {
+                    WorkspacesAccountSection(state: state, account: account)
+                }
             } header: {
                 Text("Workspaces account “\(account.name)”")
             } footer: {
-                Text("Brow shows no limits for this account: its folder has no sign-in Brow can read, or it is a second folder of an account above.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if gone {
+                    GoneAccountRow.footer
+                } else {
+                    Text("Brow shows no limits for this account: its folder has no sign-in Brow can read, or it is a second folder of an account above.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
+}
+
+/// A Workspaces account whose folder is gone. Nothing about it can change any more —
+/// its status line, sessions and settings went with the folder, and nothing re-creates
+/// it — but whether Workspaces still lists it, in its pickers and here.
+struct GoneAccountRow: View {
+    let disabled: Bool
+    let remove: () -> Void
+
+    var body: some View {
+        LabeledContent {
+            Button("Remove from Workspaces", action: remove)
+                .disabled(disabled)
+                .help("Takes the account out of Workspaces' list only: nothing on disk changes")
+        } label: {
+            Label("Its folder is gone", systemImage: "folder.badge.questionmark")
+        }
+    }
+
+    static var footer: some View {
+        Text(explanation)
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    static let explanation = "Its folder was deleted or is on a disk that isn't connected, so Brow shows no limits for it and nothing can launch in it. Remove from Workspaces takes it out of the account pickers and of Settings; a project that launched on it by default uses the first account instead."
 }
 
 private struct WorkspacesCardJoin: View {

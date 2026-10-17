@@ -386,16 +386,16 @@ public struct CmuxService: Sendable {
 //
 // cmux's control socket enforces automation.socketControlMode (default
 // "cmuxOnly"): the server only accepts clients whose process ancestry traces
-// into the cmux app. Grove launched from Finder/Dock/`open` descends from
+// into the cmux app. Brow launched from Finder/Dock/`open` descends from
 // launchd, so EVERY CLI call is rejected — the server writes one
 // "ERROR: Access denied — only processes started inside cmux can connect"
 // line and hangs up, which the CLI reports only as "Failed to write to socket
 // (Broken pipe, errno 32)". The same commands work from any cmux-hosted
 // terminal, which is what made this bug look context-dependent.
 // Sanctioned ways in: socketControlMode "automation" (allow same-user external
-// clients) or "password" + automation.socketPassword (Grove forwards it via
+// clients) or "password" + automation.socketPassword (Brow forwards it via
 // CMUX_SOCKET_PASSWORD automatically, see passwordEnv()).
-// Diagnostic: `Grove --cmux-probe <outFile>` (see CmuxProbe).
+// Diagnostic: `Brow --cmux-probe <outFile>` (see CmuxProbe).
 extension CmuxService {
     /// cmux control socket path, mirroring the CLI's resolution:
     /// CMUX_SOCKET_PATH, legacy CMUX_SOCKET, else the app-support default.
@@ -422,7 +422,7 @@ extension CmuxService {
             + " (automation.socketControlMode, default \"cmuxOnly\") blocks external"
             + " clients. In cmux: Settings > Automation > Socket control mode ->"
             + " \"Automation\" (allows clients from your user account), or set a"
-            + " socket password there (Grove picks it up from ~/.config/cmux/cmux.json"
+            + " socket password there (Brow picks it up from ~/.config/cmux/cmux.json"
             + " automatically). cmux applies the mode when its CLI listener starts:"
             + " after changing it, run cmux's \"Restart CLI Listener\" palette command"
             + " or restart cmux."

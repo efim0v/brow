@@ -217,8 +217,8 @@ public struct StatuslineInstaller: Sendable {
     /// feeding it the SAME stdin; degrade to a bare passthrough on any error.
     static let wrapperScript: String = ##"""
     #!/bin/sh
-    # grove-statusline wrapper (managed by Grove; do not edit).
-    # Reads Claude Code statusline stdin, snapshots it for Grove, then calls the
+    # grove-statusline wrapper (managed by Brow's Workspaces; do not edit).
+    # Reads Claude Code statusline stdin, snapshots it for Brow, then calls the
     # user's original command through with the same stdin. Passthrough on any error.
     set -e
     IN="$(cat)"

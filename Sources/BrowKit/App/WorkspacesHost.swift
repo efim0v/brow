@@ -168,7 +168,7 @@ public final class WorkspacesHost: ObservableObject {
             controller.showsStatusItem = settings.showInMenuBar
             controller.start()
         case .on:
-            importGroveMaterialOnce()
+            recordFirstRunOnce()
             // Coming from paused or off, read Grove's config afresh: Grove.app may have
             // written it while Workspaces waited, and a state loaded before that would
             // save its old copy over it.
@@ -461,22 +461,35 @@ public final class WorkspacesHost: ObservableObject {
         return " \(list) \(names.count == 1 ? "is" : "are") added when Workspaces starts."
     }
 
-    // MARK: - Panel material
+    // MARK: - The first run
 
-    /// Grove.app kept its panel material in its own defaults; the first time
-    /// Workspaces runs in Brow, that choice comes along. Once: the flag is set whether or
-    /// not Grove had one.
-    private func importGroveMaterialOnce() {
-        guard !store.settings.workspaces.importedGroveMaterial else { return }
-        var settings = store.settings
-        if settings.workspaces.panelMaterial == nil,
-           let raw = groveDefaults()?.string(forKey: WindowSubstrateStyle.groveDefaultsKey),
-           WindowSubstrateStyle(rawValue: raw) != nil {
-            settings.workspaces.panelMaterial = raw
-        }
-        settings.workspaces.importedGroveMaterial = true
-        store.settings = settings
+    /// Whether Workspaces runs, or will run, a setup Grove made — for the words Settings
+    /// uses. Recorded the first time it runs; before that, a Grove config can only be
+    /// Grove's, since Brow writes one only once Workspaces runs.
+    public var isGroveSetup: Bool {
+        store.settings.workspaces.groveSetup ?? groveConfigExists()
     }
+
+    /// The first time Workspaces runs in Brow, before the engine writes anything: whether
+    /// the setup is Grove's, and Grove.app's panel material, which it kept in its own
+    /// defaults. Once each: the material's flag is set whether or not Grove had one.
+    private func recordFirstRunOnce() {
+        var settings = store.settings
+        if settings.workspaces.groveSetup == nil {
+            settings.workspaces.groveSetup = groveConfigExists()
+        }
+        if !settings.workspaces.importedGroveMaterial {
+            if settings.workspaces.panelMaterial == nil,
+               let raw = groveDefaults()?.string(forKey: WindowSubstrateStyle.groveDefaultsKey),
+               WindowSubstrateStyle(rawValue: raw) != nil {
+                settings.workspaces.panelMaterial = raw
+            }
+            settings.workspaces.importedGroveMaterial = true
+        }
+        if settings != store.settings { store.settings = settings }
+    }
+
+    // MARK: - Panel material
 
     /// Settings › Workspaces writes the material here.
     public func setPanelMaterial(_ style: WindowSubstrateStyle) {

@@ -17,16 +17,21 @@ public struct WorkspacesSettings: Codable, Sendable, Equatable {
     /// Grove's own material setting has been looked at, and copied if there was one.
     /// Once only: a later change in Grove.app is not Brow's.
     public var importedGroveMaterial: Bool = false
+    /// Whether the setup Workspaces first ran on was Grove's: its `config.json` was there
+    /// before Brow's engine ever ran. nil until Workspaces first runs, which is when it is
+    /// recorded — afterwards the file exists either way. Settings words itself by it.
+    public var groveSetup: Bool?
 
     public init(enabled: Bool? = nil, showInMenuBar: Bool = true, panelMaterial: String? = nil,
-                importedGroveMaterial: Bool = false) {
+                importedGroveMaterial: Bool = false, groveSetup: Bool? = nil) {
         self.enabled = enabled
         self.showInMenuBar = showInMenuBar
         self.panelMaterial = panelMaterial
         self.importedGroveMaterial = importedGroveMaterial
+        self.groveSetup = groveSetup
     }
 
-    enum CodingKeys: String, CodingKey { case enabled, showInMenuBar, panelMaterial, importedGroveMaterial }
+    enum CodingKeys: String, CodingKey { case enabled, showInMenuBar, panelMaterial, importedGroveMaterial, groveSetup }
 
     /// Field by field: one bad value costs that field, never the others (brow#7).
     public init(from decoder: Decoder) throws {
@@ -42,6 +47,7 @@ public struct WorkspacesSettings: Codable, Sendable, Equatable {
         showInMenuBar = field(.showInMenuBar, Bool.self) ?? true
         panelMaterial = field(.panelMaterial, String.self)
         importedGroveMaterial = field(.importedGroveMaterial, Bool.self) ?? false
+        groveSetup = field(.groveSetup, Bool.self)
     }
 }
 

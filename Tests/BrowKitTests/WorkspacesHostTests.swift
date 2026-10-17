@@ -366,8 +366,9 @@ final class WorkspacesHostTests: XCTestCase {
     /// Settings no longer says that, off, nothing of Workspaces runs: a captured status
     /// line does, and the text says so.
     func testTheOffTextNamesTheCapturedStatusLines() {
-        XCTAssertFalse(WorkspacesSettingsTab.explanation.contains("nothing is read or written"))
-        XCTAssertTrue(WorkspacesSettingsTab.explanation.contains("until you turn capture off"))
+        let off = WorkspacesSettingsTab.explanation(activation: .off, groveSetup: false)
+        XCTAssertFalse(off.contains("nothing is read or written"))
+        XCTAssertTrue(off.contains("until you turn capture off"))
         XCTAssertTrue(DormantCaptureSwitch.explanation(.groveRunning).contains("Quit Grove"))
         XCTAssertTrue(DormantCaptureSwitch.explanation(.anotherBrow).contains("another copy of Brow"))
         XCTAssertTrue(DormantCaptureSwitch.explanation(nil).contains("Workspaces is off"))
@@ -456,6 +457,36 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertEqual(store.settings.workspaces.panelMaterial, "liquidGlass")
         WindowSubstrateStyle.current = .liquidGlass
     }
+
+    /// Whether the setup is Grove's is recorded the first time Workspaces runs — before
+    /// the engine writes a config of its own — and Settings words itself by it.
+    func testWhetherTheSetupIsGrovesIsRecordedOnTheFirstRun() throws {
+        let grove = try makeStore()
+        let groveHost = makeHost(grove, groveConfig: true, groveRunning: false)
+        XCTAssertTrue(groveHost.isGroveSetup, "before the first run, a config can only be Grove's")
+        groveHost.start()
+        XCTAssertEqual(grove.settings.workspaces.groveSetup, true)
+        groveHost.stop()   // one engine at a time on these folders
+
+        appDir = try Fixture.tempDir("host-app-new").path
+        let fresh = try makeStore()
+        let config = Flag()
+        let host = WorkspacesHost(store: fresh, folders: folders,
+                                  groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
+                                  groveConfigExists: { config.on }, groveDefaults: { nil })
+        addTeardownBlock { @MainActor in host.stop() }
+        host.start()
+        XCTAssertNil(fresh.settings.workspaces.groveSetup, "not run yet")
+        host.setEnabled(true)
+        XCTAssertEqual(fresh.settings.workspaces.groveSetup, false)
+        config.on = true   // the engine has written a config of its own since
+        host.setEnabled(false)
+        host.setEnabled(true)
+        XCTAssertEqual(fresh.settings.workspaces.groveSetup, false, "recorded once")
+        XCTAssertFalse(host.isGroveSetup)
+    }
+
+    private final class Flag: @unchecked Sendable { var on = false }
 
     /// Off, nothing is copied either: a Brow-only user's config.json is not written.
     func testOffCopiesNothing() throws {

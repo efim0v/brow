@@ -20,7 +20,7 @@ struct WorkspacesSettingsTab: View {
                                                    set: { host.setEnabled($0) }))
                 status
             } footer: {
-                Text(Self.explanation)
+                Text(Self.explanation(activation: host.activation, groveSetup: host.isGroveSetup))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -34,7 +34,19 @@ struct WorkspacesSettingsTab: View {
         .onAppear { host.reloadDormantAccounts() }
     }
 
-    static let explanation = "Workspaces gives each feature of a multi-repo project its own folder of git worktrees and runs Claude Code sessions in them, from Brow's menu-bar item. Off, none of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper until you turn capture off for it under Accounts. On, it reads the projects you had in Grove and keeps its files in ~/Library/Application Support/Grove. It edits no Claude Code file until you ask: capturing an account's status line is turned on per account under Accounts, and the transcript safety net below starts off."
+    /// What Workspaces is and does, in the words that are true for this Mac: a setup
+    /// Grove made carries on as Grove had it, a new one starts with nothing turned on.
+    static func explanation(activation: WorkspacesActivation, groveSetup: Bool) -> String {
+        var text = "Workspaces gives each feature of a multi-repo project its own folder of git worktrees and runs Claude Code sessions in them, from Brow's menu-bar item."
+        if activation == .off {
+            text += " Off, none of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper until you turn capture off for it under Accounts."
+        }
+        let it = activation == .off ? "Turned on, it" : "It"
+        text += groveSetup
+            ? " \(it) runs the projects, accounts and settings you had in Grove, from Grove's folder, ~/Library/Application Support/Grove: status lines Grove captured stay captured, and the transcript safety net keeps the setting Grove gave it."
+            : " \(it) keeps its projects and settings in ~/Library/Application Support/Grove and edits no Claude Code file until you ask: capturing an account's status line is turned on per account under Accounts, and the transcript safety net starts off for a new setup."
+        return text
+    }
 
     /// While Workspaces is off or paused, the status lines it captured: they keep running
     /// Brow's wrapper until given back.
@@ -121,9 +133,14 @@ struct WorkspacesEngineSettings: View {
             Button("Add project…", action: addProject)
         }
         Section {
-            TextField("Workspace folder", text: Binding(get: { state.config.workspacesRootTemplate },
-                                                        set: { template in run { state.setWorkspacesRootTemplate(template) } }))
-                .font(.system(.body, design: .monospaced))
+            // The label in the form's own font; only the value, a path, is monospaced.
+            LabeledContent("Workspace folder") {
+                TextField("Workspace folder", text: Binding(get: { state.config.workspacesRootTemplate },
+                                                            set: { template in run { state.setWorkspacesRootTemplate(template) } }))
+                    .labelsHidden()
+                    .font(.system(.body, design: .monospaced))
+                    .multilineTextAlignment(.trailing)
+            }
         } header: {
             Text("Workspace folders")
         } footer: {
@@ -238,12 +255,11 @@ struct WorkspacesAccountSection: View {
                     .help("Links this account's session stores into ~/.claude, so Resume as… works in both directions")
             }
         }
+        // What it does is said once, under the account cards (`CaptureFootnote`).
         Toggle("Capture the status line", isOn: Binding(
             get: { current.monitoring },
             set: { on in run { if on { state.installMonitoring(current) } else { state.disableMonitoring(current) } } }))
-        Text("Points this account's statusLine in settings.json at Brow's wrapper, which records each session's model, context use and limits, then runs your own status-line command. Turning it off puts your command back.")
-            .font(.caption).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            .help(CaptureFootnote.capturing)
         LabeledContent("Default model") {
             ModelPicker(model: Binding(get: { current.defaultModel },
                                            set: { model in run { state.setAccountModel(name: account.name, model: model) } }))

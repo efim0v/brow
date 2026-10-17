@@ -88,7 +88,8 @@ public struct SettingsView: View {
             WorkspacesSettingsTab(host: workspaces)
         } else {
             Form {
-                Text(WorkspacesSettingsTab.explanation).font(.caption).foregroundStyle(.secondary)
+                Text(WorkspacesSettingsTab.explanation(activation: .off, groveSetup: false))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             .formStyle(.grouped)
         }
@@ -266,6 +267,9 @@ struct AccountsTab: View {
                 Section {
                     card(row)
                     if let workspaces { WorkspacesCardSection(host: workspaces, row: row) }
+                } footer: {
+                    // What Capture the status line does, once, under the last card.
+                    if let workspaces, row.id == store.allRows.last?.id { CaptureFootnote(host: workspaces) }
                 }
             }
             if let workspaces { WorkspacesOtherAccounts(host: workspaces, cards: store.allRows.map(\.account)) }
@@ -398,15 +402,14 @@ struct DormantCaptureSwitch: View {
     let account: AccountConfig
 
     var body: some View {
+        // Why it is still on is said once, under the account cards (`CaptureFootnote`).
         Toggle("Capture the status line", isOn: Binding(
             get: { true },
             set: { on in if !on { host.releaseStatusLine(account) } }))
             .disabled(host.activation == .paused)
-        Text(Self.explanation(host.activation == .paused ? host.pause ?? .groveRunning : nil))
-            .font(.caption).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            .help(Self.explanation(host.activation == .paused ? host.pause ?? .groveRunning : nil))
         if let error = host.captureError {
-            Text(error).font(.caption).foregroundStyle(.orange)
+            FailureNote(text: error)
         }
     }
 
@@ -414,11 +417,39 @@ struct DormantCaptureSwitch: View {
     static func explanation(_ pause: WorkspacesPause?) -> String {
         switch pause {
         case .groveRunning?:
-            return "Workspaces is paused while Grove runs, and this account's status line still goes through Brow's wrapper. Quit Grove to turn capture off here."
+            return "Workspaces is paused while Grove runs, and the status lines it captured still go through Brow's wrapper. Quit Grove to turn Capture the status line off here."
         case .anotherBrow?:
-            return "Workspaces runs in another copy of Brow, and this account's status line still goes through Brow's wrapper. Turn capture off there, or quit that copy to turn it off here."
+            return "Workspaces runs in another copy of Brow, and the status lines it captured still go through Brow's wrapper. Turn capture off there, or quit that copy to turn it off here."
         case nil:
-            return "Workspaces is off, but this account's status line still goes through Brow's wrapper, which records each session for the notch and then runs your own command. Turn this off to put your command back."
+            return "Workspaces is off, but the status line of each account with Capture the status line on still goes through Brow's wrapper, which records each session for the notch and then runs your own command. Turn it off to put your command back."
+        }
+    }
+}
+
+/// What Capture the status line does, said once under the account cards instead of in
+/// every card: how it works while Workspaces runs, why it is still on while it does not.
+struct CaptureFootnote: View {
+    @ObservedObject var host: WorkspacesHost
+
+    static let capturing = "Capture the status line points the account's statusLine in settings.json at Brow's wrapper, which records each session's model, context use and limits, then runs your own status-line command. Turning it off puts your command back."
+
+    var body: some View {
+        if let text = Self.text(activation: host.activation, pause: host.pause,
+                                hasAccounts: !(host.state?.config.accounts.isEmpty ?? true),
+                                hasDormantCaptures: !host.dormantCaptures.isEmpty) {
+            Text(text)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// nil when no switch is shown above it.
+    static func text(activation: WorkspacesActivation, pause: WorkspacesPause?,
+                     hasAccounts: Bool, hasDormantCaptures: Bool) -> String? {
+        switch activation {
+        case .on: return hasAccounts ? capturing : nil
+        case .paused: return hasDormantCaptures ? DormantCaptureSwitch.explanation(pause ?? .groveRunning) : nil
+        case .off: return hasDormantCaptures ? DormantCaptureSwitch.explanation(nil) : nil
         }
     }
 }

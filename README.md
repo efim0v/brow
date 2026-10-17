@@ -106,7 +106,7 @@ Worth knowing before you run it. The notch:
 
 Workspaces, only once you turn it on (or Brow finds Grove's settings):
 
-- **It edits an account's `settings.json` only if you turn on Capture the status line** for that account in Settings → Accounts (accounts Grove already captured stay captured). It points `statusLine.command` at Brow's wrapper, which records each session's model, context use and limits, then passes the same input on to the command you had, so your own status line keeps working. Turning it off puts your command back.
+- **It edits an account's `settings.json` only if you turn on Capture the status line** for that account in Settings → Accounts (accounts Grove already captured stay captured). It points `statusLine.command` at Brow's wrapper, which records each session's model, context use and limits, then passes the same input on to the command you had, so your own status line keeps working. Turning it off puts your command back. Claude Code keeps running the wrapper while Workspaces is off, so the switch stays in Settings → Accounts until you do.
 - **Sharing an account moves its session files into `~/.claude`.** Anything that would be overwritten is backed up under `<account>/grove-backup/` first.
 - **The transcript safety net is off unless you turn it on** (a Grove setup keeps its setting). When it is on, Brow keeps a hard link to every transcript under `~/.claude/grove/transcripts/`. A transcript that vanishes is listed in Settings → Workspaces and comes back only when you press **Restore**. Nothing is kept longer than Claude Code keeps it: [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays), the shortest that your organization's managed settings, the account's settings or the project settings of any folder its sessions ran in set — for a workspace shared between accounts, the shortest of all of theirs — and nothing within a day of that is offered back. The one period Brow cannot see is one passed to `claude` with `--settings`.
 - **It runs git in your repositories**: `git worktree add` and a branch per repository when you create a workspace, and the post-create hooks you configured. It never deletes a worktree or a branch on its own.
@@ -188,7 +188,7 @@ On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside 
 
 ## Uninstall
 
-1. **If you used Workspaces, give each account its status line back first** — the wrappers live in Brow's Grove folder, which step 4 deletes. In Settings → Accounts, turn off **Capture the status line** on every account. Then check that no `settings.json` still points at the wrapper:
+1. **If you used Workspaces, give each account its status line back first** — the wrappers live in Brow's Grove folder, which step 4 deletes. In Settings → Accounts, turn off **Capture the status line** on every account that shows it; the switch is there whether Workspaces is on or off, and if Grove is still running, quit it first. Then check that no `settings.json` still points at the wrapper:
 
    ```sh
    find ~/.claude ~/.claude-accounts -maxdepth 2 -name settings.json -exec grep -l grove-statusline {} +
@@ -204,6 +204,8 @@ On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside 
    rm -rf ~/Library/Application\ Support/Grove
    rm -rf ~/Library/Caches/dev.artemefimov.brow ~/Library/HTTPStorages/dev.artemefimov.brow
    ```
+
+   If you used Grove, `defaults delete dev.artemefimov.grove3` removes its preferences too.
 
 5. If you used Workspaces, delete what it kept in your account folders: `~/.claude/grove/` (the transcript safety net and the default account's status-line captures; the transcripts in each account's `projects/` stay) and `grove/` in every other account folder. Look through any `grove-backup/` folder — what sharing set aside — before you delete it. A shared account's `file-history`, `tasks` and `session-env`, and `projects/<workspace>` for each shared workspace, are symbolic links into `~/.claude` and keep working; [`docs/workspaces.md`](docs/workspaces.md#how-accounts-share-sessions) explains them.
 6. If you added Brow's `export BROWSER=…` line to `~/.zshrc`, remove it.

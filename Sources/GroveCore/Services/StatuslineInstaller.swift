@@ -108,6 +108,34 @@ public struct StatuslineInstaller: Sendable {
         }
     }
 
+    /// Gives a folder its own status line back from the wrapper's record of it: when the
+    /// folder's `statusLine.command` is this installer's wrapper for it, puts back the
+    /// command baked into that wrapper (`GROVE_ORIG`), or removes `statusLine` when there
+    /// was none. Any other command is left alone. For a second folder of a login, whose
+    /// original was never saved anywhere but in its wrapper. Returns whether it changed
+    /// the file.
+    @discardableResult
+    public func restoreBakedOriginal(configDir: String) throws -> Bool {
+        try StatuslineInstaller.requireConfigDir(configDir)
+        let scriptPath = self.scriptPath(forConfigDir: configDir)
+        let quoted = shellQuote(scriptPath)
+        let original = StatuslineInstaller.bakedOriginal(inScriptAt: scriptPath)
+        var changed = false
+        try HotJSONFile.update(path: configDir + "/settings.json") { existing in
+            let current = (existing["statusLine"] as? [String: Any])?["command"] as? String
+            guard current == quoted || current == scriptPath else { return existing }
+            changed = true
+            var settings = existing
+            if let original {
+                settings["statusLine"] = ["type": "command", "command": original]
+            } else {
+                settings.removeValue(forKey: "statusLine")
+            }
+            return settings
+        }
+        return changed
+    }
+
     /// `HotJSONFile` creates a missing parent folder. An account folder that isn't there
     /// (an alias folder the user deleted) isn't the installer's to recreate, so install
     /// and uninstall fail on it, as the plain write did. Callers create a new account's

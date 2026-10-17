@@ -19,6 +19,13 @@ public final class WorkspacesHost: ObservableObject {
     @Published public private(set) var activation: WorkspacesActivation = .off
     /// The engine's state while Workspaces is wanted; nil while it is off.
     @Published public private(set) var state: AppState?
+    /// Grove's accounts as its config has them, read without the engine while Workspaces
+    /// is not on: an account whose status line it captured keeps running the wrapper
+    /// under Claude Code whatever Workspaces does, so Settings keeps the switch that gives
+    /// it back. Empty while Workspaces is on — the engine's state has them then.
+    @Published public private(set) var dormantAccounts: [AccountConfig] = []
+    /// What went wrong giving a status line back, for Settings.
+    @Published public private(set) var captureError: String?
     /// Told when the panel is ordered in or out (the notch latches its hover meanwhile).
     public var onPanelVisibilityChange: ((Bool) -> Void)?
     /// Opens Brow's Settings window where the panel asks for it: the footer's gear
@@ -165,6 +172,52 @@ public final class WorkspacesHost: ObservableObject {
         }
         // The store's, not the argument's: importing Grove's material just changed it.
         WindowSubstrateStyle.current = WindowSubstrateStyle(stored: store.settings.workspaces.panelMaterial)
+        reloadDormantAccounts()
+    }
+
+    // MARK: - Status lines captured while Workspaces is not on
+
+    /// The accounts whose status line runs Workspaces' wrapper while Workspaces is not on.
+    public var dormantCaptures: [AccountConfig] { dormantAccounts.filter(\.monitoring) }
+
+    /// Re-reads `dormantAccounts` from Grove's config. Reads only: no engine starts, and
+    /// nothing is written.
+    public func reloadDormantAccounts() {
+        guard !isPreview else { return }
+        let accounts = activation == .on || !FileManager.default.fileExists(atPath: folders.configFile.path)
+            ? [] : ConfigStore(url: folders.configFile).load().config.accounts
+        if accounts != dormantAccounts { dormantAccounts = accounts }
+    }
+
+    /// Gives `account`'s status line back while Workspaces is off: the command it had in
+    /// place of the wrapper, in every folder of the login, and capture marked off in
+    /// Grove's config so nothing turns it on again. Grove's config is read for just this,
+    /// with no engine. Not while Grove.app runs (paused): it writes the same files.
+    /// While Workspaces is on, the engine's own switch does this.
+    public func releaseStatusLine(_ account: AccountConfig) {
+        captureError = nil
+        switch activation {
+        case .on:
+            if let state, let current = state.config.accounts.first(where: { $0.name == account.name }) {
+                state.disableMonitoring(current)
+            }
+        case .paused:
+            captureError = "Quit Grove first: it writes the same settings."
+        case .off:
+            let engine = AppState(folders: folders)
+            engine.capturesByDefault = false
+            engine.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
+            if let current = engine.config.accounts.first(where: { $0.name == account.name }), current.monitoring {
+                engine.disableMonitoring(current)
+                captureError = engine.actionError
+            }
+            reloadDormantAccounts()
+        }
+    }
+
+    /// Every captured status line back, as `releaseStatusLine` does one.
+    public func releaseAllStatusLines() {
+        for account in dormantCaptures { releaseStatusLine(account) }
     }
 
     private func ensureController() -> WorkspacesMenuBarController {
@@ -235,10 +288,15 @@ public final class WorkspacesHost: ObservableObject {
     }
 
     /// Offscreen renders and tests: this state and activation, nothing started.
-    func preview(state: AppState, activation: WorkspacesActivation) {
+    func preview(state: AppState?, activation: WorkspacesActivation, dormant: [AccountConfig] = []) {
         self.state = state
         self.activation = activation
+        self.dormantAccounts = dormant
+        isPreview = true
     }
+
+    /// A preview's accounts are its own: nothing is read from disk for it.
+    private var isPreview = false
 
     public var isPanelVisible: Bool { controller?.isPanelVisible == true }
 

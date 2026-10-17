@@ -271,6 +271,8 @@ struct AccountsTab: View {
             }
         }
         .formStyle(.grouped)
+        // A status line Workspaces captured stays captured while it is off: read which.
+        .onAppear { workspaces?.reloadDormantAccounts() }
     }
 
     @ViewBuilder private func card(_ row: AccountRow) -> some View {
@@ -333,7 +335,9 @@ struct AccountsTab: View {
     }
 }
 
-/// The Workspaces part of one account card, while Workspaces runs.
+/// The Workspaces part of one account card: all of it while Workspaces runs; while it
+/// does not, the switch that gives back a status line it captured, which goes on
+/// running Brow's wrapper until that switch is turned off.
 private struct WorkspacesCardSection: View {
     @ObservedObject var host: WorkspacesHost
     let row: AccountRow
@@ -341,12 +345,16 @@ private struct WorkspacesCardSection: View {
     var body: some View {
         if host.activation == .on, let state = host.state {
             WorkspacesCardJoin(state: state, row: row)
+        } else if let account = WorkspacesAccountJoin.match(row.account, in: host.dormantCaptures) {
+            Text("Workspaces").font(.subheadline.weight(.semibold)).padding(.top, 4)
+            DormantCaptureSwitch(host: host, account: account)
         }
     }
 }
 
 /// The Workspaces accounts no card above shows (`WorkspacesAccountJoin.unmatched`), each
-/// in a section of its own, while Workspaces runs.
+/// in a section of its own: every one while Workspaces runs, the ones whose status line
+/// it captured while it does not.
 private struct WorkspacesOtherAccounts: View {
     @ObservedObject var host: WorkspacesHost
     let cards: [DiscoveredAccount]
@@ -354,7 +362,45 @@ private struct WorkspacesOtherAccounts: View {
     var body: some View {
         if host.activation == .on, let state = host.state {
             WorkspacesOtherAccountList(state: state, cards: cards)
+        } else {
+            ForEach(WorkspacesAccountJoin.unmatched(host.dormantCaptures, cards: cards), id: \.name) { account in
+                Section {
+                    LabeledContent("Folder") {
+                        Text(account.configDir).font(.caption).textSelection(.enabled)
+                    }
+                    DormantCaptureSwitch(host: host, account: account)
+                } header: {
+                    Text("Workspaces account “\(account.name)”")
+                }
+            }
         }
+    }
+}
+
+/// Capture the status line, for an account Workspaces captured while Workspaces is off
+/// or paused: on, and turning it off gives the account its own command back. Not while
+/// Grove.app runs, which writes the same files.
+struct DormantCaptureSwitch: View {
+    @ObservedObject var host: WorkspacesHost
+    let account: AccountConfig
+
+    var body: some View {
+        Toggle("Capture the status line", isOn: Binding(
+            get: { true },
+            set: { on in if !on { host.releaseStatusLine(account) } }))
+            .disabled(host.activation == .paused)
+        Text(Self.explanation(paused: host.activation == .paused))
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if let error = host.captureError {
+            Text(error).font(.caption).foregroundStyle(.orange)
+        }
+    }
+
+    static func explanation(paused: Bool) -> String {
+        paused
+            ? "Workspaces is paused while Grove runs, and this account's status line still goes through Brow's wrapper. Quit Grove to turn capture off here."
+            : "Workspaces is off, but this account's status line still goes through Brow's wrapper, which records each session for the notch and then runs your own command. Turn this off to put your command back."
     }
 }
 

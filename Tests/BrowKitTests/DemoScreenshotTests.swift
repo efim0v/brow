@@ -263,6 +263,23 @@ final class DemoScreenshotTests: XCTestCase {
                                             workspaces: workspaces, navigation: navigation),
                                title: "Brow Settings", to: url)
         }
+        // For review: Workspaces turned off, two status lines it captured still running
+        // the wrapper — the switches that give them back stay in Accounts and Workspaces.
+        if let review = ProcessInfo.processInfo.environment["BROW_REVIEW_DIR"], !review.isEmpty {
+            let off = WorkspacesHost(store: store, folders: workspaces.folders,
+                                     groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
+                                     groveConfigExists: { false }, groveDefaults: { nil })
+            off.preview(state: nil, activation: .off,
+                        dormant: (workspaces.state?.config.accounts ?? []).filter(\.monitoring))
+            for (pane, name) in [(SettingsPane.accounts, "brow-settings-accounts-off.png"),
+                                 (.workspaces, "brow-settings-workspaces-off.png")] {
+                navigation.pane = pane
+                try renderInWindow(SettingsView(store: store, addFlow: flow, drafts: SettingsDrafts(),
+                                                workspaces: off, navigation: navigation),
+                                   title: "Brow Settings",
+                                   to: URL(fileURLWithPath: review, isDirectory: true).appendingPathComponent(name))
+            }
+        }
 
         // (6) What the Workspaces panel says when it is not running its projects.
         try renderWindowContent(WorkspacesNoticeView(notice: workspaces.groveRunningNotice),

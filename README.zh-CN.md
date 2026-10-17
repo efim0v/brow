@@ -108,7 +108,7 @@ Workspaces 里：
 
 Workspaces 部分，只在你开启它之后（或 Brow 找到 Grove 的设置时）：
 
-- **只有在 Settings → Accounts 中为某个账号开启 Capture the status line 后，它才会修改该账号的 `settings.json`**（Grove 已经在捕获的账号保持不变）。它会把 `statusLine.command` 指向 Brow 的包装脚本：脚本记录每个会话的模型、上下文用量和限额，然后把同样的输入交给你原来的命令，所以你自己的状态栏照常工作。关闭后会恢复你原来的命令。
+- **只有在 Settings → Accounts 中为某个账号开启 Capture the status line 后，它才会修改该账号的 `settings.json`**（Grove 已经在捕获的账号保持不变）。它会把 `statusLine.command` 指向 Brow 的包装脚本：脚本记录每个会话的模型、上下文用量和限额，然后把同样的输入交给你原来的命令，所以你自己的状态栏照常工作。关闭后会恢复你原来的命令。即使关闭 Workspaces，Claude Code 仍会继续运行这个包装脚本，所以在你关闭捕获之前，这个开关会一直留在 Settings → Accounts 中。
 - **为账号开启会话共享会把它的会话文件移入 `~/.claude`**。任何会被覆盖的内容都会先备份到 `<账号>/grove-backup/` 下。
 - **转录安全网默认关闭，除非你开启它**（Grove 的设置会保留）。开启后，Brow 会在 `~/.claude/grove/transcripts/` 下为每份转录保留一个硬链接。消失的转录会列在 Settings → Workspaces 中，只有在你点击 **Restore** 后才会恢复。任何转录的保存时间都不会超过 Claude Code 自己的保留期限：[`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)，取你所在组织的托管设置、账号设置以及该账号的会话运行过的各个项目文件夹的项目设置中最短的一个（多个账号共享的工作区，取所有这些账号中最短的期限）；距期限结束不到一天的转录也不会提供恢复。Brow 唯一无法看到的，是通过 `--settings` 传给 `claude` 的期限。
 - **它会在你的仓库中运行 git**：创建工作区时在每个仓库里执行 `git worktree add` 并创建分支，以及运行你配置的创建后钩子。它从不自行删除 worktree 或分支。
@@ -190,7 +190,7 @@ macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于�
 
 ## 卸载
 
-1. **如果用过 Workspaces，先把每个账号的状态栏还给它**：包装脚本位于第 4 步会删除的 Grove 文件夹中。在 Settings → Accounts 中，为每个账号关闭 **Capture the status line**。然后确认没有任何 `settings.json` 仍指向包装脚本：
+1. **如果用过 Workspaces，先把每个账号的状态栏还给它**：包装脚本位于第 4 步会删除的 Grove 文件夹中。在 Settings → Accounts 中，为每个显示该开关的账号关闭 **Capture the status line**；无论 Workspaces 是否开启，这个开关都在那里。如果 Grove 仍在运行，请先退出它。然后确认没有任何 `settings.json` 仍指向包装脚本：
 
    ```sh
    find ~/.claude ~/.claude-accounts -maxdepth 2 -name settings.json -exec grep -l grove-statusline {} +
@@ -206,6 +206,8 @@ macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于�
    rm -rf ~/Library/Application\ Support/Grove
    rm -rf ~/Library/Caches/dev.artemefimov.brow ~/Library/HTTPStorages/dev.artemefimov.brow
    ```
+
+   如果用过 Grove，运行 `defaults delete dev.artemefimov.grove3` 还会删除它的偏好设置。
 
 5. 如果用过 Workspaces，删除它在各账号文件夹中保存的内容：`~/.claude/grove/`（转录安全网和默认账号的状态栏捕获数据；各账号 `projects/` 中的转录本身会保留），以及其他每个账号文件夹中的 `grove/`。删除 `grove-backup/` 文件夹（共享会话时预留的内容）之前，请先检查一遍。已共享账号的 `file-history`、`tasks` 和 `session-env`，以及每个共享工作区的 `projects/<工作区>`，都是指向 `~/.claude` 的符号链接，可以继续正常使用；详见 [`docs/workspaces.md`](docs/workspaces.md#how-accounts-share-sessions)（英文）。
 6. 如果你把 Brow 的 `export BROWSER=…` 这一行加进了 `~/.zshrc`，请删除它。

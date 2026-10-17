@@ -1465,12 +1465,17 @@ extension AppState {
 
     /// Restores the saved original statusline command and clears monitoring.
     /// Sets `monitoringDisabledByUser=true` so reconcileMonitoring knows not to
-    /// silently re-enable this account on the next launch.
+    /// silently re-enable this account on the next launch. Every other folder of the
+    /// login gets back the command its own wrapper recorded (best-effort: a folder that is
+    /// gone, or no longer runs the wrapper, is left alone).
     public func disableMonitoring(_ account: AccountConfig) {
         let installer = StatuslineInstaller(scriptDir: statuslineScriptDir)
         let dir = expandTilde(account.configDir)
         do { try installer.uninstall(configDir: dir, savedStatusline: account.savedStatusline) }
         catch { actionError = "Couldn't disable monitoring for \"\(account.name)\": \(error.localizedDescription)"; return }
+        for alias in account.aliasDirs.map(expandTilde) {
+            _ = try? installer.restoreBakedOriginal(configDir: alias)
+        }
         guard let i = config.accounts.firstIndex(where: { $0.name == account.name }) else { return }
         config.accounts[i].monitoring = false
         config.accounts[i].monitoringDisabledByUser = true

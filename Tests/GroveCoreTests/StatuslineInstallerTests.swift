@@ -87,6 +87,37 @@ final class StatuslineInstallerTests: XCTestCase {
         XCTAssertNil(try readSettings()["statusLine"], "no original -> statusLine removed")
     }
 
+    // MARK: - a second folder's status line, from its wrapper
+
+    /// A second folder of a login has no saved original: its wrapper holds it.
+    func testRestoreBakedOriginalPutsBackTheWrappersRecord() throws {
+        let original = "/usr/local/bin/second-folder-line"
+        try #"{"statusLine":{"type":"command","command":"\#(original)"},"model":"opus"}"#
+            .write(to: URL(fileURLWithPath: settingsPath()), atomically: true, encoding: .utf8)
+        _ = try installer.install(configDir: configDir.path)
+
+        XCTAssertTrue(try installer.restoreBakedOriginal(configDir: configDir.path))
+        let settings = try readSettings()
+        XCTAssertEqual((settings["statusLine"] as? [String: Any])?["command"] as? String, original)
+        XCTAssertEqual(settings["model"] as? String, "opus", "the rest of the file stays")
+        XCTAssertFalse(try installer.restoreBakedOriginal(configDir: configDir.path), "once is enough")
+    }
+
+    func testRestoreBakedOriginalRemovesTheKeyWhenThereWasNone() throws {
+        try "{}".write(to: URL(fileURLWithPath: settingsPath()), atomically: true, encoding: .utf8)
+        _ = try installer.install(configDir: configDir.path)
+        XCTAssertTrue(try installer.restoreBakedOriginal(configDir: configDir.path))
+        XCTAssertNil(try readSettings()["statusLine"])
+    }
+
+    /// A status line the user set since is theirs: left alone.
+    func testRestoreBakedOriginalLeavesAnyOtherCommandAlone() throws {
+        let theirs = #"{"statusLine":{"type":"command","command":"/bin/echo theirs"}}"#
+        try theirs.write(to: URL(fileURLWithPath: settingsPath()), atomically: true, encoding: .utf8)
+        XCTAssertFalse(try installer.restoreBakedOriginal(configDir: configDir.path))
+        XCTAssertEqual(try String(contentsOfFile: settingsPath(), encoding: .utf8), theirs)
+    }
+
     // MARK: - settings.json goes through HotJSONFile
 
     /// Claude Code reports a `//` comment as a Settings Error and leaves the file for the

@@ -26,12 +26,39 @@ struct WorkspacesSettingsTab: View {
             }
             if host.activation == .on, let state = host.state {
                 WorkspacesEngineSettings(state: state, host: host)
+            } else if !host.dormantCaptures.isEmpty {
+                capturedStatusLines
             }
         }
         .formStyle(.grouped)
+        .onAppear { host.reloadDormantAccounts() }
     }
 
-    static let explanation = "Workspaces gives each feature of a multi-repo project its own folder of git worktrees and runs Claude Code sessions in them, from Brow's menu-bar item. Off, nothing of it runs and nothing is read or written for it. On, it reads the projects you had in Grove and keeps its files in ~/Library/Application Support/Grove. It edits no Claude Code file until you ask: capturing an account's status line is turned on per account under Accounts, and the transcript safety net below starts off."
+    static let explanation = "Workspaces gives each feature of a multi-repo project its own folder of git worktrees and runs Claude Code sessions in them, from Brow's menu-bar item. Off, none of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper until you turn capture off for it under Accounts. On, it reads the projects you had in Grove and keeps its files in ~/Library/Application Support/Grove. It edits no Claude Code file until you ask: capturing an account's status line is turned on per account under Accounts, and the transcript safety net below starts off."
+
+    /// While Workspaces is off or paused, the status lines it captured: they keep running
+    /// Brow's wrapper until given back.
+    @ViewBuilder private var capturedStatusLines: some View {
+        Section {
+            LabeledContent {
+                Button("Give them back") { host.releaseAllStatusLines() }
+                    .disabled(host.activation == .paused)
+            } label: {
+                Text(host.dormantCaptures.map(\.name).joined(separator: ", "))
+            }
+            if let error = host.captureError {
+                Text(error).font(.caption).foregroundStyle(.orange)
+            }
+        } header: {
+            Text("Status lines still captured")
+        } footer: {
+            Text(host.activation == .paused
+                 ? "Quit Grove first: it writes the same settings."
+                 : "Each of these accounts' status line goes through Brow's wrapper, which records each session for the notch, then runs your own command. Give them back to put your own commands in place.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
     @ViewBuilder private var status: some View {
         switch host.activation {

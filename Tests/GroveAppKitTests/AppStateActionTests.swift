@@ -935,6 +935,35 @@ final class AppStateActionTests: XCTestCase {
         XCTAssertEqual(line?["command"] as? String, original)
     }
 
+    /// A login with a second folder: both run the wrapper, and turning capture off gives
+    /// both their own status line back — the second from its wrapper's record.
+    func testDisableMonitoringGivesEveryFolderOfTheLoginItsCommandBack() async throws {
+        let main = root.appendingPathComponent("acc-main")
+        let second = root.appendingPathComponent("acc-second")
+        for (dir, command) in [(main, "/bin/echo main"), (second, "/bin/echo second")] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try #"{"statusLine":{"type":"command","command":"\#(command)"}}"#
+                .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        }
+        let work = AccountConfig(name: "work", configDir: main.path, aliasDirs: [second.path])
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.bin = root.appendingPathComponent("support-bin-alias").path
+        state.installMonitoring(work)
+        let installed = try XCTUnwrap(state.config.accounts.first)
+
+        state.disableMonitoring(installed)
+
+        func command(_ dir: URL) throws -> String? {
+            let data = try Data(contentsOf: dir.appendingPathComponent("settings.json"))
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return (obj?["statusLine"] as? [String: Any])?["command"] as? String
+        }
+        XCTAssertEqual(try command(main), "/bin/echo main")
+        XCTAssertEqual(try command(second), "/bin/echo second")
+    }
+
     /// refresh() must populate the captures on the Accounts route even when NO
     /// project is selected — refreshUsage runs BEFORE the
     /// `guard let project = selectedProject` early-return (it iterates accounts).

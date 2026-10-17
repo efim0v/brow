@@ -202,6 +202,80 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertNil(apps.token)
     }
 
+    // MARK: - Status lines captured while Workspaces is off
+
+    /// An account Grove captured, its settings.json pointing at the wrapper. Returns the
+    /// account folder.
+    private func capturedAccount(original: String) throws -> URL {
+        let dir = try Fixture.tempDir("host-captured")
+        try #"{"statusLine":{"type":"command","command":"\#(original)"},"model":"opus"}"#
+            .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        let saved = try StatuslineInstaller(scriptDir: folders.bin).install(configDir: dir.path)
+        try ConfigStore(url: folders.configFile).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
+            accounts: [AccountConfig(name: "work", configDir: dir.path, monitoring: true, savedStatusline: saved)]))
+        return dir
+    }
+
+    private func statusLine(_ dir: URL) throws -> String? {
+        let data = try Data(contentsOf: dir.appendingPathComponent("settings.json"))
+        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return (obj?["statusLine"] as? [String: Any])?["command"] as? String
+    }
+
+    /// Workspaces turned off: the wrapper keeps running under Claude Code, so Settings
+    /// still lists the account, and giving its status line back works with no engine.
+    func testAStatusLineCapturedBeforeCanBeGivenBackWithWorkspacesOff() throws {
+        let dir = try capturedAccount(original: "/bin/echo mine")
+        let host = makeHost(try makeStore(enabled: false), groveConfig: true, groveRunning: false)
+        host.start()
+        XCTAssertEqual(host.activation, .off)
+        XCTAssertEqual(host.dormantCaptures.map(\.name), ["work"], "read without the engine")
+        XCTAssertNil(host.state)
+        XCTAssertNotEqual(try statusLine(dir), "/bin/echo mine", "fixture: the wrapper is in place")
+
+        host.releaseStatusLine(host.dormantCaptures[0])
+
+        XCTAssertNil(host.captureError)
+        XCTAssertEqual(try statusLine(dir), "/bin/echo mine")
+        XCTAssertTrue(host.dormantCaptures.isEmpty)
+        let account = try XCTUnwrap(ConfigStore(url: folders.configFile).load().config.accounts.first)
+        XCTAssertFalse(account.monitoring)
+        XCTAssertTrue(account.monitoringDisabledByUser, "so nothing turns it on again")
+        XCTAssertNil(host.state, "still no engine")
+        XCTAssertFalse(host.isEngineRunning)
+    }
+
+    /// Not while Grove.app runs: it writes the same config.
+    func testNotWhileGroveRuns() throws {
+        let dir = try capturedAccount(original: "/bin/echo mine")
+        let before = try statusLine(dir)
+        let host = makeHost(try makeStore(), groveConfig: true, groveRunning: true)
+        host.start()
+        XCTAssertEqual(host.activation, .paused)
+        XCTAssertEqual(host.dormantCaptures.map(\.name), ["work"])
+        host.releaseStatusLine(host.dormantCaptures[0])
+        XCTAssertEqual(try statusLine(dir), before, "left as it was")
+        XCTAssertEqual(host.captureError, "Quit Grove first: it writes the same settings.")
+    }
+
+    /// Settings no longer says that, off, nothing of Workspaces runs: a captured status
+    /// line does, and the text says so.
+    func testTheOffTextNamesTheCapturedStatusLines() {
+        XCTAssertFalse(WorkspacesSettingsTab.explanation.contains("nothing is read or written"))
+        XCTAssertTrue(WorkspacesSettingsTab.explanation.contains("until you turn capture off"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(paused: true).contains("Quit Grove"))
+    }
+
+    /// While Workspaces is on, the engine's state has the accounts.
+    func testOnTheDormantListIsEmpty() throws {
+        _ = try capturedAccount(original: "/bin/echo mine")
+        let host = makeHost(try makeStore(), groveConfig: true, groveRunning: false)
+        host.start()
+        XCTAssertEqual(host.activation, .on)
+        XCTAssertTrue(host.dormantAccounts.isEmpty)
+    }
+
     /// Workspaces' accounts outside the usual folders join the notch's scan, and the
     /// pickers read the notch's numbers.
     func testWorkspacesAccountsJoinTheScanAndThePickersReadTheStore() throws {

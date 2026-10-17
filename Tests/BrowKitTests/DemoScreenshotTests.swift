@@ -52,6 +52,20 @@ final class DemoScreenshotTests: XCTestCase {
         }
     }
 
+    /// Settings › Workspaces in the README draws a setup Grove made — the safety net on,
+    /// accounts capturing — so it says what a Grove setup is told, not that the safety
+    /// net "starts off for a new setup" right above a safety net that is on.
+    @MainActor
+    func testTheWorkspacesRenderIsWordedForTheSetupItDraws() throws {
+        let appDir = FileManager.default.temporaryDirectory.appendingPathComponent("brow-demo-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: appDir) }
+        let host = makeWorkspaces(store: try makeStore(now: Self.demoNow(), appDir: appDir), appDir: appDir)
+        let config = try XCTUnwrap(host.state?.config)
+        XCTAssertTrue(config.transcriptMirror.enabled)
+        XCTAssertTrue(config.accounts.contains(where: \.monitoring))
+        XCTAssertTrue(host.isGroveSetup)
+    }
+
     // MARK: - Fixture
 
     /// The demo's clock: today at 09:41, in the time zone the render runs in. The menu
@@ -130,6 +144,9 @@ final class DemoScreenshotTests: XCTestCase {
             }
             settings.accounts[account.organizationUUID] = AccountOverride(name: account.name, hidden: false)
         }
+        // Workspaces' renders draw a setup Grove made — status lines captured, the safety net
+        // on — so Settings › Workspaces is worded for one (`WorkspacesHost.isGroveSetup`).
+        settings.workspaces.groveSetup = true
         try LimitSnapshotStore(directory: appDir)
             .saveFile(LimitsFile(snapshots: snapshots, accounts: [], subscriptions: subscriptions))
         try BrowSettingsStore(directory: appDir).save(settings)

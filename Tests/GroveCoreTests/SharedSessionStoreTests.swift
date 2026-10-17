@@ -46,18 +46,56 @@ final class SharedSessionStoreTests: XCTestCase {
     // MARK: - knownNonSharedDirs is the single source of truth for verify's allowlist
 
     func testKnownNonSharedDirsCoverTheLocalAndBackupStores() {
-        XCTAssertEqual(SharedSessionStore.knownNonSharedDirs,
-                       ["projects", "sessions", "shell-snapshots", "todos", "statsig", "grove-backup"])
+        for name in ["projects", "sessions", "shell-snapshots", "todos", "statsig", "grove-backup", "grove"] {
+            XCTAssertTrue(SharedSessionStore.knownNonSharedDirs.contains(name), name)
+        }
+        XCTAssertTrue(SharedSessionStore.knownNonSharedDirs.isDisjoint(with: SharedSessionStore.wholesaleDirs))
     }
 
     func testVerifyFlagsAnUnknownTopLevelStoreDir() throws {
-        // A future Claude store we don't know about surfaces as a banner, not silence.
-        try write("x", at: accountDir, "memory-vault/some/file.txt")
+        // A future Claude store we don't know about surfaces as a banner, not silence:
+        // a folder keyed by session id, the shape of every store that must be shared.
+        try write("x", at: accountDir, "memory-vault/2c7e1f0a-1b2c-4d3e-9f80-0a1b2c3d4e5f.json")
         // Link the wholesale dirs so only the unknown dir is flagged.
         _ = try store.ensureLinked(accountDir: accountDir.path, canonicalDir: canonicalDir.path)
         let issues = store.verify(accountDirs: [accountDir.path], canonicalDir: canonicalDir.path)
+        XCTAssertEqual(issues.count, 1, "got: \(issues)")
         XCTAssertTrue(issues.contains { $0.contains("memory-vault") && $0.lowercased().contains("unknown") },
                       "got: \(issues)")
+    }
+
+    /// grove#7: a linked account holding every folder a current Claude Code writes —
+    /// including ones with session-id names inside, like `debug` — is healthy. Before
+    /// the fix, 11 of these were flagged and Accounts opened with a red banner.
+    func testVerifyIsQuietForTheFoldersClaudeCodeWrites() throws {
+        let uuid = "6f9619ff-8b86-4011-b42d-00c04fc964ff"
+        for (folder, entry) in [("projects", "-Users-x-proj/\(uuid).jsonl"), ("todos", "\(uuid)-agent-\(uuid).json"),
+                                ("shell-snapshots", "snapshot-zsh-1.sh"), ("statsig", "statsig.cache"),
+                                ("debug", "\(uuid).txt"), ("cache", "changelog.md"), ("plans", "quiet-lake.md"),
+                                ("plugins", "known_marketplaces.json"), ("usage-data", "report.json"),
+                                ("agents", "reviewer.md"), ("paste-cache", "a1b2c3.txt"),
+                                ("commands", "ship.md"), ("skills", "pdf/SKILL.md"),
+                                ("backups", ".claude.json.backup.1760000000"), ("ide", "1234.lock"),
+                                ("grove", "usage/\(uuid).json"), ("sessions", "4242.json")] {
+            try write("x", at: accountDir, folder + "/" + entry)
+        }
+        _ = try store.ensureLinked(accountDir: accountDir.path, canonicalDir: canonicalDir.path)
+        XCTAssertEqual(store.verify(accountDirs: [accountDir.path], canonicalDir: canonicalDir.path), [])
+    }
+
+    /// An unknown folder that is not keyed by session id is not a session store.
+    func testVerifyIgnoresAnUnknownFolderNotKeyedBySessionId() throws {
+        try write("x", at: accountDir, "my-notes/todo.txt")
+        try write("x", at: accountDir, "empty-folder/.keep")
+        _ = try store.ensureLinked(accountDir: accountDir.path, canonicalDir: canonicalDir.path)
+        XCTAssertEqual(store.verify(accountDirs: [accountDir.path], canonicalDir: canonicalDir.path), [])
+    }
+
+    func testSessionKeyedNamesAreUUIDsWithOrWithoutASuffix() {
+        XCTAssertTrue(SharedSessionStore.isSessionKeyed(["6F9619FF-8B86-4011-B42D-00C04FC964FF"]))
+        XCTAssertTrue(SharedSessionStore.isSessionKeyed(["notes.md", "6f9619ff-8b86-4011-b42d-00c04fc964ff.jsonl"]))
+        XCTAssertFalse(SharedSessionStore.isSessionKeyed(["6f9619ff-8b86-4011-b42d", "readme.md", ".DS_Store"]))
+        XCTAssertFalse(SharedSessionStore.isSessionKeyed([]))
     }
 
     // MARK: - fresh link creates symlinks pointing into canonical

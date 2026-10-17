@@ -22,12 +22,33 @@ public struct SharedSessionStore: Sendable {
     /// future Claude store is a one-line change here (and `verify` flags unknown ones).
     public static let wholesaleDirs: [String] = ["file-history", "tasks", "session-env"]
 
-    /// Known top-level dirs that are NOT shared session stores (cwd-keyed, local, or
-    /// Grove's own backup). The single source of truth for `verify`'s allowlist.
-    /// Any UNKNOWN new top-level dir surfacing as a banner is INTENTIONAL — so a
-    /// future Claude store dir gets noticed instead of silently diverging.
-    public static let knownNonSharedDirs: Set<String> =
-        ["projects", "sessions", "shell-snapshots", "todos", "statsig", "grove-backup"]
+    /// Top-level dirs that are NOT shared session stores: the cwd-keyed `projects`,
+    /// Claude Code's own per-install folders (its documented `~/.claude` contents —
+    /// settings, extensions, caches, logs, backups) and the engine's own `grove` and
+    /// `grove-backup`. `verify` never flags these, whatever is in them.
+    ///
+    /// Not the only filter: an unknown folder is flagged only when it is keyed by
+    /// session id (`isSessionKeyed`), which is what a new store that should be shared
+    /// would look like. A 6-name list alone flagged 11 of the 14 folders a current
+    /// Claude Code writes, and every linked account opened with a red banner (grove#7).
+    public static let knownNonSharedDirs: Set<String> = [
+        // Claude Code: sessions and their side files, kept per account.
+        "projects", "sessions", "shell-snapshots", "todos", "statsig", "debug", "paste-cache",
+        "plans", "usage-data", "cache", "backups", "logs", "telemetry", "downloads",
+        // Claude Code: what the user installs or writes.
+        "plugins", "commands", "agents", "skills", "output-styles", "hooks", "ide", "local", "rules",
+        // The engine's own: status-line captures and link backups.
+        "grove", "grove-backup",
+    ]
+
+    /// Whether a folder's entries are named by session id (`<uuid>`, `<uuid>.json`,
+    /// `<uuid>-agent-…`): the shape of a store Claude Code keys by session, which
+    /// `wholesaleDirs` must list to share.
+    public static func isSessionKeyed(_ entries: [String]) -> Bool {
+        entries.contains { name in
+            name.count >= 36 && UUID(uuidString: String(name.prefix(36))) != nil
+        }
+    }
 
     /// Links every wholesale dir of `accountDir` into `canonicalDir` (migrate-merge
     /// existing entries with a backup, then replace with a symlink). Idempotent.
@@ -102,10 +123,10 @@ public struct SharedSessionStore: Sendable {
 
     /// Self-check across linked accounts: a wholesale dir that is a broken symlink,
     /// a wholesale dir that is still a real dir (never linked), and any UNKNOWN
-    /// sessionId-keyed store directory that isn't in `wholesaleDirs` (so a future
-    /// Claude store surfaces as a banner instead of silently diverging). Returns
-    /// issue strings (empty = healthy). Never throws — a verify failure must not
-    /// crash startup.
+    /// folder keyed by session id that isn't in `wholesaleDirs` (so a future Claude
+    /// store surfaces as a banner instead of silently diverging). Returns issue
+    /// strings (empty = healthy). Never throws — a verify failure must not crash
+    /// startup.
     public func verify(accountDirs: [String], canonicalDir: String) -> [String] {
         let fm = FileManager.default
         var issues: [String] = []
@@ -131,9 +152,11 @@ public struct SharedSessionStore: Sendable {
                 if Self.wholesaleDirs.contains(entry) { continue }
                 if Self.knownNonSharedDirs.contains(entry) { continue }
                 var isDir: ObjCBool = false
-                if fm.fileExists(atPath: accountDir + "/" + entry, isDirectory: &isDir), isDir.boolValue {
-                    issues.append("\(accountDir): unknown session store '\(entry)' (not in wholesaleDirs)")
-                }
+                let path = accountDir + "/" + entry
+                guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue,
+                      Self.isSessionKeyed((try? fm.contentsOfDirectory(atPath: path)) ?? [])
+                else { continue }
+                issues.append("\(accountDir): unknown session store '\(entry)' (keyed by session id, not in wholesaleDirs)")
             }
         }
         return issues

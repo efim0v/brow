@@ -19,7 +19,6 @@ final class PersistentFooterTests: XCTestCase {
 
     func testFooterHiddenOnDeepScopedRoutes() {
         XCTAssertFalse(RootView.showsFooter(for: .accounts))
-        XCTAssertFalse(RootView.showsFooter(for: .globalSettings))
         XCTAssertFalse(RootView.showsFooter(for: .projectSettings(projectID)))
         XCTAssertFalse(RootView.showsFooter(for: .statsSettings(projectID)))
         XCTAssertFalse(RootView.showsFooter(for: .createWorkspace(projectID)))

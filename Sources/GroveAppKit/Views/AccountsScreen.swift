@@ -19,17 +19,17 @@ extension EnvironmentValues {
     }
 }
 
-/// Accounts screen (route .accounts, spec §6.3): back header, identity rows
-/// (email · organization · tier via the injectable identity provider),
-/// live/recent-session usage aggregated across ALL loaded snapshots with a
-/// workspace -> project drill-down, "Add & log in" (config + cmux login
-/// workspace) and config-only Remove.
+/// Accounts screen (route .accounts): sessions by account. Back header,
+/// identity rows (email · organization · tier via the injectable identity provider),
+/// live/recent-session usage aggregated across ALL loaded snapshots with a workspace
+/// -> project drill-down, and each account's session cards. Adding an account,
+/// sharing its sessions, capturing its status line and its default model live in the
+/// host's Settings window (`openSettings(.accounts)`); this screen shows their state.
 struct AccountsScreen: View {
     @ObservedObject var state: AppState
     @Environment(\.isSnapshotRender) private var isSnapshotRender
     @Environment(\.claudeIdentityProvider) private var identityProvider
 
-    @State private var newAccountName = ""
     @State private var expandedAccounts: Set<String> = []
 
     var body: some View {
@@ -48,12 +48,26 @@ struct AccountsScreen: View {
                     onBack: { state.goBack() })
     }
 
+    /// The account settings are a window away.
+    @ViewBuilder private var settingsLink: some View {
+        if isSnapshotRender {
+            Text("Account settings…").font(.caption).foregroundStyle(Palette.primary)
+        } else if let open = state.openSettings {
+            Button("Account settings…") { open(.accounts) }
+                .buttonStyle(.plain).font(.caption).foregroundStyle(Palette.primary)
+                .help("Sign in, sharing, status-line capture and default models: Settings › Accounts")
+        }
+    }
+
     @ViewBuilder private var cardList: some View {
         let content = VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Spacer()
+                settingsLink
+            }
             ForEach(state.config.accounts, id: \.name) { account in
                 accountCard(account)
             }
-            addRow
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -84,7 +98,6 @@ struct AccountsScreen: View {
                     identityLine(account)
                 }
                 Spacer(minLength: 8)
-                removeControl(account)
             }
             // Status + controls on a separate, aligned row.
             HStack(spacing: 12) {
@@ -115,18 +128,6 @@ struct AccountsScreen: View {
         .glassCard()
     }
 
-    /// Config-only Remove. Snapshot-safe (a Button renders as a placeholder offscreen).
-    @ViewBuilder
-    private func removeControl(_ account: AccountConfig) -> some View {
-        if isSnapshotRender {
-            Text("Remove").font(.caption2).foregroundStyle(.secondary)
-        } else {
-            Button("Remove") { state.removeAccount(name: account.name) }
-                .controlSize(.small)
-                .help("Removes the account from Workspaces only — \(account.configDir) is untouched")
-        }
-    }
-
     /// Reveals the account's config dir in Finder. Snapshot-safe: a Button is
     /// AppKit-backed and draws offscreen, so render a plain Image in snapshot mode.
     @ViewBuilder
@@ -140,28 +141,13 @@ struct AccountsScreen: View {
         }
     }
 
-    /// Monitoring toggle: a green "monitoring" label + "Stop" when active, else a
-    /// "Monitor" button. Snapshot-safe plain-label fallback for the buttons.
+    /// Status-line capture, as a label: it is turned on and off in Settings › Accounts.
     @ViewBuilder
     private func monitorControl(_ account: AccountConfig) -> some View {
         if account.monitoring {
-            HStack(spacing: 4) {
-                Label("monitoring", systemImage: "dot.radiowaves.left.and.right")
-                    .font(.caption2).foregroundStyle(Palette.primary).labelStyle(.titleAndIcon)
-                if isSnapshotRender {
-                    Text("Stop").font(.caption2).foregroundStyle(.secondary)
-                } else {
-                    Button("Stop") { state.disableMonitoring(account) }
-                        .controlSize(.small)
-                        .help("Restores the original statusline command")
-                }
-            }
-        } else if isSnapshotRender {
-            Text("Monitor").font(.caption2).foregroundStyle(Palette.primary)
-        } else {
-            Button("Monitor") { state.installMonitoring(account) }
-                .controlSize(.small)
-                .help("Installs Brow's status-line wrapper to capture usage")
+            Label("capturing", systemImage: "dot.radiowaves.left.and.right")
+                .font(.caption2).foregroundStyle(Palette.primary).labelStyle(.titleAndIcon)
+                .help("Brow's status-line wrapper records this account's sessions")
         }
     }
 
@@ -219,24 +205,17 @@ struct AccountsScreen: View {
         }
     }
 
-    /// "Link to shared store" for a non-canonical, non-shared account; a static
-    /// "shared"/"canonical" label otherwise. Snapshot-safe: a Button is AppKit-
-    /// backed and draws offscreen, so render a plain label in snapshot mode.
+    /// Sharing, as a label: an account is shared from Settings › Accounts.
     @ViewBuilder
     private func sharedStoreControl(_ account: AccountConfig) -> some View {
         let isCanonical = expandTilde(account.configDir) == state.canonicalDir
         if isCanonical {
-            Label("canonical", systemImage: "star.fill")
+            Label("default", systemImage: "star.fill")
                 .font(.caption2).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
+                .help("The default account (~/.claude): the others share their sessions into it")
         } else if account.sharedStore {
             Label("shared", systemImage: "link")
                 .font(.caption2).foregroundStyle(Palette.primary).labelStyle(.titleAndIcon)
-        } else if isSnapshotRender {
-            Text("Link").font(.caption2).foregroundStyle(Palette.primary)
-        } else {
-            Button("Link to shared store") { state.linkAccount(account) }
-                .controlSize(.small)
-                .help("Symlink this account's session stores into the default ~/.claude store")
         }
     }
 
@@ -436,39 +415,5 @@ struct AccountsScreen: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    // MARK: - Add account (spec §6.3: name -> config dir -> cmux login workspace)
-
-    private var addRow: some View {
-        HStack(spacing: 8) {
-            SnapshotSafeTextField(title: "new account name", text: $newAccountName)
-                .frame(width: 200)
-            Button("Add & log in") { addAccount() }
-                .disabled(newAccountName.trimmingCharacters(in: .whitespaces).isEmpty)
-            Text("creates ~/.claude-accounts/<name> config and opens a cmux login workspace")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            Spacer()
-        }
-        .padding(.top, 6)
-    }
-
-    private func addAccount() {
-        let name = newAccountName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        guard !state.config.accounts.contains(where: { $0.name == name }) else {
-            state.actionError = "account '\(name)' already exists"
-            return
-        }
-        state.addAccount(name: name)
-        guard let account = state.config.accounts.first(where: { $0.name == name }) else { return }
-        newAccountName = ""
-        // Spec §6.3: land the user in a login workspace — `claude` under a fresh
-        // CLAUDE_CONFIG_DIR starts its login flow; cwd is simply $HOME.
-        Task {
-            await state.launchClaude(cwd: NSHomeDirectory(), title: "login: \(name)",
-                                     account: account, resume: nil)
-        }
     }
 }

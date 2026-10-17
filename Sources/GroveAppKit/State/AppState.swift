@@ -196,6 +196,10 @@ public final class AppState: ObservableObject {
     /// hands a change to it here (and the host sets `WindowSubstrateStyle.current`).
     public var onPanelMaterialChange: ((WindowSubstrateStyle) -> Void)?
 
+    /// Opens the host's Settings window where the panel cannot hold the settings:
+    /// Workspaces' own (the footer's gear) or an account's (the Accounts screen).
+    public var openSettings: ((WorkspacesSettingsLink) -> Void)?
+
     /// Test observability: incremented each time `runCodeStatsScan` begins a scan. nil
     /// in production (never read); tests set it to 0 before calling `setStatsBranch`
     /// and assert it equals 1 after the debounce fires to verify coalescing.
@@ -658,6 +662,19 @@ extension AppState {
         } catch {
             actionError = String(describing: error)
         }
+    }
+
+    /// An account's default model and effort (Settings › Accounts); a project's own
+    /// default wins over them at launch.
+    public func setAccountModel(name: String, model: String?) {
+        guard let i = config.accounts.firstIndex(where: { $0.name == name }) else { return }
+        config.accounts[i].defaultModel = (model?.isEmpty == true) ? nil : model
+        persist()
+    }
+    public func setAccountEffort(name: String, effort: String?) {
+        guard let i = config.accounts.firstIndex(where: { $0.name == name }) else { return }
+        config.accounts[i].defaultEffort = (effort?.isEmpty == true) ? nil : effort
+        persist()
     }
 
     public func setProjectModel(projectID: UUID, model: String?) {

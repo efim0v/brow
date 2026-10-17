@@ -4,7 +4,7 @@ import SwiftUI
 import GroveCore
 
 /// Drives the LIVE render paths the snapshot scenes skip: real controls across every
-/// routed screen and the .globalSettings screen.
+/// routed screen.
 /// Forcing `ImageRenderer.cgImage` evaluates every body, so a crash or a broken
 /// chart expression is caught in CI even though the offscreen pixels are blank.
 @MainActor
@@ -35,17 +35,15 @@ final class DashboardRenderTests: XCTestCase {
         }
     }
 
-    func testGlobalSettingsScreenRenders() {
+    /// The Accounts screen's live branch: the settings link appears only when the host
+    /// can open its Settings window.
+    func testAccountsScreenRendersLiveBranchWithAndWithoutTheSettingsLink() {
         let state = SnapshotMode.fixtureState()
-        render(GlobalSettingsScreen(state: state).environment(\.isSnapshotRender, true), height: 420)
-    }
-
-    /// Live branch (isSnapshotRender=false) so the real segmented substrate Picker
-    /// in the new "Window substrate" section is exercised, not just its snapshot
-    /// lookalike — guards against a crash/regression in that branch.
-    func testGlobalSettingsScreenRendersLiveBranch() {
-        let state = SnapshotMode.fixtureState()
-        render(GlobalSettingsScreen(state: state).environment(\.isSnapshotRender, false), height: 420)
+        render(AccountsScreen(state: state).environment(\.isSnapshotRender, false), height: 480)
+        var opened: [WorkspacesSettingsLink] = []
+        state.openSettings = { opened.append($0) }
+        render(AccountsScreen(state: state).environment(\.isSnapshotRender, false), height: 480)
+        XCTAssertTrue(opened.isEmpty, "rendering opens nothing")
     }
 
     func testProjectsTabEmptyAndPopulatedStates() {

@@ -15,7 +15,6 @@ final class RouteTests: XCTestCase {
         XCTAssertEqual(Route.projects.depth, 0)
         XCTAssertEqual(Route.project(id).depth, 1)
         XCTAssertEqual(Route.accounts.depth, 1)
-        XCTAssertEqual(Route.globalSettings.depth, 1)
         XCTAssertEqual(Route.projectSettings(id).depth, 2)
         XCTAssertEqual(Route.createWorkspace(id).depth, 2)
     }
@@ -25,7 +24,6 @@ final class RouteTests: XCTestCase {
         XCTAssertEqual(Route.projectSettings(id).backRoute, .project(id))
         XCTAssertEqual(Route.project(id).backRoute, .projects)
         XCTAssertEqual(Route.accounts.backRoute, .projects)
-        XCTAssertEqual(Route.globalSettings.backRoute, .projects)
         XCTAssertEqual(Route.projects.backRoute, .projects)   // root: stays put
     }
 

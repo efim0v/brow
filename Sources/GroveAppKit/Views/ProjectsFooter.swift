@@ -9,9 +9,9 @@ import GroveCore
 /// the Accounts / settings / refresh / version / Quit row never
 /// disappears as the user moves between the list and the tabs.
 ///
-/// The deeper scoped routes (.accounts/.globalSettings/.projectSettings/
-/// .statsSettings/.createWorkspace) have their own back navigation and DON'T show
-/// this footer — RootView gates that.
+/// The deeper scoped routes (.accounts/.projectSettings/.statsSettings/
+/// .createWorkspace) have their own back navigation and DON'T show this footer —
+/// RootView gates that. The gear opens the host's Settings window at Workspaces.
 struct ProjectsFooter: View {
     @ObservedObject var state: AppState
 
@@ -22,11 +22,11 @@ struct ProjectsFooter: View {
             }
             .buttonStyle(.plain)
             .help("Claude accounts")
-            Button { state.open(.globalSettings) } label: {
+            Button { state.openSettings?(.workspaces) } label: {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(.plain)
-            .help("Settings")
+            .help("Settings › Workspaces")
             Button {
                 Task { await state.refresh() }
             } label: {

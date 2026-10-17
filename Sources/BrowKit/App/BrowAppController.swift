@@ -62,6 +62,8 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     /// Names typed into Settings but not committed yet. Owned here, not by the
     /// window's SwiftUI tree, because that tree is destroyed when the window closes.
     private let drafts = SettingsDrafts()
+    /// Which Settings tab is in front; the Workspaces panel's links turn it.
+    private let navigation = SettingsNavigation()
     private var screenObserver: (any NSObjectProtocol)?
     private let promptFallback = SendableFlag(true)
     /// Reachability, mirrored out of `RefreshTriggers`' path monitor. Same reason as
@@ -137,6 +139,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         // After the notch is up, like everything that may touch the disk.
         let workspaces = WorkspacesHost(store: store)
         self.workspaces = workspaces
+        workspaces.openSettings = { [weak self] link in self?.showSettings(pane: SettingsPane(link)) }
         workspaces.start()
         // Off until the user turns it on; even then it reads only what the store has.
         notifier = LimitNotifier(poster: SystemNotifications.isSupported ? SystemNotifications() : UnavailableNotifications())
@@ -286,7 +289,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         return true
     }
 
-    func showSettings() {
+    func showSettings(pane: SettingsPane? = nil) {
         // `Cmd-,` is live from the moment the menu is installed, which is before
         // the launch Task has built the store — and both are implicitly
         // unwrapped, so an early hit would trap instead of doing nothing.
@@ -294,12 +297,14 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             BrowLog.panel.error("settings opened before the accounts finished loading; ignoring")
             return
         }
+        if let pane { navigation.pane = pane }
         if settingsWindow == nil {
             // The detected path is NOT passed in: the window is built once and cached,
             // and detection can still be running. `SettingsView` reads it live off the
             // store instead (`store.claudeDetection`).
-            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts, notifier: notifier)
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 460),
+            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts, notifier: notifier,
+                                    workspaces: workspaces, navigation: navigation)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 540),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Brow Settings"
             window.contentView = NSHostingView(rootView: view)

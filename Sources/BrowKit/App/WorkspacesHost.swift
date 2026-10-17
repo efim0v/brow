@@ -18,6 +18,9 @@ public final class WorkspacesHost: ObservableObject {
     @Published public private(set) var state: AppState?
     /// Told when the panel is ordered in or out (the notch latches its hover meanwhile).
     public var onPanelVisibilityChange: ((Bool) -> Void)?
+    /// Opens Brow's Settings window where the panel asks for it: the footer's gear
+    /// (Workspaces), the Accounts screen's link (Accounts).
+    public var openSettings: ((WorkspacesSettingsLink) -> Void)?
 
     public let folders: WorkspacesFolders
     private let store: LimitsStore
@@ -130,6 +133,10 @@ public final class WorkspacesHost: ObservableObject {
         // per account, in Settings › Accounts, or kept where Grove had it on.
         state.capturesByDefault = false
         state.onPanelMaterialChange = { [weak self] style in self?.setPanelMaterial(style) }
+        state.openSettings = { [weak self] link in
+            self?.hidePanel()
+            self?.openSettings?(link)
+        }
         self.state = state
         let controller = WorkspacesMenuBarController(
             state: state, icon: BrowMark.templateImage(), fallbackTitle: "Brow",
@@ -152,6 +159,12 @@ public final class WorkspacesHost: ObservableObject {
         for app in NSWorkspace.shared.runningApplications where GroveAppGuard.isGrove(app.bundleIdentifier) {
             app.terminate()
         }
+    }
+
+    /// Offscreen renders and tests: this state and activation, nothing started.
+    func preview(state: AppState, activation: WorkspacesActivation) {
+        self.state = state
+        self.activation = activation
     }
 
     public var isPanelVisible: Bool { controller?.isPanelVisible == true }

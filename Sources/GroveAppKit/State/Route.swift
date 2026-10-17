@@ -5,8 +5,9 @@ import Foundation
 /// and animates transitions; AppState.open/goBack mutate it.
 public enum Route: Equatable {
     case projects
+    /// Sessions by account. The account settings themselves are in the host's
+    /// Settings window (`AppState.openSettings`).
     case accounts
-    case globalSettings
     case project(UUID)
     case projectSettings(UUID)
     case createWorkspace(UUID)
@@ -22,19 +23,27 @@ public enum Route: Equatable {
     public var depth: Int {
         switch self {
         case .projects: return 0
-        case .project, .accounts, .globalSettings, .otherSessions: return 1
+        case .project, .accounts, .otherSessions: return 1
         case .projectSettings, .createWorkspace, .statsSettings: return 2
         }
     }
 
     /// Explicit back-map: createWorkspace/projectSettings/statsSettings -> their
-    /// project; project/accounts/globalSettings/otherSessions -> projects; projects -> itself (root).
+    /// project; project/accounts/otherSessions -> projects; projects -> itself (root).
     public var backRoute: Route {
         switch self {
         case .projects: return .projects
-        case .project, .accounts, .globalSettings, .otherSessions: return .projects
+        case .project, .accounts, .otherSessions: return .projects
         case .projectSettings(let id), .createWorkspace(let id), .statsSettings(let id):
             return .project(id)
         }
     }
+}
+
+/// What the panel can ask the host's Settings window to show.
+public enum WorkspacesSettingsLink: Sendable, Equatable {
+    /// Workspaces' own settings: projects, folders, the safety net, the material.
+    case workspaces
+    /// The accounts, with their sharing, capture and default model.
+    case accounts
 }

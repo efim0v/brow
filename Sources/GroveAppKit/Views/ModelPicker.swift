@@ -4,7 +4,7 @@ import GroveCore
 /// The model a launch uses: "(default)", Claude Code's aliases, a pinned id, or any
 /// other id typed in ("Other…"). A value the lists do not know — typed earlier, or
 /// written by another build — is shown as it is rather than as a blank picker.
-struct ModelPicker: View {
+public struct ModelPicker: View {
     @Binding var model: String?
     var size: ControlSize = .regular
     @State private var typing = false
@@ -16,7 +16,12 @@ struct ModelPicker: View {
         case other
     }
 
-    var body: some View {
+    public init(model: Binding<String?>, size: ControlSize = .regular) {
+        _model = model
+        self.size = size
+    }
+
+    public var body: some View {
         HStack(spacing: 6) {
             Picker("", selection: choice) {
                 Text("(default)").tag(Choice.automatic)

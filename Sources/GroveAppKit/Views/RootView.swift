@@ -76,7 +76,6 @@ public struct RootView: View {
         case .projectSettings: return (560, 560)
         case .statsSettings: return (560, 560)
         case .accounts: return (560, 480)
-        case .globalSettings: return (480, 420)
         case .otherSessions: return (600, 540)
         }
     }
@@ -106,8 +105,6 @@ public struct RootView: View {
                         StatsSettingsScreen(state: state, projectID: id)
                     case .accounts:
                         AccountsScreen(state: state)
-                    case .globalSettings:
-                        GlobalSettingsScreen(state: state)
                     case .otherSessions:
                         OtherSessionsScreen(state: state)
                     }
@@ -152,7 +149,7 @@ public struct RootView: View {
     static func showsFooter(for route: Route) -> Bool {
         switch route {
         case .projects, .project: return true
-        case .accounts, .globalSettings, .projectSettings,
+        case .accounts, .projectSettings,
              .statsSettings, .createWorkspace, .otherSessions:
             return false
         }

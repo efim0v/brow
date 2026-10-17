@@ -818,12 +818,16 @@ public final class ClaudeService: @unchecked Sendable {
     /// `browser`: the executable `claude auth login` should open (`$BROWSER`) — Brow's
     /// per-account router, so a re-login from a Grove-launched session lands in
     /// that account's own browser profile instead of the default browser.
+    /// `claude`: the binary to run — the host's Path to claude — or nil for the
+    /// engine's own guesses (`claudeExecutable()`).
     public static func launchCommand(account: AccountConfig, resume sessionId: String? = nil,
                                      model: String? = nil, effort: String? = nil,
-                                     skipPermissions: Bool = false, browser: String? = nil) -> String {
+                                     skipPermissions: Bool = false, browser: String? = nil,
+                                     claude path: String? = nil) -> String {
         let dir = expandTilde(account.configDir)
         let isDefaultAccount = dir == NSHomeDirectory() + "/.claude"
-        let claude = shellQuote(claudeExecutable())
+        let chosen = path?.trimmingCharacters(in: .whitespaces)
+        let claude = shellQuote(chosen.flatMap { $0.isEmpty ? nil : $0 } ?? claudeExecutable())
         var env: [String] = []
         if !isDefaultAccount { env.append("CLAUDE_CONFIG_DIR=\(shellQuote(dir))") }
         if let browser, !browser.isEmpty { env.append("BROWSER=\(shellQuote(browser))") }

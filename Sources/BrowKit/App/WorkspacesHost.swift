@@ -148,6 +148,10 @@ public final class WorkspacesHost: ObservableObject {
         // The pickers show each account's limits, from the notch's own readings.
         state.limitsProvider = store
         state.onPanelMaterialChange = { [weak self] style in self?.setPanelMaterial(style) }
+        // Sessions launch with Brow's own router and Brow's Path to claude, like every
+        // sign-in Brow starts.
+        state.browserRouter = AddAccountFlow.browserHelperPath ?? state.browserRouter
+        state.claudePath = { [weak store = self.store] in store.flatMap { $0.settings.claudePath ?? $0.claudeDetected } }
         state.openSettings = { [weak self] link in
             self?.hidePanel()
             self?.openSettings?(link)

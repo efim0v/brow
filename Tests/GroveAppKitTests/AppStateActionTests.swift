@@ -7,8 +7,12 @@ final class AppStateActionTests: XCTestCase {
     private var root: URL!
     private var configURL: URL!
 
-    /// Non-default account so launchCommand carries the CLAUDE_CONFIG_DIR prefix.
-    private let account = AccountConfig(name: "work", configDir: "/tmp/grove-test-claude")
+    /// Non-default account so launchCommand carries the CLAUDE_CONFIG_DIR prefix. In the
+    /// test's own temp dir: a launch stamps onboarding into the folder's .claude.json, and
+    /// a fixed /tmp path collected one from every run.
+    private var account: AccountConfig {
+        AccountConfig(name: "work", configDir: root.appendingPathComponent("grove-test-claude").path)
+    }
 
     override func setUp() async throws {
         root = try FixtureLite.tempDir("appstate-actions")
@@ -45,10 +49,26 @@ final class AppStateActionTests: XCTestCase {
         XCTAssertEqual(newCalls.count, 1)
         XCTAssertEqual(newCalls[0].args,
                        ["new-workspace", "--name", "feat-x", "--cwd", "/ws/feat-x",
-                        "--command", "CLAUDE_CONFIG_DIR='/tmp/grove-test-claude' \(claude)",
+                        "--command", "CLAUDE_CONFIG_DIR=\(shellQuote(account.configDir)) \(claude)",
                         "--focus", "true"])
         // focus=true triggers app activation through the SAME stub runner — never for real
         XCTAssertEqual(runner.calls.filter { $0.executable == "/usr/bin/open" }.count, 1)
+    }
+
+    /// Hosted in Brow, sessions launch with Brow's own browser router and its Path to
+    /// claude rather than the engine's guesses.
+    func testLaunchesUseTheHostsRouterAndClaude() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.browserRouter = "/Applications/Brow.app/Contents/Resources/brow-browser"
+        state.claudePath = { "/opt/tools/claude" }
+
+        await state.launchClaude(cwd: "/ws/feat-x", title: "feat-x", account: account, resume: nil)
+
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first?.args)
+        let command = try XCTUnwrap(args.firstIndex(of: "--command").map { args[$0 + 1] })
+        XCTAssertEqual(command, "CLAUDE_CONFIG_DIR=\(shellQuote(account.configDir)) "
+                       + "BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser' '/opt/tools/claude'")
     }
 
     func testLaunchClaudeResumeAppendsQuotedSessionId() async throws {

@@ -23,6 +23,12 @@ if command -v shasum >/dev/null 2>&1; then
 else
     key=$(printf '%s' "$dir" | openssl dgst -sha256 | awk '{print substr($NF,1,8)}')
 fi
+# `brow-browser --print-key` prints the key and touches nothing: the app's own
+# accountKey() (GroveCore/Model/Paths.swift) is pinned to it by a test.
+if [ "$url" = "--print-key" ]; then
+    printf '%s\n' "$key"
+    exit 0
+fi
 profile="$HOME/Library/Application Support/Brow/browser-profiles/$key"
 mkdir -p "$profile"
 printf '%s\n' "$dir" > "$profile/.claude-config-dir"

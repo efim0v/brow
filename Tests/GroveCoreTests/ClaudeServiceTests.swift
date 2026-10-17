@@ -474,6 +474,15 @@ final class ClaudeServiceTests: XCTestCase {
             "/Users/x/.local/bin/claude --session-id 5561b7f2-1f5d-4ad9-8d73-25341dfaa5e5 --dangerously-skip-permissions"))
     }
 
+    /// A host's claude wins over the engine's guesses; an empty one is no choice at all.
+    func testLaunchCommandUsesTheClaudeItIsGiven() {
+        let account = AccountConfig(name: "w", configDir: "/tmp/w-launch")
+        XCTAssertTrue(ClaudeService.launchCommand(account: account, claude: "/opt/c/claude")
+            .hasSuffix(" '/opt/c/claude'"))
+        XCTAssertEqual(ClaudeService.launchCommand(account: account, claude: "  "),
+                       ClaudeService.launchCommand(account: account))
+    }
+
     func testLaunchCommandTreatsEmptyModelEffortAsNil() {
         // A hand-edited config with model: "" / effort: "" must NOT emit `--model ''`.
         let account = AccountConfig(name: "def", configDir: NSHomeDirectory() + "/.claude")

@@ -431,10 +431,15 @@ public final class AppState: ObservableObject {
         return added
     }
 
-    /// Brow's per-account browser router, when Brow is installed: `claude auth login`
-    /// from a Grove-launched session then opens that account's own browser profile.
-    /// An instance property so tests can pin it (nil = no router on this machine).
-    internal var browserRouter: String? = AppState.locateBrowserRouter()
+    /// Brow's per-account browser router: `claude auth login` from a session the engine
+    /// launched then opens that account's own browser profile. The host sets the one in
+    /// its own bundle; without a host, the installed Brow.app's. nil = no router.
+    public var browserRouter: String? = AppState.locateBrowserRouter()
+
+    /// The `claude` sessions launch with: the host's Path to claude (Settings › General,
+    /// or what it detected). nil, or a closure answering nil, leaves it to the engine's
+    /// own guesses (`ClaudeService.claudeExecutable()`).
+    public var claudePath: (() -> String?)?
 
     static func locateBrowserRouter() -> String? {
         let candidates = [NSWorkspace.shared.urlForApplication(withBundleIdentifier: "dev.artemefimov.brow")?.path,
@@ -672,7 +677,7 @@ extension AppState {
         let command = ClaudeService.launchCommand(account: account, resume: sessionId,
                                                   model: model, effort: effort,
                                                   skipPermissions: skipPermissions ?? effectiveSkipPermissions(cwd: cwd),
-                                                  browser: browserRouter)
+                                                  browser: browserRouter, claude: claudePath?())
         do {
             try await service.ensureRunning()
             try await service.newWorkspace(name: title, cwd: cwd, command: command, focus: true)
@@ -867,7 +872,7 @@ extension AppState {
             let command = ClaudeService.launchCommand(account: account, resume: request.sessionId,
                                                       model: request.model, effort: request.effort,
                                                       skipPermissions: request.skipPermissions,
-                                                      browser: browserRouter)
+                                                      browser: browserRouter, claude: claudePath?())
             let cwd = request.cwd
             let ok = await Task.detached(priority: .userInitiated) {
                 TerminalFocus.launchInTerminal(command: command, cwd: cwd)

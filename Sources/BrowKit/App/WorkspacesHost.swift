@@ -28,8 +28,9 @@ public final class WorkspacesHost: ObservableObject {
     /// it back. Empty while Workspaces is on — the engine's state has them then.
     @Published public private(set) var dormantAccounts: [AccountConfig] = []
     /// What went wrong changing Grove's config while Workspaces is not on — giving a
-    /// status line back, taking out an account whose folder is gone — for Settings.
-    @Published public private(set) var captureError: String?
+    /// status line back, taking out an account whose folder is gone — by the name in
+    /// Grove's config of the account it concerns: Settings shows it under that account.
+    @Published public private(set) var changeErrors: [String: String] = [:]
     /// Whether Grove.app runs, as last looked. While Workspaces is wanted that pauses it;
     /// while it is off it decides nothing, but Grove.app still writes the files a change
     /// from Settings would (`dormantChangeBlock`).
@@ -240,6 +241,21 @@ public final class WorkspacesHost: ObservableObject {
         let accounts = activation == .on || !FileManager.default.fileExists(atPath: folders.configFile.path)
             ? [] : ConfigStore(url: folders.configFile).load().config.accounts
         if accounts != dormantAccounts { dormantAccounts = accounts }
+        // An account no longer listed takes what went wrong with it along.
+        let kept = changeErrors.filter { name, _ in accounts.contains { $0.name == name } }
+        if kept != changeErrors { changeErrors = kept }
+    }
+
+    /// What went wrong with the last change Settings made to `account` without the engine.
+    public func changeError(for account: AccountConfig) -> String? {
+        changeErrors[account.name]
+    }
+
+    /// What went wrong for any of `accounts`, in their order, each failure once: Give them
+    /// back can fail the same way for all of them.
+    public func changeErrors(for accounts: [AccountConfig]) -> [String] {
+        var seen = Set<String>()
+        return accounts.compactMap { changeErrors[$0.name] }.filter { seen.insert($0).inserted }
     }
 
     /// Gives `account`'s status line back while Workspaces is off: the command it had in
@@ -249,35 +265,39 @@ public final class WorkspacesHost: ObservableObject {
     /// off: Grove.app writes the same files. While Workspaces is on, the engine's own
     /// switch does this.
     public func releaseStatusLine(_ account: AccountConfig) {
-        captureError = nil
+        let failure: String?
         switch activation {
         case .on:
-            if let state, let current = state.config.accounts.first(where: { $0.name == account.name }) {
-                state.disableMonitoring(current)
+            failure = state.flatMap { state in
+                state.config.accounts.first { $0.name == account.name }.flatMap { current in
+                    state.attempt { state.disableMonitoring(current) }
+                }
             }
         case .paused:
-            captureError = Self.pausedChangeNote(pause)
+            failure = Self.pausedChangeNote(pause)
         case .off:
-            captureError = withoutEngine { engine in
+            failure = withoutEngine { engine in
                 if let current = engine.config.accounts.first(where: { $0.name == account.name }), current.monitoring {
                     engine.disableMonitoring(current)
                 }
             }
         }
+        changeErrors[account.name] = failure
     }
 
     /// Takes `account` out of Workspaces' config, folder untouched: what Settings offers
     /// for an account whose folder is gone, which nothing else can change any more.
     public func removeAccount(_ account: AccountConfig) {
-        captureError = nil
+        let failure: String?
         switch activation {
         case .on:
-            captureError = state.flatMap { state in state.attempt { state.removeAccount(name: account.name) } }
+            failure = state.flatMap { state in state.attempt { state.removeAccount(name: account.name) } }
         case .paused:
-            captureError = Self.pausedChangeNote(pause)
+            failure = Self.pausedChangeNote(pause)
         case .off:
-            captureError = withoutEngine { $0.removeAccount(name: account.name) }
+            failure = withoutEngine { $0.removeAccount(name: account.name) }
         }
+        changeErrors[account.name] = failure
     }
 
     /// Makes one change to Grove's config while Workspaces is off: a state read for just

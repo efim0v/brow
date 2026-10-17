@@ -59,8 +59,8 @@ struct WorkspacesSettingsTab: View {
             } label: {
                 Text(host.dormantCaptures.map(host.displayName(for:)).joined(separator: ", "))
             }
-            if let error = host.captureError {
-                Text(error).font(.caption).foregroundStyle(.orange)
+            ForEach(host.changeErrors(for: host.dormantCaptures), id: \.self) { error in
+                FailureNote(text: error)
             }
         } header: {
             Text("Status lines still captured")

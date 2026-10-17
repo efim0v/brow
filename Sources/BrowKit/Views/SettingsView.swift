@@ -380,7 +380,7 @@ private struct WorkspacesOtherAccounts: View {
                     }
                     if gone {
                         GoneAccountRow(disabled: host.dormantChangeBlock != nil) { host.removeAccount(account) }
-                        if let error = host.captureError { FailureNote(text: error) }
+                        if let error = host.changeError(for: account) { FailureNote(text: error) }
                     } else {
                         DormantCaptureSwitch(host: host, account: account)
                     }
@@ -409,7 +409,7 @@ struct DormantCaptureSwitch: View {
             set: { on in if !on { host.releaseStatusLine(account) } }))
             .disabled(waitsFor != nil)
             .help(Self.explanation(activation: host.activation, waitsFor: waitsFor))
-        if let error = host.captureError {
+        if let error = host.changeError(for: account) {
             FailureNote(text: error)
         }
     }

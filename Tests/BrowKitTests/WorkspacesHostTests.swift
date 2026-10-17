@@ -286,13 +286,14 @@ final class WorkspacesHostTests: XCTestCase {
         host.start()
         XCTAssertEqual(host.activation, .off)
 
-        host.releaseStatusLine(host.dormantCaptures[0])
+        let work = host.dormantCaptures[0]
+        host.releaseStatusLine(work)
         XCTAssertEqual(try statusLine(dir), before, "left as it was")
-        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.anotherBrow))
+        XCTAssertEqual(host.changeError(for: work), WorkspacesHost.pausedChangeNote(.anotherBrow))
 
         other.release()
-        host.releaseStatusLine(host.dormantCaptures[0])
-        XCTAssertNil(host.captureError)
+        host.releaseStatusLine(work)
+        XCTAssertNil(host.changeError(for: work))
         XCTAssertEqual(try statusLine(dir), "/bin/echo mine")
         XCTAssertTrue(WorkspacesEngineLock(folders: folders).acquire(), "the write let go of the lock")
     }
@@ -311,14 +312,24 @@ final class WorkspacesHostTests: XCTestCase {
     /// An account Grove captured, its settings.json pointing at the wrapper. Returns the
     /// account folder.
     private func capturedAccount(original: String) throws -> URL {
-        let dir = try Fixture.tempDir("host-captured")
-        try #"{"statusLine":{"type":"command","command":"\#(original)"},"model":"opus"}"#
-            .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
-        let saved = try StatuslineInstaller(scriptDir: folders.bin).install(configDir: dir.path)
+        try capturedAccounts([("work", original)])[0]
+    }
+
+    /// Accounts Grove captured, in Grove's config in this order. Returns their folders.
+    private func capturedAccounts(_ accounts: [(name: String, original: String)]) throws -> [URL] {
+        var configs: [AccountConfig] = []
+        var dirs: [URL] = []
+        for (name, original) in accounts {
+            let dir = try Fixture.tempDir("host-captured-\(name)")
+            try #"{"statusLine":{"type":"command","command":"\#(original)"},"model":"opus"}"#
+                .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+            let saved = try StatuslineInstaller(scriptDir: folders.bin).install(configDir: dir.path)
+            configs.append(AccountConfig(name: name, configDir: dir.path, monitoring: true, savedStatusline: saved))
+            dirs.append(dir)
+        }
         try ConfigStore(url: folders.configFile).save(GroveConfig(
-            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
-            accounts: [AccountConfig(name: "work", configDir: dir.path, monitoring: true, savedStatusline: saved)]))
-        return dir
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [], accounts: configs))
+        return dirs
     }
 
     private func statusLine(_ dir: URL) throws -> String? {
@@ -340,7 +351,7 @@ final class WorkspacesHostTests: XCTestCase {
 
         host.releaseStatusLine(host.dormantCaptures[0])
 
-        XCTAssertNil(host.captureError)
+        XCTAssertTrue(host.changeErrors.isEmpty)
         XCTAssertEqual(try statusLine(dir), "/bin/echo mine")
         XCTAssertTrue(host.dormantCaptures.isEmpty)
         let account = try XCTUnwrap(ConfigStore(url: folders.configFile).load().config.accounts.first)
@@ -360,7 +371,7 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertEqual(host.dormantCaptures.map(\.name), ["work"])
         host.releaseStatusLine(host.dormantCaptures[0])
         XCTAssertEqual(try statusLine(dir), before, "left as it was")
-        XCTAssertEqual(host.captureError, "Quit Grove first: it writes the same settings.")
+        XCTAssertEqual(host.changeError(for: host.dormantCaptures[0]), "Quit Grove first: it writes the same settings.")
     }
 
     /// Settings no longer says that, off, nothing of Workspaces runs: a captured status
@@ -394,10 +405,11 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertEqual(host.activation, .off, "Grove.app running does not turn Workspaces on")
         XCTAssertEqual(host.dormantChangeBlock, .groveRunning, "but a change waits for it")
 
-        host.releaseStatusLine(host.dormantCaptures[0])
-        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.groveRunning))
-        host.removeAccount(host.dormantCaptures[0])
-        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.groveRunning))
+        let work = host.dormantCaptures[0]
+        host.releaseStatusLine(work)
+        XCTAssertEqual(host.changeError(for: work), WorkspacesHost.pausedChangeNote(.groveRunning))
+        host.removeAccount(work)
+        XCTAssertEqual(host.changeError(for: work), WorkspacesHost.pausedChangeNote(.groveRunning))
         XCTAssertEqual(try statusLine(dir), before, "left as it was")
         XCTAssertEqual(try Data(contentsOf: folders.configFile), config, "and the config too")
 
@@ -405,8 +417,8 @@ final class WorkspacesHostTests: XCTestCase {
         apps.onChange?()   // Grove.app quits
         XCTAssertEqual(host.activation, .off)
         XCTAssertNil(host.dormantChangeBlock, "seen through the running apps")
-        host.releaseStatusLine(host.dormantCaptures[0])
-        XCTAssertNil(host.captureError)
+        host.releaseStatusLine(work)
+        XCTAssertNil(host.changeError(for: work))
         XCTAssertEqual(try statusLine(dir), "/bin/echo mine")
         XCTAssertTrue(host.dormantCaptures.isEmpty)
 
@@ -426,10 +438,10 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertTrue(WorkspacesAccountJoin.isGone(gone))
 
         host.releaseStatusLine(gone)
-        XCTAssertNotNil(host.captureError, "no folder, no status line to give back")
+        XCTAssertNotNil(host.changeError(for: gone), "no folder, no status line to give back")
         host.removeAccount(gone)
 
-        XCTAssertNil(host.captureError)
+        XCTAssertTrue(host.changeErrors.isEmpty, "the account went, and what went wrong with it")
         XCTAssertTrue(host.dormantCaptures.isEmpty)
         XCTAssertEqual(ConfigStore(url: folders.configFile).load().config.accounts.map(\.name), [])
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.path), "nothing re-created")
@@ -442,8 +454,40 @@ final class WorkspacesHostTests: XCTestCase {
         let host = makeHost(try makeStore(), groveConfig: true, groveRunning: true)
         host.start()
         host.removeAccount(host.dormantCaptures[0])
-        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.groveRunning))
+        XCTAssertEqual(host.changeError(for: host.dormantCaptures[0]), WorkspacesHost.pausedChangeNote(.groveRunning))
         XCTAssertEqual(ConfigStore(url: folders.configFile).load().config.accounts.map(\.name), ["work"])
+    }
+
+    /// What went wrong shows under the account it concerns, not under every switch: an
+    /// account whose folder is gone can't have its status line back, and the other two do.
+    /// The same failure for several accounts — Grove.app running — is said once.
+    func testAFailureStaysWithItsAccount() throws {
+        let dirs = try capturedAccounts([("work", "/bin/echo work"), ("old", "/bin/echo old"), ("team", "/bin/echo team")])
+        try FileManager.default.removeItem(at: dirs[1])
+        let apps = RunningApps()
+        apps.grove = true
+        let host = makeWatchedHost(apps, store: try makeStore(enabled: false))
+        host.start()
+        let (work, old, team) = (host.dormantCaptures[0], host.dormantCaptures[1], host.dormantCaptures[2])
+
+        host.releaseAllStatusLines()
+        XCTAssertEqual(host.changeErrors(for: host.dormantCaptures), [WorkspacesHost.pausedChangeNote(.groveRunning)],
+                       "one failure, said once for the three")
+
+        apps.grove = false
+        apps.onChange?()
+        host.releaseAllStatusLines()
+        XCTAssertNil(host.changeError(for: work))
+        XCTAssertNil(host.changeError(for: team))
+        let failure = try XCTUnwrap(host.changeError(for: old))
+        XCTAssertTrue(failure.contains("“old”"), failure)
+        XCTAssertEqual(host.changeErrors(for: [work, old, team]), [failure])
+        XCTAssertEqual(host.dormantCaptures.map(\.name), ["old"])
+        XCTAssertEqual(try statusLine(dirs[0]), "/bin/echo work")
+        XCTAssertEqual(try statusLine(dirs[2]), "/bin/echo team")
+
+        host.removeAccount(old)
+        XCTAssertTrue(host.changeErrors.isEmpty)
     }
 
     /// While Workspaces is on, the engine's state has the accounts.

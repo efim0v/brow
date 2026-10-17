@@ -3,19 +3,46 @@ import Foundation
 public struct MirrorAccount: Sendable, Equatable {
     public let key: String        // accountKey(configDir)
     public let configDir: String  // expanded, no trailing slash
-    public init(key: String, configDir: String) { self.key = key; self.configDir = configDir }
+    /// How long Claude Code itself keeps this folder's transcripts, in days
+    /// (`ClaudeRetention`). The mirror keeps nothing older and restores nothing within
+    /// a day of it. nil: no period of its own, only `RetentionPolicy.maxDays` applies.
+    public let retentionDays: Int?
+    /// False when that period could not be read for certain (a settings file that does
+    /// not parse): the real one may be shorter, so nothing is restored.
+    public let mayRestore: Bool
+
+    public init(key: String, configDir: String, retentionDays: Int? = nil, mayRestore: Bool = true) {
+        self.key = key
+        self.configDir = configDir
+        self.retentionDays = retentionDays
+        self.mayRestore = mayRestore
+    }
+
+    /// The account as the app builds it: its folder plus Claude Code's period for it.
+    public init(configDir: String, retention: ClaudeRetention.Resolution) {
+        self.init(key: accountKey(configDir), configDir: configDir,
+                  retentionDays: retention.days, mayRestore: retention.isCertain)
+    }
 }
 
 public struct RetentionPolicy: Sendable {
     public let maxDays: Int       // 0 = no age cap
     public let maxBytes: Int64    // 0 = no size cap
-    public init(maxDays: Int, maxBytes: Int64) { self.maxDays = maxDays; self.maxBytes = maxBytes }
+    /// The period for mirror entries whose account is no longer configured — the
+    /// smallest Claude Code could be applying to them. nil: `maxDays` alone.
+    public let orphanRetentionDays: Int?
+    public init(maxDays: Int, maxBytes: Int64, orphanRetentionDays: Int? = nil) {
+        self.maxDays = maxDays; self.maxBytes = maxBytes; self.orphanRetentionDays = orphanRetentionDays
+    }
 }
 
 public struct ReconcileReport: Sendable, Equatable {
     public var linked:   [String] = []
     public var restored: [String] = []
     public var evicted:  [String] = []
+    /// Mirror entries whose transcript is gone and that were NOT put back: too close to
+    /// (or past) the account's retention, or the retention could not be read.
+    public var heldBack: [String] = []
     public var issues:   [String] = []
     public init() {}
 }
@@ -37,9 +64,36 @@ public struct FileOps: Sendable {
 /// Hardlink safety-net for Claude session transcripts (spec 2026-07-08). Same
 /// conventions as `SharedSessionStore`: struct over `FileManager`, explicit string
 /// paths (never hardcodes ~/.claude), idempotent, never throws out of `reconcile`.
+///
+/// It never outlives Claude Code's own retention (grove#6). Claude Code deletes a
+/// transcript once its last activity is older than `cleanupPeriodDays`; a mirror that
+/// put such a file back, or kept a hard link to it, would undo a period the user — or
+/// their organisation, through managed settings — set precisely to have those files
+/// gone. So per account: entries older than the account's period are evicted like any
+/// over-age entry, and a vanished transcript is restored only while it is more than
+/// `restoreMarginDays` younger than that period, so a file Claude Code's sweep may have
+/// taken is never the one brought back.
 public struct TranscriptMirror: Sendable {
+    /// How far inside the account's retention a vanished transcript has to be to be
+    /// restored: a sweep that judged age a little differently (another clock, another
+    /// reference time) must still never see its deletion undone.
+    public static let restoreMarginDays: Double = 1
+
     private let ops: FileOps
     public init(fileOps: FileOps = .live) { self.ops = fileOps }
+
+    /// The age, in days, past which an entry is evicted: the smaller of the mirror's own
+    /// cap (0 = none) and Claude Code's period. nil: no cap at all.
+    static func keepDays(policy: RetentionPolicy, retentionDays: Int?) -> Int? {
+        [policy.maxDays > 0 ? policy.maxDays : nil, retentionDays].compactMap { $0 }.min()
+    }
+
+    /// Whether a vanished transcript of this age may be put back for `account`.
+    static func mayRestore(ageDays: Double, account: MirrorAccount) -> Bool {
+        guard account.mayRestore else { return false }
+        guard let days = account.retentionDays else { return true }
+        return ageDays <= Double(days) - restoreMarginDays
+    }
 
     public static func mirrorRoot(canonicalDir: String) -> String { canonicalDir + "/grove/transcripts" }
 
@@ -80,7 +134,7 @@ public struct TranscriptMirror: Sendable {
             }
         }
 
-        let configDirByKey = Dictionary(accounts.map { ($0.key, $0.configDir) }, uniquingKeysWith: { a, _ in a })
+        let accountByKey = Dictionary(accounts.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
 
         // size cap: scan mirror-only inodes (nlink == 1) BEFORE the reconcile loop so
         // that we measure the true cost before any restoration inflates the link count.
@@ -110,7 +164,9 @@ public struct TranscriptMirror: Sendable {
             if let existing = st.mirrorPath, sizeEvicted.contains(existing) { continue }
             let refMtime = st.livePath.flatMap(mtime) ?? st.mirrorPath.flatMap(mtime)
             let ageDays = refMtime.map { now.timeIntervalSince($0) / 86400 } ?? 0
-            let withinAge = policy.maxDays == 0 || ageDays <= Double(policy.maxDays)
+            let account = accountByKey[ref.accountKey]
+            let retention = account.map(\.retentionDays) ?? policy.orphanRetentionDays
+            let withinAge = Self.keepDays(policy: policy, retentionDays: retention).map { ageDays <= Double($0) } ?? true
 
             guard withinAge else {
                 if let existing = st.mirrorPath { try? fm.removeItem(atPath: existing); report.evicted.append(existing) }
@@ -124,10 +180,10 @@ public struct TranscriptMirror: Sendable {
                     try? fm.removeItem(atPath: mp); placeMirror(src: live, dst: mp, report: &report)
                 }
             } else if let existingMirror = st.mirrorPath {
-                guard let cfg = configDirByKey[ref.accountKey] else {
+                guard let account else {
                     report.issues.append("mirror \(ref.file): account \(ref.accountKey) unknown"); continue
                 }
-                let live = cfg + "/projects/\(ref.encodedCwd)/\(ref.file)"
+                let live = account.configDir + "/projects/\(ref.encodedCwd)/\(ref.file)"
                 // Already there — reached through a shared-store symlink (the account's
                 // `projects/<cwd>` points into canonical, so step 1 skipped it and this
                 // mirror is a leftover from before the workspace was shared) or written
@@ -139,6 +195,12 @@ public struct TranscriptMirror: Sendable {
                         try? fm.removeItem(atPath: existingMirror)
                         report.evicted.append(existingMirror)
                     }
+                    continue
+                }
+                // Gone, and maybe by Claude Code's own sweep: put back only what that sweep
+                // cannot have taken. The entry stays in the mirror until it ages out.
+                guard Self.mayRestore(ageDays: ageDays, account: account) else {
+                    report.heldBack.append(existingMirror)
                     continue
                 }
                 do {

@@ -110,6 +110,11 @@ public final class AppState: ObservableObject {
     /// True only while a code-stats scan is in flight (drives the screen's spinner).
     @Published public var isStatsScanning: Bool = false
 
+    /// How long Claude Code keeps each account's transcripts (`ClaudeRetention`), by
+    /// account name — the strictest of the account's folders. The safety net never keeps
+    /// or restores anything older; Settings shows it. Filled by `reconcileTranscripts`.
+    @Published public var transcriptRetention: [String: ClaudeRetention.Resolution] = [:]
+
     private let configStore: ConfigStore
 
     /// Persistent service instance. Its mtime parse-cache MUST survive across
@@ -904,19 +909,59 @@ extension AppState {
     /// configured. Snapshot-render safety comes from the caller not invoking this
     /// during `ImageRenderer` passes — the same structural guarantee `verifySharedStore`
     /// relies on.
+    ///
+    /// Every account's folder carries Claude Code's own retention for it into the
+    /// reconcile (grove#6): the mirror keeps nothing older and restores nothing Claude
+    /// Code's sweep may have removed. The periods are read even with the safety net
+    /// off, for Settings.
     public func reconcileTranscripts() async {
-        guard config.transcriptMirror.enabled, canonicalAccount != nil else { return }
+        let retention = folders.claudeRetention
+        let dirsByAccount = accountDirs()
+        let enabled = config.transcriptMirror.enabled && canonicalAccount != nil
         let canonical = canonicalDir
-        let accts = config.accounts.flatMap(\.allConfigDirs).map {
-            MirrorAccount(key: accountKey($0), configDir: expandTilde($0))
-        }
-        let policy = RetentionPolicy(
-            maxDays: config.transcriptMirror.maxDays,
-            maxBytes: Int64(config.transcriptMirror.maxMB) * 1_000_000)
-        let report = await Task.detached(priority: .utility) {
-            TranscriptMirror().reconcile(accounts: accts, canonicalDir: canonical, policy: policy)
+        let settings = config.transcriptMirror
+        let result = await Task.detached(priority: .utility) {
+            () -> (byAccount: [String: ClaudeRetention.Resolution], report: ReconcileReport?) in
+            let (byAccount, mirrorAccounts) = Self.resolveRetention(dirsByAccount, retention)
+            guard enabled else { return (byAccount, nil) }
+            // An entry whose account left the config: the managed period, or the default.
+            let orphan = min(retention.resolveManaged().days, ClaudeRetention.defaultDays)
+            let policy = RetentionPolicy(maxDays: settings.maxDays,
+                                         maxBytes: Int64(settings.maxMB) * 1_000_000,
+                                         orphanRetentionDays: orphan)
+            return (byAccount, TranscriptMirror().reconcile(accounts: mirrorAccounts,
+                                                            canonicalDir: canonical, policy: policy))
         }.value
-        if let first = report.issues.first { actionError = "Transcript mirror: \(first)" }
+        if transcriptRetention != result.byAccount { transcriptRetention = result.byAccount }
+        if let first = result.report?.issues.first { actionError = "Transcript mirror: \(first)" }
+    }
+
+    /// Reads every account's retention for Settings, touching nothing else.
+    public func refreshTranscriptRetention() async {
+        let retention = folders.claudeRetention
+        let dirsByAccount = accountDirs()
+        let byAccount = await Task.detached(priority: .utility) {
+            Self.resolveRetention(dirsByAccount, retention).byAccount
+        }.value
+        if transcriptRetention != byAccount { transcriptRetention = byAccount }
+    }
+
+    private func accountDirs() -> [(name: String, dirs: [String])] {
+        config.accounts.map { (name: $0.name, dirs: $0.allConfigDirs.map(expandTilde)) }
+    }
+
+    /// File reads only; called off the main actor.
+    nonisolated private static func resolveRetention(_ dirsByAccount: [(name: String, dirs: [String])],
+                                                     _ retention: ClaudeRetention)
+        -> (byAccount: [String: ClaudeRetention.Resolution], mirrorAccounts: [MirrorAccount]) {
+        var byAccount: [String: ClaudeRetention.Resolution] = [:]
+        var mirrorAccounts: [MirrorAccount] = []
+        for (name, dirs) in dirsByAccount {
+            let resolved = dirs.map { (dir: $0, retention: retention.resolve(configDir: $0)) }
+            byAccount[name] = ClaudeRetention.strictest(resolved.map(\.retention))
+            mirrorAccounts += resolved.map { MirrorAccount(configDir: $0.dir, retention: $0.retention) }
+        }
+        return (byAccount, mirrorAccounts)
     }
 
     // MARK: - Session migration (Phase 4A4)
@@ -949,12 +994,18 @@ extension AppState {
         try? fm.createDirectory(atPath: toConfigDir + "/projects", withIntermediateDirectories: true)
         try? fm.createDirectory(atPath: toConfigDir + "/plugins", withIntermediateDirectories: true)
 
-        let report = await Task.detached(priority: .utility) {
-            SessionMigration.migrateSession(
+        let retention = folders.claudeRetention
+        let report = await Task.detached(priority: .utility) { () -> MigrateReport in
+            // The safety net's copy stands in for a vanished transcript only inside the
+            // window the safety net itself would restore it in (grove#6).
+            let period = retention.resolve(configDir: fromConfigDir)
+            let maxAge = (Double(period.days) - TranscriptMirror.restoreMarginDays) * 86_400
+            return SessionMigration.migrateSession(
                 sessionId: sessionId, cwd: cwd,
                 fromConfigDir: fromConfigDir, toConfigDir: toConfigDir,
                 fromHomeJSON: fromHomeJSON, toHomeJSON: toHomeJSON,
-                mirrorRoot: mirrorRoot, fromAccountKey: fromKey)
+                mirrorRoot: period.isCertain ? mirrorRoot : nil, fromAccountKey: fromKey,
+                mirrorMaxAge: maxAge)
         }.value
 
         if let first = report.issues.first { actionError = "Migrate: \(first)" }

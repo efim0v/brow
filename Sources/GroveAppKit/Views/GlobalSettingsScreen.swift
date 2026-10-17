@@ -87,8 +87,34 @@ struct GlobalSettingsScreen: View {
             LabeledRow(label: "Max mirror size (MB)") {
                 SnapshotSafeStepper(label: "", value: transcriptMirrorMaxMBBinding, range: 10...10000)
             }
-            Text("Grove hardlink-mirrors every session transcript and auto-restores deleted files.")
+            Text("Keeps a hard link to every session transcript and puts back one that disappears — "
+                 + "never one older than Claude Code itself keeps it, less a day, so nothing its own "
+                 + "clean-up removed comes back.")
                 .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            retentionList
+        }
+        .task {
+            guard !isSnapshotRender else { return }
+            await state.refreshTranscriptRetention()
+        }
+    }
+
+    /// Claude Code's `cleanupPeriodDays` for each account, with where it came from.
+    @ViewBuilder private var retentionList: some View {
+        let rows = state.config.accounts.compactMap { account in
+            state.transcriptRetention[account.name].map { (name: account.name, retention: $0) }
+        }
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Claude Code keeps transcripts for")
+                    .font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                ForEach(rows, id: \.name) { row in
+                    Text("\(row.name): \(row.retention.summary)")
+                        .font(.caption2)
+                        .foregroundStyle(row.retention.isCertain ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Palette.mid))
+                }
+            }
         }
     }
 

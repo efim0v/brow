@@ -159,16 +159,21 @@ public struct SessionMigration: Sendable {
     ///   7. `grove/usage/<sessionId>.json`                — single file
     ///
     /// Mirror fallback (item 1): if the live transcript is absent at source, the
-    /// method tries `<mirrorRoot>/<fromAccountKey>/<mangled>/<sessionId>.jsonl`.
-    /// If neither exists, an issue is recorded and the remaining items are still
-    /// copied.
+    /// method tries `<mirrorRoot>/<fromAccountKey>/<mangled>/<sessionId>.jsonl` — but
+    /// only a copy whose last activity is at most `mirrorMaxAge` old. The app passes
+    /// the source account's restore window (Claude Code's retention less the safety
+    /// net's margin; see `TranscriptMirror`), so a migration never resurrects a
+    /// transcript Claude Code's own sweep removed. If neither exists, an issue is
+    /// recorded and the remaining items are still copied.
     public static func copySessionData(
         sessionId: String,
         cwd: String,
         fromConfigDir: String,
         toConfigDir: String,
         mirrorRoot: String?,
-        fromAccountKey: String
+        fromAccountKey: String,
+        mirrorMaxAge: TimeInterval = .infinity,
+        now: Date = Date()
     ) -> MigrateReport {
         var report = MigrateReport()
         let fm = FileManager.default
@@ -179,12 +184,23 @@ public struct SessionMigration: Sendable {
         let liveSrc = fromConfigDir + "/" + transcriptRel
         let transcriptDst = toConfigDir + "/" + transcriptRel
         var transcriptSrc: String? = fm.fileExists(atPath: liveSrc) ? liveSrc : nil
+        var mirrorTooOld = false
         if transcriptSrc == nil, let mirror = mirrorRoot {
             let mirrorSrc = "\(mirror)/\(fromAccountKey)/\(mangled)/\(sessionId).jsonl"
-            if fm.fileExists(atPath: mirrorSrc) { transcriptSrc = mirrorSrc }
+            if fm.fileExists(atPath: mirrorSrc) {
+                let modified = (try? fm.attributesOfItem(atPath: mirrorSrc))?[.modificationDate] as? Date
+                if let modified, now.timeIntervalSince(modified) > mirrorMaxAge {
+                    mirrorTooOld = true
+                } else {
+                    transcriptSrc = mirrorSrc
+                }
+            }
         }
         if let src = transcriptSrc {
             copySingleFile(src: src, dst: transcriptDst, report: &report)
+        } else if mirrorTooOld {
+            report.issues.append("transcript unavailable: \(sessionId).jsonl is gone, and the safety net's copy "
+                                 + "is older than Claude Code keeps transcripts for this account")
         } else {
             report.issues.append("transcript unavailable: \(sessionId).jsonl not found at source or mirror")
         }
@@ -487,7 +503,8 @@ public struct SessionMigration: Sendable {
         fromHomeJSON: String,
         toHomeJSON: String,
         mirrorRoot: String?,
-        fromAccountKey: String
+        fromAccountKey: String,
+        mirrorMaxAge: TimeInterval = .infinity
     ) -> MigrateReport {
         var report = MigrateReport()
 
@@ -500,7 +517,7 @@ public struct SessionMigration: Sendable {
         merge(copySessionData(
             sessionId: sessionId, cwd: cwd,
             fromConfigDir: fromConfigDir, toConfigDir: toConfigDir,
-            mirrorRoot: mirrorRoot, fromAccountKey: fromAccountKey
+            mirrorRoot: mirrorRoot, fromAccountKey: fromAccountKey, mirrorMaxAge: mirrorMaxAge
         ))
         merge(migrateProjectConfig(
             cwd: cwd,

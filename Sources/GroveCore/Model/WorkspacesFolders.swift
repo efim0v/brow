@@ -24,15 +24,19 @@ public struct WorkspacesFolders: Sendable, Equatable {
     /// The home folder whose `.claude.json` belongs to the default account
     /// (`<home>/.claude` keeps its `.claude.json` one level up, in the home itself).
     public var home: String
+    /// Where Claude Code's managed settings live (`ClaudeRetention`), read only.
+    public var claudeManagedDir: String
 
     public init(configFile: URL, bin: String, stats: String, accountsRoot: String,
-                canonicalDir: String, home: String) {
+                canonicalDir: String, home: String,
+                claudeManagedDir: String = ClaudeRetention.managedDirectory) {
         self.configFile = configFile
         self.bin = bin
         self.stats = stats
         self.accountsRoot = accountsRoot
         self.canonicalDir = canonicalDir
         self.home = home
+        self.claudeManagedDir = claudeManagedDir
     }
 
     /// The real folders: Grove's under `~/Library/Application Support/Grove`, Claude
@@ -60,7 +64,17 @@ public struct WorkspacesFolders: Sendable, Equatable {
                                  stats: folder.appendingPathComponent("stats").path,
                                  accountsRoot: home + "/.claude-accounts",
                                  canonicalDir: home + "/.claude",
-                                 home: home)
+                                 home: home,
+                                 claudeManagedDir: folder.appendingPathComponent("managed").path)
+    }
+
+    /// Claude Code's retention as these folders see it: the managed settings in
+    /// `claudeManagedDir`, and the MDM preferences domain only for the real managed
+    /// folder — a test's stand-in never reads the machine's configuration profiles.
+    public var claudeRetention: ClaudeRetention {
+        claudeManagedDir == ClaudeRetention.managedDirectory
+            ? ClaudeRetention(managedDirectory: claudeManagedDir)
+            : ClaudeRetention(managedDirectory: claudeManagedDir, preferences: { .absent })
     }
 
     /// The default account's folder: `<home>/.claude`.

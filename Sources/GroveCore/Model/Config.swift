@@ -118,9 +118,10 @@ public struct SeedFile: Codable, Sendable, Equatable {
     }
 }
 
-/// Transcript safety-net settings. grove hardlink-mirrors every session
-/// transcript and auto-restores any unlink'd out-of-band; `maxDays`/`maxMB` bound
-/// the mirror. Back-compat: absent from old JSON decodes to defaults.
+/// Transcript safety-net settings. The engine hardlink-mirrors every session
+/// transcript and restores one unlinked out-of-band; `maxDays`/`maxMB` bound the
+/// mirror, and Claude Code's own retention bounds it further (`ClaudeRetention`).
+/// Back-compat: absent from old JSON decodes to defaults.
 public struct TranscriptMirrorSettings: Codable, Sendable, Equatable {
     public var enabled: Bool
     public var maxDays: Int
@@ -251,10 +252,14 @@ public struct GroveConfig: Codable, Sendable, Equatable {
         transcriptMirror = try c.decodeIfPresent(TranscriptMirrorSettings.self, forKey: .transcriptMirror) ?? TranscriptMirrorSettings()
     }
 
+    /// What a missing config file starts as. The transcript safety net is OFF here: a
+    /// config Brow creates asks for it explicitly. A file Grove wrote keeps its own
+    /// setting (and one without the key decodes as on, as Grove has always read it).
     public static let defaultConfig = GroveConfig(
         version: 1,
         workspacesRootTemplate: "~/Workspaces/{project}",
         projects: [],
-        accounts: [AccountConfig(name: "default", configDir: "~/.claude")]
+        accounts: [AccountConfig(name: "default", configDir: "~/.claude")],
+        transcriptMirror: TranscriptMirrorSettings(enabled: false)
     )
 }

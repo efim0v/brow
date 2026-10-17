@@ -384,6 +384,38 @@ final class SessionMigrationTests: XCTestCase {
                        "transcript should be copied from mirror")
     }
 
+    /// 2b. The mirror stands in only within the source account's restore window: a copy
+    /// older than that is a transcript Claude Code's own sweep may have removed, and a
+    /// migration must not resurrect it in another account (grove#6).
+    func testCopySessionDataRefusesAMirrorCopyOlderThanTheWindow() throws {
+        let root = try Fixture.tempDir("migrate-mirror-old")
+        let from = root.appendingPathComponent("from")
+        let to = root.appendingPathComponent("to")
+        let cwd = "/Users/alice/myproject"
+        let id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        let mangled = ClaudeService.mangle(cwd)
+        let mirrorRoot = TranscriptMirror.mirrorRoot(canonicalDir: root.appendingPathComponent("canonical").path)
+        let mirrorPath = "\(mirrorRoot)/key/\(mangled)/\(id).jsonl"
+        try fm.createDirectory(at: URL(fileURLWithPath: mirrorPath).deletingLastPathComponent(),
+                               withIntermediateDirectories: true)
+        try "old transcript\n".write(toFile: mirrorPath, atomically: true, encoding: .utf8)
+        let now = Date()
+        try fm.setAttributes([.modificationDate: now.addingTimeInterval(-45 * 86_400)], ofItemAtPath: mirrorPath)
+
+        let refused = SessionMigration.copySessionData(
+            sessionId: id, cwd: cwd, fromConfigDir: from.path, toConfigDir: to.path,
+            mirrorRoot: mirrorRoot, fromAccountKey: "key", mirrorMaxAge: 6 * 86_400, now: now)
+        XCTAssertFalse(exists(to, "projects/\(mangled)/\(id).jsonl"))
+        XCTAssertTrue(refused.issues.contains { $0.contains("older than Claude Code keeps transcripts") },
+                      "\(refused.issues)")
+
+        let allowed = SessionMigration.copySessionData(
+            sessionId: id, cwd: cwd, fromConfigDir: from.path, toConfigDir: to.path,
+            mirrorRoot: mirrorRoot, fromAccountKey: "key", mirrorMaxAge: 89 * 86_400, now: now)
+        XCTAssertTrue(allowed.issues.isEmpty, "\(allowed.issues)")
+        XCTAssertEqual(try read(to, "projects/\(mangled)/\(id).jsonl"), "old transcript\n")
+    }
+
     /// 3. Neither transcript source → issue recorded, other items still copy.
     func testCopySessionDataNeitherTranscriptSource() throws {
         let root = try Fixture.tempDir("migrate-no-transcript")

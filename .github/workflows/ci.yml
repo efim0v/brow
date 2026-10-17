@@ -21,7 +21,7 @@ jobs:
     # Package.swift targets macOS 26 with swift-tools-version 6.2, but Swift 6.2.4
     # cannot compile BrowKit, so this relies on the image's newer default Xcode.
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,18 +30,26 @@ jobs:
       - name: Show versions
         run: |
           sw_vers
+          xcode-select --print-path
           xcodebuild -version
           swift --version
 
-      # Package.resolved is git-ignored, so every run resolves grove afresh;
-      # the tree shows which version it got.
-      - name: Resolve dependencies
-        run: |
-          swift package resolve
-          swift package show-dependencies
-
+      # The package has no dependencies: GroveCore, GroveAppKit, BrowKit, the app
+      # and the command-line tool all build from this repository.
       - name: Build
-        run: swift build
+        run: swift build --build-tests
 
-      - name: Test
-        run: swift test
+      # HOME and CFFIXED_USER_HOME point at an empty folder; the script fails if the
+      # suite leaves Brow's or Grove's data, or Claude Code's folders, in it.
+      - name: Test in an empty home folder
+        run: Scripts/test-in-empty-home.sh
+
+      # Release builds are optimized (-O). ScanWorktreeCollectionTests covers a
+      # release-only miscompile (see WorkspaceService.collectWorktrees).
+      - name: Test (release)
+        run: Scripts/test-in-empty-home.sh -c release
+
+      - name: Build the app bundle
+        run: |
+          Scripts/build-brow.sh
+          codesign --verify --deep --strict --verbose=2 dist/Brow.app

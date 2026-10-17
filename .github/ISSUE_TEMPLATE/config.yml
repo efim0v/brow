@@ -3,9 +3,9 @@ contact_links:
   - name: Question or setup help
     url: https://github.com/efim0v/brow/discussions/categories/q-a
     about: Ask how something works, or get help getting Brow running.
-  - name: Grove (workspaces and sessions)
-    url: https://github.com/efim0v/grove/issues
-    about: Brow's companion app has its own issue tracker.
+  - name: Report a security vulnerability
+    url: https://github.com/efim0v/brow/security/advisories/new
+    about: Report it privately here, never in a public issue.
   - name: Claude Code
     url: https://github.com/anthropics/claude-code/issues
     about: Problems with Claude Code itself go to Anthropic's repository.

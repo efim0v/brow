@@ -266,6 +266,7 @@ final class AppStateMigrateSessionTests: XCTestCase {
         let state = makeState()
         state.config.accounts = [sourceAccount, targetAccount]
         state.allLiveProcessesOverride = []
+        state.capturesByDefault = true   // Grove.app's behaviour; no host turns it on now
 
         await state.migrateSession(cwd: cwd, sessionId: sessionId,
                                    from: sourceAccount, to: targetAccount)

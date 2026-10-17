@@ -196,10 +196,11 @@ public final class AppState: ObservableObject {
     /// Whether the engine installs the status-line wrapper into an account's
     /// `settings.json` without being asked: at launch for every account not yet
     /// monitored, and as a side effect of adding, linking or migrating into an account.
-    /// Grove.app did (true, its default). Brow does not: capture is turned on per account
-    /// in Settings, or kept where Grove already had it on — so a Brow user's Claude Code
-    /// files are only edited when they asked for it.
-    public var capturesByDefault = true
+    /// Grove.app did. Off unless a host turns it on, and Brow never does: capture is
+    /// turned on per account in Settings, or kept where Grove already had it on — so a
+    /// user's Claude Code files are edited only when they asked for it, whichever app
+    /// hosts the engine.
+    public var capturesByDefault = false
 
     /// Asked before the engine writes Grove's `config.json` or the transcript safety net;
     /// false refuses the write. A host that knows of another engine writing the same

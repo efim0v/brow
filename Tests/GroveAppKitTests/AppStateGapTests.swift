@@ -91,6 +91,7 @@ final class AppStateGapTests: XCTestCase {
         let s = state()
         let binDir = root.appendingPathComponent("reconcile-bin")
         s.folders.bin = binDir.path
+        s.capturesByDefault = true
         let dirA = root.appendingPathComponent("recon-a")   // never monitored
         let dirB = root.appendingPathComponent("recon-b")   // already monitored
         try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
@@ -137,6 +138,7 @@ final class AppStateGapTests: XCTestCase {
     func testReconcileMonitoringMarksAnAccountWithNoPriorStatusline() async throws {
         let s = state()
         s.folders.bin = root.appendingPathComponent("reconcile-bin-2").path
+        s.capturesByDefault = true
         let dir = root.appendingPathComponent("recon-fresh")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         s.config.accounts = [AccountConfig(name: "fresh", configDir: dir.path)]
@@ -157,12 +159,12 @@ final class AppStateGapTests: XCTestCase {
             .contains("grove-statusline-") == true)
     }
 
-    /// An engine that does not capture by default (Brow's) edits no account's
-    /// settings.json unasked — not at launch, not when adding or linking an account —
-    /// while the user's own Capture toggle still works.
+    /// An engine edits no account's settings.json unasked — not at launch, not when
+    /// adding or linking an account — unless its host turns `capturesByDefault` on, which
+    /// no host does now; the user's own Capture toggle still works.
     func testAnEngineThatDoesNotCaptureByDefaultInstallsNothingUnasked() async throws {
         let s = state()
-        s.capturesByDefault = false
+        XCTAssertFalse(s.capturesByDefault, "off unless a host asks for it")
         s.folders.bin = root.appendingPathComponent("no-capture-bin").path
         s.folders.accountsRoot = root.appendingPathComponent("no-capture-accounts").path
         let dir = root.appendingPathComponent("no-capture-a")
@@ -191,6 +193,7 @@ final class AppStateGapTests: XCTestCase {
     func testReconcileMonitoringLeavesADeletedAccountFolderDeleted() async throws {
         let s = state()
         s.folders.bin = root.appendingPathComponent("reconcile-bin-gone").path
+        s.capturesByDefault = true
         let gone = root.appendingPathComponent("recon-gone")
         let here = root.appendingPathComponent("recon-here")
         try FileManager.default.createDirectory(at: here, withIntermediateDirectories: true)
@@ -321,6 +324,7 @@ final class AppStateGapTests: XCTestCase {
     func testReconcileMonitoringRetriesSettingsThatDoNotParseNextLaunch() async throws {
         let s = state()
         s.folders.bin = root.appendingPathComponent("reconcile-bin-3").path
+        s.capturesByDefault = true
         let bad = root.appendingPathComponent("recon-unparseable")
         let good = root.appendingPathComponent("recon-ok")
         try FileManager.default.createDirectory(at: bad, withIntermediateDirectories: true)
@@ -361,6 +365,7 @@ final class AppStateGapTests: XCTestCase {
         let s = state()
         let binDir = root.appendingPathComponent("fix1-bin")
         s.folders.bin = binDir.path
+        s.capturesByDefault = true
 
         // Account A: never monitored (disabledByUser=false) — should be installed.
         let dirA = root.appendingPathComponent("fix1-a")

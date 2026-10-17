@@ -818,8 +818,9 @@ final class AppStateActionTests: XCTestCase {
             projects: [], accounts: [defaultAccount, work]))
         let state = makeState(runner: ScriptedRunner(responses: [:]))
         state.folders.canonicalDir = canonicalDir.path
-        // linkAccount now auto-installs the statusline wrapper (Phase 5A); keep that
-        // write inside a temp dir, never the real ~/Library/Application Support/Grove.
+        // An engine that captures by default would install the statusline wrapper here
+        // too (Phase 5A); keep any such write inside a temp dir, never the real
+        // ~/Library/Application Support/Grove.
         state.folders.bin = root.appendingPathComponent("bin-link-symlink").path
 
         state.linkAccount(work)
@@ -833,9 +834,10 @@ final class AppStateActionTests: XCTestCase {
         XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.sharedStore, true)
     }
 
-    /// Phase 5A: linking an account also auto-installs the grove statusline wrapper
-    /// so its usage is captured (the icloud "no usage" fix). Install is best-effort,
-    /// idempotent, and preserves the user's original statusLine.command.
+    /// Phase 5A: an engine that captures by default (Grove.app's; no host turns it on now)
+    /// also installs the grove statusline wrapper when it links an account, so its usage
+    /// is captured (the icloud "no usage" fix). Install is best-effort, idempotent, and
+    /// preserves the user's original statusLine.command.
     func testLinkAccountAutoInstallsStatuslineMonitoring() async throws {
         let canonicalDir = root.appendingPathComponent("canon-link-mon")
         let workDir = root.appendingPathComponent("acc-work-link-mon")
@@ -853,6 +855,7 @@ final class AppStateActionTests: XCTestCase {
         let state = makeState(runner: ScriptedRunner(responses: [:]))
         state.folders.canonicalDir = canonicalDir.path
         state.folders.bin = root.appendingPathComponent("bin-link").path
+        state.capturesByDefault = true
 
         state.linkAccount(work)
 

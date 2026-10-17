@@ -209,15 +209,17 @@ final class AppStateConfigTests: XCTestCase {
         XCTAssertEqual(reloadedConfig().accounts.map { $0.name }, ["default"])
     }
 
-    /// Phase 5A: addAccount creates the new account's config dir and auto-installs the
-    /// grove statusline wrapper there, marking it monitored — so a freshly-added
-    /// account (e.g. icloud) captures usage from its first session.
+    /// Phase 5A: in an engine that captures by default, addAccount creates the new
+    /// account's config dir and auto-installs the grove statusline wrapper there, marking
+    /// it monitored — so a freshly-added account (e.g. icloud) captures usage from its
+    /// first session.
     func testAddAccountCreatesDirAutoInstallsStatuslineAndEnablesMonitoring() throws {
         let scratch = try FixtureLite.tempDir("appstate-config-add")
         let accountsRoot = scratch.appendingPathComponent("accts")
         let state = makeState()
         state.folders.accountsRoot = accountsRoot.path
         state.folders.bin = scratch.appendingPathComponent("bin").path
+        state.capturesByDefault = true
 
         state.addAccount(name: "icloud")
 

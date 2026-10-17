@@ -69,8 +69,9 @@ final class TranscriptMirrorTests: XCTestCase {
         XCTAssertEqual(try String(contentsOfFile: mp, encoding: .utf8), "line1\nline2\n")
         XCTAssertFalse(fm.fileExists(atPath: live), "live path is gone")
 
-        // 3. next reconcile restores the live path from the mirror
-        let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy())
+        // 3. a reconcile asked to restore puts the live path back from the mirror
+        let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(),
+                                      restore: .all)
         XCTAssertTrue(fm.fileExists(atPath: live), "live not restored")
         XCTAssertEqual(try String(contentsOfFile: live, encoding: .utf8), "line1\nline2\n")
         XCTAssertEqual(report.restored.count, 1)
@@ -104,7 +105,7 @@ final class TranscriptMirrorTests: XCTestCase {
         try fm.removeItem(atPath: live)
         try setMtime(mp, daysAgo: 200, now: now)
         let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path,
-                                      policy: RetentionPolicy(maxDays: 90, maxBytes: 0), now: now)
+                                      policy: RetentionPolicy(maxDays: 90, maxBytes: 0), now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: mp), "aged-out mirror should be evicted")
         XCTAssertFalse(fm.fileExists(atPath: live), "must NOT restore an aged-out entry")
         XCTAssertEqual(report.evicted.count, 1)
@@ -118,7 +119,7 @@ final class TranscriptMirrorTests: XCTestCase {
         _ = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(), now: now)
         try fm.removeItem(atPath: live)                       // mirror-only, but recent mtime
         let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path,
-                                      policy: RetentionPolicy(maxDays: 90, maxBytes: 0), now: now)
+                                      policy: RetentionPolicy(maxDays: 90, maxBytes: 0), now: now, restore: .all)
         XCTAssertTrue(fm.fileExists(atPath: live), "fresh entry should be restored")
         XCTAssertEqual(report.evicted.count, 0)
     }
@@ -183,7 +184,8 @@ final class TranscriptMirrorTests: XCTestCase {
         let mp = mirrorPath(cwd, id, account: canonical)
         try mirror.purge(sessionId: id, accounts: [acct(canonical)], canonicalDir: canonical.path)
         XCTAssertFalse(fm.fileExists(atPath: mp)); XCTAssertFalse(fm.fileExists(atPath: live))
-        let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy())
+        let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(),
+                                      restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: mp), "purge must not resurrect")
         XCTAssertEqual(report.restored.count, 0)
     }
@@ -236,8 +238,47 @@ final class TranscriptMirrorTests: XCTestCase {
         let liveW = try writeTranscript(configDir: work, cwd: "-shared", id: "hhhh", "work\n")
         _ = mirror.reconcile(accounts: [acct(canonical), acct(work)], canonicalDir: canonical.path, policy: policy())
         try fm.removeItem(atPath: liveW)
-        _ = mirror.reconcile(accounts: [acct(canonical), acct(work)], canonicalDir: canonical.path, policy: policy())
+        _ = mirror.reconcile(accounts: [acct(canonical), acct(work)], canonicalDir: canonical.path, policy: policy(),
+                             restore: .all)
         XCTAssertTrue(fm.fileExists(atPath: liveW), "restored to the WORK account's projects, not canonical")
+    }
+
+    /// By default nothing comes back by itself: the transcript is listed for the user.
+    func testByDefaultAVanishedTranscriptIsListedNotRestored() throws {
+        let cwd = "-Users-x-proj", id = "kkkk"
+        let live = try writeTranscript(configDir: canonical, cwd: cwd, id: id, "fresh\n")
+        let now = Date()
+        _ = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(), now: now)
+        try fm.removeItem(atPath: live)
+        let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(), now: now)
+        XCTAssertFalse(fm.fileExists(atPath: live), "never put back unasked")
+        XCTAssertTrue(report.restored.isEmpty)
+        let mp = mirrorPath(cwd, id, account: canonical)
+        XCTAssertEqual(report.restorable.map(\.mirrorPath), [mp])
+        XCTAssertEqual(report.restorable.first?.livePath, live)
+        XCTAssertEqual(report.restorable.first?.sessionId, id)
+        XCTAssertEqual(report.restorable.first?.accountKey, accountKey(canonical.path))
+        XCTAssertTrue(fm.fileExists(atPath: mp), "the copy stays until it ages out")
+    }
+
+    /// `.only` puts back just the chosen ones; the others stay listed.
+    func testOnlyTheChosenTranscriptsAreRestored() throws {
+        let now = Date()
+        let a = try writeTranscript(configDir: canonical, cwd: "-p", id: "aaaa", "a\n")
+        let b = try writeTranscript(configDir: canonical, cwd: "-p", id: "bbbb", "b\n")
+        try setMtime(a, daysAgo: 2, now: now)
+        _ = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(), now: now)
+        try fm.removeItem(atPath: a); try fm.removeItem(atPath: b)
+        let listed = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(), now: now)
+        XCTAssertEqual(listed.restorable.map(\.sessionId), ["bbbb", "aaaa"], "newest first")
+
+        let chosen = mirrorPath("-p", "aaaa", account: canonical)
+        let report = mirror.reconcile(accounts: [acct(canonical)], canonicalDir: canonical.path, policy: policy(),
+                                      now: now, restore: .only([chosen]))
+        XCTAssertEqual(report.restored, [a])
+        XCTAssertTrue(fm.fileExists(atPath: a))
+        XCTAssertFalse(fm.fileExists(atPath: b))
+        XCTAssertEqual(report.restorable.map(\.sessionId), ["bbbb"])
     }
 
     // test-local stat helper

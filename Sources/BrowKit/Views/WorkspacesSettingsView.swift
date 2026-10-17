@@ -97,14 +97,20 @@ struct WorkspacesEngineSettings: View {
             Stepper("Use at most \(state.config.transcriptMirror.maxMB) MB",
                     value: mirrorBinding(\.maxMB), in: 10...10_000, step: 10)
             retentionRows
+            if state.config.transcriptMirror.enabled {
+                RestorableTranscriptRows(state: state)
+            }
         } header: {
             Text("Transcript safety net")
         } footer: {
-            Text("A hard link to each transcript, so one deleted by accident can be put back. It never keeps or restores a transcript older than Claude Code itself keeps it (cleanupPeriodDays), less a day, so nothing Claude Code's own clean-up removed comes back.")
+            Text(Self.safetyNetExplanation)
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .task { await state.refreshTranscriptRetention() }
+        .task {
+            if state.config.transcriptMirror.enabled { await state.reconcileTranscripts() }
+            else { await state.refreshTranscriptRetention() }
+        }
         Section("Panel") {
             Picker("Material", selection: Binding(get: { material }, set: { style in
                 material = style
@@ -115,6 +121,8 @@ struct WorkspacesEngineSettings: View {
             .pickerStyle(.segmented)
         }
     }
+
+    static let safetyNetExplanation = "A hard link to each transcript, so one deleted by accident can be put back. Nothing comes back by itself: a transcript that vanishes is listed here, and Restore puts it back. The safety net keeps no transcript longer than Claude Code keeps it (cleanupPeriodDays: the shortest that your organization's managed settings, the account's settings or any project's settings set), and offers none back within a day of that. A period passed to claude with \u{2011}\u{2011}settings is not visible to it."
 
     @ViewBuilder private var retentionRows: some View {
         ForEach(state.config.accounts, id: \.name) { account in
@@ -191,5 +199,73 @@ struct WorkspacesAccountSection: View {
             }
             .labelsHidden().fixedSize()
         }
+    }
+}
+
+/// The transcripts the safety net can put back, newest first, each with Restore: gone from
+/// Claude Code's folders, inside every retention that applies. Nothing comes back without
+/// the button — Claude Code may have removed one on purpose, under a period Brow can't see.
+struct RestorableTranscriptRows: View {
+    @ObservedObject var state: AppState
+    @State private var working = false
+    @State private var note: String?
+
+    /// How many are listed one by one; Restore all covers the rest.
+    static let shown = 6
+
+    var body: some View {
+        let all = state.restorableTranscripts
+        if !all.isEmpty {
+            LabeledContent {
+                if all.count > 1 {
+                    Button("Restore all \(all.count)") { restore(all) }.disabled(working)
+                }
+            } label: {
+                Text(all.count == 1 ? "1 transcript is gone from Claude Code's folders"
+                                    : "\(all.count) transcripts are gone from Claude Code's folders")
+            }
+            ForEach(all.prefix(Self.shown)) { item in
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(Self.place(item))
+                            .font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
+                        Text(Self.detail(item, now: Date()))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Restore") { restore([item]) }.disabled(working)
+                }
+            }
+            if all.count > Self.shown {
+                Text("and \(all.count - Self.shown) more").font(.caption).foregroundStyle(.secondary)
+            }
+            if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+        }
+    }
+
+    private func restore(_ chosen: [RestorableTranscript]) {
+        working = true
+        Task { @MainActor in
+            let restored = await state.restoreTranscripts(chosen)
+            note = Self.outcome(asked: chosen.count, restored: restored)
+            working = false
+        }
+    }
+
+    /// Where the session ran, `~/Code/shop`; its id when the transcript names no folder.
+    static func place(_ item: RestorableTranscript) -> String {
+        item.cwd.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? item.entry.sessionId
+    }
+
+    /// "work · last active 3 days ago".
+    static func detail(_ item: RestorableTranscript, now: Date) -> String {
+        let days = Int(max(0, now.timeIntervalSince(item.entry.lastActivity)) / 86_400)
+        let age = days == 0 ? "today" : days == 1 ? "yesterday" : "\(days) days ago"
+        return [item.accountName, "last active \(age)"].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    static func outcome(asked: Int, restored: Int) -> String {
+        if restored == asked { return restored == 1 ? "Put back." : "\(restored) put back." }
+        return "\(restored) of \(asked) put back: the others are no longer inside Claude Code's retention, or no longer missing."
     }
 }

@@ -27,12 +27,15 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
 
     // MARK: - tests
 
-    func testReconcileTranscriptsRestoresAMissingTranscript() async throws {
+    /// A transcript deleted out of band is listed, with where it ran, and comes back
+    /// only when the user asks: nothing is put back by itself.
+    func testAVanishedTranscriptComesBackOnlyWhenAskedFor() async throws {
         let canonical = root.appendingPathComponent("canonical")
         try fm.createDirectory(at: canonical.appendingPathComponent("projects/-p"),
                                withIntermediateDirectories: true)
         let live = canonical.appendingPathComponent("projects/-p/iiii.jsonl")
-        try "hi\n".write(to: live, atomically: true, encoding: .utf8)
+        try #"{"type":"user","cwd":"/Users/demo/Code/shop"}"#.appending("\n")
+            .write(to: live, atomically: true, encoding: .utf8)
 
         let state = makeState()
         state.folders.canonicalDir = canonical.path
@@ -41,10 +44,20 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
             accounts: [AccountConfig(name: "default", configDir: canonical.path)])
 
         await state.reconcileTranscripts()      // links live → mirror
+        XCTAssertTrue(state.restorableTranscripts.isEmpty)
         try fm.removeItem(at: live)             // out-of-band delete
-        await state.reconcileTranscripts()      // restores from mirror
-        XCTAssertTrue(fm.fileExists(atPath: live.path),
-                      "AppState should restore via the mirror")
+        await state.reconcileTranscripts()
+        XCTAssertFalse(fm.fileExists(atPath: live.path), "never put back by itself")
+        let listed = try XCTUnwrap(state.restorableTranscripts.first)
+        XCTAssertEqual(state.restorableTranscripts.count, 1)
+        XCTAssertEqual(listed.entry.livePath, live.path)
+        XCTAssertEqual(listed.accountName, "default")
+        XCTAssertEqual(listed.cwd, "/Users/demo/Code/shop")
+
+        let restored = await state.restoreTranscripts([listed])
+        XCTAssertEqual(restored, 1)
+        XCTAssertTrue(fm.fileExists(atPath: live.path), "Restore puts it back from the mirror")
+        XCTAssertTrue(state.restorableTranscripts.isEmpty)
     }
 
     func testDisabledIsANoOp() async throws {
@@ -102,10 +115,21 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
         await state.reconcileTranscripts()
 
         XCTAssertFalse(fm.fileExists(atPath: old.path), "past the account's 7 days: stays deleted")
-        XCTAssertTrue(fm.fileExists(atPath: young.path), "inside it: restored")
+        XCTAssertEqual(state.restorableTranscripts.map(\.entry.livePath), [young.path],
+                       "inside them: offered back, the old one not")
         XCTAssertEqual(state.transcriptRetention["default"]?.days, 7)
         XCTAssertEqual(state.transcriptRetention["default"]?.source, .accountSettings)
         XCTAssertFalse(fm.fileExists(atPath: mirrored), "and the mirror does not keep it either")
+
+        // Asking for the old one as well changes nothing for it.
+        let stale = RestorableTranscript(
+            entry: VanishedTranscript(mirrorPath: mirrored, livePath: old.path,
+                                      accountKey: accountKey(canonical.path), lastActivity: Date()),
+            accountName: "default", cwd: nil)
+        let restored = await state.restoreTranscripts(state.restorableTranscripts + [stale])
+        XCTAssertEqual(restored, 1)
+        XCTAssertTrue(fm.fileExists(atPath: young.path))
+        XCTAssertFalse(fm.fileExists(atPath: old.path))
     }
 
     /// A workspace the second account shares into the default one is judged by the second

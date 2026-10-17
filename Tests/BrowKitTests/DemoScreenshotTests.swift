@@ -173,6 +173,19 @@ final class DemoScreenshotTests: XCTestCase {
             "alex.morgan@example.com": .init(days: 14, source: .managedFile),
             "platform-team@example.com": .init(days: 7, source: .accountSettings),
         ]
+        // Two transcripts gone from Claude Code's folders that the safety net can put back.
+        let mirror = home + "/.claude/grove/transcripts"
+        state.restorableTranscripts = [
+            ("alex.morgan@example.com", "/Users/demo/Workspaces/acme-shop/checkout-redesign", 2.2, "2f6a9c41"),
+            ("alex@example.com", "/Users/demo/Code/field-notes", 9.6, "8d03b7e2"),
+        ].map { account, cwd, daysAgo, id in
+            let folder = ClaudeService.mangle(cwd)
+            return RestorableTranscript(
+                entry: VanishedTranscript(mirrorPath: "\(mirror)/demo/\(folder)/\(id).jsonl",
+                                          livePath: "\(home)/.claude/projects/\(folder)/\(id).jsonl",
+                                          accountKey: "demo", lastActivity: Date().addingTimeInterval(-daysAgo * 86_400)),
+                accountName: account, cwd: cwd)
+        }
         state.limitsProvider = store
         let host = WorkspacesHost(store: store, folders: state.folders,
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),

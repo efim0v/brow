@@ -117,6 +117,12 @@ public final class AppState: ObservableObject {
     /// account name — the strictest of the account's folders. The safety net never keeps
     /// or restores anything older; Settings shows it. Filled by `reconcileTranscripts`.
     @Published public var transcriptRetention: [String: ClaudeRetention.Resolution] = [:]
+    /// Transcripts gone from Claude Code's folders that the safety net could put back:
+    /// inside every retention that applies to them. Nothing comes back by itself — a
+    /// period passed to `claude` with `--settings` can't be seen from here — so Settings
+    /// lists them, newest first, each with Restore. Filled by `reconcileTranscripts`;
+    /// empty while the safety net is off.
+    @Published public var restorableTranscripts: [RestorableTranscript] = []
 
     private let configStore: ConfigStore
 
@@ -959,26 +965,47 @@ extension AppState {
 
     // MARK: - Transcript mirror
 
-    /// Hardlink-mirror + auto-restore every account's transcripts, off the main
-    /// actor. No-ops when the feature is disabled or when no canonical account is
+    /// Hardlink-mirrors every account's transcripts, off the main actor, and lists the
+    /// vanished ones it could put back (`restorableTranscripts`) — it puts none back by
+    /// itself. No-ops when the feature is disabled or when no canonical account is
     /// configured. Snapshot-render safety comes from the caller not invoking this
     /// during `ImageRenderer` passes — the same structural guarantee `verifySharedStore`
     /// relies on.
     ///
     /// Every account's folder carries Claude Code's own retention for it into the
-    /// reconcile (grove#6): the mirror keeps nothing older and restores nothing Claude
-    /// Code's sweep may have removed. The periods are read even with the safety net
+    /// reconcile (grove#6): the mirror keeps nothing older and offers nothing back that
+    /// Claude Code's sweep may have removed. The periods are read even with the safety net
     /// off, for Settings.
     public func reconcileTranscripts() async {
+        await reconcileTranscripts(restore: .none)
+    }
+
+    /// Puts back the transcripts the user chose in Settings, if they still qualify (gone,
+    /// and inside every retention that applies); the rest of the pass is an ordinary
+    /// reconcile. Returns how many came back.
+    @discardableResult
+    public func restoreTranscripts(_ chosen: [RestorableTranscript]) async -> Int {
+        guard !chosen.isEmpty else { return 0 }
+        let report = await reconcileTranscripts(restore: .only(Set(chosen.map(\.entry.mirrorPath))))
+        let restored = report?.restored.count ?? 0
+        if restored > 0 { await refreshSessionIndex() }
+        return restored
+    }
+
+    @discardableResult
+    private func reconcileTranscripts(restore: RestoreMode) async -> ReconcileReport? {
         let retention = folders.claudeRetention
         let dirsByAccount = accountDirs()
         let enabled = config.transcriptMirror.enabled && canonicalAccount != nil
         let canonical = canonicalDir
         let settings = config.transcriptMirror
+        let names = Dictionary(dirsByAccount.flatMap { account in account.dirs.map { (accountKey($0), account.name) } },
+                               uniquingKeysWith: { first, _ in first })
         let result = await Task.detached(priority: .utility) {
-            () -> (byAccount: [String: ClaudeRetention.Resolution], report: ReconcileReport?) in
+            () -> (byAccount: [String: ClaudeRetention.Resolution], report: ReconcileReport?,
+                   restorable: [RestorableTranscript]) in
             let (byAccount, mirrorAccounts) = Self.resolveRetention(dirsByAccount, retention, canonicalDir: canonical)
-            guard enabled else { return (byAccount, nil) }
+            guard enabled else { return (byAccount, nil, []) }
             // An entry whose account left the config has no period of its own that can be
             // read, so the shortest that could apply: the managed one, Claude Code's
             // default, or any configured account's (it may have shared the workspace).
@@ -987,11 +1014,18 @@ extension AppState {
             let policy = RetentionPolicy(maxDays: settings.maxDays,
                                          maxBytes: Int64(settings.maxMB) * 1_000_000,
                                          orphanRetentionDays: orphan)
-            return (byAccount, TranscriptMirror().reconcile(accounts: mirrorAccounts,
-                                                            canonicalDir: canonical, policy: policy))
+            let report = TranscriptMirror().reconcile(accounts: mirrorAccounts, canonicalDir: canonical,
+                                                      policy: policy, restore: restore)
+            let restorable = report.restorable.map {
+                RestorableTranscript(entry: $0, accountName: names[$0.accountKey],
+                                     cwd: TranscriptCwds.cwd(ofTranscriptAt: $0.mirrorPath))
+            }
+            return (byAccount, report, restorable)
         }.value
         if transcriptRetention != result.byAccount { transcriptRetention = result.byAccount }
+        if restorableTranscripts != result.restorable { restorableTranscripts = result.restorable }
         if let first = result.report?.issues.first { actionError = "Transcript mirror: \(first)" }
+        return result.report
     }
 
     /// Reads every account's retention for Settings, touching nothing else.
@@ -1632,4 +1666,21 @@ extension AppState {
         let scanner = statsScanner
         return await Task.detached(priority: .utility) { scanner.directoryTree(projectPath: path) }.value
     }
+}
+
+/// A transcript the safety net can put back, as Settings lists it.
+public struct RestorableTranscript: Identifiable, Equatable, Sendable {
+    public let entry: VanishedTranscript
+    /// The Workspaces account it belongs to; nil when its folder is no account's.
+    public let accountName: String?
+    /// The folder the session ran in, from the transcript; nil when it records none.
+    public let cwd: String?
+
+    public init(entry: VanishedTranscript, accountName: String?, cwd: String?) {
+        self.entry = entry
+        self.accountName = accountName
+        self.cwd = cwd
+    }
+
+    public var id: String { entry.id }
 }

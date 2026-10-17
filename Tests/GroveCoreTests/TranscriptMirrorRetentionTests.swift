@@ -49,7 +49,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
     func testATranscriptPastTheAccountsRetentionIsNotRestoredAndLeavesTheMirror() throws {
         let acct = account(retention: 7)
         let (live, mirrored) = try mirroredThenDeleted(id: "old1", daysAgo: 45, account: acct)
-        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now)
+        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: live), "Claude Code's sweep must not be undone")
         XCTAssertFalse(fm.fileExists(atPath: mirrored), "and nothing older than the period stays on disk")
         XCTAssertTrue(report.restored.isEmpty)
@@ -60,7 +60,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
     func testATranscriptWellInsideTheRetentionIsRestored() throws {
         let acct = account(retention: 7)
         let (live, _) = try mirroredThenDeleted(id: "young", daysAgo: 3, account: acct)
-        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now)
+        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertTrue(fm.fileExists(atPath: live))
         XCTAssertEqual(report.restored, [live])
     }
@@ -70,7 +70,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
     func testATranscriptWithinADayOfTheRetentionIsHeldBack() throws {
         let acct = account(retention: 7)
         let (live, mirrored) = try mirroredThenDeleted(id: "edge", daysAgo: 6.5, account: acct)
-        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now)
+        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: live))
         XCTAssertTrue(fm.fileExists(atPath: mirrored))
         XCTAssertEqual(report.heldBack, [mirrored])
@@ -80,7 +80,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
     func testAnUncertainRetentionRestoresNothing() throws {
         let acct = account(retention: 30, certain: false)
         let (live, mirrored) = try mirroredThenDeleted(id: "unsure", daysAgo: 1, account: acct)
-        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now)
+        let report = mirror.reconcile(accounts: [acct], canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: live))
         XCTAssertEqual(report.heldBack, [mirrored])
     }
@@ -94,7 +94,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         try "turn\n".write(toFile: live, atomically: true, encoding: .utf8)
         try fm.setAttributes([.modificationDate: now.addingTimeInterval(-10 * 86_400)], ofItemAtPath: live)
         let report = mirror.reconcile(accounts: [account(retention: 7)], canonicalDir: canonical.path,
-                                      policy: policy(), now: now)
+                                      policy: policy(), now: now, restore: .all)
         XCTAssertTrue(report.linked.isEmpty)
         XCTAssertTrue(fm.fileExists(atPath: live), "the live file is Claude Code's, never touched")
     }
@@ -104,7 +104,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         let acct = account(retention: nil)
         let (_, mirrored) = try mirroredThenDeleted(id: "orphan", daysAgo: 40, account: acct)
         let orphanPolicy = RetentionPolicy(maxDays: 90, maxBytes: 0, orphanRetentionDays: 30)
-        let report = mirror.reconcile(accounts: [], canonicalDir: canonical.path, policy: orphanPolicy, now: now)
+        let report = mirror.reconcile(accounts: [], canonicalDir: canonical.path, policy: orphanPolicy, now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: mirrored))
         XCTAssertEqual(report.evicted, [mirrored])
     }
@@ -147,7 +147,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         let report = mirror.reconcile(
             accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
                        MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
-            canonicalDir: canonical.path, policy: policy(), now: now)
+            canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
 
         XCTAssertFalse(fm.fileExists(atPath: live), "a's sweep must not be undone")
         XCTAssertFalse(fm.fileExists(atPath: throughA))
@@ -162,7 +162,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         let report = mirror.reconcile(
             accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
                        MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
-            canonicalDir: canonical.path, policy: policy(), now: now)
+            canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertEqual(report.restored, [live])
         XCTAssertTrue(fm.fileExists(atPath: throughA))
     }
@@ -174,7 +174,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         let report = mirror.reconcile(
             accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
                        MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 30, mayRestore: false)],
-            canonicalDir: canonical.path, policy: policy(), now: now)
+            canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: live))
         XCTAssertEqual(report.heldBack, [sharedMirrorPath("s3")])
     }
@@ -186,7 +186,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         let report = mirror.reconcile(
             accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
                        MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
-            canonicalDir: canonical.path, policy: policy(), now: now)
+            canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertFalse(fm.fileExists(atPath: live))
         XCTAssertTrue(report.restored.isEmpty)
         XCTAssertEqual(report.evicted, [sharedMirrorPath("s4")])
@@ -198,7 +198,7 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         let report = mirror.reconcile(
             accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
                        MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
-            canonicalDir: canonical.path, policy: policy(), now: now)
+            canonicalDir: canonical.path, policy: policy(), now: now, restore: .all)
         XCTAssertEqual(report.evicted, [sharedMirrorPath("s5")], "the link made while it was young goes")
         XCTAssertTrue(report.linked.isEmpty)
     }

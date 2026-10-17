@@ -46,8 +46,55 @@ public struct ReconcileReport: Sendable, Equatable {
     /// Mirror entries whose transcript is gone and that were NOT put back: too close to
     /// (or past) the account's retention, or the retention could not be read.
     public var heldBack: [String] = []
+    /// Transcripts that are gone, inside every retention that applies, and not put back
+    /// because the `RestoreMode` did not ask for them. Newest first.
+    public var restorable: [VanishedTranscript] = []
     public var issues:   [String] = []
     public init() {}
+}
+
+/// A transcript gone from Claude Code's folder that the safety net still holds, inside
+/// every retention that applies to it.
+public struct VanishedTranscript: Sendable, Equatable, Hashable, Identifiable {
+    /// The safety net's copy.
+    public let mirrorPath: String
+    /// Where it was, and where Restore puts it back.
+    public let livePath: String
+    /// The account it is filed under (`accountKey`).
+    public let accountKey: String
+    /// When it last changed: the session's last activity.
+    public let lastActivity: Date
+
+    public init(mirrorPath: String, livePath: String, accountKey: String, lastActivity: Date) {
+        self.mirrorPath = mirrorPath
+        self.livePath = livePath
+        self.accountKey = accountKey
+        self.lastActivity = lastActivity
+    }
+
+    public var id: String { mirrorPath }
+    public var sessionId: String { ((livePath as NSString).lastPathComponent as NSString).deletingPathExtension }
+}
+
+/// What `reconcile` does with a vanished transcript it could put back.
+public enum RestoreMode: Sendable, Equatable {
+    /// Nothing: it is listed in `ReconcileReport.restorable`, for the user to choose. What
+    /// the app does. A period passed to `claude` with `--settings` can't be read from
+    /// outside, so a transcript that looks safe to bring back may have been removed on
+    /// purpose; only the user can tell.
+    case none
+    /// Every one (what Grove 0.2 did by itself).
+    case all
+    /// Only these mirror entries (`VanishedTranscript.mirrorPath`), if they still qualify.
+    case only(Set<String>)
+
+    func includes(_ mirrorPath: String) -> Bool {
+        switch self {
+        case .none: return false
+        case .all: return true
+        case .only(let paths): return paths.contains(mirrorPath)
+        }
+    }
 }
 
 /// Injectable filesystem ops so tests can force the cross-volume fallback.
@@ -73,9 +120,12 @@ public struct FileOps: Sendable {
 /// put such a file back, or kept a hard link to it, would undo a period the user — or
 /// their organisation, through managed settings — set precisely to have those files
 /// gone. So per account: entries older than the account's period are evicted like any
-/// over-age entry, and a vanished transcript is restored only while it is more than
+/// over-age entry, and a vanished transcript can be restored only while it is more than
 /// `restoreMarginDays` younger than that period, so a file Claude Code's sweep may have
 /// taken is never the one brought back.
+///
+/// Even then it is not restored by itself (`RestoreMode.none`): one source of the period,
+/// `claude --settings`, can't be read from outside, so the user chooses what comes back.
 ///
 /// A workspace shared between accounts (`SharedSessionStore`: the account's
 /// `projects/<cwd>` is a link into the default account's) holds transcripts every one of
@@ -139,9 +189,13 @@ public struct TranscriptMirror: Sendable {
     struct EntryRef: Hashable { let accountKey: String; let encodedCwd: String; let file: String }
     struct EntryState { var livePath: String?; var mirrorPath: String? }
 
+    /// Links every live transcript into the mirror, evicts what is past its retention or
+    /// over the size cap, and, for a transcript that is gone, puts it back only as
+    /// `restore` asks (never by default) and only inside every retention that applies.
     @discardableResult
     public func reconcile(accounts: [MirrorAccount], canonicalDir: String,
-                          policy: RetentionPolicy, now: Date = Date()) -> ReconcileReport {
+                          policy: RetentionPolicy, now: Date = Date(),
+                          restore: RestoreMode = .none) -> ReconcileReport {
         let fm = FileManager.default
         var report = ReconcileReport()
         let mirrorRoot = Self.mirrorRoot(canonicalDir: canonicalDir)
@@ -260,6 +314,12 @@ public struct TranscriptMirror: Sendable {
                     report.heldBack.append(existingMirror)
                     continue
                 }
+                guard restore.includes(existingMirror) else {
+                    report.restorable.append(VanishedTranscript(mirrorPath: existingMirror, livePath: live,
+                                                                accountKey: ref.accountKey,
+                                                                lastActivity: refMtime ?? now))
+                    continue
+                }
                 do {
                     try fm.createDirectory(atPath: (live as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
                     try ops.hardlink(mp, live)
@@ -267,6 +327,7 @@ public struct TranscriptMirror: Sendable {
                 } catch { report.issues.append("restore \(ref.file): \(error.localizedDescription)") }
             }
         }
+        report.restorable.sort { ($0.lastActivity, $0.mirrorPath) > ($1.lastActivity, $1.mirrorPath) }
         return report
     }
 

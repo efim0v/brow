@@ -154,6 +154,34 @@ final class AppStateGapTests: XCTestCase {
             .contains("grove-statusline-") == true)
     }
 
+    /// An engine that does not capture by default (Brow's) edits no account's
+    /// settings.json unasked — not at launch, not when adding or linking an account —
+    /// while the user's own Capture toggle still works.
+    func testAnEngineThatDoesNotCaptureByDefaultInstallsNothingUnasked() async throws {
+        let s = state()
+        s.capturesByDefault = false
+        s.folders.bin = root.appendingPathComponent("no-capture-bin").path
+        s.folders.accountsRoot = root.appendingPathComponent("no-capture-accounts").path
+        let dir = root.appendingPathComponent("no-capture-a")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        s.config.accounts = [AccountConfig(name: "a", configDir: dir.path)]
+
+        s.reconcileMonitoring()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("settings.json").path),
+                       "the launch reconcile wrote nothing")
+        XCTAssertEqual(s.config.accounts.first?.monitoring, false)
+
+        s.addAccount(name: "new")
+        let added = try XCTUnwrap(s.config.accounts.first { $0.name == "new" })
+        XCTAssertFalse(added.monitoring)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: s.folders.bin), "no wrapper shipped")
+
+        s.installMonitoring(s.config.accounts[0])
+        XCTAssertEqual(s.config.accounts.first?.monitoring, true, "the user's own toggle still installs")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("settings.json").path))
+    }
+
     /// grove#12: an account whose folder was deleted is not re-created by the launch
     /// reconcile (it used to come back holding a lone settings.json, which folder
     /// discovery then adopted), while the accounts that are there still get theirs.

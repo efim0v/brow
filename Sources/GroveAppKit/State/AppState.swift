@@ -184,6 +184,14 @@ public final class AppState: ObservableObject {
     /// the real allLiveProcesses call.
     internal var allLiveProcessesOverride: [LiveProcess]?
 
+    /// Whether the engine installs the status-line wrapper into an account's
+    /// `settings.json` without being asked: at launch for every account not yet
+    /// monitored, and as a side effect of adding, linking or migrating into an account.
+    /// Grove.app did (true, its default). Brow does not: capture is turned on per account
+    /// in Settings, or kept where Grove already had it on — so a Brow user's Claude Code
+    /// files are only edited when they asked for it.
+    public var capturesByDefault = true
+
     /// Test observability: incremented each time `runCodeStatsScan` begins a scan. nil
     /// in production (never read); tests set it to 0 before calling `setStatsBranch`
     /// and assert it equals 1 after the debounce fires to verify coalescing.
@@ -330,7 +338,7 @@ public final class AppState: ObservableObject {
         let account = AccountConfig(name: name, configDir: folders.storedAccountDir(name))
         config.accounts.append(account)
         persist()
-        enableMonitoring(account, reportErrors: false)
+        if capturesByDefault { enableMonitoring(account, reportErrors: false) }
     }
 
     /// Names every account by the login Claude Code knows it by — the email in its
@@ -898,8 +906,9 @@ extension AppState {
             config.accounts[index].sharedStore = true
             persist()
         }
-        // Phase 5A: capture usage by default for every linked account.
-        enableMonitoring(account, reportErrors: false)
+        // Phase 5A: capture usage by default for every linked account (when the engine
+        // captures by default at all).
+        if capturesByDefault { enableMonitoring(account, reportErrors: false) }
     }
 
     // MARK: - Transcript mirror
@@ -1011,7 +1020,7 @@ extension AppState {
         if let first = report.issues.first { actionError = "Migrate: \(first)" }
         // Phase 5A: capture usage by default for the target account now that it holds
         // a real session. Use the persisted entry so the gate reflects prior state.
-        if let target = config.accounts.first(where: { $0.name == targetAccount.name }),
+        if capturesByDefault, let target = config.accounts.first(where: { $0.name == targetAccount.name }),
            !target.monitoring {
             enableMonitoring(target, reportErrors: false)
         }
@@ -1371,6 +1380,8 @@ extension AppState {
     /// account whose folder no longer exists is skipped, never re-created.
     /// File I/O runs off-main to keep launch responsive.
     public func reconcileMonitoring() {
+        // Only an engine that captures by default installs anything unasked.
+        guard capturesByDefault else { return }
         // Gather accounts needing install on the main actor, then do file I/O off-main.
         let toInstall = config.accounts.filter { !$0.monitoring && !$0.monitoringDisabledByUser }
         guard !toInstall.isEmpty else { return }

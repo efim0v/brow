@@ -16,10 +16,36 @@ public struct AccountOverride: Codable, Sendable, Equatable {
     public var name: String?
     public var hidden: Bool
     public init(name: String?, hidden: Bool) { self.name = name; self.hidden = hidden }
+
+    enum CodingKeys: String, CodingKey { case name, hidden }
+
+    /// Lenient like the file around it: a hand edit that breaks `hidden` keeps the name.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let issues = decoder.userInfo[.browSettingsIssues] as? SettingsIssues
+        do { name = try c.decodeIfPresent(String.self, forKey: .name) } catch { name = nil; issues?.record("accounts.name") }
+        do { hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false } catch { hidden = false; issues?.record("accounts.hidden") }
+    }
+}
+
+/// The fields of a settings file that did not decode, collected while it is read so the
+/// store can keep a copy of the file before the next save replaces them with defaults.
+public final class SettingsIssues: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fields: [String] = []
+    public init() {}
+    public func record(_ field: String) { lock.withLock { fields.append(field) } }
+    public var all: [String] { lock.withLock { fields } }
+}
+
+public extension CodingUserInfoKey {
+    /// A `SettingsIssues` the settings decoders record their failures in.
+    static let browSettingsIssues = CodingUserInfoKey(rawValue: "browSettingsIssues")!
 }
 
 /// `~/Library/Application Support/Brow/config.json`. Every field has a default so
-/// a file written by an older build still loads.
+/// a file written by an older build still loads, and every field decodes ON ITS OWN:
+/// a value that does not fit costs that field, never the rest of the file (brow#7).
 public struct BrowSettings: Codable, Sendable, Equatable {
     public var accounts: [String: AccountOverride] = [:]
     public var extraDirs: [String] = []
@@ -44,61 +70,59 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     public var notifyThresholds: [Int] = LimitWarnings.defaultLevels
     /// A second notice when a window Brow warned about resets.
     public var notifyResets: Bool = false
+    /// Whether Workspaces runs, its menu-bar item, its panel's material. Older builds
+    /// ignore the key and drop it on their next save, and nothing else changes.
+    public var workspaces: WorkspacesSettings = WorkspacesSettings()
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showEars, showCalendar, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets, workspaces }
+
+    // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT with a
+    // value of the wrong type or an unmatched raw value (a hand edit, or a value a later
+    // build writes) throws, and one throwing field used to fail `init(from:)` — so
+    // `load()` fell back to a fresh `BrowSettings`, and one typo took the account names,
+    // the alias dirs, the `claude` path and `allowPromptFallback` with it; the next
+    // settings write made the loss permanent. Every field is caught on its own now, and
+    // recorded, so `BrowSettingsStore.load` keeps a copy of the file.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        accounts = try c.decodeIfPresent([String: AccountOverride].self, forKey: .accounts) ?? [:]
-        extraDirs = try c.decodeIfPresent([String].self, forKey: .extraDirs) ?? []
-        allowPromptFallback = try c.decodeIfPresent(Bool.self, forKey: .allowPromptFallback) ?? true
-        claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
-        cardShowNames = (try? c.decodeIfPresent(Bool.self, forKey: .cardShowNames)) ?? false
-        // Through its raw value and never throwing, for the reasons `earsPlacement`
-        // gives below: an unknown shape costs this one field, not the whole file.
-        let rawShape: String?? = try? c.decodeIfPresent(String.self, forKey: .cardShape)
-        cardShape = rawShape.flatMap { $0 }.flatMap(CardShape.init(rawValue:)) ?? .wide
-        if case .some(.some(let raw)) = rawShape, CardShape(rawValue: raw) == nil {
-            BrowLog.panel.error("config.json: unknown cardShape \"\(raw, privacy: .public)\"; using wide")
-        } else if rawShape == nil {
-            BrowLog.panel.error("config.json: cardShape is not a string; using wide")
-        }
-        showEars = (try? c.decodeIfPresent(Bool.self, forKey: .showEars)) ?? true
-        showCalendar = (try? c.decodeIfPresent(Bool.self, forKey: .showCalendar)) ?? true
-        notifyLimits = (try? c.decodeIfPresent(Bool.self, forKey: .notifyLimits)) ?? false
-        // Never allowed to throw, for the reason spelled out under `earsPlacement`.
-        do {
-            notifyThresholds = LimitWarnings.sanitized(try c.decodeIfPresent([Int].self, forKey: .notifyThresholds) ?? [])
-        } catch {
-            BrowLog.notify.error("config.json: notifyThresholds is not a list of numbers; using 80 and 95")
-            notifyThresholds = LimitWarnings.defaultLevels
-        }
-        notifyResets = (try? c.decodeIfPresent(Bool.self, forKey: .notifyResets)) ?? false
-        // Decoded through its raw value, not as the enum, and never allowed to throw.
-        // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT
-        // with an unmatched value (a hand-edited config — the plan's own Task 10 asks
-        // the owner to edit this very key with `plutil` — or a third case written by a
-        // later build) throws `dataCorrupted`, which fails `init(from:)`, which makes
-        // `load()` fall back to a fresh `BrowSettings`. One typo would take the account
-        // names, the alias dirs, the `claude` path and `allowPromptFallback` with it —
-        // against this file's own "every field has a default" contract — and the next
-        // settings write would make the loss permanent.
-        // `String??`: the outer nil is "the value is not even a string", the inner one
-        // "the key is absent or null".
-        let rawPlacement: String?? = try? c.decodeIfPresent(String.self, forKey: .earsPlacement)
-        switch rawPlacement {
-        case .some(.some(let raw)):
-            earsPlacement = EarsPlacement(rawValue: raw) ?? .beside
-            if EarsPlacement(rawValue: raw) == nil {
-                BrowLog.panel.error("config.json: unknown earsPlacement \"\(raw, privacy: .public)\"; using beside")
+        let issues = decoder.userInfo[.browSettingsIssues] as? SettingsIssues
+        func field<T: Decodable>(_ key: CodingKeys, _ type: T.Type) -> T? {
+            do { return try c.decodeIfPresent(type, forKey: key) } catch {
+                issues?.record(key.stringValue)
+                BrowLog.panel.error("config.json: \(key.stringValue, privacy: .public) unreadable; using the default")
+                return nil
             }
-        case .some(.none):
-            earsPlacement = .beside                 // absent (an older file) or null
-        case .none:
-            BrowLog.panel.error("config.json: earsPlacement is not a string; using beside")
-            earsPlacement = .beside
         }
+        accounts = field(.accounts, [String: AccountOverride].self) ?? [:]
+        extraDirs = field(.extraDirs, [String].self) ?? []
+        allowPromptFallback = field(.allowPromptFallback, Bool.self) ?? true
+        claudePath = field(.claudePath, String.self)
+        cardShowNames = field(.cardShowNames, Bool.self) ?? false
+        cardShape = Self.rawValue(field(.cardShape, String.self), CardShape.self, key: "cardShape", issues) ?? .wide
+        showEars = field(.showEars, Bool.self) ?? true
+        showCalendar = field(.showCalendar, Bool.self) ?? true
+        notifyLimits = field(.notifyLimits, Bool.self) ?? false
+        notifyThresholds = LimitWarnings.sanitized(field(.notifyThresholds, [Int].self) ?? LimitWarnings.defaultLevels)
+        notifyResets = field(.notifyResets, Bool.self) ?? false
+        // Through its raw value: an unknown placement (a later build's third case, a
+        // typo from the `plutil` edit the docs suggest) costs this field only.
+        earsPlacement = Self.rawValue(field(.earsPlacement, String.self), EarsPlacement.self,
+                                      key: "earsPlacement", issues) ?? .beside
+        workspaces = field(.workspaces, WorkspacesSettings.self) ?? WorkspacesSettings()
+    }
+
+    /// A string field as an enum; an unknown value is recorded and reads as nil.
+    private static func rawValue<E: RawRepresentable>(_ raw: String?, _ type: E.Type, key: String,
+                                                      _ issues: SettingsIssues?) -> E? where E.RawValue == String {
+        guard let raw else { return nil }
+        guard let value = E(rawValue: raw) else {
+            issues?.record(key)
+            BrowLog.panel.error("config.json: unknown \(key, privacy: .public) \"\(raw, privacy: .public)\"; using the default")
+            return nil
+        }
+        return value
     }
 
     /// Override → email → last path component of the config dir.
@@ -133,18 +157,27 @@ public struct BrowSettingsStore: Sendable {
     public static let defaultDirectory = NSHomeDirectory() + "/Library/Application Support/Brow"
     private let directory: String
     private var file: String { directory + "/config.json" }
+    /// Where a copy of an unreadable `config.json` goes before defaults replace it.
+    public var backupFile: String { directory + "/config.json.bak" }
 
     public init(directory: String = BrowSettingsStore.defaultDirectory) { self.directory = directory }
 
+    /// Defaults are the recovery, but an unreadable value is still a failure: it is
+    /// logged, and the file as it was is copied to `config.json.bak` first — the next
+    /// settings write replaces the unreadable values with defaults for good.
     public func load() -> BrowSettings {
         let path = file
         guard let data = FileManager.default.contents(atPath: path) else { return BrowSettings() }
+        let issues = SettingsIssues()
+        let decoder = JSONDecoder()
+        decoder.userInfo[.browSettingsIssues] = issues
         do {
-            return try JSONDecoder().decode(BrowSettings.self, from: data)
+            let settings = try decoder.decode(BrowSettings.self, from: data)
+            if !issues.all.isEmpty { keepCopy(data, because: issues.all.joined(separator: ", ")) }
+            return settings
         } catch {
-            // Defaults are the recovery, but an unreadable settings file is still a
-            // failure: log it rather than swallow it.
             BrowLog.panel.error("settings unreadable at \(path, privacy: .public): \(String(describing: error), privacy: .public)")
+            keepCopy(data, because: "not a settings object")
             return BrowSettings()
         }
     }
@@ -154,5 +187,14 @@ public struct BrowSettingsStore: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
         try encoder.encode(settings).write(to: URL(fileURLWithPath: file), options: .atomic)
+    }
+
+    private func keepCopy(_ data: Data, because reason: String) {
+        do {
+            try data.write(to: URL(fileURLWithPath: backupFile), options: .atomic)
+            BrowLog.panel.error("config.json kept as config.json.bak (\(reason, privacy: .public))")
+        } catch {
+            BrowLog.panel.error("config.json.bak not written: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

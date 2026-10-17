@@ -35,9 +35,10 @@ jobs:
           swift --version
 
       # The package has no dependencies: GroveCore, GroveAppKit, BrowKit, the app
-      # and the command-line tool all build from this repository.
-      - name: Build
-        run: swift build --build-tests
+      # and the command-line tool all build from this repository. A clean build of
+      # every target that fails on any warning the script does not list.
+      - name: Build with no new warnings
+        run: Scripts/check-warnings.sh
 
       # HOME and CFFIXED_USER_HOME point at an empty folder; the script fails if the
       # suite leaves Brow's or Grove's data, or Claude Code's folders, in it.

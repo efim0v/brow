@@ -99,11 +99,13 @@ private final class StatusBarController: NSObject, NSApplicationDelegate, NSWind
             if state.reconcileAccountNames() { await state.refreshUsage(now: Date()) }
         }
         backgroundTimer = Timer.scheduledTimer(withTimeInterval: 90, repeats: true) { [weak self] _ in
-            // Skip while the panel is open — RootView's 15s loop already refreshes, so
-            // the two cadences never overlap (which could land out-of-order and
-            // overwrite newer data).
-            guard let self, !self.state.isPanelOpen else { return }
+            // The timer's closure is Sendable; the state is the main actor's, so the
+            // check runs inside the main-actor task, not out here.
             Task { @MainActor in
+                // Skip while the panel is open — RootView's 15s loop already refreshes,
+                // so the two cadences never overlap (which could land out-of-order and
+                // overwrite newer data).
+                guard let self, !self.state.isPanelOpen else { return }
                 await self.state.refreshUsage(now: Date())
                 await self.state.reconcileTranscripts()
             }

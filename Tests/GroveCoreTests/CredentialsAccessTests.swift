@@ -20,14 +20,14 @@ final class CredentialsAccessTests: XCTestCase {
 
     func testLockedIsRememberedForTheFloorAndReadsAsNoToken() {
         let base = Base()
-        var now = t0
-        let reader = CachingCredentialsReader(base: base, now: { now })
+        let clock = TestClock(t0)
+        let reader = CachingCredentialsReader(base: base, now: { clock.now })
         XCTAssertEqual(reader.access(configDir: "d"), .locked)
         XCTAssertNil(reader.token(configDir: "d"))
-        now = t0.addingTimeInterval(30)
+        clock.now = t0.addingTimeInterval(30)
         XCTAssertEqual(reader.access(configDir: "d"), .locked, "inside the floor the answer is the remembered one")
         XCTAssertEqual(base.reads, 1, "and the Keychain is not asked again")
-        now = t0.addingTimeInterval(CachingCredentialsReader.nilReadFloor + 1)
+        clock.now = t0.addingTimeInterval(CachingCredentialsReader.nilReadFloor + 1)
         base.answer = .missing
         XCTAssertEqual(reader.access(configDir: "d"), .missing)
         XCTAssertEqual(base.reads, 2)

@@ -719,9 +719,6 @@ extension AppState {
     /// hosting the session if known, else Resume it under its account in a fresh
     /// workspace. The fast routing path — no snapshot lookup needed.
     public func openSession(_ row: ProjectSessionRow) async {
-        let account = config.accounts.first { $0.name == row.accountName }
-            ?? config.accounts.first
-            ?? AccountConfig(name: "default", configDir: "~/.claude")
         // CLOSED → open the launch sheet (target / account / model / effort) so the
         // user confirms HOW to resume before a new process is spawned.
         guard row.status != .closed else {
@@ -1344,15 +1341,17 @@ extension AppState {
                     GroveLog.menubar.error("statusline not installed for \(account.name, privacy: .public), retrying next launch: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            // Hop back to main actor to persist config changes.
+            // Hop back to main actor to persist config changes. A `let` copy: the
+            // closure runs on another executor and must not capture the `var`.
+            let finished = installed
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                for result in installed {
+                for result in finished {
                     guard let i = self.config.accounts.firstIndex(where: { $0.name == result.name }) else { continue }
                     self.config.accounts[i].monitoring = true
                     self.config.accounts[i].savedStatusline = result.savedStatusline
                 }
-                if !installed.isEmpty { self.persist() }
+                if !finished.isEmpty { self.persist() }
             }
         }
     }

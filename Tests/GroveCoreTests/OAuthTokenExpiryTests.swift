@@ -48,17 +48,17 @@ final class OAuthTokenExpiryTests: XCTestCase {
     func testCachedTokenIsRereadOnceItExpires() {
         let t0 = Date()
         let base = RotatingReader(ClaudeToken(value: "old", expiresAt: t0.addingTimeInterval(3600)))
-        var clock = t0
-        let caching = CachingCredentialsReader(base: base, now: { clock })
+        let clock = TestClock(t0)
+        let caching = CachingCredentialsReader(base: base, now: { clock.now })
 
         XCTAssertEqual(caching.accessToken(configDir: "~/.claude"), "old")
-        clock = t0.addingTimeInterval(1800)          // still inside the token's life
+        clock.now = t0.addingTimeInterval(1800)          // still inside the token's life
         XCTAssertEqual(caching.accessToken(configDir: "~/.claude"), "old")
         XCTAssertEqual(base.calls["~/.claude"], 1, "a live token must not re-prompt the Keychain")
 
         // Claude Code rotates the credential; Grove's cached copy is now past expiry.
         base.next = ClaudeToken(value: "new", expiresAt: t0.addingTimeInterval(3600 * 9))
-        clock = t0.addingTimeInterval(3601)
+        clock.now = t0.addingTimeInterval(3601)
         XCTAssertEqual(caching.accessToken(configDir: "~/.claude"), "new",
                        "an expired cached token must be re-read, not served forever")
         XCTAssertEqual(base.calls["~/.claude"], 2)
@@ -67,11 +67,11 @@ final class OAuthTokenExpiryTests: XCTestCase {
     func testExpiryUsesSafetySkewSoTheTokenIsNeverSentOnItsLastBreath() {
         let t0 = Date()
         let base = RotatingReader(ClaudeToken(value: "old", expiresAt: t0.addingTimeInterval(30)))
-        var clock = t0
-        let caching = CachingCredentialsReader(base: base, now: { clock })
+        let clock = TestClock(t0)
+        let caching = CachingCredentialsReader(base: base, now: { clock.now })
         _ = caching.accessToken(configDir: "~/.claude")
         base.next = ClaudeToken(value: "new", expiresAt: t0.addingTimeInterval(3600))
-        clock = t0.addingTimeInterval(1)   // 29s of life left — inside the 60s skew
+        clock.now = t0.addingTimeInterval(1)   // 29s of life left — inside the 60s skew
         XCTAssertEqual(caching.accessToken(configDir: "~/.claude"), "new",
                        "a token about to expire must be refreshed before it is used")
     }
@@ -84,11 +84,11 @@ final class OAuthTokenExpiryTests: XCTestCase {
     func testExpiredTokenIsNotRereadOnEveryCallWithinTheFloor() {
         let t0 = Date()
         let base = RotatingReader(ClaudeToken(value: "dead", expiresAt: t0.addingTimeInterval(-86_400)))
-        var clock = t0
-        let caching = CachingCredentialsReader(base: base, now: { clock })
+        let clock = TestClock(t0)
+        let caching = CachingCredentialsReader(base: base, now: { clock.now })
 
         XCTAssertEqual(caching.accessToken(configDir: "~/.claude"), "dead")
-        clock = t0.addingTimeInterval(30)
+        clock.now = t0.addingTimeInterval(30)
         _ = caching.accessToken(configDir: "~/.claude")
         XCTAssertEqual(base.calls["~/.claude"], 1, "no second Keychain hit inside the floor")
 
@@ -96,7 +96,7 @@ final class OAuthTokenExpiryTests: XCTestCase {
         _ = caching.accessToken(configDir: "~/.claude")
         XCTAssertEqual(base.calls["~/.claude"], 2, "invalidate still forces a re-read immediately")
 
-        clock = t0.addingTimeInterval(30 + 61)
+        clock.now = t0.addingTimeInterval(30 + 61)
         _ = caching.accessToken(configDir: "~/.claude")
         XCTAssertEqual(base.calls["~/.claude"], 3, "past the floor the expired token is re-read again")
     }
@@ -117,18 +117,18 @@ final class OAuthTokenExpiryTests: XCTestCase {
     func testNilReadIsNotRepeatedWithinTenMinutes() {
         let t0 = Date()
         let base = RotatingReader(nil)
-        var clock = t0
-        let caching = CachingCredentialsReader(base: base, now: { clock })
+        let clock = TestClock(t0)
+        let caching = CachingCredentialsReader(base: base, now: { clock.now })
 
         XCTAssertNil(caching.token(configDir: "~/.claude"))
-        clock = t0.addingTimeInterval(30)
+        clock.now = t0.addingTimeInterval(30)
         XCTAssertNil(caching.token(configDir: "~/.claude"))
-        clock = t0.addingTimeInterval(599)
+        clock.now = t0.addingTimeInterval(599)
         XCTAssertNil(caching.token(configDir: "~/.claude"))
         XCTAssertEqual(base.calls["~/.claude"], 1,
                        "a denied Keychain prompt must not be re-raised on every cycle")
 
-        clock = t0.addingTimeInterval(601)
+        clock.now = t0.addingTimeInterval(601)
         XCTAssertNil(caching.token(configDir: "~/.claude"))
         XCTAssertEqual(base.calls["~/.claude"], 2, "past the floor the read is attempted again")
     }

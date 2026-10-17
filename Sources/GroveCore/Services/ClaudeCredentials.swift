@@ -124,15 +124,27 @@ public struct KeychainCredentialsReader: CredentialsReading {
     /// watchdog throws the cycle — and every reading in it — away. Grove keeps the
     /// default (on): it reads the Keychain only on the user's own gesture.
     public static func setUserInteractionAllowed(_ allowed: Bool) {
-        SecKeychainSetUserInteractionAllowed(allowed)
+        _ = keychainInteraction(set: allowed)
     }
 
     static func withUserInteraction<T>(_ body: () -> T) -> T {
+        let was = keychainInteraction(set: true)
+        defer { _ = keychainInteraction(set: was) }
+        return body()
+    }
+
+    /// Switches Keychain dialogs for this process on or off and returns what it was.
+    ///
+    /// The ONE place that calls the SecKeychain interaction API, deprecated since macOS
+    /// 10.10 and still the only process-wide switch. Its compiler warnings are the only
+    /// ones `Scripts/check-warnings.sh` allows, and only in this file. The replacement —
+    /// an `LAContext` with `interactionNotAllowed` passed to every `SecItemCopyMatching`
+    /// — needs a manual check against a locked item on a real Mac before it can ship.
+    private static func keychainInteraction(set allowed: Bool) -> Bool {
         var was: DarwinBoolean = true
         SecKeychainGetUserInteractionAllowed(&was)
-        SecKeychainSetUserInteractionAllowed(true)
-        defer { SecKeychainSetUserInteractionAllowed(was.boolValue) }
-        return body()
+        SecKeychainSetUserInteractionAllowed(allowed)
+        return was.boolValue
     }
 
     // MARK: - helpers (internal for tests)

@@ -117,12 +117,12 @@ final class WorkspacesHostTests: XCTestCase {
         weak var token: NSObject?
     }
 
-    private func makeWatchedHost(_ apps: RunningApps, store: LimitsStore) -> WorkspacesHost {
+    private func makeWatchedHost(_ apps: RunningApps, store: LimitsStore, groveConfig: Bool = true) -> WorkspacesHost {
         let host = WorkspacesHost(store: store, folders: folders,
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: {
                                       apps.grove ? ["dev.artemefimov.grove3"] : ["dev.artemefimov.brow"]
                                   }),
-                                  groveConfigExists: { true }, groveDefaults: { nil },
+                                  groveConfigExists: { groveConfig }, groveDefaults: { nil },
                                   watchRunningApps: { onChange in
                                       apps.onChange = onChange
                                       let token = NSObject()
@@ -191,6 +191,54 @@ final class WorkspacesHostTests: XCTestCase {
         apps.grove = false
         state.addProject(at: "/Users/demo/Code/notes")
         XCTAssertTrue(FileManager.default.fileExists(atPath: folders.configFile.path))
+    }
+
+    // MARK: - A project added from the introduction
+
+    /// Add project… in the introduction while Grove.app runs: Workspaces turns on but is
+    /// paused, so the folder waits — nothing writes Grove's config under Grove — and is
+    /// added when Workspaces starts.
+    func testAProjectAddedWhileGroveRunsWaitsUntilWorkspacesStarts() throws {
+        let apps = RunningApps()
+        apps.grove = true
+        let host = makeWatchedHost(apps, store: try makeStore(), groveConfig: false)
+        host.start()
+        XCTAssertEqual(host.activation, .off, "a new setup: off until asked")
+
+        host.addProject(fromIntroduction: "/Users/demo/Code/shop")
+        XCTAssertEqual(host.activation, .paused)
+        XCTAssertEqual(host.pendingProjects, ["/Users/demo/Code/shop"])
+        XCTAssertEqual(host.state?.config.projects ?? [], [], "not added to the paused state")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folders.configFile.path), "nothing written")
+        XCTAssertTrue(host.groveRunningNotice.message.hasSuffix("“shop” is added when Workspaces starts."),
+                      host.groveRunningNotice.message)
+
+        apps.grove = false
+        apps.onChange?()
+        XCTAssertEqual(host.activation, .on)
+        XCTAssertEqual(host.state?.config.projects.map(\.path), ["/Users/demo/Code/shop"])
+        XCTAssertTrue(host.pendingProjects.isEmpty)
+        XCTAssertEqual(ConfigStore(url: folders.configFile).load().config.projects.map(\.path),
+                       ["/Users/demo/Code/shop"])
+    }
+
+    /// With nothing in the way the project is added at once, and turning Workspaces off
+    /// meanwhile drops a waiting one.
+    func testAProjectIsAddedAtOnceWhenNothingIsInTheWay() throws {
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore(), groveConfig: false)
+        host.start()
+        host.addProject(fromIntroduction: "/Users/demo/Code/notes")
+        XCTAssertEqual(host.activation, .on)
+        XCTAssertEqual(host.state?.config.projects.map(\.path), ["/Users/demo/Code/notes"])
+        XCTAssertTrue(host.pendingProjects.isEmpty)
+
+        apps.grove = true
+        apps.onChange?()
+        host.addProject(fromIntroduction: "/Users/demo/Code/later")
+        XCTAssertEqual(host.pendingProjects, ["/Users/demo/Code/later"])
+        host.setEnabled(false)
+        XCTAssertTrue(host.pendingProjects.isEmpty, "off: the user changed their mind")
     }
 
     // MARK: - Another copy of Brow running Workspaces

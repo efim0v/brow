@@ -29,6 +29,10 @@ public final class WorkspacesHost: ObservableObject {
     @Published public private(set) var dormantAccounts: [AccountConfig] = []
     /// What went wrong giving a status line back, for Settings.
     @Published public private(set) var captureError: String?
+    /// Folders picked as projects in the introduction while Workspaces could not take
+    /// them — paused, with Grove.app or another copy of Brow writing the same config —
+    /// added once it runs. Not kept past a quit of Brow.
+    @Published public private(set) var pendingProjects: [String] = []
     /// Told when the panel is ordered in or out (the notch latches its hover meanwhile).
     public var onPanelVisibilityChange: ((Bool) -> Void)?
     /// Opens Brow's Settings window where the panel asks for it: the footer's gear
@@ -155,6 +159,7 @@ public final class WorkspacesHost: ObservableObject {
             state = nil
             accountsWatch = nil
             store.runtimeExtraDirs = []
+            pendingProjects = []
         case .paused:
             let controller = ensureController()
             controller.stopEngine()
@@ -177,6 +182,12 @@ public final class WorkspacesHost: ObservableObject {
             controller.showsStatusItem = settings.showInMenuBar
             controller.start()
             controller.startEngine()
+            // The projects picked while it waited, now that nothing else writes the config.
+            if let state, !pendingProjects.isEmpty {
+                let paths = pendingProjects
+                pendingProjects = []
+                for path in paths { state.addProject(at: path) }
+            }
             // Accounts Workspaces knows outside ~/.claude and ~/.claude-accounts join the
             // notch's scan, so their limits show in the pickers too.
             if accountsWatch == nil, let state {
@@ -363,7 +374,7 @@ public final class WorkspacesHost: ObservableObject {
         WorkspacesNotice(
             symbol: "pause.circle",
             title: "Grove is still running",
-            message: "Grove is now part of Brow, and Workspaces runs your Grove projects. It stays paused while Grove.app is open, so the two never edit the same files at once.",
+            message: "Grove is now part of Brow, and Workspaces runs your Grove projects. It stays paused while Grove.app is open, so the two never edit the same files at once." + pendingNote,
             primary: .init("Quit Grove") { [weak self] in self?.quitGrove() })
     }
 
@@ -371,7 +382,7 @@ public final class WorkspacesHost: ObservableObject {
         WorkspacesNotice(
             symbol: "pause.circle",
             title: "Workspaces is open in another Brow",
-            message: "Another copy of Brow, a second install or a development build, is running Workspaces on the same projects. Workspaces runs in one copy at a time, so the two never edit the same files at once; it starts here when that copy quits.",
+            message: "Another copy of Brow, a second install or a development build, is running Workspaces on the same projects. Workspaces runs in one copy at a time, so the two never edit the same files at once; it starts here when that copy quits." + pendingNote,
             primary: .init("Try Again") { [weak self] in self?.refresh() })
     }
 
@@ -398,9 +409,30 @@ public final class WorkspacesHost: ObservableObject {
         panel.message = "Pick the folder that contains your repositories."
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        setEnabled(true)
-        state?.addProject(at: url.path)
+        addProject(fromIntroduction: url.path)
         showPanel()
+    }
+
+    /// Turns Workspaces on with `path` as its project. Added at once only while the
+    /// engine runs: paused, the config is another app's to write, so the folder waits in
+    /// `pendingProjects` — the paused notice names it — and is added when Workspaces starts.
+    func addProject(fromIntroduction path: String) {
+        setEnabled(true)
+        if activation == .on, let state {
+            state.addProject(at: path)
+        } else if !pendingProjects.contains(path) {
+            pendingProjects.append(path)
+            refresh()   // the notice now names it
+        }
+    }
+
+    /// " “shop” is added when Workspaces starts.", after a paused notice's message.
+    private var pendingNote: String {
+        guard !pendingProjects.isEmpty else { return "" }
+        let names = pendingProjects.map { "“\(($0 as NSString).lastPathComponent)”" }
+        // English, like the sentence it ends: not the Mac's list format.
+        let list = names.count == 1 ? names[0] : names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
+        return " \(list) \(names.count == 1 ? "is" : "are") added when Workspaces starts."
     }
 
     // MARK: - Panel material

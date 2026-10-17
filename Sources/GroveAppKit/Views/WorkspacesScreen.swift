@@ -323,7 +323,7 @@ struct WorkspacesScreen: View {
                 } else {
                     Menu("Claude") {
                         ForEach(state.config.accounts, id: \.name) { account in
-                            Button(account.name) {
+                            Button(state.menuTitle("", account)) {
                                 launchLooseClaude(loose, account: account)
                             }
                         }
@@ -374,7 +374,7 @@ struct WorkspacesScreen: View {
                 .frame(width: 6, height: 6)
             Text(session.title ?? "(untitled session)")
                 .lineLimit(1)
-            Text(session.accountName)
+            Text(state.displayName(forAccountNamed: session.accountName))
                 .foregroundStyle(.tertiary)
             Spacer(minLength: 8)
             Text(relativeAge(session.lastActivity, now: Date()))

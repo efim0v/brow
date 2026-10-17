@@ -303,7 +303,7 @@ struct WorkspaceRowCard: View {
             }
             .font(.caption)
             HStack(spacing: 8) {
-                Text(session.accountName).foregroundStyle(.tertiary)
+                Text(state.displayName(forAccountNamed: session.accountName)).foregroundStyle(.tertiary)
                 if let model, !model.isEmpty { Text(shortModelName(model)).monospaced() }
                 Spacer(minLength: 0)
             }
@@ -407,7 +407,7 @@ struct WorkspaceRowCard: View {
             } else {
                 Menu("New Claude") {
                     ForEach(state.config.accounts, id: \.name) { account in
-                        Button(account.name) { launch(account: account) }
+                        Button(state.menuTitle("", account)) { launch(account: account) }
                     }
                 } primaryAction: {
                     // Single click launches on the project's default account

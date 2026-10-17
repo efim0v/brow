@@ -148,7 +148,7 @@ struct SessionsScreen: View {
     /// One session as the shared multi-line CARD, with this screen's trailing
     /// actions (gear + Go/Resume + cross-account menus) plus its tap/context menu.
     private func sessionRow(_ row: SessionRow, now: Date, isExternal: Bool = false) -> some View {
-        SessionCard(row: row, now: now) {
+        SessionCard(row: row, now: now, accountLabel: state.displayName(forAccountNamed: row.accountName)) {
             gearCell(row)
             actionCell(row, isExternal: isExternal)
         }

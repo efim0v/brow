@@ -224,10 +224,29 @@ public final class AppState: ObservableObject {
         limitsProvider?.limits(forConfigDirs: account.allConfigDirs.map(expandTilde))
     }
 
-    /// An account as the pickers list it: "Resume as work — 5h 42% · week 61%". The
+    /// What the account is called wherever Workspaces shows it — pickers, session rows,
+    /// the Accounts screen: the host's name for it, the one the notch shows, else the name
+    /// in Grove's config (its email, as the engine names accounts). The config name stays
+    /// the account's key; only what is shown follows the host.
+    public func displayName(for account: AccountConfig) -> String {
+        limitsProvider?.label(forConfigDirs: account.allConfigDirs.map(expandTilde))?.name ?? account.name
+    }
+
+    /// The same for a session's or a row's account, which they carry by its config name.
+    public func displayName(forAccountNamed name: String) -> String {
+        config.accounts.first { $0.name == name }.map(displayName(for:)) ?? name
+    }
+
+    /// The account's plan as the host shows it ("Max 20x"); nil when it does not know.
+    public func plan(for account: AccountConfig) -> String? {
+        limitsProvider?.label(forConfigDirs: account.allConfigDirs.map(expandTilde))?.plan
+    }
+
+    /// An account as the pickers list it: "Resume as Work — 5h 42% · week 61%". The
     /// numbers are what Brow says about room; the menu is where the work moves.
     public func menuTitle(_ verb: String, _ account: AccountConfig) -> String {
-        let base = verb.isEmpty ? account.name : "\(verb) \(account.name)"
+        let name = displayName(for: account)
+        let base = verb.isEmpty ? name : "\(verb) \(name)"
         guard let label = limits(for: account)?.label else { return base }
         return "\(base) — \(label)"
     }
@@ -978,7 +997,7 @@ extension AppState {
             do {
                 _ = try SharedSessionStore().ensureLinked(accountDir: dir, canonicalDir: canonicalDir)
             } catch {
-                actionError = "Couldn't link “\(account.name)”: \(error.localizedDescription)"
+                actionError = "Couldn't link “\(displayName(for: account))”: \(error.localizedDescription)"
                 return
             }
         }
@@ -1199,7 +1218,7 @@ extension AppState {
             _ = try store.ensureWorkspaceLinked(accountDir: dir, canonicalDir: canonicalDir,
                                                 mangledCwd: mangledCwd)
         } catch {
-            return "Couldn't link “\(account.name)” to the shared store: \(error.localizedDescription)"
+            return "Couldn't link “\(displayName(for: account))” to the shared store: \(error.localizedDescription)"
         }
         if let index = config.accounts.firstIndex(where: { $0.name == account.name }),
            !config.accounts[index].sharedStore {
@@ -1273,7 +1292,7 @@ extension AppState {
         // File records attribute an account — prefer the precise name.
         for account in config.accounts where account.name != launchAccount.name {
             if service.liveProcesses(account: account).contains(where: { $0.sessionId == sessionId }) {
-                return account.name
+                return displayName(for: account)
             }
         }
         // The session may be live via the process TABLE (which the often-empty file
@@ -1319,7 +1338,7 @@ extension AppState {
         guard account.name != fromAccount else { return true }
         if let other = sessionLiveUnderOtherAccount(sessionId, cwd: cwd, launchAccount: account) {
             actionError = "This session is live under “\(other)” — close it first, "
-                + "then resume as \(account.name)."
+                + "then resume as \(displayName(for: account))."
             return false
         }
         guard canonicalAccount != nil else {
@@ -1328,7 +1347,7 @@ extension AppState {
             return false
         }
         guard let owner = config.accounts.first(where: { $0.name == fromAccount }) else {
-            actionError = "Can't resume as \(account.name): the owning account "
+            actionError = "Can't resume as \(displayName(for: account)): the owning account "
                 + "“\(fromAccount)” is no longer configured."
             return false
         }
@@ -1467,7 +1486,7 @@ extension AppState {
         do { saved = try installer.install(configDir: dir) }
         catch {
             if reportErrors {
-                actionError = "Couldn't enable monitoring for “\(account.name)”: \(error.localizedDescription)"
+                actionError = "Couldn't enable monitoring for “\(displayName(for: account))”: \(error.localizedDescription)"
             }
             return
         }
@@ -1492,7 +1511,7 @@ extension AppState {
         let installer = StatuslineInstaller(scriptDir: statuslineScriptDir)
         let dir = expandTilde(account.configDir)
         do { try installer.uninstall(configDir: dir, savedStatusline: account.savedStatusline) }
-        catch { actionError = "Couldn't disable monitoring for \"\(account.name)\": \(error.localizedDescription)"; return }
+        catch { actionError = "Couldn't disable monitoring for “\(displayName(for: account))”: \(error.localizedDescription)"; return }
         for alias in account.aliasDirs.map(expandTilde) {
             _ = try? installer.restoreBakedOriginal(configDir: alias)
         }

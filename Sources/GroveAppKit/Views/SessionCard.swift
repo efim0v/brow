@@ -13,6 +13,8 @@ import GroveCore
 struct SessionCard<Actions: View>: View {
     let row: SessionRow
     let now: Date
+    /// The row's account as the host names it (`AppState.displayName(forAccountNamed:)`).
+    let accountLabel: String
     @ViewBuilder let actions: () -> Actions
 
     var body: some View {
@@ -69,7 +71,7 @@ struct SessionCard<Actions: View>: View {
     /// account · created Nd ago · ran <dur> · N turns · <model>. Only existing
     /// pieces are shown; wraps rather than truncates.
     private var metaLine: some View {
-        var parts: [String] = [row.accountName]
+        var parts: [String] = [accountLabel]
         if let created = row.createdAt {
             parts.append("created \(relativeAge(created, now: now)) ago")
             let end = row.liveStatus != nil ? now : row.lastActivity

@@ -68,7 +68,7 @@ struct OtherSessionsScreen: View {
     /// Same multi-line card as the Claude tab; these rows are always resumable
     /// (no live process, no gear), so the trailing slot is just Resume + menus.
     private func sessionRow(_ row: SessionRow, now: Date) -> some View {
-        SessionCard(row: row, now: now) {
+        SessionCard(row: row, now: now, accountLabel: state.displayName(forAccountNamed: row.accountName)) {
             actionCell(row)
         }
         .contentShape(Rectangle())

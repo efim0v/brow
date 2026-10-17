@@ -39,4 +39,34 @@ final class AccountLimitsTests: XCTestCase {
         XCTAssertEqual(provider.asked.last, ["/x/personal"], "asked by the account's folders")
         XCTAssertEqual(state.menuTitle("", work), "work — 5h 12% · week 34%", "the launch sheet's form")
     }
+
+    private final class NamingProvider: AccountLimitsProviding {
+        func limits(forConfigDirs dirs: [String]) -> AccountLimits? {
+            dirs.contains("/x/work") ? AccountLimits(fiveHour: 78, weekly: 61, stale: false) : nil
+        }
+        func label(forConfigDirs dirs: [String]) -> AccountLabel? {
+            dirs.contains("/x/work") ? AccountLabel(name: "Work", plan: "Max 20x") : nil
+        }
+    }
+
+    /// One account, one name: Workspaces calls an account what the notch and Settings
+    /// call it, and writes its plan the same way. The config name stays the key.
+    func testAnAccountIsNamedAsTheHostNamesIt() throws {
+        let url = try FixtureLite.tempDir("names").appendingPathComponent("config.json")
+        let state = AppState(configStore: ConfigStore(url: url))
+        let work = AccountConfig(name: "alex@example.com", configDir: "/x/main", aliasDirs: ["/x/work"])
+        let old = AccountConfig(name: "old", configDir: "/x/old")
+        state.config.accounts = [work, old]
+        XCTAssertEqual(state.displayName(for: work), "alex@example.com", "no host: Grove's name")
+        XCTAssertNil(state.plan(for: work))
+
+        let provider = NamingProvider()
+        state.limitsProvider = provider
+        XCTAssertEqual(state.displayName(for: work), "Work")
+        XCTAssertEqual(state.plan(for: work), "Max 20x")
+        XCTAssertEqual(state.menuTitle("Resume as", work), "Resume as Work — 5h 78% · week 61%")
+        XCTAssertEqual(state.displayName(forAccountNamed: "alex@example.com"), "Work", "a session's account")
+        XCTAssertEqual(state.displayName(for: old), "old", "an account the host does not know keeps its name")
+        XCTAssertEqual(state.displayName(forAccountNamed: "gone"), "gone")
+    }
 }

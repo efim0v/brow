@@ -97,7 +97,7 @@ struct AccountsScreen: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(account.name).font(.callout.weight(.semibold))
+                    Text(state.displayName(for: account)).font(.callout.weight(.semibold))
                     identityLine(account)
                 }
                 Spacer(minLength: 8)
@@ -162,10 +162,10 @@ struct AccountsScreen: View {
             // is also the snapshot seam (SnapshotMode injects fixtureIdentity; offscreen
             // renders never populate the cache, so they always use the fixture).
             if let identity = state.identityByAccount[account.name] ?? identityProvider(account) {
-                // FIX I2: prefer the CANONICAL organizationRateLimitTier (the namespace
-                // RateLimitModel.tierWeights keys on) so the card's tier matches the
-                // weight table; fall back to the legacy `tier` (userRateLimitTier).
-                let tier = identity.organizationRateLimitTier ?? identity.tier
+                // The plan as the host writes it ("Max 20x"), as the notch and Settings
+                // do. Without a host, FIX I2: the CANONICAL organizationRateLimitTier (the
+                // namespace RateLimitModel.tierWeights keys on), else the legacy `tier`.
+                let tier = state.plan(for: account) ?? identity.organizationRateLimitTier ?? identity.tier
                 Text([identity.email, identity.organization, tier]
                         .compactMap { $0 }
                         .joined(separator: " · "))
@@ -386,7 +386,7 @@ struct AccountsScreen: View {
                     }
                 }
                 .controlSize(.small)
-                .help("Resumes under \(account.name) with the project's current model/effort")
+                .help("Resumes under \(state.displayName(for: account)) with the project's current model/effort")
             }
             Spacer()
         }

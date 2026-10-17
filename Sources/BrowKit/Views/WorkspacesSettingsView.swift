@@ -44,7 +44,7 @@ struct WorkspacesSettingsTab: View {
                 Button("Give them back") { host.releaseAllStatusLines() }
                     .disabled(host.activation == .paused)
             } label: {
-                Text(host.dormantCaptures.map(\.name).joined(separator: ", "))
+                Text(host.dormantCaptures.map(host.displayName(for:)).joined(separator: ", "))
             }
             if let error = host.captureError {
                 Text(error).font(.caption).foregroundStyle(.orange)
@@ -167,7 +167,7 @@ struct WorkspacesEngineSettings: View {
     @ViewBuilder private var retentionRows: some View {
         ForEach(state.config.accounts, id: \.name) { account in
             if let retention = state.transcriptRetention[account.name] {
-                LabeledContent(account.name) {
+                LabeledContent(state.displayName(for: account)) {
                     Text("Claude Code keeps \(retention.summary)")
                         .font(.caption)
                         .foregroundStyle(retention.isCertain ? Color.secondary : Color.orange)
@@ -289,7 +289,7 @@ struct RestorableTranscriptRows: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(Self.place(item))
                             .font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
-                        Text(Self.detail(item, now: Date()))
+                        Text(Self.detail(item, now: Date(), name: state.displayName(forAccountNamed:)))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -317,11 +317,11 @@ struct RestorableTranscriptRows: View {
         item.cwd.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? item.entry.sessionId
     }
 
-    /// "work · last active 3 days ago".
-    static func detail(_ item: RestorableTranscript, now: Date) -> String {
+    /// "Work · last active 3 days ago", the account named by `name` as the notch names it.
+    static func detail(_ item: RestorableTranscript, now: Date, name: (String) -> String = { $0 }) -> String {
         let days = Int(max(0, now.timeIntervalSince(item.entry.lastActivity)) / 86_400)
         let age = days == 0 ? "today" : days == 1 ? "yesterday" : "\(days) days ago"
-        return [item.accountName, "last active \(age)"].compactMap { $0 }.joined(separator: " · ")
+        return [item.accountName.map(name), "last active \(age)"].compactMap { $0 }.joined(separator: " · ")
     }
 
     static func outcome(asked: Int, restored: Int) -> String {

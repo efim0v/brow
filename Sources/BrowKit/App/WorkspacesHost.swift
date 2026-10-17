@@ -208,6 +208,12 @@ public final class WorkspacesHost: ObservableObject {
     /// The accounts whose status line runs Workspaces' wrapper while Workspaces is not on.
     public var dormantCaptures: [AccountConfig] { dormantAccounts.filter(\.monitoring) }
 
+    /// What `account` is called where the notch shows it, with or without the engine: the
+    /// name from Settings › Accounts, else Grove's own.
+    public func displayName(for account: AccountConfig) -> String {
+        store.label(forConfigDirs: account.allConfigDirs.map(expandTilde))?.name ?? account.name
+    }
+
     /// Re-reads `dormantAccounts` from Grove's config. Reads only: no engine starts, and
     /// nothing is written.
     public func reloadDormantAccounts() {

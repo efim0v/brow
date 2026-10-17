@@ -25,6 +25,8 @@ final class RestorableTranscriptRowsTests: XCTestCase {
                        "work · last active today")
         XCTAssertEqual(RestorableTranscriptRows.detail(item(cwd: nil, account: nil, daysAgo: 1.5), now: now),
                        "last active yesterday")
+        XCTAssertEqual(RestorableTranscriptRows.detail(row, now: now, name: { $0 == "work" ? "Work" : $0 }),
+                       "Work · last active 3 days ago", "the account as the notch names it")
     }
 
     /// A transcript that records no folder is shown by its session id.

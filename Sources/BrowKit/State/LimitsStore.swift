@@ -987,16 +987,28 @@ public final class LimitsStore: ObservableObject {
     }
 }
 
-/// The account pickers in Workspaces show each account's limits: the notch's reading
-/// for the account that owns any of the folders asked about.
+/// Workspaces shows each account as the notch does: its limits in the account pickers,
+/// and its name and plan everywhere it names the account. The notch's row for the
+/// account that owns any of the folders asked about, hidden ones included.
 extension LimitsStore: AccountLimitsProviding {
     public func limits(forConfigDirs dirs: [String]) -> AccountLimits? {
-        let wanted = Set(dirs.map(WorkspacesAccountJoin.normalized))
-        guard let row = allRows.first(where: { row in
-            !wanted.isDisjoint(with: ([row.account.configDir] + row.account.aliasDirs).map(WorkspacesAccountJoin.normalized))
-        }), let snapshot = row.snapshot else { return nil }
+        guard let snapshot = row(forConfigDirs: dirs)?.snapshot else { return nil }
         return AccountLimits(fiveHour: snapshot.fiveHour?.usedPercentage,
                              weekly: snapshot.sevenDay?.usedPercentage,
                              stale: snapshot.isStale(now: deps.now()))
+    }
+
+    /// The name from Settings › Accounts (else the email or the folder, as the panel has
+    /// it) and the plan as the panel writes it.
+    public func label(forConfigDirs dirs: [String]) -> AccountLabel? {
+        guard let row = row(forConfigDirs: dirs) else { return nil }
+        return AccountLabel(name: row.name, plan: row.account.tier.map(PanelText.tierLabel))
+    }
+
+    private func row(forConfigDirs dirs: [String]) -> AccountRow? {
+        let wanted = Set(dirs.map(WorkspacesAccountJoin.normalized))
+        return allRows.first { row in
+            !wanted.isDisjoint(with: ([row.account.configDir] + row.account.aliasDirs).map(WorkspacesAccountJoin.normalized))
+        }
     }
 }

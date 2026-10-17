@@ -77,7 +77,7 @@ In the notch:
 In Workspaces:
 
 - **A workspace per feature.** One folder holding a git worktree of each repository you pick, all on one branch from your template. Shared files such as `CLAUDE.md` are seeded, each repository can run a post-create hook, and a workspace can fork from another one.
-- **Sessions across accounts.** **Resume as…** continues a session under another account without copying, **Migrate to…** copies it in full, even into an account that is in use, and **Share** makes it visible to every linked account. Every account picker shows that account's limits.
+- **Sessions across accounts.** **Resume as…** continues a session under another account without copying, **Migrate to…** copies it in full, even into an account that is in use, and **Share** makes it visible to every linked account. Every account picker shows that account's limits, under the name you gave it in Settings → Accounts.
 - **Graph and statistics.** The commit graph of each repository, and lines of code across the project over time.
 - **The `brow` command-line tool**, with `scan`, `workspaces`, `sessions`, `create`, `graph` and `doctor`, each with `--json`.
 

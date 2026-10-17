@@ -21,7 +21,7 @@ final class LimitsForWorkspacesTests: XCTestCase {
     /// A store whose first frame already has two accounts and a reading for one, from
     /// the file a previous run left — no scan, no network.
     private func makeStore(now: Date, readingAge: TimeInterval = 30) throws -> LimitsStore {
-        let work = DiscoveredAccount(organizationUuid: "org-work", email: "w@example.com", tier: nil,
+        let work = DiscoveredAccount(organizationUuid: "org-work", email: "w@example.com", tier: "default_claude_max_20x",
                                      configDir: "/x/work", aliasDirs: ["/x/work-2"], tokenExpiresAt: nil)
         let team = DiscoveredAccount(organizationUuid: "org-team", email: "t@example.com", tier: nil,
                                      configDir: "/x/team", aliasDirs: [], tokenExpiresAt: nil)
@@ -53,6 +53,18 @@ final class LimitsForWorkspacesTests: XCTestCase {
         XCTAssertEqual(limits, AccountLimits(fiveHour: 42, weekly: 61, stale: false))
         XCTAssertNil(store.limits(forConfigDirs: ["/x/team"]), "an account without a reading has no numbers")
         XCTAssertNil(store.limits(forConfigDirs: ["/x/nobody"]))
+    }
+
+    /// Workspaces names an account as the panel does: the name set in Settings › Accounts,
+    /// else the email, and the plan as the panel writes it.
+    func testTheStoreNamesAnAccountAsThePanelDoes() throws {
+        let store = try makeStore(now: Date())
+        XCTAssertEqual(store.label(forConfigDirs: ["/x/work"]), AccountLabel(name: "w@example.com", plan: "Max 20x"))
+        store.settings.accounts["org-work"] = AccountOverride(name: "Work", hidden: true)
+        XCTAssertEqual(store.label(forConfigDirs: ["/x/work"])?.name, "Work", "hidden in the panel, named all the same")
+        XCTAssertEqual(store.label(forConfigDirs: ["/x/team"]), AccountLabel(name: "t@example.com", plan: nil),
+                       "no tier, no plan")
+        XCTAssertNil(store.label(forConfigDirs: ["/x/nobody"]))
     }
 
     func testAnOldReadingIsMarkedStale() throws {

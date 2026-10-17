@@ -74,7 +74,7 @@ A project is the directory that holds your repositories. Its own settings — de
 
 ## Moving a session between accounts
 
-A project does not have to stay on the account it started on: when one account runs out of limit, continue the same session on another. Every account picker shows that account's 5-hour and weekly use as the notch last read it, so the account with room is the one you pick.
+A project does not have to stay on the account it started on: when one account runs out of limit, continue the same session on another. Every account picker shows that account's 5-hour and weekly use as the notch last read it, so the account with room is the one you pick. Workspaces calls each account what the notch does — the name you gave it in Settings → Accounts, else its email — and writes its plan the same way.
 
 - **Resume as…** continues a session under a different account without copying anything.
 - **Migrate to…** makes a full copy of a session in another account — transcript, memory, file history, tasks — and works even while that account is in use.

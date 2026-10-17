@@ -172,13 +172,14 @@ struct ProjectSettingsScreen: View {
         LabeledRow(label: "Default Claude account") {
             if isSnapshotRender {
                 // Picker(.menu) renders as a yellow placeholder offscreen.
-                SnapshotPickerLookalike(text: currentProject(project).defaultAccount ?? "none",
+                SnapshotPickerLookalike(text: currentProject(project).defaultAccount
+                                            .map(state.displayName(forAccountNamed:)) ?? "none",
                                         monospaced: false)
             } else {
                 Picker("", selection: defaultAccountBinding(project)) {
                     Text("none").tag(String?.none)
                     ForEach(state.config.accounts, id: \.name) { account in
-                        Text(account.name).tag(String?.some(account.name))
+                        Text(state.displayName(for: account)).tag(String?.some(account.name))
                     }
                 }
                 .pickerStyle(.menu)

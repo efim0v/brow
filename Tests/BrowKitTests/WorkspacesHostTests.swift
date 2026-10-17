@@ -369,9 +369,50 @@ final class WorkspacesHostTests: XCTestCase {
         let off = WorkspacesSettingsTab.explanation(activation: .off, groveSetup: false)
         XCTAssertFalse(off.contains("nothing is read or written"))
         XCTAssertTrue(off.contains("until you turn capture off"))
-        XCTAssertTrue(DormantCaptureSwitch.explanation(.groveRunning).contains("Quit Grove"))
-        XCTAssertTrue(DormantCaptureSwitch.explanation(.anotherBrow).contains("another copy of Brow"))
-        XCTAssertTrue(DormantCaptureSwitch.explanation(nil).contains("Workspaces is off"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(activation: .paused, waitsFor: .groveRunning).contains("Quit Grove"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(activation: .paused, waitsFor: .anotherBrow)
+                        .contains("another copy of Brow"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(activation: .off, waitsFor: nil).contains("Workspaces is off"))
+        let offUnderGrove = DormantCaptureSwitch.explanation(activation: .off, waitsFor: .groveRunning)
+        XCTAssertTrue(offUnderGrove.hasPrefix("Workspaces is off"), offUnderGrove)
+        XCTAssertTrue(offUnderGrove.contains("quit Grove to turn it off here"), offUnderGrove)
+    }
+
+    /// Workspaces off and Grove.app running: that decides nothing about Workspaces, but
+    /// Grove.app writes the same config and settings.json, so giving a status line back, or
+    /// taking out an account, waits until it has quit — Settings' switches say so — and
+    /// changes nothing meanwhile. It used to put the command back in settings.json while the
+    /// config, which it then could not save, still said the account was captured.
+    func testWithWorkspacesOffChangesWaitForGroveToo() throws {
+        let dir = try capturedAccount(original: "/bin/echo mine")
+        let before = try statusLine(dir)
+        let config = try Data(contentsOf: folders.configFile)
+        let apps = RunningApps()
+        apps.grove = true
+        let host = makeWatchedHost(apps, store: try makeStore(enabled: false))
+        host.start()
+        XCTAssertEqual(host.activation, .off, "Grove.app running does not turn Workspaces on")
+        XCTAssertEqual(host.dormantChangeBlock, .groveRunning, "but a change waits for it")
+
+        host.releaseStatusLine(host.dormantCaptures[0])
+        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.groveRunning))
+        host.removeAccount(host.dormantCaptures[0])
+        XCTAssertEqual(host.captureError, WorkspacesHost.pausedChangeNote(.groveRunning))
+        XCTAssertEqual(try statusLine(dir), before, "left as it was")
+        XCTAssertEqual(try Data(contentsOf: folders.configFile), config, "and the config too")
+
+        apps.grove = false
+        apps.onChange?()   // Grove.app quits
+        XCTAssertEqual(host.activation, .off)
+        XCTAssertNil(host.dormantChangeBlock, "seen through the running apps")
+        host.releaseStatusLine(host.dormantCaptures[0])
+        XCTAssertNil(host.captureError)
+        XCTAssertEqual(try statusLine(dir), "/bin/echo mine")
+        XCTAssertTrue(host.dormantCaptures.isEmpty)
+
+        apps.grove = true
+        apps.onChange?()   // and starts again
+        XCTAssertEqual(host.dormantChangeBlock, .groveRunning)
     }
 
     /// An account Grove captured whose folder is gone can't be given back — there is no

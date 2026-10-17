@@ -34,15 +34,20 @@ final class WorkspacesSettingsTextTests: XCTestCase {
 
     /// Once under the cards, in the words of the moment; nothing when no switch is shown.
     func testTheCaptureFootnote() {
-        XCTAssertEqual(CaptureFootnote.text(activation: .on, pause: nil, hasAccounts: true, hasDormantCaptures: false),
+        XCTAssertEqual(CaptureFootnote.text(activation: .on, waitsFor: nil, hasAccounts: true, hasDormantCaptures: false),
                        CaptureFootnote.capturing)
-        XCTAssertNil(CaptureFootnote.text(activation: .on, pause: nil, hasAccounts: false, hasDormantCaptures: false))
-        XCTAssertEqual(CaptureFootnote.text(activation: .off, pause: nil, hasAccounts: false, hasDormantCaptures: true),
-                       DormantCaptureSwitch.explanation(nil))
-        XCTAssertNil(CaptureFootnote.text(activation: .off, pause: nil, hasAccounts: false, hasDormantCaptures: false))
-        XCTAssertEqual(CaptureFootnote.text(activation: .paused, pause: .anotherBrow, hasAccounts: false,
+        XCTAssertNil(CaptureFootnote.text(activation: .on, waitsFor: nil, hasAccounts: false, hasDormantCaptures: false))
+        XCTAssertEqual(CaptureFootnote.text(activation: .off, waitsFor: nil, hasAccounts: false, hasDormantCaptures: true),
+                       DormantCaptureSwitch.explanation(activation: .off, waitsFor: nil))
+        XCTAssertNil(CaptureFootnote.text(activation: .off, waitsFor: nil, hasAccounts: false, hasDormantCaptures: false))
+        XCTAssertEqual(CaptureFootnote.text(activation: .paused, waitsFor: .anotherBrow, hasAccounts: false,
                                             hasDormantCaptures: true),
-                       DormantCaptureSwitch.explanation(.anotherBrow))
+                       DormantCaptureSwitch.explanation(activation: .paused, waitsFor: .anotherBrow))
+        // Off with Grove.app running: still off, and the switch waits for Grove to quit.
+        let offUnderGrove = CaptureFootnote.text(activation: .off, waitsFor: .groveRunning, hasAccounts: false,
+                                                 hasDormantCaptures: true)
+        XCTAssertEqual(offUnderGrove, DormantCaptureSwitch.explanation(activation: .off, waitsFor: .groveRunning))
+        XCTAssertNotEqual(offUnderGrove, DormantCaptureSwitch.explanation(activation: .off, waitsFor: nil))
         XCTAssertTrue(CaptureFootnote.capturing.contains("Turning it off puts your command back"))
     }
 }

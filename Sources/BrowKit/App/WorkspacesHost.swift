@@ -30,6 +30,10 @@ public final class WorkspacesHost: ObservableObject {
     /// What went wrong changing Grove's config while Workspaces is not on — giving a
     /// status line back, taking out an account whose folder is gone — for Settings.
     @Published public private(set) var captureError: String?
+    /// Whether Grove.app runs, as last looked. While Workspaces is wanted that pauses it;
+    /// while it is off it decides nothing, but Grove.app still writes the files a change
+    /// from Settings would (`dormantChangeBlock`).
+    @Published public private(set) var groveRunning = false
     /// Folders picked as projects in the introduction while Workspaces could not take
     /// them — paused, with Grove.app or another copy of Brow writing the same config —
     /// added once it runs. Not kept past a quit of Brow.
@@ -123,23 +127,26 @@ public final class WorkspacesHost: ObservableObject {
         apply(workspaces: store.settings.workspaces)
     }
 
-    /// What `decide` says now, from the current settings, the Grove config and Grove.app.
-    private var decision: WorkspacesActivation {
-        WorkspacesActivation.decide(setting: store.settings.workspaces.enabled,
-                                    groveConfigExists: groveConfigExists(),
-                                    groveRunning: groveGuard.isGroveRunning)
-    }
-
     /// An app launched or quit: re-decides only if that changes the answer, since most
     /// of them are not Grove.
     func refreshIfChanged() {
+        let decision = WorkspacesActivation.decide(setting: store.settings.workspaces.enabled,
+                                                   groveConfigExists: groveConfigExists(),
+                                                   groveRunning: lookForGrove())
         if decision != activation { refresh() }
+    }
+
+    /// Whether Grove.app runs now, kept in `groveRunning` for Settings.
+    private func lookForGrove() -> Bool {
+        let running = groveGuard.isGroveRunning
+        if running != groveRunning { groveRunning = running }
+        return running
     }
 
     private func apply(workspaces settings: WorkspacesSettings) {
         var next = WorkspacesActivation.decide(setting: settings.enabled,
                                                groveConfigExists: groveConfigExists(),
-                                               groveRunning: groveGuard.isGroveRunning)
+                                               groveRunning: lookForGrove())
         var waitsFor: WorkspacesPause? = next == .paused ? .groveRunning : nil
         // On in one copy of Brow at a time: the one holding the engine's lock.
         if next == .on, !engineLock.acquire() {
@@ -208,6 +215,18 @@ public final class WorkspacesHost: ObservableObject {
     /// The accounts whose status line runs Workspaces' wrapper while Workspaces is not on.
     public var dormantCaptures: [AccountConfig] { dormantAccounts.filter(\.monitoring) }
 
+    /// What a change Settings makes to Grove's config without the engine — giving a status
+    /// line back, taking out an account whose folder is gone — waits for: what a paused
+    /// Workspaces waits for, or, while Workspaces is off, Grove.app, which writes the same
+    /// files whether Workspaces is on or not. nil when nothing is in the way.
+    public var dormantChangeBlock: WorkspacesPause? {
+        switch activation {
+        case .on: return nil
+        case .paused: return pause ?? .groveRunning
+        case .off: return groveRunning ? .groveRunning : nil
+        }
+    }
+
     /// What `account` is called where the notch shows it, with or without the engine: the
     /// name from Settings › Accounts, else Grove's own.
     public func displayName(for account: AccountConfig) -> String {
@@ -226,8 +245,9 @@ public final class WorkspacesHost: ObservableObject {
     /// Gives `account`'s status line back while Workspaces is off: the command it had in
     /// place of the wrapper, in every folder of the login, and capture marked off in
     /// Grove's config so nothing turns it on again. Grove's config is read for just this,
-    /// with no engine. Not while Grove.app runs (paused): it writes the same files.
-    /// While Workspaces is on, the engine's own switch does this.
+    /// with no engine. Not while Grove.app runs, whether that pauses Workspaces or it is
+    /// off: Grove.app writes the same files. While Workspaces is on, the engine's own
+    /// switch does this.
     public func releaseStatusLine(_ account: AccountConfig) {
         captureError = nil
         switch activation {
@@ -261,9 +281,12 @@ public final class WorkspacesHost: ObservableObject {
     }
 
     /// Makes one change to Grove's config while Workspaces is off: a state read for just
-    /// this, no engine started, and the dormant list read again after. Not under the feet
-    /// of another copy of Brow whose engine runs on this config. Returns what went wrong.
+    /// this, no engine started, and the dormant list read again after. Not while Grove.app
+    /// runs, which writes the same config and settings.json whether Workspaces is on or
+    /// off, nor under the feet of another copy of Brow whose engine runs on this config.
+    /// Returns what went wrong.
     private func withoutEngine(_ change: (AppState) -> Void) -> String? {
+        guard !lookForGrove() else { return Self.pausedChangeNote(.groveRunning) }
         guard engineLock.acquire() else { return Self.pausedChangeNote(.anotherBrow) }
         defer { engineLock.release() }
         let engine = AppState(folders: folders)
@@ -274,7 +297,7 @@ public final class WorkspacesHost: ObservableObject {
         return failure
     }
 
-    /// Why Grove's config can't be changed from here while Workspaces is paused.
+    /// Why Settings can't change Grove's config now: `pause` writes the same files.
     static func pausedChangeNote(_ pause: WorkspacesPause?) -> String {
         pause == .anotherBrow
             ? "Another copy of Brow runs Workspaces: make the change there, or quit it first."

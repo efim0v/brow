@@ -51,10 +51,11 @@ struct WorkspacesSettingsTab: View {
     /// While Workspaces is off or paused, the status lines it captured: they keep running
     /// Brow's wrapper until given back.
     @ViewBuilder private var capturedStatusLines: some View {
+        let waitsFor = host.dormantChangeBlock
         Section {
             LabeledContent {
                 Button("Give them back") { host.releaseAllStatusLines() }
-                    .disabled(host.activation == .paused)
+                    .disabled(waitsFor != nil)
             } label: {
                 Text(host.dormantCaptures.map(host.displayName(for:)).joined(separator: ", "))
             }
@@ -64,9 +65,8 @@ struct WorkspacesSettingsTab: View {
         } header: {
             Text("Status lines still captured")
         } footer: {
-            Text(host.activation == .paused
-                 ? WorkspacesHost.pausedChangeNote(host.pause)
-                 : "Each of these accounts' status line goes through Brow's wrapper, which records each session for the notch, then runs your own command. Give them back to put your own commands in place.")
+            Text(waitsFor.map { WorkspacesHost.pausedChangeNote($0) }
+                 ?? "Each of these accounts' status line goes through Brow's wrapper, which records each session for the notch, then runs your own command. Give them back to put your own commands in place.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

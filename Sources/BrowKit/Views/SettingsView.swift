@@ -379,7 +379,7 @@ private struct WorkspacesOtherAccounts: View {
                         Text(account.configDir).font(.caption).textSelection(.enabled)
                     }
                     if gone {
-                        GoneAccountRow(disabled: host.activation == .paused) { host.removeAccount(account) }
+                        GoneAccountRow(disabled: host.dormantChangeBlock != nil) { host.removeAccount(account) }
                         if let error = host.captureError { FailureNote(text: error) }
                     } else {
                         DormantCaptureSwitch(host: host, account: account)
@@ -402,28 +402,35 @@ struct DormantCaptureSwitch: View {
     let account: AccountConfig
 
     var body: some View {
+        let waitsFor = host.dormantChangeBlock
         // Why it is still on is said once, under the account cards (`CaptureFootnote`).
         Toggle("Capture the status line", isOn: Binding(
             get: { true },
             set: { on in if !on { host.releaseStatusLine(account) } }))
-            .disabled(host.activation == .paused)
-            .help(Self.explanation(host.activation == .paused ? host.pause ?? .groveRunning : nil))
+            .disabled(waitsFor != nil)
+            .help(Self.explanation(activation: host.activation, waitsFor: waitsFor))
         if let error = host.captureError {
             FailureNote(text: error)
         }
     }
 
-    /// `pause`: what a paused Workspaces waits for; nil while it is off.
-    static func explanation(_ pause: WorkspacesPause?) -> String {
-        switch pause {
-        case .groveRunning?:
-            return "Workspaces is paused while Grove runs, and the status lines it captured still go through Brow's wrapper. Quit Grove to turn Capture the status line off here."
-        case .anotherBrow?:
+    /// Why a status line Workspaces captured is still on while Workspaces is not, and how
+    /// to turn it off. `waitsFor`: what writes the same files meanwhile, if anything
+    /// (`WorkspacesHost.dormantChangeBlock`).
+    static func explanation(activation: WorkspacesActivation, waitsFor: WorkspacesPause?) -> String {
+        switch (activation, waitsFor) {
+        case (_, .anotherBrow?):
             return "Workspaces runs in another copy of Brow, and the status lines it captured still go through Brow's wrapper. Turn capture off there, or quit that copy to turn it off here."
-        case nil:
-            return "Workspaces is off, but the status line of each account with Capture the status line on still goes through Brow's wrapper, which records each session for the notch and then runs your own command. Turn it off to put your command back."
+        case (.paused, _):
+            return "Workspaces is paused while Grove runs, and the status lines it captured still go through Brow's wrapper. Quit Grove to turn Capture the status line off here."
+        case (_, .groveRunning?):
+            return offText + " Grove is running and edits the same files: quit Grove to turn it off here."
+        default:
+            return offText + " Turn it off to put your command back."
         }
     }
+
+    private static let offText = "Workspaces is off, but the status line of each account with Capture the status line on still goes through Brow's wrapper, which records each session for the notch and then runs your own command."
 }
 
 /// What Capture the status line does, said once under the account cards instead of in
@@ -434,7 +441,7 @@ struct CaptureFootnote: View {
     static let capturing = "Capture the status line points the account's statusLine in settings.json at Brow's wrapper, which records each session's model, context use and limits, then runs your own status-line command. Turning it off puts your command back."
 
     var body: some View {
-        if let text = Self.text(activation: host.activation, pause: host.pause,
+        if let text = Self.text(activation: host.activation, waitsFor: host.dormantChangeBlock,
                                 hasAccounts: !(host.state?.config.accounts.isEmpty ?? true),
                                 hasDormantCaptures: !host.dormantCaptures.isEmpty) {
             Text(text)
@@ -443,13 +450,13 @@ struct CaptureFootnote: View {
         }
     }
 
-    /// nil when no switch is shown above it.
-    static func text(activation: WorkspacesActivation, pause: WorkspacesPause?,
+    /// nil when no switch is shown above it. `waitsFor`: as `DormantCaptureSwitch` has it.
+    static func text(activation: WorkspacesActivation, waitsFor: WorkspacesPause?,
                      hasAccounts: Bool, hasDormantCaptures: Bool) -> String? {
         switch activation {
         case .on: return hasAccounts ? capturing : nil
-        case .paused: return hasDormantCaptures ? DormantCaptureSwitch.explanation(pause ?? .groveRunning) : nil
-        case .off: return hasDormantCaptures ? DormantCaptureSwitch.explanation(nil) : nil
+        case .paused, .off:
+            return hasDormantCaptures ? DormantCaptureSwitch.explanation(activation: activation, waitsFor: waitsFor) : nil
         }
     }
 }

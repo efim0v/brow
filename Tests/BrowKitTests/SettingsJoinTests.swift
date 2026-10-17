@@ -61,6 +61,19 @@ final class SettingsJoinTests: XCTestCase {
         XCTAssertFalse(WorkspacesAccountJoin.isGone(AccountConfig(name: "tmp", configDir: NSTemporaryDirectory())))
     }
 
+    /// The card's launch command leaves CLAUDE_CONFIG_DIR unset for the default account of
+    /// the home the accounts were found in — set even to ~/.claude, it selects another
+    /// Keychain item — whatever home the process itself has.
+    @MainActor
+    func testTheLaunchCommandKnowsTheDefaultAccountOfItsHome() {
+        XCTAssertTrue(AddAccountFlow.launchCommand(dir: "/Users/demo/.claude", home: "/Users/demo")
+                        .hasPrefix("env -u CLAUDE_CONFIG_DIR"))
+        XCTAssertTrue(AddAccountFlow.launchCommand(dir: "/Users/demo/.claude-accounts/work", home: "/Users/demo")
+                        .hasPrefix("CLAUDE_CONFIG_DIR='/Users/demo/.claude-accounts/work'"))
+        XCTAssertTrue(AddAccountFlow.launchCommand(dir: "/Users/demo/.claude", home: "/Users/other")
+                        .hasPrefix("CLAUDE_CONFIG_DIR="))
+    }
+
     func testThePanelsLinksLandOnTheirTabs() {
         XCTAssertEqual(SettingsPane(.workspaces), .workspaces)
         XCTAssertEqual(SettingsPane(.accounts), .accounts)

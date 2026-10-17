@@ -300,7 +300,7 @@ struct AccountsTab: View {
         // The command that runs Claude Code as this account, in plain sight: paste it
         // into any terminal. The copy button sits right on it.
         LabeledContent("Launch") {
-            let command = AddAccountFlow.launchCommand(dir: row.account.configDir)
+            let command = AddAccountFlow.launchCommand(dir: row.account.configDir, home: addFlow.home)
             HStack(spacing: 6) {
                 Text(command)
                     .font(.system(.caption, design: .monospaced))
@@ -325,7 +325,7 @@ struct AccountsTab: View {
                     .help("macOS asks once; choose “Always Allow”. Needed again only after a fresh `claude auth login` recreates the item.")
             }
             Button {
-                AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
+                AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir, home: addFlow.home))
             } label: { Label("Copy launch command", systemImage: "doc.on.doc") }
             Button {
                 AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)

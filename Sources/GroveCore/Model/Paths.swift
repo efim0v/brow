@@ -41,7 +41,12 @@ public func canonicalPath(_ path: String) -> String {
 /// different, normally empty login. So every command for the default dir must run
 /// with the variable absent, never with it pointing at `~/.claude`.
 public func isDefaultClaudeDir(_ configDir: String) -> Bool {
+    isDefaultClaudeDir(configDir, home: NSHomeDirectory())
+}
+
+/// The same, for the home folder `home`: the one a caller's accounts live in.
+public func isDefaultClaudeDir(_ configDir: String, home: String) -> Bool {
     var dir = (configDir as NSString).expandingTildeInPath
     if dir.count > 1 && dir.hasSuffix("/") { dir.removeLast() }
-    return dir == NSHomeDirectory() + "/.claude"
+    return dir == home + "/.claude"
 }

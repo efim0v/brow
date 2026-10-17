@@ -107,6 +107,8 @@ final class TokenKeeperTests: XCTestCase {
         XCTAssertTrue(isDefaultClaudeDir("~/.claude"))
         XCTAssertTrue(isDefaultClaudeDir(NSHomeDirectory() + "/.claude/"))
         XCTAssertFalse(isDefaultClaudeDir("~/.claude-accounts/account-1"))
+        XCTAssertTrue(isDefaultClaudeDir("/Users/demo/.claude", home: "/Users/demo"), "against a given home")
+        XCTAssertFalse(isDefaultClaudeDir("/Users/demo/.claude", home: "/Users/other"))
     }
 
     func testDoctorRunsBelowThresholdAndSucceedsWhenExpiryMoves() async {

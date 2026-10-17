@@ -15,7 +15,9 @@ public final class AddAccountFlow: ObservableObject {
 
     @Published public private(set) var status: String?
     private let store: LimitsStore
-    private let home: String
+    /// The home folder whose `.claude-accounts` new accounts go in, and whose `.claude`
+    /// is the default account.
+    public let home: String
     private var pollTask: Task<Void, Never>?
 
     public init(store: LimitsStore, home: String = NSHomeDirectory()) {
@@ -59,8 +61,8 @@ public final class AddAccountFlow: ObservableObject {
     /// `dir` starts with. The default `~/.claude` is the exception: it is selected by
     /// the variable being ABSENT (`isDefaultClaudeDir`), so its prefix removes it —
     /// the terminal the line is pasted into may well have another account exported.
-    public static func environmentPrefix(dir: String) -> String {
-        var prefix = isDefaultClaudeDir(dir) ? "env -u CLAUDE_CONFIG_DIR" : "CLAUDE_CONFIG_DIR=\(shellQuote(dir))"
+    public static func environmentPrefix(dir: String, home: String = NSHomeDirectory()) -> String {
+        var prefix = isDefaultClaudeDir(dir, home: home) ? "env -u CLAUDE_CONFIG_DIR" : "CLAUDE_CONFIG_DIR=\(shellQuote(dir))"
         if let helper = browserHelperPath { prefix += " BROWSER=\(shellQuote(helper))" }
         return prefix
     }
@@ -68,8 +70,8 @@ public final class AddAccountFlow: ObservableObject {
     /// The one line a user pastes into any terminal to run Claude Code as this
     /// account. Plain `claude`, not the resolved binary path: this is what people
     /// type, and `claude` in a fresh config dir walks them through sign-in itself.
-    public static func launchCommand(dir: String) -> String {
-        "\(environmentPrefix(dir: dir)) claude"
+    public static func launchCommand(dir: String, home: String = NSHomeDirectory()) -> String {
+        "\(environmentPrefix(dir: dir, home: home)) claude"
     }
 
     /// The line for a shell profile (`~/.zshrc`): with it, a sign-in started from

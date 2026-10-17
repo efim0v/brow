@@ -18,6 +18,16 @@ public enum WorkspacesAccountJoin {
         return accounts.first { !dirs.isDisjoint(with: ([$0.configDir] + $0.aliasDirs).map(normalized)) }
     }
 
+    /// The Workspaces accounts no card shows: one whose folder the notch's scan does not
+    /// list (no sign-in Brow can read there), and a second Workspaces account of an
+    /// organisation the notch shows once (`match` gives a card the first). Settings
+    /// lists them on their own, so their sharing, status-line capture and defaults can
+    /// still be changed — turning capture off before an uninstall included.
+    public static func unmatched(_ accounts: [AccountConfig], cards: [DiscoveredAccount]) -> [AccountConfig] {
+        let shown = Set(cards.compactMap { match($0, in: accounts)?.name })
+        return accounts.filter { !shown.contains($0.name) }
+    }
+
     /// Workspaces' folders the notch's scan would not find by itself — anything outside
     /// `~/.claude` and `~/.claude-accounts` — so they are scanned too.
     public static func extraDirs(for accounts: [AccountConfig], home: String = NSHomeDirectory()) -> [String] {

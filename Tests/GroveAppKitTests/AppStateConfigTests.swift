@@ -64,6 +64,28 @@ final class AppStateConfigTests: XCTestCase {
         XCTAssertEqual(state.selectedProject?.name, "demo")
     }
 
+    /// Settings › Accounts sets an account's default model and effort; "(default)"
+    /// arrives as nothing or as an empty string and is stored as nothing.
+    func testAnAccountsDefaultModelAndEffortPersist() throws {
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [],
+            accounts: [AccountConfig(name: "work", configDir: "/x/work")]))
+        let state = makeState()
+        state.setAccountModel(name: "work", model: "opus")
+        state.setAccountEffort(name: "work", effort: "high")
+        XCTAssertEqual(reloadedConfig().accounts.first?.defaultModel, "opus")
+        XCTAssertEqual(reloadedConfig().accounts.first?.defaultEffort, "high")
+        state.setAccountModel(name: "work", model: "")
+        state.setAccountEffort(name: "work", effort: nil)
+        XCTAssertNil(reloadedConfig().accounts.first?.defaultModel)
+        XCTAssertNil(reloadedConfig().accounts.first?.defaultEffort)
+        state.setAccountModel(name: "nobody", model: "opus")
+        state.setAccountEffort(name: "nobody", effort: "low")
+        XCTAssertEqual(reloadedConfig().accounts, [AccountConfig(name: "work", configDir: "/x/work")],
+                       "an unknown name changes nothing")
+    }
+
     func testInitSurfacesCorruptConfigIssueAndFallsBackToDefaults() throws {
         try Data("{this is not json".utf8).write(to: configURL)
         let state = makeState()

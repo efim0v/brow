@@ -260,6 +260,7 @@ struct AccountsTab: View {
                     if let workspaces { WorkspacesCardSection(host: workspaces, row: row) }
                 }
             }
+            if let workspaces { WorkspacesOtherAccounts(host: workspaces, cards: store.allRows.map(\.account)) }
             Section {
                 Toggle("Allow `claude -p` fallback", isOn: $store.settings.allowPromptFallback)
                 Text("Used only when `claude doctor` fails to refresh a token. Spends a small amount of that account's limit and starts its 5-hour window.")
@@ -337,6 +338,41 @@ private struct WorkspacesCardSection: View {
     var body: some View {
         if host.activation == .on, let state = host.state {
             WorkspacesCardJoin(state: state, row: row)
+        }
+    }
+}
+
+/// The Workspaces accounts no card above shows (`WorkspacesAccountJoin.unmatched`), each
+/// in a section of its own, while Workspaces runs.
+private struct WorkspacesOtherAccounts: View {
+    @ObservedObject var host: WorkspacesHost
+    let cards: [DiscoveredAccount]
+
+    var body: some View {
+        if host.activation == .on, let state = host.state {
+            WorkspacesOtherAccountList(state: state, cards: cards)
+        }
+    }
+}
+
+private struct WorkspacesOtherAccountList: View {
+    @ObservedObject var state: AppState
+    let cards: [DiscoveredAccount]
+
+    var body: some View {
+        ForEach(WorkspacesAccountJoin.unmatched(state.config.accounts, cards: cards), id: \.name) { account in
+            Section {
+                LabeledContent("Folder") {
+                    Text(account.configDir).font(.caption).textSelection(.enabled)
+                }
+                WorkspacesAccountSection(state: state, account: account)
+            } header: {
+                Text("Workspaces account “\(account.name)”")
+            } footer: {
+                Text("Brow shows no limits for this account: its folder has no sign-in Brow can read, or it is a second folder of an account above.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

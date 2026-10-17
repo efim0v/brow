@@ -31,6 +31,22 @@ final class SettingsJoinTests: XCTestCase {
         XCTAssertEqual(WorkspacesAccountJoin.match(accounts[0], in: [discovered("/x/second")])?.configDir, "/x/second")
     }
 
+    /// A Workspaces account no card shows still gets a section of its own: a second
+    /// folder of an organisation the notch shows once, and a folder with no sign-in.
+    func testWorkspacesAccountsWithoutACardAreListedOnTheirOwn() {
+        let accounts = [AccountConfig(name: "default", configDir: "/x/main"),
+                        AccountConfig(name: "same-login", configDir: "/x/second"),
+                        AccountConfig(name: "never-signed-in", configDir: "/x/empty")]
+        // The scan folded /x/main and /x/second, one organisation, into one card.
+        let cards = [discovered("/x/main", aliases: ["/x/second"])]
+        XCTAssertEqual(WorkspacesAccountJoin.match(cards[0], in: accounts)?.name, "default")
+        XCTAssertEqual(WorkspacesAccountJoin.unmatched(accounts, cards: cards).map(\.name),
+                       ["same-login", "never-signed-in"])
+        XCTAssertEqual(WorkspacesAccountJoin.unmatched(accounts, cards: []).map(\.name),
+                       ["default", "same-login", "never-signed-in"], "no cards yet: every account")
+        XCTAssertTrue(WorkspacesAccountJoin.unmatched([], cards: cards).isEmpty)
+    }
+
     func testThePanelsLinksLandOnTheirTabs() {
         XCTAssertEqual(SettingsPane(.workspaces), .workspaces)
         XCTAssertEqual(SettingsPane(.accounts), .accounts)

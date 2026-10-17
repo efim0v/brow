@@ -979,8 +979,11 @@ extension AppState {
             () -> (byAccount: [String: ClaudeRetention.Resolution], report: ReconcileReport?) in
             let (byAccount, mirrorAccounts) = Self.resolveRetention(dirsByAccount, retention)
             guard enabled else { return (byAccount, nil) }
-            // An entry whose account left the config: the managed period, or the default.
-            let orphan = min(retention.resolveManaged().days, ClaudeRetention.defaultDays)
+            // An entry whose account left the config has no period of its own that can be
+            // read, so the shortest that could apply: the managed one, Claude Code's
+            // default, or any configured account's (it may have shared the workspace).
+            let orphan = ([retention.resolveManaged().days, ClaudeRetention.defaultDays]
+                          + byAccount.values.map(\.days)).min() ?? ClaudeRetention.defaultDays
             let policy = RetentionPolicy(maxDays: settings.maxDays,
                                          maxBytes: Int64(settings.maxMB) * 1_000_000,
                                          orphanRetentionDays: orphan)

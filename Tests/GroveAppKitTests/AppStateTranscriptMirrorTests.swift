@@ -108,6 +108,60 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: mirrored), "and the mirror does not keep it either")
     }
 
+    /// A workspace the second account shares into the default one is judged by the second
+    /// account's 7 days too: its Claude Code sweeps the shared folder.
+    func testASharedWorkspaceIsJudgedByEveryAccountThatReachesIt() async throws {
+        let canonical = root.appendingPathComponent("canonical-shared")
+        let shared = canonical.appendingPathComponent("projects/-w")
+        try fm.createDirectory(at: shared, withIntermediateDirectories: true)
+        let team = root.appendingPathComponent("team")
+        try fm.createDirectory(at: team.appendingPathComponent("projects"), withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: team.appendingPathComponent("projects/-w"), withDestinationURL: shared)
+        let transcript = shared.appendingPathComponent("s.jsonl")
+        try "turn\n".write(to: transcript, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-10 * 86_400)], ofItemAtPath: transcript.path)
+
+        let state = makeState()
+        state.folders.canonicalDir = canonical.path
+        state.config = GroveConfig(
+            version: 1, workspacesRootTemplate: "~/w", projects: [],
+            accounts: [AccountConfig(name: "default", configDir: canonical.path),
+                       AccountConfig(name: "team", configDir: team.path, sharedStore: true)])
+        await state.reconcileTranscripts()
+        let mirrored = TranscriptMirror.mirrorRoot(canonicalDir: canonical.path)
+            + "/\(accountKey(canonical.path))/-w/s.jsonl"
+        XCTAssertTrue(fm.fileExists(atPath: mirrored), "fixture: both accounts keep 30 days, so it is mirrored")
+
+        // Team now keeps 7 days, and its sweep removes the transcript through its link.
+        try #"{"cleanupPeriodDays": 7}"#.write(to: team.appendingPathComponent("settings.json"),
+                                               atomically: true, encoding: .utf8)
+        try fm.removeItem(at: team.appendingPathComponent("projects/-w/s.jsonl"))
+        await state.reconcileTranscripts()
+
+        XCTAssertFalse(fm.fileExists(atPath: transcript.path), "team's sweep is not undone")
+        XCTAssertFalse(fm.fileExists(atPath: mirrored), "nor kept past team's 7 days")
+    }
+
+    /// An entry whose account left the config ages out at the shortest period any
+    /// configured account keeps, not at Claude Code's default.
+    func testAnOrphanEntryAgesOutAtTheShortestConfiguredPeriod() async throws {
+        let canonical = root.appendingPathComponent("canonical-orphan")
+        try fm.createDirectory(at: canonical, withIntermediateDirectories: true)
+        try #"{"cleanupPeriodDays": 7}"#.write(to: canonical.appendingPathComponent("settings.json"),
+                                               atomically: true, encoding: .utf8)
+        let orphan = TranscriptMirror.mirrorRoot(canonicalDir: canonical.path) + "/0rphan00/-p/o.jsonl"
+        try fm.createDirectory(atPath: (orphan as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try "turn\n".write(toFile: orphan, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-10 * 86_400)], ofItemAtPath: orphan)
+
+        let state = makeState()
+        state.folders.canonicalDir = canonical.path
+        state.config = GroveConfig(version: 1, workspacesRootTemplate: "~/w", projects: [],
+                                   accounts: [AccountConfig(name: "default", configDir: canonical.path)])
+        await state.reconcileTranscripts()
+        XCTAssertFalse(fm.fileExists(atPath: orphan))
+    }
+
     /// Settings shows each account's period even with the safety net off.
     func testRetentionIsReadWithTheSafetyNetOff() async throws {
         let canonical = root.appendingPathComponent("canonical-read-only")

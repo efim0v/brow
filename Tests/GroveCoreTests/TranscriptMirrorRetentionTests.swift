@@ -109,6 +109,111 @@ final class TranscriptMirrorRetentionTests: XCTestCase {
         XCTAssertEqual(report.evicted, [mirrored])
     }
 
+    // MARK: - a workspace shared between accounts
+
+    /// `a/projects/-w` is a shared-store link into canonical's `projects/-w`: the
+    /// transcripts there are canonical's entries, but account `a`'s Claude Code sweeps
+    /// them too. Returns (live path in canonical, the same path through `a`, a's folder).
+    private func sharedWorkspace(id: String, daysAgo: Double) throws -> (live: String, throughA: String, a: String) {
+        let w = "-w"
+        let canonicalCwd = canonical.appendingPathComponent("projects/\(w)")
+        try fm.createDirectory(at: canonicalCwd, withIntermediateDirectories: true)
+        let a = root.appendingPathComponent("a")
+        try fm.createDirectory(at: a.appendingPathComponent("projects"), withIntermediateDirectories: true)
+        try fm.createSymbolicLink(atPath: a.appendingPathComponent("projects/\(w)").path,
+                                  withDestinationPath: canonicalCwd.path)
+        let live = canonicalCwd.appendingPathComponent("\(id).jsonl").path
+        try "turn\n".write(toFile: live, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.modificationDate: now.addingTimeInterval(-daysAgo * 86_400)], ofItemAtPath: live)
+        // Mirrored back when it was still young enough to keep.
+        _ = mirror.reconcile(accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path),
+                                        MirrorAccount(key: accountKey(a.path), configDir: a.path)],
+                             canonicalDir: canonical.path, policy: policy(), now: now)
+        return (live, a.appendingPathComponent("projects/\(w)/\(id).jsonl").path, a.path)
+    }
+
+    private func sharedMirrorPath(_ id: String) -> String {
+        TranscriptMirror.mirrorRoot(canonicalDir: canonical.path) + "/\(accountKey(canonical.path))/-w/\(id).jsonl"
+    }
+
+    /// A shared workspace: the default account keeps 30 days, account `a` keeps 7 and
+    /// shares `-w` into it. A 10-day-old transcript deleted through a's link — what a's
+    /// clean-up does — was restored under the default account's 30 days.
+    func testASharedWorkspaceIsJudgedByTheStrictestAccountThatUsesIt() throws {
+        let (live, throughA, a) = try sharedWorkspace(id: "s", daysAgo: 10)
+        XCTAssertTrue(fm.fileExists(atPath: sharedMirrorPath("s")), "fixture: in the mirror")
+        try fm.removeItem(atPath: throughA)
+
+        let report = mirror.reconcile(
+            accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
+                       MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
+            canonicalDir: canonical.path, policy: policy(), now: now)
+
+        XCTAssertFalse(fm.fileExists(atPath: live), "a's sweep must not be undone")
+        XCTAssertFalse(fm.fileExists(atPath: throughA))
+        XCTAssertTrue(report.restored.isEmpty)
+        XCTAssertEqual(report.evicted, [sharedMirrorPath("s")], "older than a keeps it: not kept either")
+    }
+
+    /// Inside every period that applies, a shared transcript is still the safety net's.
+    func testASharedWorkspaceInsideEveryPeriodIsStillRestored() throws {
+        let (live, throughA, a) = try sharedWorkspace(id: "s2", daysAgo: 3)
+        try fm.removeItem(atPath: live)
+        let report = mirror.reconcile(
+            accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
+                       MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
+            canonicalDir: canonical.path, policy: policy(), now: now)
+        XCTAssertEqual(report.restored, [live])
+        XCTAssertTrue(fm.fileExists(atPath: throughA))
+    }
+
+    /// One account whose period could not be read is enough to hold a shared transcript back.
+    func testAnUncertainAccountSharingTheWorkspaceHoldsItBack() throws {
+        let (live, _, a) = try sharedWorkspace(id: "s3", daysAgo: 2)
+        try fm.removeItem(atPath: live)
+        let report = mirror.reconcile(
+            accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
+                       MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 30, mayRestore: false)],
+            canonicalDir: canonical.path, policy: policy(), now: now)
+        XCTAssertFalse(fm.fileExists(atPath: live))
+        XCTAssertEqual(report.heldBack, [sharedMirrorPath("s3")])
+    }
+
+    /// The whole shared folder gone — a's link dangles — still counts a as a user of it.
+    func testADanglingShareStillCountsItsAccount() throws {
+        let (live, _, a) = try sharedWorkspace(id: "s4", daysAgo: 10)
+        try fm.removeItem(atPath: (live as NSString).deletingLastPathComponent)
+        let report = mirror.reconcile(
+            accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
+                       MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
+            canonicalDir: canonical.path, policy: policy(), now: now)
+        XCTAssertFalse(fm.fileExists(atPath: live))
+        XCTAssertTrue(report.restored.isEmpty)
+        XCTAssertEqual(report.evicted, [sharedMirrorPath("s4")])
+    }
+
+    /// A live shared transcript older than the strictest period is not mirrored either.
+    func testALiveSharedTranscriptPastTheStrictestPeriodIsNotMirrored() throws {
+        let (_, _, a) = try sharedWorkspace(id: "s5", daysAgo: 10)
+        let report = mirror.reconcile(
+            accounts: [MirrorAccount(key: accountKey(canonical.path), configDir: canonical.path, retentionDays: 30),
+                       MirrorAccount(key: accountKey(a), configDir: a, retentionDays: 7)],
+            canonicalDir: canonical.path, policy: policy(), now: now)
+        XCTAssertEqual(report.evicted, [sharedMirrorPath("s5")], "the link made while it was young goes")
+        XCTAssertTrue(report.linked.isEmpty)
+    }
+
+    func testTheFoldersSharingAWorkspace() throws {
+        let (_, _, a) = try sharedWorkspace(id: "s6", daysAgo: 1)
+        let b = root.appendingPathComponent("b")
+        try fm.createDirectory(at: b.appendingPathComponent("projects/-w"), withIntermediateDirectories: true)
+        let dirs = [canonical.path, a, b.path]
+        XCTAssertEqual(TranscriptMirror.foldersSharing(encodedCwd: "-w", with: canonical.path, among: dirs),
+                       [canonical.path, a], "b has a -w of its own")
+        XCTAssertEqual(TranscriptMirror.foldersSharing(encodedCwd: "-w", with: a, among: dirs), [canonical.path, a])
+        XCTAssertEqual(TranscriptMirror.foldersSharing(encodedCwd: "-w", with: b.path, among: dirs), [b.path])
+    }
+
     func testKeepDaysIsTheSmallerCap() {
         XCTAssertEqual(TranscriptMirror.keepDays(policy: RetentionPolicy(maxDays: 90, maxBytes: 0), retentionDays: 7), 7)
         XCTAssertEqual(TranscriptMirror.keepDays(policy: RetentionPolicy(maxDays: 5, maxBytes: 0), retentionDays: 30), 5)

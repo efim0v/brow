@@ -76,6 +76,11 @@ public struct FileOps: Sendable {
 /// over-age entry, and a vanished transcript is restored only while it is more than
 /// `restoreMarginDays` younger than that period, so a file Claude Code's sweep may have
 /// taken is never the one brought back.
+///
+/// A workspace shared between accounts (`SharedSessionStore`: the account's
+/// `projects/<cwd>` is a link into the default account's) holds transcripts every one of
+/// those accounts' Claude Code sweeps. Its entries are filed under the default account,
+/// and judged by the shortest period of all the accounts that reach the folder.
 public struct TranscriptMirror: Sendable {
     /// How far inside the account's retention a vanished transcript has to be to be
     /// restored: a sweep that judged age a little differently (another clock, another
@@ -100,6 +105,37 @@ public struct TranscriptMirror: Sendable {
 
     public static func mirrorRoot(canonicalDir: String) -> String { canonicalDir + "/grove/transcripts" }
 
+    /// The folder `<configDir>/projects/<encodedCwd>` stands for: where a shared-store link
+    /// points — even one whose target is gone — else the folder itself, with the links
+    /// above it resolved. Two accounts whose `projects/<cwd>` stand for the same folder
+    /// hold the same transcripts, and each one's Claude Code sweeps them.
+    static func sharedFolder(configDir: String, encodedCwd: String) -> String {
+        let projects = configDir + "/projects"
+        var target = projects + "/" + encodedCwd
+        if let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: target) {
+            target = destination.hasPrefix("/") ? destination : projects + "/" + destination
+        }
+        target = (target as NSString).standardizingPath
+        // The parent exists (or existed); the leaf may be gone and still names its folder.
+        let parent = canonicalPath((target as NSString).deletingLastPathComponent)
+        return (parent as NSString).appendingPathComponent((target as NSString).lastPathComponent)
+    }
+
+    /// The folders among `configDirs` whose `projects/<encodedCwd>` is the same folder as
+    /// `configDir`'s, in `configDirs`' order: `configDir` itself, and every account that
+    /// shares that workspace with it, or shares it into.
+    public static func foldersSharing(encodedCwd: String, with configDir: String, among configDirs: [String]) -> [String] {
+        let folder = sharedFolder(configDir: configDir, encodedCwd: encodedCwd)
+        let sharing = configDirs.filter { sharedFolder(configDir: $0, encodedCwd: encodedCwd) == folder }
+        return sharing.contains(configDir) ? sharing : [configDir] + sharing
+    }
+
+    /// One period for a transcript several accounts can reach: the shortest any of them
+    /// keeps it for, and restorable only if every one of them is certain of its own.
+    static func strictest(_ group: [MirrorAccount]) -> (retentionDays: Int?, mayRestore: Bool) {
+        (group.compactMap(\.retentionDays).min(), group.allSatisfy(\.mayRestore))
+    }
+
     struct EntryRef: Hashable { let accountKey: String; let encodedCwd: String; let file: String }
     struct EntryState { var livePath: String?; var mirrorPath: String? }
 
@@ -111,11 +147,16 @@ public struct TranscriptMirror: Sendable {
         let mirrorRoot = Self.mirrorRoot(canonicalDir: canonicalDir)
         var entries: [EntryRef: EntryState] = [:]
 
+        // Which accounts reach each workspace folder: its owner, and every account whose
+        // `projects/<cwd>` is a shared-store link to it. All of their sweeps apply to it.
+        var accountsByFolder: [String: Set<String>] = [:]
+
         // 1. live transcripts (ground truth)
         for acc in accounts {
             let projects = acc.configDir + "/projects"
             for cwd in (try? fm.contentsOfDirectory(atPath: projects)) ?? [] {
                 let cwdDir = projects + "/" + cwd
+                accountsByFolder[Self.sharedFolder(configDir: acc.configDir, encodedCwd: cwd), default: []].insert(acc.key)
                 if (try? fm.destinationOfSymbolicLink(atPath: cwdDir)) != nil { continue } // shared-store symlink → canonical mirrors it, skip
                 for name in (try? fm.contentsOfDirectory(atPath: cwdDir)) ?? [] {
                     guard name.hasSuffix(".jsonl") else { continue }
@@ -138,6 +179,12 @@ public struct TranscriptMirror: Sendable {
         }
 
         let accountByKey = Dictionary(accounts.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
+
+        /// The entry's account and every other account that reaches the same folder.
+        func accountsReaching(_ ref: EntryRef, owner: MirrorAccount) -> [MirrorAccount] {
+            let keys = accountsByFolder[Self.sharedFolder(configDir: owner.configDir, encodedCwd: ref.encodedCwd)] ?? []
+            return [owner] + keys.subtracting([owner.key]).sorted().compactMap { accountByKey[$0] }
+        }
 
         // size cap: scan mirror-only inodes (nlink == 1) BEFORE the reconcile loop so
         // that we measure the true cost before any restoration inflates the link count.
@@ -168,7 +215,10 @@ public struct TranscriptMirror: Sendable {
             let refMtime = st.livePath.flatMap(mtime) ?? st.mirrorPath.flatMap(mtime)
             let ageDays = refMtime.map { now.timeIntervalSince($0) / 86400 } ?? 0
             let account = accountByKey[ref.accountKey]
-            let retention = account.map(\.retentionDays) ?? policy.orphanRetentionDays
+            // Judged by every account that reaches the transcript, not only the one it
+            // is filed under: in a shared workspace each of their sweeps can remove it.
+            let reaching = account.map { Self.strictest(accountsReaching(ref, owner: $0)) }
+            let retention = reaching.map(\.retentionDays) ?? policy.orphanRetentionDays
             let withinAge = Self.keepDays(policy: policy, retentionDays: retention).map { ageDays <= Double($0) } ?? true
 
             guard withinAge else {
@@ -200,9 +250,13 @@ public struct TranscriptMirror: Sendable {
                     }
                     continue
                 }
-                // Gone, and maybe by Claude Code's own sweep: put back only what that sweep
-                // cannot have taken. The entry stays in the mirror until it ages out.
-                guard Self.mayRestore(ageDays: ageDays, account: account) else {
+                // Gone, and maybe by Claude Code's own sweep: put back only what no sweep
+                // that reaches it can have taken. The entry stays in the mirror until it
+                // ages out.
+                let judged = MirrorAccount(key: account.key, configDir: account.configDir,
+                                           retentionDays: reaching?.retentionDays,
+                                           mayRestore: reaching?.mayRestore ?? false)
+                guard Self.mayRestore(ageDays: ageDays, account: judged) else {
                     report.heldBack.append(existingMirror)
                     continue
                 }

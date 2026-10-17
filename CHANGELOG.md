@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-17
+
 Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md).
 
 ### Added
@@ -107,7 +109,8 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.3.1...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/efim0v/brow/compare/0.3.1...0.4.0
 [0.3.1]: https://github.com/efim0v/brow/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/efim0v/brow/compare/0.2.3...0.3.0
 [0.2.3]: https://github.com/efim0v/brow/compare/0.2.2...0.2.3

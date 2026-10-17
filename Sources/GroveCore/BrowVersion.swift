@@ -6,5 +6,5 @@
 /// Info.plist (`Resources/Info.plist` is the template), and `Scripts/release.sh`
 /// refuses to package an app that carries another.
 public enum BrowVersion {
-    public static let current = "0.3.1"
+    public static let current = "0.4.0"
 }

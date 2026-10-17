@@ -24,8 +24,10 @@ public enum TranscriptCwds {
     /// first `cwd` never changes, so the answer is kept for as long as the process runs;
     /// a nil is asked again once the file has changed.
     public static func cwd(ofTranscriptAt path: String) -> String? {
+        // A found one never changes: no need even to look at the file.
+        if let known = cache.found(path) { return known }
         let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
-        if let known = cache.lookup(path, modified: modified) { return known.cwd }
+        if cache.foundNone(path, modified: modified) { return nil }
         let cwd = readCwd(path)
         cache.store(path, cwd: cwd, modified: modified)
         return cwd
@@ -85,11 +87,16 @@ public enum TranscriptCwds {
         private let lock = NSLock()
         private var entries: [String: (cwd: String?, modified: Date?)] = [:]
 
-        /// A found `cwd` stands; a nil only while the file is unchanged.
-        func lookup(_ path: String, modified: Date?) -> (cwd: String?, modified: Date?)? {
+        /// The `cwd` found in this file before; it stands for good.
+        func found(_ path: String) -> String? {
+            lock.withLock { entries[path]?.cwd }
+        }
+
+        /// Whether this file had none the last time it was read, and has not changed since.
+        func foundNone(_ path: String, modified: Date?) -> Bool {
             lock.withLock {
-                guard let entry = entries[path] else { return nil }
-                return entry.cwd != nil || entry.modified == modified ? entry : nil
+                guard let entry = entries[path] else { return false }
+                return entry.cwd == nil && entry.modified == modified
             }
         }
 

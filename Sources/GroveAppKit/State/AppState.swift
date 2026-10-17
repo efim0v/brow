@@ -338,15 +338,24 @@ public final class AppState: ObservableObject {
     // MARK: - Persistence
 
     private func persist() {
-        if let mayWrite, !mayWrite() {
-            actionError = "Not saved: Grove.app is running and writes the same settings. Quit Grove, then make the change again."
-            return
-        }
+        guard mayPersist() else { return }
         do {
             try configStore.save(config)
         } catch {
             actionError = String(describing: error)
         }
+    }
+
+    /// Whether the config may be saved now (`mayWrite`); when not, says why in
+    /// `actionError` (`reporting`). Asked first by an action that edits another file
+    /// before it saves the config — an account's settings.json, its session folders — so
+    /// a save refused at the end never leaves half the change made.
+    private func mayPersist(reporting: Bool = true) -> Bool {
+        guard let mayWrite, !mayWrite() else { return true }
+        if reporting {
+            actionError = "Not saved: Grove.app is running and writes the same settings. Quit Grove, then make the change again."
+        }
+        return false
     }
 
     // MARK: - Config CRUD
@@ -990,6 +999,8 @@ extension AppState {
             return
         }
         guard expandTilde(account.configDir) != canonicalDir else { return }  // canonical: nothing to link
+        // Nothing linked that the config could not then record (`mayPersist`).
+        guard mayPersist() else { return }
         for dir in account.allConfigDirs.map(expandTilde) where dir != canonicalDir {
             // The account's CLAUDE_CONFIG_DIR must exist before its wholesale dirs can
             // be symlinked into canonical (createSymbolicLink needs a real parent).
@@ -1477,6 +1488,8 @@ extension AppState {
     /// the previously-baked wrapper, so calling this on an already-monitored account
     /// preserves — never clobbers — the saved original.
     private func enableMonitoring(_ account: AccountConfig, reportErrors: Bool) {
+        // No wrapper installed that the config could not then record.
+        guard mayPersist(reporting: reportErrors) else { return }
         let dir = expandTilde(account.configDir)
         // The wrapper writes <configDir>/settings.json; the dir must exist first
         // (addAccount's ~/.claude-accounts/<name> is brand-new and empty).
@@ -1508,6 +1521,9 @@ extension AppState {
     /// login gets back the command its own wrapper recorded (best-effort: a folder that is
     /// gone, or no longer runs the wrapper, is left alone).
     public func disableMonitoring(_ account: AccountConfig) {
+        // No command put back while the config, which could not then be saved, still
+        // says the account is captured.
+        guard mayPersist() else { return }
         let installer = StatuslineInstaller(scriptDir: statuslineScriptDir)
         let dir = expandTilde(account.configDir)
         do { try installer.uninstall(configDir: dir, savedStatusline: account.savedStatusline) }

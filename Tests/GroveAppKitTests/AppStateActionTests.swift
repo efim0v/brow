@@ -1010,6 +1010,52 @@ final class AppStateActionTests: XCTestCase {
         XCTAssertEqual(try command(second), "/bin/echo second")
     }
 
+    /// While the config can't be saved — Grove.app has started, and writes it too — the
+    /// capture switch and Share sessions change nothing at all: not an account's
+    /// settings.json, not its folders. Half a change left settings.json on the user's own
+    /// command while the config still said the account was captured.
+    func testNothingIsEditedThatTheConfigCouldNotThenRecord() async throws {
+        let canonical = root.appendingPathComponent("canon-refused")
+        let captured = root.appendingPathComponent("acc-captured-refused")
+        let plain = root.appendingPathComponent("acc-plain-refused")
+        for dir in [canonical, captured, plain] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        for (dir, command) in [(captured, "/bin/echo captured"), (plain, "/bin/echo plain")] {
+            try #"{"statusLine":{"type":"command","command":"\#(command)"}}"#
+                .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        }
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
+            accounts: [AccountConfig(name: "default", configDir: canonical.path),
+                       AccountConfig(name: "captured", configDir: captured.path),
+                       AccountConfig(name: "plain", configDir: plain.path)]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = canonical.path
+        state.folders.bin = root.appendingPathComponent("bin-refused").path
+        state.installMonitoring(state.config.accounts[1])
+        XCTAssertNil(state.actionError, "fixture: captured while the config could be saved")
+        func settings(_ dir: URL) throws -> Data { try Data(contentsOf: dir.appendingPathComponent("settings.json")) }
+        let before = (captured: try settings(captured), plain: try settings(plain))
+        let savedConfig = try Data(contentsOf: configURL)
+
+        state.mayWrite = { false }
+        let refusals = [state.attempt { state.disableMonitoring(state.config.accounts[1]) },
+                        state.attempt { state.installMonitoring(state.config.accounts[2]) },
+                        state.attempt { state.linkAccount(state.config.accounts[2]) }]
+
+        for refusal in refusals {
+            XCTAssertTrue(refusal?.contains("Grove.app is running") == true, refusal ?? "nil")
+        }
+        XCTAssertEqual(try settings(captured), before.captured, "still the wrapper, as the config says")
+        XCTAssertEqual(try settings(plain), before.plain)
+        XCTAssertNil(try? FileManager.default.destinationOfSymbolicLink(
+            atPath: plain.appendingPathComponent("file-history").path), "nothing linked")
+        XCTAssertEqual(try Data(contentsOf: configURL), savedConfig)
+        XCTAssertEqual(state.config.accounts.map(\.monitoring), [false, true, false])
+        XCTAssertEqual(state.config.accounts.map(\.sharedStore), [false, false, false])
+    }
+
     /// refresh() must populate the captures on the Accounts route even when NO
     /// project is selected — refreshUsage runs BEFORE the
     /// `guard let project = selectedProject` early-return (it iterates accounts).

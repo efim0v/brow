@@ -218,34 +218,79 @@ public struct KeychainCredentialsReader: CredentialsReading {
     /// failure, including a hang — the tool must never park a read on a dialog of
     /// its own, so it gets ten seconds.
     private static func securityTool(service: String) -> Secret {
+        switch runTool("/usr/bin/security", ["find-generic-password", "-s", service, "-w"], timeout: 10) {
+        case .couldNotStart:
+            return .locked
+        case .timedOut:
+            log.error("security tool timed out reading \(service, privacy: .public)")
+            return .locked
+        case .exited(0, let data):
+            var bytes = data
+            while let last = bytes.last, last == 0x0A || last == 0x0D { bytes.removeLast() }
+            return bytes.isEmpty ? .absent : .found(bytes)
+        case .exited(44, _):
+            return .absent                          // errSecItemNotFound
+        case .exited(let status, _):
+            log.error("security tool failed for \(service, privacy: .public): exit \(status, privacy: .public)")
+            return .locked
+        }
+    }
+
+    /// One run of a short-lived tool, its stdout, and a deadline that holds.
+    enum ToolOutcome: Equatable {
+        case exited(Int32, Data)
+        case timedOut
+        case couldNotStart
+    }
+
+    /// Runs `executable`, collecting stdout, and gives up after `timeout` seconds: the
+    /// process is sent SIGTERM, then SIGKILL, and the caller gets `.timedOut`.
+    ///
+    /// The pipe is drained on another thread. Draining it here, before waiting, was the
+    /// bug (grove#9): `readDataToEndOfFile` returns only at end of file, so a tool that
+    /// hung kept the caller inside the read and the ten-second deadline was never even
+    /// looked at. A grandchild that keeps stdout open after the kill would keep the
+    /// drain blocked; it is then left behind rather than waited for.
+    static func runTool(_ executable: String, _ arguments: [String], timeout: TimeInterval) -> ToolOutcome {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", service, "-w"]
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
-        do { try process.run() } catch { return .locked }
-        let deadline = DispatchTime.now() + 10
-        let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async { process.waitUntilExit(); done.signal() }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        if done.wait(timeout: deadline) == .timedOut {
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
+        do { try process.run() } catch { return .couldNotStart }
+
+        let collected = ToolOutput()
+        let drained = DispatchSemaphore(value: 0)
+        let reader = out.fileHandleForReading
+        DispatchQueue.global(qos: .utility).async {
+            collected.set((try? reader.readToEnd()) ?? Data())
+            drained.signal()
+        }
+
+        guard exited.wait(timeout: .now() + timeout) == .success else {
             process.terminate()
-            log.error("security tool timed out reading \(service, privacy: .public)")
-            return .locked
+            if exited.wait(timeout: .now() + 1) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 1)
+            }
+            return .timedOut
         }
-        switch process.terminationStatus {
-        case 0:
-            var bytes = data
-            while let last = bytes.last, last == 0x0A || last == 0x0D { bytes.removeLast() }
-            return bytes.isEmpty ? .absent : .found(bytes)
-        case 44:
-            return .absent                          // errSecItemNotFound
-        default:
-            log.error("security tool failed for \(service, privacy: .public): exit \(process.terminationStatus, privacy: .public)")
-            return .locked
-        }
+        // Exited: end of file follows at once, unless something it started still holds
+        // the pipe.
+        guard drained.wait(timeout: .now() + 2) == .success else { return .timedOut }
+        return .exited(process.terminationStatus, collected.data)
+    }
+
+    /// The drain thread's result, handed back under a lock.
+    private final class ToolOutput: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = Data()
+        func set(_ data: Data) { lock.withLock { value = data } }
+        var data: Data { lock.withLock { value } }
     }
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "grove", category: "keychain")

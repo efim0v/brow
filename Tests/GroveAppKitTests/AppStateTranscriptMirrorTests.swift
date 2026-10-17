@@ -18,7 +18,7 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
     private func makeState() -> AppState {
         let state = AppState(configStore: ConfigStore(url: configURL))
         // Fail-safe: always point canonical away from the real ~/.claude.
-        state.canonicalDirOverride = root.appendingPathComponent("canonical-default").path
+        state.folders.canonicalDir = root.appendingPathComponent("canonical-default").path
         return state
     }
 
@@ -32,7 +32,7 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
         try "hi\n".write(to: live, atomically: true, encoding: .utf8)
 
         let state = makeState()
-        state.canonicalDirOverride = canonical.path
+        state.folders.canonicalDir = canonical.path
         state.config = GroveConfig(
             version: 1, workspacesRootTemplate: "~/w", projects: [],
             accounts: [AccountConfig(name: "default", configDir: canonical.path)])
@@ -52,7 +52,7 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
                          atomically: true, encoding: .utf8)
 
         let state = makeState()
-        state.canonicalDirOverride = canonical.path
+        state.folders.canonicalDir = canonical.path
         var cfg = GroveConfig(
             version: 1, workspacesRootTemplate: "~/w", projects: [],
             accounts: [AccountConfig(name: "default", configDir: canonical.path)])

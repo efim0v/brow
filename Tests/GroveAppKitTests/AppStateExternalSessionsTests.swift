@@ -21,7 +21,7 @@ final class AppStateExternalSessionsTests: XCTestCase {
     private func makeState() -> AppState {
         let state = AppState(configStore: ConfigStore(url: configURL))
         // Point canonicalDir into temp space so prefix matching is predictable.
-        state.canonicalDirOverride = root.appendingPathComponent("canonical").path
+        state.folders.canonicalDir = root.appendingPathComponent("canonical").path
         // Point cmux hook file at a non-existent path (no cmux in these tests).
         state.cmuxHookFile = root.appendingPathComponent("no-hook.json").path
         return state

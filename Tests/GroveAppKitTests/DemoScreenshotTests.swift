@@ -81,7 +81,7 @@ final class DemoScreenshotTests: XCTestCase {
     ///
     /// `settling`: under XCTest (unlike `GroveApp --snapshot`) a view's `.task` does start
     /// during the render. The Stats tab's task begins a code scan — of the fixture's
-    /// non-existent project path, writing only to the temp `statsStoreDirOverride` — and
+    /// non-existent project path, writing only to the state's temp `folders.stats` — and
     /// draws a spinner meanwhile. So: render once, let that scan finish, put the fixture
     /// numbers back, and render the SAME renderer again (same view identity, so the task
     /// does not restart).
@@ -144,10 +144,9 @@ enum DemoFixture {
     static func state() -> AppState {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("grove-demo-\(UUID().uuidString)/config.json")
+        // A temp config file: every folder the state writes (a scan the Stats tab starts
+        // writes its history) sits beside it, never under the real Grove folder.
         let state = AppState(configStore: ConfigStore(url: url))
-        // A scan started by the Stats tab must never write under the real
-        // ~/Library/Application Support/Grove/stats.
-        state.statsStoreDirOverride = url.deletingLastPathComponent().appendingPathComponent("stats").path
         let now = Date()
 
         let shop = ProjectConfig(id: shopID, name: "acme-shop", path: projectPath,

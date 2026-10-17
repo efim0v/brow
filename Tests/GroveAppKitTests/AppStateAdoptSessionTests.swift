@@ -24,7 +24,7 @@ final class AppStateAdoptSessionTests: XCTestCase {
     /// set so linking never touches the real ~/.claude.
     private func makeState() -> AppState {
         let state = AppState(configStore: ConfigStore(url: configURL))
-        state.canonicalDirOverride = root.appendingPathComponent("canonical").path
+        state.folders.canonicalDir = root.appendingPathComponent("canonical").path
         state.cmuxHookFile = root.appendingPathComponent("no-hook.json").path
         return state
     }
@@ -90,7 +90,7 @@ final class AppStateAdoptSessionTests: XCTestCase {
         let workAccount = AccountConfig(name: "work", configDir: nonDefaultDir.path)
 
         let state = makeState()
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         state.config.accounts = [defaultAccount, workAccount]
 
         // No live processes — liveProcessValidatorOverride defaults to nil (real check),
@@ -127,7 +127,7 @@ final class AppStateAdoptSessionTests: XCTestCase {
         let canonicalAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
 
         let state = makeState()
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         state.config.accounts = [canonicalAccount]
 
         // adoptSession for the canonical account should do nothing — no symlink, no error.
@@ -177,7 +177,7 @@ final class AppStateAdoptSessionTests: XCTestCase {
         let workAccount = AccountConfig(name: "work", configDir: nonDefaultDir.path)
 
         let state = makeState()
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         state.config.accounts = [defaultAccount, workAccount]
         // Inject a validator that treats our fake pid as alive.
         state.liveProcessValidatorOverride = { pid in pid == fakePid }
@@ -224,7 +224,7 @@ final class AppStateAdoptSessionTests: XCTestCase {
         let workAccount = AccountConfig(name: "work", configDir: nonDefaultDir.path)
 
         let state = makeState()
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         state.config.accounts = [defaultAccount, workAccount]
 
         // Inject a table-only live process: cwd=="" (as --resume produces), sessionId matches.

@@ -22,7 +22,7 @@ final class AppStateActionTests: XCTestCase {
         let state = AppState(configStore: ConfigStore(url: configURL))
         state.cmuxOverride = stubbedCmux(runner)
         // Fail-safe: default the canonical store to a temp dir, NEVER $HOME/.claude.
-        state.canonicalDirOverride = root.appendingPathComponent("canonical-default").path
+        state.folders.canonicalDir = root.appendingPathComponent("canonical-default").path
         // The launch-command assertions pin the command shape; whether Brow happens
         // to be installed on this machine must not change it.
         state.browserRouter = nil
@@ -275,7 +275,7 @@ final class AppStateActionTests: XCTestCase {
 
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = canonicalDir.path   // test seam: treat this as ~/.claude
+        state.folders.canonicalDir = canonicalDir.path   // test seam: treat this as ~/.claude
         let session = ClaudeSession(id: id, cwd: cwd, title: "Tidy",
                                     lastActivity: Date(), accountName: "owner", gitBranch: nil)
 
@@ -328,7 +328,7 @@ final class AppStateActionTests: XCTestCase {
             projects: [], accounts: [defaultAccount, target]))
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         let session = ClaudeSession(id: "sess-ghost", cwd: "/ws/feat-x", title: nil,
                                     lastActivity: Date(), accountName: "ghost", gitBranch: nil)
 
@@ -352,7 +352,7 @@ final class AppStateActionTests: XCTestCase {
             projects: [], accounts: [owner, target]))
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = root.appendingPathComponent("nonexistent-canonical").path
+        state.folders.canonicalDir = root.appendingPathComponent("nonexistent-canonical").path
         let session = ClaudeSession(id: "sess-x", cwd: "/ws/feat-x", title: nil,
                                     lastActivity: Date(), accountName: "owner", gitBranch: nil)
 
@@ -385,7 +385,7 @@ final class AppStateActionTests: XCTestCase {
             projects: [], accounts: [defaultAccount, target]))
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         let session = ClaudeSession(id: id, cwd: cwd, title: nil,
                                     lastActivity: Date(), accountName: "default", gitBranch: nil)
 
@@ -431,7 +431,7 @@ final class AppStateActionTests: XCTestCase {
             projects: [], accounts: [defaultAccount, owner, target]))
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         // Force the validator to treat pid 999999 as alive (no real process exists).
         state.liveProcessValidatorOverride = { _ in true }
         let session = ClaudeSession(id: id, cwd: cwd, title: nil,
@@ -469,7 +469,7 @@ final class AppStateActionTests: XCTestCase {
             projects: [], accounts: [owner, target]))
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = root.appendingPathComponent("no-canonical-order").path
+        state.folders.canonicalDir = root.appendingPathComponent("no-canonical-order").path
         state.liveProcessValidatorOverride = { _ in true }
         let session = ClaudeSession(id: "sess-order", cwd: "/ws/feat-x", title: nil,
                                     lastActivity: Date(), accountName: "owner", gitBranch: nil)
@@ -515,7 +515,7 @@ final class AppStateActionTests: XCTestCase {
         let fixture = try saveResumeAsFixture("fresh", cwd: cwd, sessionId: id)
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = fixture.canonicalDir.path
+        state.folders.canonicalDir = fixture.canonicalDir.path
         // How the table lists a fresh claude: cwd only, no session id, no account.
         state.allLiveProcessesOverride = [LiveProcess(pid: 4242, sessionId: "", cwd: cwd,
                                                       status: "idle", accountName: "")]
@@ -542,7 +542,7 @@ final class AppStateActionTests: XCTestCase {
         let fixture = try saveResumeAsFixture("quiet", cwd: cwd, sessionId: id)
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = fixture.canonicalDir.path
+        state.folders.canonicalDir = fixture.canonicalDir.path
         state.allLiveProcessesOverride = [
             LiveProcess(pid: 4243, sessionId: "", cwd: "/ws/feat-y", status: "idle", accountName: ""),
             LiveProcess(pid: 4244, sessionId: "sess-other", cwd: "", status: "busy", accountName: ""),
@@ -587,7 +587,7 @@ final class AppStateActionTests: XCTestCase {
         let fixture = try saveResumeAsFixture("sheet", cwd: cwd, sessionId: id)
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
-        state.canonicalDirOverride = fixture.canonicalDir.path
+        state.folders.canonicalDir = fixture.canonicalDir.path
         state.allLiveProcessesOverride = [LiveProcess(pid: 4246, sessionId: "", cwd: cwd,
                                                       status: "idle", accountName: "")]
 
@@ -794,10 +794,10 @@ final class AppStateActionTests: XCTestCase {
             version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
             projects: [], accounts: [defaultAccount, work]))
         let state = makeState(runner: ScriptedRunner(responses: [:]))
-        state.canonicalDirOverride = canonicalDir.path
+        state.folders.canonicalDir = canonicalDir.path
         // linkAccount now auto-installs the statusline wrapper (Phase 5A); keep that
         // write inside a temp dir, never the real ~/Library/Application Support/Grove.
-        state.statuslineScriptDirOverride = root.appendingPathComponent("bin-link-symlink").path
+        state.folders.bin = root.appendingPathComponent("bin-link-symlink").path
 
         state.linkAccount(work)
 
@@ -828,8 +828,8 @@ final class AppStateActionTests: XCTestCase {
             version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
             projects: [], accounts: [defaultAccount, work]))
         let state = makeState(runner: ScriptedRunner(responses: [:]))
-        state.canonicalDirOverride = canonicalDir.path
-        state.statuslineScriptDirOverride = root.appendingPathComponent("bin-link").path
+        state.folders.canonicalDir = canonicalDir.path
+        state.folders.bin = root.appendingPathComponent("bin-link").path
 
         state.linkAccount(work)
 
@@ -853,7 +853,7 @@ final class AppStateActionTests: XCTestCase {
             version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
             projects: [], accounts: [work]))
         let state = makeState(runner: ScriptedRunner(responses: [:]))
-        state.canonicalDirOverride = root.appendingPathComponent("nope").path
+        state.folders.canonicalDir = root.appendingPathComponent("nope").path
 
         state.linkAccount(work)
 
@@ -876,7 +876,7 @@ final class AppStateActionTests: XCTestCase {
             version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
             projects: [], accounts: [work]))
         let state = makeState(runner: ScriptedRunner(responses: [:]))
-        state.statuslineScriptDirOverride = root.appendingPathComponent("support-bin").path
+        state.folders.bin = root.appendingPathComponent("support-bin").path
 
         state.installMonitoring(work)
 
@@ -900,7 +900,7 @@ final class AppStateActionTests: XCTestCase {
             version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
             projects: [], accounts: [work]))
         let state = makeState(runner: ScriptedRunner(responses: [:]))
-        state.statuslineScriptDirOverride = root.appendingPathComponent("support-bin2").path
+        state.folders.bin = root.appendingPathComponent("support-bin2").path
 
         state.disableMonitoring(work)
 

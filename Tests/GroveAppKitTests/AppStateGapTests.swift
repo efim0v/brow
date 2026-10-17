@@ -15,7 +15,7 @@ final class AppStateGapTests: XCTestCase {
     private func state(_ runner: ScriptedRunner = ScriptedRunner(responses: ["ping": .ok("PONG")])) -> AppState {
         let s = AppState(configStore: ConfigStore(url: configURL))
         s.cmuxOverride = stubbedCmux(runner)
-        s.canonicalDirOverride = root.appendingPathComponent("canonical").path
+        s.folders.canonicalDir = root.appendingPathComponent("canonical").path
         return s
     }
 
@@ -43,8 +43,8 @@ final class AppStateGapTests: XCTestCase {
         let s = state()
         // addAccount auto-installs a statusline (Phase 5A); keep its dir + script writes
         // inside temp dirs, never the real ~/.claude-accounts / ~/Library.
-        s.accountsRootOverride = root.appendingPathComponent("accts").path
-        s.statuslineScriptDirOverride = root.appendingPathComponent("bin-crud").path
+        s.folders.accountsRoot = root.appendingPathComponent("accts").path
+        s.folders.bin = root.appendingPathComponent("bin-crud").path
         let initial = s.config.accounts.count
         s.addAccount(name: "work")
         XCTAssertTrue(s.config.accounts.contains { $0.name == "work" })
@@ -87,7 +87,7 @@ final class AppStateGapTests: XCTestCase {
     func testReconcileMonitoringInstallsForUnmonitoredAccountsOnly() async throws {
         let s = state()
         let binDir = root.appendingPathComponent("reconcile-bin")
-        s.statuslineScriptDirOverride = binDir.path
+        s.folders.bin = binDir.path
         let dirA = root.appendingPathComponent("recon-a")   // never monitored
         let dirB = root.appendingPathComponent("recon-b")   // already monitored
         try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
@@ -133,7 +133,7 @@ final class AppStateGapTests: XCTestCase {
     /// original to save. It used to be re-installed on every launch instead.
     func testReconcileMonitoringMarksAnAccountWithNoPriorStatusline() async throws {
         let s = state()
-        s.statuslineScriptDirOverride = root.appendingPathComponent("reconcile-bin-2").path
+        s.folders.bin = root.appendingPathComponent("reconcile-bin-2").path
         let dir = root.appendingPathComponent("recon-fresh")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         s.config.accounts = [AccountConfig(name: "fresh", configDir: dir.path)]
@@ -160,7 +160,7 @@ final class AppStateGapTests: XCTestCase {
     func testDiscoverAccountDirsAddsSignedInFoldersNamedByEmail() throws {
         let s = state()
         let accountsRoot = root.appendingPathComponent("accounts-root")
-        s.accountsRootOverride = accountsRoot.path
+        s.folders.accountsRoot = accountsRoot.path
         let fm = FileManager.default
         for (folder, email) in [("account-1", "one@example.com"), ("account-2", "two@example.com"), ("empty", nil)] {
             let dir = accountsRoot.appendingPathComponent(folder)
@@ -223,7 +223,7 @@ final class AppStateGapTests: XCTestCase {
 
     func testInstallAndDisableMonitoringToggleFlag() throws {
         let s = state()
-        s.statuslineScriptDirOverride = root.appendingPathComponent("bin").path
+        s.folders.bin = root.appendingPathComponent("bin").path
         let dir = root.appendingPathComponent("acct-claude")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try "{}".write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
@@ -238,7 +238,7 @@ final class AppStateGapTests: XCTestCase {
     /// actionError, in both directions, and changes neither the file nor the account.
     func testMonitoringToggleReportsSettingsThatDoNotParse() throws {
         let s = state()
-        s.statuslineScriptDirOverride = root.appendingPathComponent("bin-unparseable").path
+        s.folders.bin = root.appendingPathComponent("bin-unparseable").path
         let dir = root.appendingPathComponent("acct-unparseable")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let settings = dir.appendingPathComponent("settings.json")
@@ -265,7 +265,7 @@ final class AppStateGapTests: XCTestCase {
     /// the file parses again, the next launch installs it.
     func testReconcileMonitoringRetriesSettingsThatDoNotParseNextLaunch() async throws {
         let s = state()
-        s.statuslineScriptDirOverride = root.appendingPathComponent("reconcile-bin-3").path
+        s.folders.bin = root.appendingPathComponent("reconcile-bin-3").path
         let bad = root.appendingPathComponent("recon-unparseable")
         let good = root.appendingPathComponent("recon-ok")
         try FileManager.default.createDirectory(at: bad, withIntermediateDirectories: true)
@@ -305,7 +305,7 @@ final class AppStateGapTests: XCTestCase {
     func testReconcileMonitoringDoesNotReEnableExplicitlyDisabledAccount() async throws {
         let s = state()
         let binDir = root.appendingPathComponent("fix1-bin")
-        s.statuslineScriptDirOverride = binDir.path
+        s.folders.bin = binDir.path
 
         // Account A: never monitored (disabledByUser=false) — should be installed.
         let dirA = root.appendingPathComponent("fix1-a")
@@ -354,7 +354,7 @@ final class AppStateGapTests: XCTestCase {
     /// FIX 1: disableMonitoring sets monitoringDisabledByUser=true; installMonitoring/enableMonitoring clears it.
     func testDisableMonitoringSetsDisabledByUserFlag() throws {
         let s = state()
-        s.statuslineScriptDirOverride = root.appendingPathComponent("fix1-toggle-bin").path
+        s.folders.bin = root.appendingPathComponent("fix1-toggle-bin").path
         let dir = root.appendingPathComponent("fix1-toggle")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try "{}".write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)

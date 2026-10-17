@@ -15,7 +15,7 @@ final class AppStateSessionsTests: XCTestCase {
     private func makeState(_ runner: ScriptedRunner) -> AppState {
         let state = AppState(configStore: ConfigStore(url: configURL))
         state.cmuxOverride = stubbedCmux(runner)
-        state.canonicalDirOverride = root.appendingPathComponent("canonical").path
+        state.folders.canonicalDir = root.appendingPathComponent("canonical").path
         return state
     }
 
@@ -24,7 +24,7 @@ final class AppStateSessionsTests: XCTestCase {
     func testOpenSessionGoSelectsCmuxWorkspace() async throws {
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner)
-        state.config.accounts = [AccountConfig(name: "default", configDir: "/tmp/x")]
+        state.config.accounts = [AccountConfig(name: "default", configDir: root.appendingPathComponent("x").path)]
         let row = ProjectSessionRow(sessionId: "s1", title: "T", cwd: "/ws/a", location: "a",
                                     accountName: "default", lastActivity: Date(),
                                     status: .running, cmuxWorkspaceId: "ws-9")
@@ -38,7 +38,7 @@ final class AppStateSessionsTests: XCTestCase {
     func testOpenSessionClosedPresentsLaunchSheetThenResumes() async throws {
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner)
-        state.config.accounts = [AccountConfig(name: "work", configDir: "/tmp/grove-work")]
+        state.config.accounts = [AccountConfig(name: "work", configDir: root.appendingPathComponent("grove-work").path)]
         let row = ProjectSessionRow(sessionId: "abc", title: "T", cwd: "/ws/a", location: "a",
                                     accountName: "work", lastActivity: Date(),
                                     status: .closed, cmuxWorkspaceId: nil)
@@ -64,7 +64,7 @@ final class AppStateSessionsTests: XCTestCase {
     func testBeginNewPresentsSheetSeededFromProjectDefaults() async throws {
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner)
-        state.config.accounts = [AccountConfig(name: "work", configDir: "/tmp/grove-work")]
+        state.config.accounts = [AccountConfig(name: "work", configDir: root.appendingPathComponent("grove-work").path)]
         state.config.projects = [ProjectConfig(name: "demo", path: "/ws",
                                                defaultModel: "opus", defaultEffort: "high")]
         let account = state.config.accounts[0]
@@ -90,7 +90,7 @@ final class AppStateSessionsTests: XCTestCase {
     func testBeginConfigureSeedsResumeWithProjectSkipPermissions() async throws {
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner)
-        state.config.accounts = [AccountConfig(name: "work", configDir: "/tmp/grove-work")]
+        state.config.accounts = [AccountConfig(name: "work", configDir: root.appendingPathComponent("grove-work").path)]
         var project = ProjectConfig(name: "demo", path: "/ws")
         project.dangerouslySkipPermissions = true
         state.config.projects = [project]
@@ -112,7 +112,7 @@ final class AppStateSessionsTests: XCTestCase {
     func testConfirmLaunchHonorsPerLaunchSkipPermissionsOverride() async throws {
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner)
-        state.config.accounts = [AccountConfig(name: "default", configDir: "/tmp/x")]
+        state.config.accounts = [AccountConfig(name: "default", configDir: root.appendingPathComponent("x").path)]
         // Project default OFF, but the sheet turns it ON for this one launch.
         state.config.projects = [ProjectConfig(name: "p", path: "/ws")]
         var on = LaunchRequest(sessionId: nil, cwd: "/ws/a", title: "a", account: "default")
@@ -124,7 +124,7 @@ final class AppStateSessionsTests: XCTestCase {
         // Project default ON, but the sheet turns it OFF — override must win.
         let runner2 = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state2 = makeState(runner2)
-        state2.config.accounts = [AccountConfig(name: "default", configDir: "/tmp/x")]
+        state2.config.accounts = [AccountConfig(name: "default", configDir: root.appendingPathComponent("x").path)]
         var proj = ProjectConfig(name: "p", path: "/ws")
         proj.dangerouslySkipPermissions = true
         state2.config.projects = [proj]

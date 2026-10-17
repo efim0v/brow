@@ -157,11 +157,14 @@ public final class AppState: ObservableObject {
     /// tiny fixture repo instead of building 300+ commits.
     internal var graphPageSize = 300
 
-    /// Test seam: the canonical store directory (the default `~/.claude`). nil
-    /// means the real default — `$HOME/.claude`. PRODUCTION resolves the canonical
-    /// dir to the real default account (`~/.claude`); TESTS MUST set this override
-    /// (done in the suite's makeState/setUp) so linking never touches the real home.
-    internal var canonicalDirOverride: String?
+    /// Every folder the engine reads or writes outside a project: Grove's config, the
+    /// status-line wrappers, the code statistics, the accounts root, the canonical
+    /// (default) account and the home folder that holds its `.claude.json`. Injected
+    /// at construction. A config file that is not the real one gets folders BESIDE it
+    /// (`WorkspacesFolders.beside`), so a test or an offscreen render can never write
+    /// into the user's own `~/.claude` or `~/Library/Application Support/Grove`.
+    /// Tests may change single fields afterwards.
+    public internal(set) var folders: WorkspacesFolders
 
     /// Test seam: the pid-liveness predicate used by the concurrency guard. nil
     /// means the real check (pid alive AND its command mentions "claude"). Tests
@@ -176,41 +179,25 @@ public final class AppState: ObservableObject {
     /// the real allLiveProcesses call.
     internal var allLiveProcessesOverride: [LiveProcess]?
 
-    /// Test seam: the app-support dir the statusline wrapper script is shipped
-    /// into. nil = the real ~/Library/Application Support/Grove/bin. TESTS set a
-    /// temp dir so install never writes under the real app-support tree.
-    internal var statuslineScriptDirOverride: String?
-
-    /// Test seam: the base dir under which NEW accounts' config dirs are created by
-    /// `addAccount` (which also auto-installs a statusline there). nil = the real
-    /// ~/.claude-accounts. TESTS set a temp dir so addAccount never creates a real
-    /// account dir / writes a real settings.json under $HOME.
-    internal var accountsRootOverride: String?
-
-    /// Test seam: the directory the per-project code-stats history files live in.
-    /// nil = the real ~/Library/Application Support/Grove/stats. TESTS set a temp
-    /// dir so history persistence never writes under the real app-support tree.
-    internal var statsStoreDirOverride: String?
-
     /// Test observability: incremented each time `runCodeStatsScan` begins a scan. nil
     /// in production (never read); tests set it to 0 before calling `setStatsBranch`
     /// and assert it equals 1 after the debounce fires to verify coalescing.
     internal var statsRescanStartedCount: Int?
 
-    public init(configStore: ConfigStore) {
+    /// `folders` defaults to folders beside the config file — see `folders`.
+    public init(configStore: ConfigStore, folders: WorkspacesFolders? = nil) {
         self.configStore = configStore
+        self.folders = folders ?? .beside(configFile: configStore.url)
         let loaded = configStore.load()
         self.config = loaded.config
         self.configIssue = loaded.issue
         self.selectedProjectID = loaded.config.projects.first?.id
     }
 
-    /// Real config location: ~/Library/Application Support/Grove/config.json (spec §4).
-    public convenience init() {
-        let url = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Grove/config.json")
-        self.init(configStore: ConfigStore(url: url))
+    /// The real folders: ~/Library/Application Support/Grove/config.json and Claude
+    /// Code's folders in the user's home.
+    public convenience init(folders: WorkspacesFolders = .live()) {
+        self.init(configStore: ConfigStore(url: folders.configFile), folders: folders)
     }
 
     // MARK: - Navigation (panel state machine)
@@ -326,7 +313,7 @@ public final class AppState: ObservableObject {
     }
 
     /// New account convention (spec §6.3): configDir = ~/.claude-accounts/<name>
-    /// (redirectable in tests via `accountsRootOverride`). Phase 5A: also creates the
+    /// (`folders.accountsRoot`). Phase 5A: also creates the
     /// dir and auto-installs the grove statusline there so the account captures usage
     /// from its first session (best-effort — account creation still succeeds if the
     /// install fails).
@@ -335,8 +322,7 @@ public final class AppState: ObservableObject {
             actionError = "account '\(name)' already exists"
             return
         }
-        let configDir = accountsRootOverride.map { $0 + "/" + name } ?? "~/.claude-accounts/\(name)"
-        let account = AccountConfig(name: name, configDir: configDir)
+        let account = AccountConfig(name: name, configDir: folders.storedAccountDir(name))
         config.accounts.append(account)
         persist()
         enableMonitoring(account, reportErrors: false)
@@ -376,7 +362,7 @@ public final class AppState: ObservableObject {
     /// creates — named by its email. Returns whether anything was added.
     @discardableResult
     public func discoverAccountDirs() -> Bool {
-        let root = accountsRootOverride ?? NSHomeDirectory() + "/.claude-accounts"
+        let root = folders.accountsRoot
         let fm = FileManager.default
         let known = Set(config.accounts.flatMap(\.allConfigDirs).map(expandTilde))
         // A folder signed in to a login Grove already lists joins that account as an alias.
@@ -393,7 +379,7 @@ public final class AppState: ObservableObject {
             guard !known.contains(path), fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue,
                   let email = ClaudeService.identity(claudeJSONPath: path + "/.claude.json")?.email
             else { continue }
-            let stored = accountsRootOverride == nil ? "~/.claude-accounts/\(folder)" : path
+            let stored = folders.storedAccountDir(folder)
             if let i = config.accounts.firstIndex(where: { emailOfAccount[$0.name] == email }) {
                 config.accounts[i].aliasDirs.append(stored)
             } else {
@@ -644,7 +630,7 @@ extension AppState {
         // --dangerously-skip-permissions: an explicit per-launch choice (from the
         // config sheet) wins; otherwise resolve the project default by `cwd`, here in
         // the single launch chokepoint so EVERY caller honors the setting.
-        ClaudeService.ensureOnboarded(configDir: account.configDir)
+        ClaudeService.ensureOnboarded(configDir: account.configDir, home: folders.home)
         let command = ClaudeService.launchCommand(account: account, resume: sessionId,
                                                   model: model, effort: effort,
                                                   skipPermissions: skipPermissions ?? effectiveSkipPermissions(cwd: cwd),
@@ -829,7 +815,7 @@ extension AppState {
                                resume: request.sessionId, model: request.model, effort: request.effort,
                                skipPermissions: request.skipPermissions)
         case .terminal:
-            ClaudeService.ensureOnboarded(configDir: account.configDir)
+            ClaudeService.ensureOnboarded(configDir: account.configDir, home: folders.home)
             let command = ClaudeService.launchCommand(account: account, resume: request.sessionId,
                                                       model: request.model, effort: request.effort,
                                                       skipPermissions: request.skipPermissions,
@@ -870,13 +856,11 @@ extension AppState {
         await launchClaude(cwd: fallbackCwd, title: fallbackTitle, account: account, resume: s.id)
     }
 
-    /// The canonical store directory: the default account's `~/.claude` (or the
-    /// test override). Linking roots here; it is never symlinked. Internal so
+    /// The canonical store directory: the default account's `~/.claude`
+    /// (`folders.canonicalDir`). Linking roots here; it is never symlinked. Internal so
     /// views in the same module (SessionsScreen, OtherSessionsScreen) can evaluate
     /// canShareAcrossAccounts without recomputing the path.
-    var canonicalDir: String {
-        canonicalDirOverride ?? (NSHomeDirectory() + "/.claude")
-    }
+    var canonicalDir: String { folders.canonicalDir }
 
     /// The account whose expanded configDir IS the canonical dir, if configured.
     /// Sharing is impossible without it (nothing to root the symlinks at).
@@ -1224,11 +1208,7 @@ extension AppState {
 // MARK: - Usage monitoring
 
 extension AppState {
-    private var statuslineScriptDir: String {
-        statuslineScriptDirOverride
-            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Grove/bin").path
-    }
+    private var statuslineScriptDir: String { folders.bin }
 
     /// Reads every account's statusline captures and identity (called on the scan
     /// tick). `now` injected; defaults to Date() ONLY at the production call site.
@@ -1262,9 +1242,7 @@ extension AppState {
     }
 
     private func claudeJSONPath(for account: AccountConfig) -> String {
-        let dir = expandTilde(account.configDir)
-        return dir == NSHomeDirectory() + "/.claude"
-            ? NSHomeDirectory() + "/.claude.json" : dir + "/.claude.json"
+        folders.claudeJSONPath(configDir: account.configDir)
     }
 
     /// Opens the account's config dir in Finder (`open <configDir>`). Snapshot-safe
@@ -1383,13 +1361,9 @@ extension AppState {
 // MARK: - Code stats
 
 extension AppState {
-    /// The directory holding per-project code-stats history files. Production:
-    /// ~/Library/Application Support/Grove/stats; tests inject statsStoreDirOverride.
-    private var statsStoreDir: URL {
-        if let override = statsStoreDirOverride { return URL(fileURLWithPath: override) }
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Grove/stats")
-    }
+    /// The directory holding per-project code-stats history files: `folders.stats`
+    /// (~/Library/Application Support/Grove/stats in the app).
+    private var statsStoreDir: URL { URL(fileURLWithPath: folders.stats) }
 
     /// Built fresh from the resolved dir (a value type that just holds the URL). The
     /// scanner + cache that must persist across ticks live on `self`, not here.

@@ -58,7 +58,7 @@ final class AppStateCodeStatsTests: XCTestCase {
 
     private func makeState() -> AppState {
         let state = AppState(configStore: ConfigStore(url: configURL))
-        state.statsStoreDirOverride = statsDir.path
+        state.folders.stats = statsDir.path
         return state
     }
 

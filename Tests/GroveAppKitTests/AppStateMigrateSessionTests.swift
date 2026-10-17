@@ -23,11 +23,11 @@ final class AppStateMigrateSessionTests: XCTestCase {
     private func makeState() -> AppState {
         let state = AppState(configStore: ConfigStore(url: configURL))
         // Always override canonicalDir so no real ~/.claude is touched.
-        state.canonicalDirOverride = root.appendingPathComponent("canonical").path
+        state.folders.canonicalDir = root.appendingPathComponent("canonical").path
         state.cmuxHookFile = root.appendingPathComponent("no-hook.json").path
         // migrateSession now auto-installs the statusline wrapper (Phase 5A); keep that
         // script write inside a temp dir, never the real ~/Library/Application Support.
-        state.statuslineScriptDirOverride = root.appendingPathComponent("statusline-bin").path
+        state.folders.bin = root.appendingPathComponent("statusline-bin").path
         return state
     }
 

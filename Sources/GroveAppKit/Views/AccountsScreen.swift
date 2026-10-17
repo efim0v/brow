@@ -224,7 +224,7 @@ struct AccountsScreen: View {
     /// backed and draws offscreen, so render a plain label in snapshot mode.
     @ViewBuilder
     private func sharedStoreControl(_ account: AccountConfig) -> some View {
-        let isCanonical = expandTilde(account.configDir) == NSHomeDirectory() + "/.claude"
+        let isCanonical = expandTilde(account.configDir) == state.canonicalDir
         if isCanonical {
             Label("canonical", systemImage: "star.fill")
                 .font(.caption2).foregroundStyle(.secondary).labelStyle(.titleAndIcon)

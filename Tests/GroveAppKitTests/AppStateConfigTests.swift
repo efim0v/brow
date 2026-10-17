@@ -33,6 +33,26 @@ final class AppStateConfigTests: XCTestCase {
         XCTAssertTrue(state.graphNodes.isEmpty)
     }
 
+    /// A state built on a config file that is not the real one keeps every folder it
+    /// writes next to that file — the test suite's own state included.
+    func testInitWithAConfigFileKeepsEveryFolderBesideIt() {
+        let state = makeState()
+        let folder = configURL.deletingLastPathComponent().path
+        XCTAssertEqual(state.folders, WorkspacesFolders.beside(configFile: configURL))
+        for path in [state.folders.bin, state.folders.stats, state.folders.accountsRoot,
+                     state.folders.canonicalDir, state.folders.home] {
+            XCTAssertTrue(path.hasPrefix(folder + "/"), path)
+        }
+    }
+
+    /// The fixture every offscreen render uses writes its code statistics into its
+    /// own temp folder, not `~/Library/Application Support/Grove/stats`.
+    func testTheSnapshotFixtureKeepsItsFoldersOutOfTheHome() {
+        let state = SnapshotMode.fixtureState()
+        XCTAssertFalse(state.folders.stats.hasPrefix(NSHomeDirectory() + "/Library"), state.folders.stats)
+        XCTAssertFalse(state.folders.bin.hasPrefix(NSHomeDirectory() + "/Library"), state.folders.bin)
+    }
+
     func testInitSelectsFirstProject() throws {
         let project = ProjectConfig(name: "demo", path: "/tmp/demo")
         try ConfigStore(url: configURL).save(GroveConfig(
@@ -171,8 +191,8 @@ final class AppStateConfigTests: XCTestCase {
         let scratch = try FixtureLite.tempDir("appstate-config-add")
         let accountsRoot = scratch.appendingPathComponent("accts")
         let state = makeState()
-        state.accountsRootOverride = accountsRoot.path
-        state.statuslineScriptDirOverride = scratch.appendingPathComponent("bin").path
+        state.folders.accountsRoot = accountsRoot.path
+        state.folders.bin = scratch.appendingPathComponent("bin").path
 
         state.addAccount(name: "icloud")
 
@@ -196,8 +216,8 @@ final class AppStateConfigTests: XCTestCase {
     private func makeStateWithTempAccountsRoot() throws -> AppState {
         let scratch = try FixtureLite.tempDir("appstate-config-crud")
         let state = makeState()
-        state.accountsRootOverride = scratch.appendingPathComponent("accts").path
-        state.statuslineScriptDirOverride = scratch.appendingPathComponent("bin").path
+        state.folders.accountsRoot = scratch.appendingPathComponent("accts").path
+        state.folders.bin = scratch.appendingPathComponent("bin").path
         return state
     }
 

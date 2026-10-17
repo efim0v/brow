@@ -1,7 +1,8 @@
 import Foundation
 
 public final class ConfigStore {
-    private let url: URL
+    /// The config file this store reads and writes.
+    public let url: URL
 
     public init(url: URL) {
         self.url = url

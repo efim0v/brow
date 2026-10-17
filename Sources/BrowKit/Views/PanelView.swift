@@ -48,6 +48,10 @@ public struct PanelView: View {
     let drawsBackground: Bool
     let onSettings: () -> Void
     let onRefresh: () -> Void
+    /// The way into Workspaces, and the one that is always there: macOS hides a status
+    /// item that does not fit beside the notch. Left of share, so ⟳ keeps its place at
+    /// the corner (`PanelRefreshGateTests`). nil: no button.
+    let onWorkspaces: (() -> Void)?
     /// The calendar's hovered day, driven by the controller's mouse monitor.
     @ObservedObject var hover: CalendarHoverTracker
     /// The share button's checkmark, like the copy button's in `AccountBlockView`.
@@ -60,7 +64,8 @@ public struct PanelView: View {
 
     public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat, flare: CGFloat,
                 drawsBackground: Bool = true, hover: CalendarHoverTracker = CalendarHoverTracker(),
-                onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
+                onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void,
+                onWorkspaces: (() -> Void)? = nil) {
         self.store = store
         self.clock = clock
         self.topInset = topInset
@@ -69,6 +74,7 @@ public struct PanelView: View {
         self.hover = hover
         self.onSettings = onSettings
         self.onRefresh = onRefresh
+        self.onWorkspaces = onWorkspaces
     }
 
     public var body: some View {
@@ -156,6 +162,13 @@ public struct PanelView: View {
                     .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
             Spacer()
+            if let onWorkspaces {
+                Button(action: onWorkspaces) {
+                    Image(systemName: "square.stack.3d.up")
+                        .frame(width: 20, height: 20).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help("Workspaces")
+            }
             // Left of ⟳ on purpose: `PanelRefreshGateTests` finds ⟳ at a fixed offset
             // from the bottom-right corner. The clipboard needs no activation, so this
             // works from the non-activating panel; saving a file lives in Settings.

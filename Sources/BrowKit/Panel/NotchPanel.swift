@@ -102,6 +102,9 @@ public final class NotchPanelController {
     private let clock: PanelClock
     private let onExpandedChange: (Bool) -> Void
     private let onSettings: () -> Void
+    private let onWorkspaces: (() -> Void)?
+    /// Holds the notch shut after the Workspaces button (see `NotchHoverLatch`).
+    private var latch = NotchHoverLatch()
     private let panel: BrowPanel
     private let host: FirstMouseHostingView<NotchRootView>
     private let model: NotchPanelModel
@@ -117,11 +120,12 @@ public final class NotchPanelController {
     private var cancellables: Set<AnyCancellable> = []
 
     public init(store: LimitsStore, clock: PanelClock, onExpandedChange: @escaping (Bool) -> Void,
-                onSettings: @escaping () -> Void) {
+                onSettings: @escaping () -> Void, onWorkspaces: (() -> Void)? = nil) {
         self.store = store
         self.clock = clock
         self.onExpandedChange = onExpandedChange
         self.onSettings = onSettings
+        self.onWorkspaces = onWorkspaces
         self.frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: 200,
                                            placement: store.settings.earsPlacement)
         panel = BrowPanel(contentRect: frames.expanded,
@@ -185,6 +189,9 @@ public final class NotchPanelController {
 
     private func mouseMoved() {
         let point = NSEvent.mouseLocation
+        // After the Workspaces button the notch stays shut until the pointer has left
+        // the expanded panel's area once: the Workspaces panel opens right under it.
+        guard latch.allowsHover(pointerInExpandedArea: frames.expanded.contains(point)) else { return }
         // With the readouts hidden there is nothing beside the notch to hover: the
         // pointer has to reach the notch itself.
         let collapsedHot = store.settings.showEars ? frames.collapsed : (frames.notch ?? frames.collapsed)
@@ -198,6 +205,15 @@ public final class NotchPanelController {
             collapseWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.collapseDelay, execute: work)
         }
+    }
+
+    /// The notch panel's Workspaces button: the notch closes at once and stays closed
+    /// until the pointer has left it (the latch), and the Workspaces panel opens.
+    private func openWorkspaces() {
+        latch.engage()
+        collapseWork?.cancel(); collapseWork = nil
+        setExpanded(false)
+        onWorkspaces?()
     }
 
     /// A screen point in the hosting view's space — the `.global` space SwiftUI's
@@ -241,7 +257,8 @@ public final class NotchPanelController {
                                   // external display's frame carries none.
                                   flare: frames.flare, drawsBackground: false, hover: hover,
                                   onSettings: onSettings,
-                                  onRefresh: { [store] in Task { await store.refresh(force: true) } })
+                                  onRefresh: { [store] in Task { await store.refresh(force: true) } },
+                                  onWorkspaces: onWorkspaces == nil ? nil : { [weak self] in self?.openWorkspaces() })
             // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
             // concave corners in those 6 pt, and the visible black still starts at
             // the notch edge.

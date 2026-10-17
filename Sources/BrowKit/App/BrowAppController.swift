@@ -130,7 +130,8 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             .store(in: &cancellables)
         self.panel = NotchPanelController(store: store, clock: clock,
                                           onExpandedChange: { [weak self] in self?.triggers.setExpanded($0) },
-                                          onSettings: { [weak self] in self?.showSettings() })
+                                          onSettings: { [weak self] in self?.showSettings() },
+                                          onWorkspaces: { [weak self] in self?.workspaces?.togglePanel() })
         self.panel.show()
         BrowLog.panel.info("panel shown")
         // After the notch is up, like everything that may touch the disk.
@@ -229,6 +230,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettingsMenuItem(_:)), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        let showWorkspaces = NSMenuItem(title: "Show Workspaces", action: #selector(showWorkspacesMenuItem(_:)), keyEquivalent: "")
+        showWorkspaces.target = self
+        appMenu.addItem(showWorkspaces)
         appMenu.addItem(.separator())
         // nil target: the action walks the responder chain up to NSApp, which
         // implements `terminate:` — the same exit Grove's footer button takes.
@@ -263,6 +267,24 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     }
 
     @objc private func openSettingsMenuItem(_ sender: Any?) { showSettings() }
+    @objc private func showWorkspacesMenuItem(_ sender: Any?) { workspaces?.showPanel() }
+
+    /// What opening Brow again (Finder, Spotlight, `open -a Brow`) shows: the Workspaces
+    /// panel while Workspaces is wanted — the way in when macOS hides the menu-bar item
+    /// behind the notch — and Settings otherwise. It used to do nothing.
+    enum ReopenTarget: Equatable { case workspaces, settings }
+
+    static func reopenTarget(for activation: WorkspacesActivation) -> ReopenTarget {
+        activation.isWanted ? .workspaces : .settings
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        switch Self.reopenTarget(for: workspaces?.activation ?? .off) {
+        case .workspaces: workspaces?.showPanel()
+        case .settings: showSettings()
+        }
+        return true
+    }
 
     func showSettings() {
         // `Cmd-,` is live from the moment the menu is installed, which is before

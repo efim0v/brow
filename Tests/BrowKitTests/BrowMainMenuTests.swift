@@ -26,6 +26,20 @@ final class BrowMainMenuTests: XCTestCase {
         XCTAssertNil(quit.target, "nil target so the action reaches NSApp through the responder chain")
     }
 
+    /// The way into Workspaces from Settings' menu, whatever the menu bar shows.
+    func testMainMenuCarriesShowWorkspaces() throws {
+        let item = try XCTUnwrap(appMenu().items.first { $0.title == "Show Workspaces" })
+        XCTAssertTrue(item.target is BrowAppController)
+        XCTAssertNotNil(item.action)
+    }
+
+    /// Opening Brow again shows Workspaces while it is wanted, Settings otherwise.
+    func testReopeningShowsWorkspacesOnlyWhileItIsWanted() {
+        XCTAssertEqual(BrowAppController.reopenTarget(for: .on), .workspaces)
+        XCTAssertEqual(BrowAppController.reopenTarget(for: .paused), .workspaces)
+        XCTAssertEqual(BrowAppController.reopenTarget(for: .off), .settings)
+    }
+
     func testMainMenuCarriesSettingsOnCommandComma() throws {
         let settings = try XCTUnwrap(appMenu().items.first { $0.title == "Settings…" })
         XCTAssertEqual(settings.keyEquivalent, ",")

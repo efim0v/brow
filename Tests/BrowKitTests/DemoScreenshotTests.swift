@@ -4,22 +4,27 @@
 import AppKit
 import SwiftUI
 import XCTest
+import GroveAppKit
 import GroveCore
 @testable import BrowKit
 
 /// README screenshots for Brow, rendered from FICTIONAL accounts. Nothing real is read:
-/// the accounts live in a throw-away `$HOME` stand-in, the "Keychain" is a canned
-/// reader, the app-support directory is a temp dir, and no refresh cycle ever runs
-/// (no network, no `claude`).
+/// the accounts are handed to the store as a scan would find them, in a home folder that
+/// does not exist, the "Keychain" is a canned reader, the app-support directory is a
+/// temp dir, and no refresh cycle ever runs (no network, no `claude`).
 ///
 /// Skipped unless `DEMO_SCREENSHOTS_DIR` is set:
 ///
 ///     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
 ///
+/// With `BROW_REVIEW_DIR` set as well, Settings' General and About tabs go there, for
+/// review only: outside an app bundle General says the browser router is missing and
+/// About shows a generic icon, neither of which the app does.
+///
 /// The notch and the panel are the real `EarsView` / `PanelView` through ImageRenderer;
 /// the strip of "desktop" behind them is a stand-in. Settings is the real `SettingsView`
 /// in an offscreen window (its `TabView`/`Form` are AppKit-backed and do not survive
-/// ImageRenderer).
+/// ImageRenderer), one image per tab, with Workspaces hosted on a fixture state.
 final class DemoScreenshotTests: XCTestCase {
 
     func testRenderBrowDemoScreenshots() async throws {
@@ -31,9 +36,10 @@ final class DemoScreenshotTests: XCTestCase {
 
     // MARK: - Fixture
 
-    /// Short and absolute on purpose: Settings prints each account's folder and launch
-    /// command, and a real one reads `/Users/<you>/.claude-accounts/<name>`.
-    private static let demoHome = "/tmp/brow-demo-home"
+    /// Settings prints each account's folder and launch command, so the demo accounts
+    /// live in a home that reads like one. Nothing exists there, and nothing is read
+    /// from it or written to it.
+    private static let demoHome = "/Users/demo"
 
     private struct DemoAccount {
         let folder: String, org: String, email: String, tier: String, name: String
@@ -82,27 +88,22 @@ final class DemoScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    private func makeStore(now: Date, appDir: String) async throws -> LimitsStore {
-        let fm = FileManager.default
-        let home = Self.demoHome
-        try? fm.removeItem(atPath: home)
+    private func makeStore(now: Date, appDir: String) throws -> LimitsStore {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
 
+        var discovered: [DiscoveredAccount] = []
         var expiries: [String: Date] = [:]
         var snapshots: [String: LimitSnapshot] = [:]
         var subscriptions: [String: SubscriptionInfo] = [:]
         var settings = BrowSettings()
         for account in Self.accounts {
-            let dir = home + "/" + account.folder
-            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            // The default account keeps `.claude.json` in $HOME, the others in their dir.
-            let json = try JSONSerialization.data(withJSONObject: ["oauthAccount": [
-                "organizationUuid": account.org, "emailAddress": account.email,
-                "organizationRateLimitTier": account.tier]])
-            let identity = account.folder == ".claude" ? home + "/.claude.json" : dir + "/.claude.json"
-            try json.write(to: URL(fileURLWithPath: identity))
-            expiries[dir] = now.addingTimeInterval(account.tokenHours * 3600)
+            let dir = Self.demoHome + "/" + account.folder
+            let expiry = now.addingTimeInterval(account.tokenHours * 3600)
+            expiries[dir] = expiry
+            discovered.append(DiscoveredAccount(organizationUuid: account.org, email: account.email,
+                                                tier: account.tier, configDir: dir, aliasDirs: [],
+                                                tokenExpiresAt: expiry))
 
             func window(_ used: Double, in seconds: Double) -> CapturedWindow {
                 // Resets land on the hour, as the real ones do.
@@ -134,16 +135,50 @@ final class DemoScreenshotTests: XCTestCase {
         let client = OAuthUsageClient(fetcher: NoNetwork(), userAgent: nil, credentials: credentials)
         let keeper = TokenKeeper(runner: NoCommands(), credentials: credentials, claudePath: "claude",
                                  allowPromptFallback: { false }, now: { now })
-        let store = LimitsStore(deps: .init(directory: AccountDirectory(home: home, credentials: credentials),
+        let store = LimitsStore(deps: .init(directory: AccountDirectory(home: Self.demoHome, credentials: credentials),
                                             keeper: keeper, client: client,
                                             snapshotStore: LimitSnapshotStore(directory: appDir),
                                             settingsStore: BrowSettingsStore(directory: appDir),
                                             now: { now }))
-        // Account discovery only (fake home, canned credentials). `refresh` is never called.
-        await store.bootstrap()
+        // The accounts as a scan would hand them over, without one. `refresh` is never called.
+        store.preview(accounts: discovered)
         store.setClaudeDetection(.found("/opt/homebrew/bin/claude"))
         XCTAssertEqual(store.rows.map(\.name).sorted(), Self.accounts.map(\.name).sorted())
         return store
+    }
+
+    /// Workspaces on a fixture: two projects, the three demo accounts (two of them sharing
+    /// sessions, two capturing their status line), each account's Claude Code retention.
+    /// A temp config file, so every folder the state could write is beside it.
+    @MainActor
+    private func makeWorkspaces(store: LimitsStore, appDir: String) -> WorkspacesHost {
+        let config = URL(fileURLWithPath: appDir).appendingPathComponent("grove/config.json")
+        let state = AppState(configStore: ConfigStore(url: config))
+        let home = Self.demoHome
+        state.config = GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [ProjectConfig(name: "acme-shop", path: "/Users/demo/Code/acme-shop", defaultAccount: "work"),
+                       ProjectConfig(name: "field-notes", path: "/Users/demo/Code/field-notes")],
+            accounts: [
+                AccountConfig(name: "alex@example.com", configDir: home + "/.claude-accounts/personal",
+                              monitoring: true, defaultModel: "sonnet"),
+                AccountConfig(name: "alex.morgan@example.com", configDir: home + "/.claude-accounts/work",
+                              sharedStore: true, monitoring: true, defaultModel: "opus", defaultEffort: "high"),
+                AccountConfig(name: "platform-team@example.com", configDir: home + "/.claude-accounts/team",
+                              sharedStore: true),
+            ],
+            transcriptMirror: TranscriptMirrorSettings(enabled: true, maxDays: 30, maxMB: 500))
+        state.transcriptRetention = [
+            "alex@example.com": .init(days: 30, source: .claudeDefault),
+            "alex.morgan@example.com": .init(days: 14, source: .managedFile),
+            "platform-team@example.com": .init(days: 7, source: .accountSettings),
+        ]
+        state.limitsProvider = store
+        let host = WorkspacesHost(store: store, folders: state.folders,
+                                  groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
+                                  groveConfigExists: { false }, groveDefaults: { nil })
+        host.preview(state: state, activation: .on)
+        return host
     }
 
     // MARK: - Scenes
@@ -153,12 +188,9 @@ final class DemoScreenshotTests: XCTestCase {
         let fm = FileManager.default
         try fm.createDirectory(at: out, withIntermediateDirectories: true)
         let appDir = fm.temporaryDirectory.appendingPathComponent("brow-demo-\(UUID().uuidString)").path
-        defer {
-            try? fm.removeItem(atPath: appDir)
-            try? fm.removeItem(atPath: Self.demoHome)
-        }
+        defer { try? fm.removeItem(atPath: appDir) }
         let now = Date()
-        let store = try await makeStore(now: now, appDir: appDir)
+        let store = try makeStore(now: now, appDir: appDir)
         let clock = PanelClock(now: { now })
 
         // A 14" MacBook Pro: 1512 x 982 pt, a 185 pt notch, 32 pt tall.
@@ -178,11 +210,12 @@ final class DemoScreenshotTests: XCTestCase {
                                                                : "brow-notch-collapsed-below.png"))
         }
 
-        // (2) + (3) Expanded: without the calendar, then the default panel with it.
+        // (2) + (3) Expanded: without the calendar, then the default panel with it. The
+        // footer carries the Workspaces button, as it does in the app.
         let frames = NotchGeometry.frames(for: screen, expandedHeight: 200, placement: .beside)
         func panel() -> some View {
             PanelView(store: store, clock: clock, topInset: frames.contentTopInset, flare: frames.flare,
-                      onSettings: {}, onRefresh: {})
+                      onSettings: {}, onRefresh: {}, onWorkspaces: {})
                 .frame(width: frames.expanded.width)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -193,11 +226,52 @@ final class DemoScreenshotTests: XCTestCase {
         try renderOnDesktop(panel(), canvas: CGSize(width: 640, height: 0),
                             to: out.appendingPathComponent("brow-panel-reset-calendar.png"))
 
-        // (4) Settings › Accounts: the add-account row and every account card.
+        // (4) The Workspaces item in the menu bar: Brow's mark, as a template image tinted
+        // by the bar.
+        try renderOnDesktop(menuBarItem(), canvas: CGSize(width: 320, height: 60),
+                            to: out.appendingPathComponent("brow-menu-bar-item.png"))
+
+        // (5) Settings: Accounts, where each card carries its Workspaces section, and
+        // Workspaces. General and About only for review (see the type's comment).
         let flow = AddAccountFlow(store: store, home: Self.demoHome)
-        try renderInWindow(SettingsView(store: store, addFlow: flow, drafts: SettingsDrafts()),
-                           title: "Brow Settings",
-                           to: out.appendingPathComponent("brow-settings-accounts.png"))
+        let workspaces = makeWorkspaces(store: store, appDir: appDir)
+        let navigation = SettingsNavigation()
+        var panes: [(SettingsPane, URL)] = [(.accounts, out.appendingPathComponent("brow-settings-accounts.png")),
+                                            (.workspaces, out.appendingPathComponent("brow-settings-workspaces.png"))]
+        if let review = ProcessInfo.processInfo.environment["BROW_REVIEW_DIR"], !review.isEmpty {
+            let reviewDir = URL(fileURLWithPath: review, isDirectory: true)
+            try fm.createDirectory(at: reviewDir, withIntermediateDirectories: true)
+            panes += [(.general, reviewDir.appendingPathComponent("brow-settings-general.png")),
+                      (.about, reviewDir.appendingPathComponent("brow-settings-about.png"))]
+        }
+        for (pane, url) in panes {
+            navigation.pane = pane
+            try renderInWindow(SettingsView(store: store, addFlow: flow, drafts: SettingsDrafts(),
+                                            workspaces: workspaces, navigation: navigation),
+                               title: "Brow Settings", to: url)
+        }
+
+        // (6) What the Workspaces panel says when it is not running its projects.
+        try renderWindowContent(WorkspacesNoticeView(notice: workspaces.groveRunningNotice),
+                                to: out.appendingPathComponent("workspaces-paused.png"))
+        try renderWindowContent(WorkspacesNoticeView(notice: workspaces.introductionNotice),
+                                to: out.appendingPathComponent("workspaces-introduction.png"))
+    }
+
+    /// A strip of menu bar with Brow's item among two stand-ins, the way the bar tints a
+    /// template image: white on a dark bar.
+    @MainActor
+    private func menuBarItem() -> some View {
+        let mark = BrowMark.templateImage(width: 22)
+        return HStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "wifi").foregroundStyle(.white)
+            Image(nsImage: mark).renderingMode(.template).foregroundStyle(.white)
+            Image(systemName: "battery.75percent").foregroundStyle(.white)
+            Text("Fri 17 Oct  09:41").font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+        }
+        .padding(.horizontal, 14)
+        .frame(width: 320, height: 33)
     }
 
     // MARK: - Rendering
@@ -233,6 +307,29 @@ final class DemoScreenshotTests: XCTestCase {
     /// ImageRenderer cannot draw.
     @MainActor
     private func renderInWindow<V: View>(_ view: V, title: String, to url: URL) throws {
+        let (window, host) = offscreenWindow(view, title: title)
+        // The form's own scroll document, at its FULL height: every account card in one
+        // image, rather than the height the window shows at a time. The tab strip above
+        // it is Liquid Glass, which `cacheDisplay` cannot draw, so it is left out.
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            (view as? NSScrollView).map { [$0] } ?? [] + view.subviews.flatMap(scrollViews)
+        }
+        let scroll = try XCTUnwrap(scrollViews(in: host).max { $0.frame.height < $1.frame.height },
+                                   "no scroll view in the settings form")
+        let target = try XCTUnwrap(scroll.documentView)
+        try snapshot(target, in: window, to: url)
+    }
+
+    /// A plain view (no scroll view) in an offscreen window, drawn @2x on the window's
+    /// background — real buttons and all.
+    @MainActor
+    private func renderWindowContent<V: View>(_ view: V, to url: URL) throws {
+        let (window, host) = offscreenWindow(view.padding(10), title: "")
+        try snapshot(host, in: window, to: url)
+    }
+
+    @MainActor
+    private func offscreenWindow<V: View>(_ view: V, title: String) -> (NSWindow, NSView) {
         _ = NSApplication.shared
         let host = NSHostingView(rootView: view)
         let size = host.fittingSize
@@ -250,23 +347,18 @@ final class DemoScreenshotTests: XCTestCase {
         // Let SwiftUI finish its first layout passes.
         RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         window.displayIfNeeded()
+        return (window, host)
+    }
 
-        // The form's own scroll document, at its FULL height: every account card in one
-        // image, rather than the 420 pt the window shows at a time. The tab strip above
-        // it is Liquid Glass, which `cacheDisplay` cannot draw, so it is left out.
-        func scrollViews(in view: NSView) -> [NSScrollView] {
-            (view as? NSScrollView).map { [$0] } ?? [] + view.subviews.flatMap(scrollViews)
-        }
-        let scroll = try XCTUnwrap(scrollViews(in: host).max { $0.frame.height < $1.frame.height },
-                                   "no scroll view in the settings form")
-        let target = try XCTUnwrap(scroll.documentView)
+    @MainActor
+    private func snapshot(_ target: NSView, in window: NSWindow, to url: URL) throws {
         let bounds = target.bounds
         let rep = try XCTUnwrap(NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(bounds.width * 2), pixelsHigh: Int(bounds.height * 2),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
         rep.size = bounds.size
-        // The window's own background, which the document view does not paint.
+        // The window's own background, which the views do not paint.
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         window.effectiveAppearance.performAsCurrentDrawingAppearance {

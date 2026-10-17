@@ -7,7 +7,7 @@ import XCTest
 import GroveCore
 @testable import GroveAppKit
 
-/// README screenshots for Grove, rendered offscreen from a FICTIONAL project
+/// README screenshots of Workspaces, rendered offscreen from a FICTIONAL project
 /// ("acme-shop") — no git, no disk scan, no real config, nothing from `~/.claude`.
 ///
 /// Skipped unless `DEMO_SCREENSHOTS_DIR` is set, so a plain `swift test` never
@@ -15,12 +15,13 @@ import GroveCore
 ///
 ///     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
 ///
-/// Same ImageRenderer path (and the same caveats) as `GroveApp --snapshot`, see
-/// docs/snapshot-testing.md: no Liquid Glass, a stand-in gradient for the desktop.
+/// Same ImageRenderer path (and the same caveats) as `BrowApp --snapshot`, see
+/// docs/snapshot-testing.md: no Liquid Glass, a stand-in gradient for the desktop. The
+/// launch sheet, whose pickers are AppKit-backed, is drawn in an offscreen window.
 final class DemoScreenshotTests: XCTestCase {
 
     /// Plain (not `@MainActor`) so it is called synchronously on the main thread, the
-    /// way `GroveApp --snapshot` renders.
+    /// way `BrowApp --snapshot` renders.
     func testRenderGroveDemoScreenshots() throws {
         guard let dir = ProcessInfo.processInfo.environment["DEMO_SCREENSHOTS_DIR"], !dir.isEmpty else {
             throw XCTSkip("set DEMO_SCREENSHOTS_DIR to render the README screenshots")
@@ -41,42 +42,86 @@ final class DemoScreenshotTests: XCTestCase {
 
         // (1) Main panel: the project list with each project's recent sessions.
         try render(RootView(state: state { s, _ in s.route = .projects }),
-                   width: 460, to: out.appendingPathComponent("grove-projects.png"))
+                   width: 460, to: out.appendingPathComponent("workspaces-projects.png"))
 
         // (1b) A project's workspaces, one expanded (repos, sessions, actions).
         try render(RootView(state: state { s, id in s.route = .project(id) })
                     .environment(\.snapshotExpandedWorkspaces, ["checkout-redesign"]),
-                   width: 600, to: out.appendingPathComponent("grove-workspaces.png"))
+                   width: 600, to: out.appendingPathComponent("workspaces-project.png"))
 
         // (2) Branch graph.
         try render(RootView(state: state { s, id in s.selectedTab = .graph; s.route = .project(id) }),
-                   width: 600, to: out.appendingPathComponent("grove-branch-graph.png"))
+                   width: 600, to: out.appendingPathComponent("workspaces-graph.png"))
 
         // (3) Code statistics.
         let statsState = state { s, id in s.selectedTab = .stats; s.route = .project(id) }
         try render(RootView(state: statsState), width: 600,
-                   to: out.appendingPathComponent("grove-code-stats.png"), settling: statsState)
+                   to: out.appendingPathComponent("workspaces-stats.png"), settling: statsState)
 
         // (4) Workspace creation form.
         try render(RootView(state: state { s, id in
                         s.createPrefill = CreatePrefill(name: "loyalty-points")
                         s.route = .createWorkspace(id)
                     }),
-                   width: 540, to: out.appendingPathComponent("grove-new-workspace.png"))
+                   width: 540, to: out.appendingPathComponent("workspaces-new.png"))
 
         // (5) Sessions across accounts: the Claude tab (every row carries the
         // migrate-to-account control) and the Accounts screen.
         try render(RootView(state: state { s, id in s.selectedTab = .sessions; s.route = .project(id) }),
-                   width: 600, to: out.appendingPathComponent("grove-sessions.png"))
+                   width: 600, to: out.appendingPathComponent("workspaces-sessions.png"))
         try render(AccountsScreen(state: state { s, _ in s.route = .accounts }).tint(Palette.primary),
-                   width: 560, to: out.appendingPathComponent("grove-accounts.png"))
+                   width: 560, to: out.appendingPathComponent("workspaces-accounts.png"))
 
         // (6) Project settings. Rendered as the screen itself, not through RootView:
         // RootView pins this route to 560 pt and scrolls, and a ScrollView does not
         // render offscreen.
         try render(ProjectSettingsScreen(state: state { s, id in s.route = .projectSettings(id) },
                                          projectID: DemoFixture.shopID).tint(Palette.primary),
-                   width: 560, to: out.appendingPathComponent("grove-project-settings.png"))
+                   width: 560, to: out.appendingPathComponent("workspaces-project-settings.png"))
+
+        // (7) The launch sheet: the account picker carries each account's limits.
+        let launch = state { s, _ in
+            s.beginNew(cwd: DemoFixture.workspacesRoot + "/checkout-redesign", title: "checkout-redesign",
+                       account: s.config.accounts[1])
+        }
+        try renderInWindow(LaunchConfigSheet(state: launch, request: try XCTUnwrap(launch.launchRequest)),
+                           to: out.appendingPathComponent("workspaces-launch-sheet.png"))
+    }
+
+    /// The view in a real window, ordered in far off-screen and never activated, drawn
+    /// @2x: menu pickers and switches are AppKit-backed and only draw there.
+    @MainActor
+    private func renderInWindow<V: View>(_ view: V, to url: URL) throws {
+        _ = NSApplication.shared
+        let host = NSHostingView(rootView: view.tint(Palette.primary))
+        let size = host.fittingSize
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = host
+        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
+        window.orderFrontRegardless()
+        window.layoutIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        window.displayIfNeeded()
+        let rep = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        rep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        window.effectiveAppearance.performAsCurrentDrawingAppearance {
+            NSColor.windowBackgroundColor.setFill()
+            NSRect(origin: .zero, size: size).fill()
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        host.cacheDisplay(in: host.bounds, to: rep)
+        window.close()
+        let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        try data.write(to: url)
+        print("demo screenshot: \(url.path) \(rep.pixelsWide)x\(rep.pixelsHigh)")
     }
 
     /// The view at `width` and its own natural height, @2x, on the stand-in backdrop,
@@ -117,6 +162,19 @@ final class DemoScreenshotTests: XCTestCase {
         let data = try XCTUnwrap(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]))
         try data.write(to: url)
         print("demo screenshot: \(url.path) \(image.width)x\(image.height)")
+    }
+}
+
+/// Each demo account's 5-hour and weekly use, as Brow's notch would report it.
+@MainActor
+final class DemoLimits: AccountLimitsProviding {
+    static let shared = DemoLimits()
+    func limits(forConfigDirs dirs: [String]) -> AccountLimits? {
+        guard let dir = dirs.first else { return nil }
+        if dir.hasSuffix("/.claude-accounts/work") { return AccountLimits(fiveHour: 64, weekly: 41, stale: false) }
+        if dir.hasSuffix("/.claude-accounts/team") { return AccountLimits(fiveHour: 22, weekly: 78, stale: false) }
+        if dir.hasSuffix("/.claude") { return AccountLimits(fiveHour: 8, weekly: 19, stale: false) }
+        return nil
     }
 }
 
@@ -171,6 +229,8 @@ enum DemoFixture {
         state.snapshots = [shopID: shopSnapshot(project: shop, now: now),
                            notesID: notesSnapshot(project: notes, now: now)]
         state.selectedProjectID = shopID
+        // What the notch would say about each account, for the pickers and the cards.
+        state.limitsProvider = DemoLimits.shared
         state.branchesByRepo = [
             projectPath + "/admin-panel": ["feat/search-v2", "main"],
             projectPath + "/api-server": ["develop", "feat/checkout-redesign", "feat/search-v2",

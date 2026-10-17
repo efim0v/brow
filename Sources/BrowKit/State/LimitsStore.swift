@@ -730,6 +730,10 @@ public final class LimitsStore: ObservableObject {
         recompute()
     }
 
+    /// Offscreen renders only: the accounts a scan would have found, applied as a
+    /// scan's are, with no Keychain and no disk.
+    func preview(accounts: [DiscoveredAccount]) { applyScan(accounts) }
+
     /// The user pressed the key: read this account's items WITH the Keychain dialog
     /// allowed — "Always Allow" there is what makes every later cycle silent — then
     /// refresh so the grant shows at once. Off the main actor: the dialog is modal

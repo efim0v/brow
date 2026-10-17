@@ -216,8 +216,9 @@ public final class WorkspacesHost: ObservableObject {
     public func hidePanel() { controller?.hide() }
 
     // MARK: - Notices
+    // Internal, not private: the README's screenshots render them.
 
-    private var groveRunningNotice: WorkspacesNotice {
+    var groveRunningNotice: WorkspacesNotice {
         WorkspacesNotice(
             symbol: "pause.circle",
             title: "Grove is still running",
@@ -225,7 +226,7 @@ public final class WorkspacesHost: ObservableObject {
             primary: .init("Quit Grove") { [weak self] in self?.quitGrove() })
     }
 
-    private var introductionNotice: WorkspacesNotice {
+    var introductionNotice: WorkspacesNotice {
         WorkspacesNotice(
             symbol: "square.stack.3d.up",
             title: "Workspaces",

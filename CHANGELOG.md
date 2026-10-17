@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md).
+
+### Added
+
+- **Workspaces**, in the menu bar: Grove's panel — projects, workspaces, sessions, Resume as…, Migrate to…, Share, the commit graph and the code statistics — on Liquid Glass, behind Brow's mark, the notch with two dots. It is off until you use it: for someone who never used Grove nothing of it runs, and nothing is read or written for it. It turns on by itself for someone who did, with their projects, accounts and settings ([what changes](README.md#coming-from-grove)).
+- While Grove.app is running, Workspaces waits and offers Quit Grove, so the two never write the same files.
+- The notch panel gets a Workspaces button, which also opens Workspaces when macOS hides the menu-bar item behind the notch. Opening Brow again from Finder or Spotlight shows Workspaces while it is on, and Settings otherwise. Brow's menu gets Show Workspaces.
+- Every account picker in Workspaces — the launch sheet, Resume as…, Migrate to…, the Accounts screen — shows that account's 5-hour and weekly use as the notch reads it.
+- One Settings window with four tabs. General gains Show Workspaces in the menu bar. Each card in Accounts gains a Workspaces section: Share sessions, Capture the status line, and the account's default model and effort; a Workspaces account with no card of its own, such as a second folder of the same login, gets a section after the cards. Workspaces holds the projects, the workspace folder, the transcript safety net and the panel material. About has the version, the licence and the credits.
+- The command-line tool is `brow`, with `grove` as a second name, so scripts written for Grove's tool keep working unchanged. `brow --version` prints Brow's version. It ships as `brow-cli.zip`.
+- The model pickers offer Claude Code's aliases (`opus`, `sonnet`, `haiku`), pinned versions, and Other… for any model id.
+
+### Changed
+
+- Capturing an account's status line is a choice per account. Grove installed its wrapper into every account's `settings.json` at launch; Brow installs it only where you turn capture on, and keeps it where Grove already had it.
+- The transcript safety net is off for a setup Brow creates; a Grove setup keeps its setting.
+- Sessions Workspaces starts use Brow's own browser router and Settings → General → Path to claude.
+- Brow's settings decode field by field: a value that cannot be read costs that one setting instead of all of them, and the file as it was is kept as `config.json.bak` ([#7](https://github.com/efim0v/brow/issues/7)).
+- One log subsystem, `dev.artemefimov.brow`, for the whole app.
+
+### Fixed
+
+- The transcript safety net no longer brings back transcripts Claude Code's own retention deleted. It restored every mirrored transcript under 90 days old; it now reads `cleanupPeriodDays` from the account's settings, server-managed settings and your organization's managed settings, takes the shortest, and keeps or restores nothing past it ([efim0v/grove#6](https://github.com/efim0v/grove/issues/6)).
+- Opening Accounts no longer shows a red "unknown session store" banner for the folders Claude Code itself writes ([efim0v/grove#7](https://github.com/efim0v/grove/issues/7)).
+- Launch no longer re-creates an account folder you deleted ([efim0v/grove#12](https://github.com/efim0v/grove/issues/12)).
+- Reading a token through the `security` tool gives up after ten seconds, as it was meant to ([efim0v/grove#9](https://github.com/efim0v/grove/issues/9)).
+- The model pickers no longer miss new models ([efim0v/grove#10](https://github.com/efim0v/grove/issues/10)).
+- The launch-at-login toggle can no longer show on while it is off, and says when macOS is waiting for your approval ([#8](https://github.com/efim0v/brow/issues/8)).
+- The build has no compiler warnings again ([efim0v/grove#11](https://github.com/efim0v/grove/issues/11)).
+
 ## [0.3.1] - 2026-10-15
 
 ### Fixed

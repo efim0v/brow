@@ -1,4 +1,8 @@
-# Brow: behaviour in detail
+# The notch: behaviour in detail
+
+How the notch half of Brow works. Workspaces, the menu-bar half, is in
+[`workspaces.md`](workspaces.md); how the two fit together, in
+[`architecture.md`](architecture.md).
 
 - Accounts are discovered from `~/.claude` and `~/.claude-accounts/*`; dirs that
   belong to the same organisation are shown once.
@@ -40,6 +44,11 @@
   Claude Code as that account (`CLAUDE_CONFIG_DIR='…' claude`), sign in again, and
   open that account's browser profile. The launch command also sits in each
   account's Settings card.
+- The button with stacked squares in the panel's footer opens Workspaces: the
+  notch closes and stays closed until the pointer has left it, and the Workspaces
+  panel opens under its menu-bar item (or at the screen's top-right corner when
+  macOS hides the item behind the notch). While Workspaces is off it opens an
+  introduction, from which a project can be added.
 - The share button in the panel's footer copies "my week": a picture (1200 × 630,
   or 1080 × 1080 per Settings → General → Usage image) of the visible accounts'
   limits and when they reset: up to four accounts, with any more counted. A

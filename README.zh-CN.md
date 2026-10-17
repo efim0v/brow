@@ -153,10 +153,11 @@ Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打�
 从 0.4.0 起，Grove 的 Workspaces 引擎连同其历史成为 Brow 的一部分；[grove 仓库](https://github.com/efim0v/grove)会以只读形式保留，供旧版构建使用。
 
 - **你的配置原样迁移**。Brow 会找到 `~/Library/Application Support/Grove/config.json`，并开启 Workspaces，带上你的项目、账号、已捕获的状态栏和安全网设置。没有任何文件被移动：状态栏包装脚本仍在 `Grove/bin` 中，每个已捕获账号的 `settings.json` 都指向那里。
+- **刘海会读取每个账号，包括 Workspaces 的账号**。Grove 从不读取钥匙串，也不访问 Anthropic；刘海会这样做，对象是它找到的每个账号，包括 Workspaces 知道的那些。它从钥匙串读取账号的登录信息（如果 macOS 不让读取某个账号的钥匙串项目，该账号会显示一把橙色钥匙：点击它，然后选择**始终允许**），向 Anthropic 的用量接口查询限额，并用 `claude doctor` 让空闲账号的令牌保持有效。如果这样不行，它会改为运行一次单轮 `claude -p` 请求，这会消耗该账号少量限额，并开启它的 5 小时窗口；可在 Settings → Accounts → **Allow `claude -p` fallback** 中关闭。其余内容见 [Brow 会在你的 Mac 上做什么](#brow-会在你的-mac-上做什么)。
 - **先退出 Grove.app**。它运行期间，Workspaces 会等待，并提供 **Quit Grove**，以免两者同时写同一批文件。然后删除 `Grove.app`（或运行 `brew uninstall --cask grove`）；如果你把它加入过登录项，请在那里移除，并改为在 Brow 中开启 **Launch at login**。
 - **东西都去了哪里**。菜单栏里的树变成了 Brow 的标志：带两个点的刘海。面板的设置页移到了 **Settings → Workspaces**；添加账号、共享会话和捕获状态栏移到了 **Settings → Accounts**，在那里用 Brow 的一键 **Sign in…** 添加账号。各项目自己的设置仍在面板中。
 - **命令行工具现在叫 `brow`**。`brow-cli.zip` 安装 `brow`，并以 `grove` 作为第二个名字，所以你的脚本无需修改即可继续使用。如果你通过 Homebrew 安装过 Grove 的命令行工具，请在 `brew install efim0v/tap/brow-cli` 之前先运行 `brew uninstall grove-cli`：两者都会安装 `grove`。
-- **转录安全网不再自行恢复转录**。以前它会自行恢复任何不到 90 天的转录，包括被 Claude Code 自己的清理删除的转录。现在它不会保留超过 Claude Code 保留期限的转录，消失的转录会列在 Settings → Workspaces 中，并附有 **Restore** 按钮。
+- **转录安全网不再自行恢复转录**。以前它会自行恢复任何不到 90 天的转录，包括被 Claude Code 自己的清理删除的转录。现在它不会保留超过 Claude Code 保留期限的转录，消失的转录会列在 Settings → Workspaces 中，并附有 **Restore** 按钮。因此，Grove 过去反复恢复的、早于 `cleanupPeriodDays`（未设置时为 30 天）的转录，会在 Claude Code 下次清理时被删除，安全网也会删掉它们的副本。如果想保留较早的会话，请在迁移之前调高每个账号 `settings.json` 中的 `cleanupPeriodDays`。
 
 ## 常见问题
 

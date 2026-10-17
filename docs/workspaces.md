@@ -22,7 +22,7 @@ It opens from Brow's item in the menu bar (the notch with two dots) and from the
 
 Workspaces is off until you use it. While it is off nothing of it runs: no file is read or written for it and no Claude Code file is touched.
 
-- **Coming from Grove?** Brow finds Grove's `~/Library/Application Support/Grove/config.json` and turns Workspaces on by itself, with your projects, accounts and settings. While `Grove.app` is still running, Workspaces waits and offers **Quit Grove**: two copies of the engine would write the same files. Once Grove has quit you can delete it; take it out of **System Settings → General → Login Items** if you had added it there, and turn on **Launch at login** in Brow's Settings → General instead.
+- **Coming from Grove?** Brow finds Grove's `~/Library/Application Support/Grove/config.json` and turns Workspaces on by itself, with your projects, accounts and settings. While `Grove.app` is still running, Workspaces waits and offers **Quit Grove**: two copies of the engine would write the same files. Once Grove has quit you can delete it; take it out of **System Settings → General → Login Items** if you had added it there, and turn on **Launch at login** in Brow's Settings → General instead. Brow's notch then reads every account, Workspaces' included, which Grove never did, and Claude Code's clean-up removes the old transcripts Grove kept putting back: [Coming from Grove](../README.md#coming-from-grove) says what that means and how to keep them.
 - **New to it?** Open **Settings → Workspaces** and turn it on, or press the stacked-squares button in the notch panel and choose **Add project…**.
 
 <p align="center">

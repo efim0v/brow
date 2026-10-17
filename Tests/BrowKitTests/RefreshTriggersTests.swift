@@ -139,21 +139,24 @@ final class RefreshTriggersTests: XCTestCase {
     /// could not have worked, and counts a failure that walks the breaker up. `start()`
     /// therefore seeds the flag from the monitor synchronously.
     ///
-    /// The assertion is against the monitor's own answer rather than a constant: this
-    /// test cannot turn the machine's Wi-Fi off. On a networked machine the stale `false`
-    /// below is what the old code left behind, and the seeded `true` is the fix.
+    /// The monitor's answer is handed in: this test cannot turn the machine's Wi-Fi off,
+    /// and the real path, still being evaluated while `start()` reads it, could read
+    /// otherwise when the test looked again. Both answers, each against the opposite last
+    /// word: the old code left that stale value behind until the first callback.
     func testStartSeedsOnlineStateFromTheMonitorRatherThanLeavingAStaleValue() {
-        let store = makeStore()
-        let triggers = RefreshTriggers(store: store)
-        defer { triggers.stop() }
+        for monitorSays in [true, false] {
+            let store = makeStore()
+            let triggers = RefreshTriggers(store: store)
+            defer { triggers.stop() }
+            triggers.currentPathIsSatisfied = { _ in monitorSays }
 
-        triggers.pathChanged(satisfied: false)          // "the app was last told it is offline"
-        XCTAssertFalse(triggers.isOnline)
+            triggers.pathChanged(satisfied: !monitorSays)   // what the app was last told
+            XCTAssertEqual(triggers.isOnline, !monitorSays)
 
-        triggers.start()
-        let monitorSays = triggers.pathMonitor?.currentPath.status == .satisfied
-        XCTAssertEqual(triggers.isOnline, monitorSays,
-                       "start() must read the monitor, not wait for its first callback")
-        XCTAssertEqual(store.isOnline, monitorSays, "and push the same answer into the store")
+            triggers.start()
+            XCTAssertEqual(triggers.isOnline, monitorSays,
+                           "start() must read the monitor, not wait for its first callback")
+            XCTAssertEqual(store.isOnline, monitorSays, "and push the same answer into the store")
+        }
     }
 }

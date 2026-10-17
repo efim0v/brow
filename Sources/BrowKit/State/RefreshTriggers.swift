@@ -49,6 +49,11 @@ public final class RefreshTriggers {
     /// it to `TokenKeeper` — an actor that cannot look at the main-actor store.
     @Published public private(set) var isOnline = true
 
+    /// How `start()` reads the network at once, before the monitor's first callback: the
+    /// monitor's current path. A test hands in its own answer — that path is still being
+    /// evaluated at that moment, so reading it again a moment later can answer otherwise.
+    var currentPathIsSatisfied: (NWPathMonitor) -> Bool = { $0.currentPath.status == .satisfied }
+
     /// What `start()` has actually put in place. Each flag is one trigger.
     var installed: (timer: Bool, ticker: Bool, wake: Bool, path: Bool) {
         (timer != nil, ticker != nil, wakeObserver != nil, pathMonitor != nil)
@@ -95,7 +100,7 @@ public final class RefreshTriggers {
             // its 5-hour window for a refresh that could never have worked, and counts
             // a failure that walks the breaker up. `pathChanged` records before it acts
             // and is idempotent, so seeding it costs nothing when the path is fine.
-            pathChanged(satisfied: monitor.currentPath.status == .satisfied)
+            pathChanged(satisfied: currentPathIsSatisfied(monitor))
         }
         // Only on the call that armed the poll: `start()` is now safe to call twice
         // and must not spend a cycle for it.

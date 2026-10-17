@@ -32,7 +32,7 @@ dependencies the app deliberately avoids (it has none):
 | Excluded | Why | How it's validated instead |
 |----------|-----|----------------------------|
 | `GroveAppKit/Views/*`, `DesignSystem`, `GroveLog` | SwiftUI rendering + interactive `@State`/button closures | **Snapshot/render tests** (`SnapshotModeTests`, `DashboardRenderTests`, `ViewStatesRenderTests`) render every scene — both snapshot and live branches — and assert non-empty output, catching layout/render crashes. |
-| `WorkspacesMenuBarController`, `GroveMenuBarApp` | `NSStatusItem`/`NSPanel` bootstrap | Its anchor logic is unit-tested (`PanelAnchorTests`); the rest by running the app. |
+| `WorkspacesMenuBarController` | `NSStatusItem`/`NSPanel` bootstrap | Its anchor logic is unit-tested (`PanelAnchorTests`); the rest by running the app. |
 | `BrowKit/Views/*`, `BrowKit/Panel/*`, `BrowKit/App/*` | The notch window, SwiftUI views, the app delegate | Render and pixel tests (`PanelRefreshGateTests`, `EarsViewFillTests`, `PanelViewShapeTests`, `BrowMarkTests`), the host's own tests (`WorkspacesHostTests`), and the app. |
 | `Services/CmuxService`, `Services/CmuxAppleScript` | Drive the real cmux CLI / control socket / `osascript` + a live shell handshake | Their pure/parse logic IS unit-tested with a scripted runner (`CmuxServiceTests`, `CmuxAppleScriptBackendTests`); the real-socket/osascript paths are validated manually and via `Brow --cmux-probe`. |
 | `Diagnostics/CmuxProbe.swift` | A manual diagnostic that benchmarks the real cmux socket | Run by hand: `open -nW /Applications/Brow.app --args --cmux-probe <out>`. |

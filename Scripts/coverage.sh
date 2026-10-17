@@ -32,7 +32,7 @@ if [[ ! -f "$PROF" || ${#OBJECTS[@]} -eq 0 ]]; then
 fi
 
 # Excluded from the logic gate (validated by other means, not unit coverage).
-GATE_IGNORE='Tests|\.build|GroveAppKit/Views/|GroveMenuBarApp|WorkspacesMenuBarController|DesignSystem|GroveLog|Snapshot/SnapshotMode|Services/Cmux|Diagnostics/CmuxProbe|BrowKit/|BrowApp/|brow-cli/'
+GATE_IGNORE='Tests|\.build|GroveAppKit/Views/|WorkspacesMenuBarController|DesignSystem|GroveLog|Snapshot/SnapshotMode|Services/Cmux|Diagnostics/CmuxProbe|BrowKit/|BrowApp/|brow-cli/'
 # BrowKit's logic: its models and state, without the views, the notch window and the
 # app delegate (render tests and the app cover those).
 BROWKIT_IGNORE='Tests|\.build|GroveCore/|GroveAppKit/|BrowKit/Views/|BrowKit/Panel/|BrowKit/App/|BrowKit/BrowLog|BrowApp/|brow-cli/'

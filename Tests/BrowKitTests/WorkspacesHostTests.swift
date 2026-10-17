@@ -193,6 +193,62 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: folders.configFile.path))
     }
 
+    // MARK: - Another copy of Brow running Workspaces
+
+    /// The installed app and the development build, say: the first to run the engine
+    /// keeps it, the other waits, and starts when the first lets go.
+    func testAnotherCopyOfBrowRunningWorkspacesKeepsThisOnePaused() throws {
+        let other = WorkspacesEngineLock(folders: folders)
+        XCTAssertTrue(other.acquire(), "fixture: the other copy runs the engine")
+        let apps = RunningApps()
+        let host = makeWatchedHost(apps, store: try makeStore())
+        host.start()
+        XCTAssertEqual(host.activation, .paused)
+        XCTAssertEqual(host.pause, .anotherBrow)
+        XCTAssertFalse(host.isEngineRunning)
+
+        other.release()
+        apps.onChange?()   // the other copy quitting changes the running apps
+        XCTAssertEqual(host.activation, .on)
+        XCTAssertNil(host.pause)
+        XCTAssertTrue(host.isEngineRunning)
+        XCTAssertFalse(WorkspacesEngineLock(folders: folders).acquire(), "now this copy holds it")
+
+        host.setEnabled(false)
+        XCTAssertTrue(WorkspacesEngineLock(folders: folders).acquire(), "off, it lets go")
+    }
+
+    /// Grove.app pauses it for a reason of its own, and the copy that waits for Grove
+    /// holds no lock meanwhile.
+    func testWaitingForGroveHoldsNoLock() throws {
+        let host = makeHost(try makeStore(), groveConfig: true, groveRunning: true)
+        host.start()
+        XCTAssertEqual(host.pause, .groveRunning)
+        XCTAssertTrue(WorkspacesEngineLock(folders: folders).acquire())
+    }
+
+    /// With Workspaces off here and running in another copy, giving a status line back
+    /// waits: that engine writes the same config.
+    func testAStatusLineIsNotGivenBackUnderAnotherCopysEngine() throws {
+        let dir = try capturedAccount(original: "/bin/echo mine")
+        let before = try statusLine(dir)
+        let other = WorkspacesEngineLock(folders: folders)
+        XCTAssertTrue(other.acquire())
+        let host = makeHost(try makeStore(enabled: false), groveConfig: true, groveRunning: false)
+        host.start()
+        XCTAssertEqual(host.activation, .off)
+
+        host.releaseStatusLine(host.dormantCaptures[0])
+        XCTAssertEqual(try statusLine(dir), before, "left as it was")
+        XCTAssertEqual(host.captureError, WorkspacesHost.pausedCaptureNote(.anotherBrow))
+
+        other.release()
+        host.releaseStatusLine(host.dormantCaptures[0])
+        XCTAssertNil(host.captureError)
+        XCTAssertEqual(try statusLine(dir), "/bin/echo mine")
+        XCTAssertTrue(WorkspacesEngineLock(folders: folders).acquire(), "the write let go of the lock")
+    }
+
     func testStoppingReleasesTheWatch() throws {
         let apps = RunningApps()
         let host = makeWatchedHost(apps, store: try makeStore())
@@ -264,7 +320,9 @@ final class WorkspacesHostTests: XCTestCase {
     func testTheOffTextNamesTheCapturedStatusLines() {
         XCTAssertFalse(WorkspacesSettingsTab.explanation.contains("nothing is read or written"))
         XCTAssertTrue(WorkspacesSettingsTab.explanation.contains("until you turn capture off"))
-        XCTAssertTrue(DormantCaptureSwitch.explanation(paused: true).contains("Quit Grove"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(.groveRunning).contains("Quit Grove"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(.anotherBrow).contains("another copy of Brow"))
+        XCTAssertTrue(DormantCaptureSwitch.explanation(nil).contains("Workspaces is off"))
     }
 
     /// While Workspaces is on, the engine's state has the accounts.

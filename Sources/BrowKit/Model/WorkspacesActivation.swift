@@ -72,6 +72,15 @@ public enum WorkspacesActivation: Equatable, Sendable {
     public var isWanted: Bool { self != .off }
 }
 
+/// What a paused Workspaces waits for.
+public enum WorkspacesPause: Equatable, Sendable {
+    /// Grove.app to quit (`WorkspacesActivation.decide`).
+    case groveRunning
+    /// Another copy of Brow — a second install, the development build — runs Workspaces
+    /// on the same config (`WorkspacesEngineLock`).
+    case anotherBrow
+}
+
 /// Grove.app, the app Brow 0.4 replaces, as far as Brow needs to know about it.
 public struct GroveAppGuard: Sendable {
     /// `grove3` since the 26.4 menu-bar cache broke the slot of the older id.

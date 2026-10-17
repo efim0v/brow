@@ -53,7 +53,7 @@ struct WorkspacesSettingsTab: View {
             Text("Status lines still captured")
         } footer: {
             Text(host.activation == .paused
-                 ? "Quit Grove first: it writes the same settings."
+                 ? WorkspacesHost.pausedCaptureNote(host.pause)
                  : "Each of these accounts' status line goes through Brow's wrapper, which records each session for the notch, then runs your own command. Give them back to put your own commands in place.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -66,6 +66,14 @@ struct WorkspacesSettingsTab: View {
             Label("On — Brow's menu-bar item opens it, and so does the button in the notch panel.",
                   systemImage: "checkmark.circle.fill")
                 .font(.caption).foregroundStyle(.secondary)
+        case .paused where host.pause == .anotherBrow:
+            HStack {
+                Label("Paused: another copy of Brow is running Workspaces. It starts here when that copy quits.",
+                      systemImage: "pause.circle.fill")
+                    .font(.caption).foregroundStyle(.orange)
+                Spacer()
+                Button("Try Again") { host.refresh() }
+            }
         case .paused:
             HStack {
                 Label("Paused: Grove is still running. Workspaces starts when Grove quits.",

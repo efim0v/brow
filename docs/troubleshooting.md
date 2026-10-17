@@ -17,6 +17,15 @@ transcript safety net twice. Press **Quit Grove**, or quit it from its own panel
 starts Workspaces as soon as Grove has quit. If Grove starts at login, remove it from
 System Settings › General › Login Items.
 
+## Workspaces says it is open in another Brow
+
+Workspaces runs in one copy of Brow at a time: two would write the same `config.json`
+too. A second copy — another install of `Brow.app`, or the build `Scripts/dev-run.sh`
+starts — waits while the first runs Workspaces, and starts it when that copy quits or
+turns Workspaces off (press **Try Again** after the latter). The copy that runs it holds
+`~/Library/Application Support/Grove/workspaces.lock`; the lock goes away with its
+process, so there is nothing to delete by hand.
+
 ## "cmux unavailable" although cmux is running
 
 cmux's control socket only accepts clients whose process ancestry traces into

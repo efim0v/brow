@@ -7,7 +7,8 @@ import GroveAppKit
 import GroveCore
 
 /// Brow's side of Workspaces: whether the engine runs (`WorkspacesActivation`), the
-/// Grove-running guard, the menu-bar item and the panel. GroveAppKit never imports
+/// Grove-running guard, the lock that keeps the engine to one copy of Brow
+/// (`WorkspacesEngineLock`), the menu-bar item and the panel. GroveAppKit never imports
 /// BrowKit; this is where the two meet.
 ///
 /// Nothing of the engine exists until Workspaces is wanted: no `AppState`, so no
@@ -17,6 +18,8 @@ import GroveCore
 @MainActor
 public final class WorkspacesHost: ObservableObject {
     @Published public private(set) var activation: WorkspacesActivation = .off
+    /// What Workspaces waits for while it is paused; nil otherwise.
+    @Published public private(set) var pause: WorkspacesPause?
     /// The engine's state while Workspaces is wanted; nil while it is off.
     @Published public private(set) var state: AppState?
     /// Grove's accounts as its config has them, read without the engine while Workspaces
@@ -38,6 +41,9 @@ public final class WorkspacesHost: ObservableObject {
     private let groveConfigExists: () -> Bool
     private let groveDefaults: () -> UserDefaults?
     private let watchRunningApps: RunningAppsWatch
+    /// Held while this copy of Brow runs the engine; another copy that runs it first
+    /// keeps this one paused.
+    private let engineLock: WorkspacesEngineLock
     private var controller: WorkspacesMenuBarController?
     /// Keeps the running-apps watch alive while started.
     private var runningAppsWatch: AnyObject?
@@ -76,6 +82,7 @@ public final class WorkspacesHost: ObservableObject {
         self.groveConfigExists = groveConfigExists ?? { FileManager.default.fileExists(atPath: configPath) }
         self.groveDefaults = groveDefaults
         self.watchRunningApps = watchRunningApps ?? Self.watchWorkspaceApps
+        self.engineLock = WorkspacesEngineLock(folders: folders)
     }
 
     /// Decides once, then again whenever Grove.app launches or quits, or the settings
@@ -102,6 +109,7 @@ public final class WorkspacesHost: ObservableObject {
         cancellables.removeAll()
         controller?.stop()
         controller = nil
+        engineLock.release()
         started = false
     }
 
@@ -124,14 +132,22 @@ public final class WorkspacesHost: ObservableObject {
     }
 
     private func apply(workspaces settings: WorkspacesSettings) {
-        let next = WorkspacesActivation.decide(setting: settings.enabled,
+        var next = WorkspacesActivation.decide(setting: settings.enabled,
                                                groveConfigExists: groveConfigExists(),
                                                groveRunning: groveGuard.isGroveRunning)
+        var waitsFor: WorkspacesPause? = next == .paused ? .groveRunning : nil
+        // On in one copy of Brow at a time: the one holding the engine's lock.
+        if next == .on, !engineLock.acquire() {
+            next = .paused
+            waitsFor = .anotherBrow
+        }
+        if next != .on { engineLock.release() }
         let previous = activation
-        if next != previous {
-            BrowLog.workspaces.info("workspaces: \(String(describing: previous), privacy: .public) → \(String(describing: next), privacy: .public)")
+        if next != previous || waitsFor != pause {
+            BrowLog.workspaces.info("workspaces: \(String(describing: previous), privacy: .public) → \(String(describing: next), privacy: .public)\(waitsFor.map { " (\($0))" } ?? "", privacy: .public)")
         }
         activation = next
+        pause = waitsFor
         switch next {
         case .off:
             controller?.stop()
@@ -142,7 +158,7 @@ public final class WorkspacesHost: ObservableObject {
         case .paused:
             let controller = ensureController()
             controller.stopEngine()
-            controller.notice = groveRunningNotice
+            controller.notice = waitsFor == .anotherBrow ? anotherBrowNotice : groveRunningNotice
             controller.showsStatusItem = settings.showInMenuBar
             controller.start()
         case .on:
@@ -202,8 +218,14 @@ public final class WorkspacesHost: ObservableObject {
                 state.disableMonitoring(current)
             }
         case .paused:
-            captureError = "Quit Grove first: it writes the same settings."
+            captureError = Self.pausedCaptureNote(pause)
         case .off:
+            // Not under the feet of another copy of Brow whose engine runs on this config.
+            guard engineLock.acquire() else {
+                captureError = Self.pausedCaptureNote(.anotherBrow)
+                return
+            }
+            defer { engineLock.release() }
             let engine = AppState(folders: folders)
             engine.capturesByDefault = false
             engine.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
@@ -213,6 +235,13 @@ public final class WorkspacesHost: ObservableObject {
             }
             reloadDormantAccounts()
         }
+    }
+
+    /// Why a captured status line can't be given back while Workspaces is paused.
+    static func pausedCaptureNote(_ pause: WorkspacesPause?) -> String {
+        pause == .anotherBrow
+            ? "Another copy of Brow runs Workspaces: turn capture off there, or quit it first."
+            : "Quit Grove first: it writes the same settings."
     }
 
     /// Every captured status line back, as `releaseStatusLine` does one.
@@ -306,6 +335,9 @@ public final class WorkspacesHost: ObservableObject {
     /// The panel: Workspaces when it runs, the reason it is paused, or — while it is
     /// off — the introduction, from which a project can be added.
     public func showPanel() {
+        // What it waits for may have gone without a word: another copy of Brow turning
+        // Workspaces off quits no app.
+        refreshIfChanged()
         switch activation {
         case .on, .paused:
             ensureController().show()
@@ -333,6 +365,14 @@ public final class WorkspacesHost: ObservableObject {
             title: "Grove is still running",
             message: "Grove is now part of Brow, and Workspaces runs your Grove projects. It stays paused while Grove.app is open, so the two never edit the same files at once.",
             primary: .init("Quit Grove") { [weak self] in self?.quitGrove() })
+    }
+
+    var anotherBrowNotice: WorkspacesNotice {
+        WorkspacesNotice(
+            symbol: "pause.circle",
+            title: "Workspaces is open in another Brow",
+            message: "Another copy of Brow, a second install or a development build, is running Workspaces on the same projects. Workspaces runs in one copy at a time, so the two never edit the same files at once; it starts here when that copy quits.",
+            primary: .init("Try Again") { [weak self] in self?.refresh() })
     }
 
     var introductionNotice: WorkspacesNotice {

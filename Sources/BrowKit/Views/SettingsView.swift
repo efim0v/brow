@@ -384,7 +384,7 @@ private struct WorkspacesOtherAccounts: View {
 
 /// Capture the status line, for an account Workspaces captured while Workspaces is off
 /// or paused: on, and turning it off gives the account its own command back. Not while
-/// Grove.app runs, which writes the same files.
+/// Grove.app, or another copy of Brow running Workspaces, could write the same files.
 struct DormantCaptureSwitch: View {
     @ObservedObject var host: WorkspacesHost
     let account: AccountConfig
@@ -394,7 +394,7 @@ struct DormantCaptureSwitch: View {
             get: { true },
             set: { on in if !on { host.releaseStatusLine(account) } }))
             .disabled(host.activation == .paused)
-        Text(Self.explanation(paused: host.activation == .paused))
+        Text(Self.explanation(host.activation == .paused ? host.pause ?? .groveRunning : nil))
             .font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         if let error = host.captureError {
@@ -402,10 +402,16 @@ struct DormantCaptureSwitch: View {
         }
     }
 
-    static func explanation(paused: Bool) -> String {
-        paused
-            ? "Workspaces is paused while Grove runs, and this account's status line still goes through Brow's wrapper. Quit Grove to turn capture off here."
-            : "Workspaces is off, but this account's status line still goes through Brow's wrapper, which records each session for the notch and then runs your own command. Turn this off to put your command back."
+    /// `pause`: what a paused Workspaces waits for; nil while it is off.
+    static func explanation(_ pause: WorkspacesPause?) -> String {
+        switch pause {
+        case .groveRunning?:
+            return "Workspaces is paused while Grove runs, and this account's status line still goes through Brow's wrapper. Quit Grove to turn capture off here."
+        case .anotherBrow?:
+            return "Workspaces runs in another copy of Brow, and this account's status line still goes through Brow's wrapper. Turn capture off there, or quit that copy to turn it off here."
+        case nil:
+            return "Workspaces is off, but this account's status line still goes through Brow's wrapper, which records each session for the notch and then runs your own command. Turn this off to put your command back."
+        }
     }
 }
 

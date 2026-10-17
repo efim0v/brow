@@ -1367,7 +1367,8 @@ extension AppState {
     /// ran `disableMonitoring` are skipped (monitoringDisabledByUser=true), so the
     /// user's intent is respected across launches. Best-effort per account: an account
     /// whose install fails (a settings.json that doesn't parse, a lock that isn't
-    /// released) is logged and stays unmonitored, so the next launch tries again.
+    /// released) is logged and stays unmonitored, so the next launch tries again. An
+    /// account whose folder no longer exists is skipped, never re-created.
     /// File I/O runs off-main to keep launch responsive.
     public func reconcileMonitoring() {
         // Gather accounts needing install on the main actor, then do file I/O off-main.
@@ -1379,7 +1380,14 @@ extension AppState {
             var installed: [(name: String, savedStatusline: String?)] = []
             for account in toInstall {
                 let dir = expandTilde(account.configDir)
-                try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                // A folder that is gone stays gone (grove#12): creating it here left a lone
+                // settings.json that both apps' folder discovery then adopted as an account.
+                // The next launch tries again, should the folder come back.
+                var isDir: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else {
+                    GroveLog.menubar.info("statusline not installed for \(account.name, privacy: .public): its folder is gone")
+                    continue
+                }
                 let installer = StatuslineInstaller(scriptDir: scriptDir)
                 // `install` returns the ORIGINAL statusline command, nil when the
                 // account had none — `if let saved = try? …` read that nil as a failed

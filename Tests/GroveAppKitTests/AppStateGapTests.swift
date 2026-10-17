@@ -154,6 +154,30 @@ final class AppStateGapTests: XCTestCase {
             .contains("grove-statusline-") == true)
     }
 
+    /// grove#12: an account whose folder was deleted is not re-created by the launch
+    /// reconcile (it used to come back holding a lone settings.json, which folder
+    /// discovery then adopted), while the accounts that are there still get theirs.
+    func testReconcileMonitoringLeavesADeletedAccountFolderDeleted() async throws {
+        let s = state()
+        s.folders.bin = root.appendingPathComponent("reconcile-bin-gone").path
+        let gone = root.appendingPathComponent("recon-gone")
+        let here = root.appendingPathComponent("recon-here")
+        try FileManager.default.createDirectory(at: here, withIntermediateDirectories: true)
+        s.config.accounts = [AccountConfig(name: "gone", configDir: gone.path),
+                             AccountConfig(name: "here", configDir: here.path)]
+
+        s.reconcileMonitoring()
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            await Task.yield()
+            if s.config.accounts.first(where: { $0.name == "here" })?.monitoring == true { break }
+        }
+
+        XCTAssertEqual(s.config.accounts.first { $0.name == "here" }?.monitoring, true)
+        XCTAssertEqual(s.config.accounts.first { $0.name == "gone" }?.monitoring, false)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: gone.path), "the deleted folder stays deleted")
+    }
+
     /// The folders Brow's sign-in creates (`~/.claude-accounts/account-1`) join the
     /// list at launch, named by their email; a folder Grove already knows, or one
     /// nobody is signed in to, is left alone.

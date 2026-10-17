@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
 
 /// A previously-stat'd-and-classified file, keyed by absolute path in the caller's

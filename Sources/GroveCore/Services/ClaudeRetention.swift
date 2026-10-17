@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
 
 /// How long Claude Code keeps a session transcript: `cleanupPeriodDays`, read from

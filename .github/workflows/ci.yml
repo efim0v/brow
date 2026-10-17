@@ -55,3 +55,8 @@ jobs:
           Scripts/build-brow.sh
           codesign --verify --deep --strict --verbose=2 dist/Brow.app
           dist/brow --version
+
+      # Every .swift, .sh and .py file starts with the SPDX licence line and the
+      # copyright line.
+      - name: Licence headers
+        run: Scripts/check-headers.sh

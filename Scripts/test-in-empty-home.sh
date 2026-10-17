@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Runs `swift test` with the home folder pointed at a fresh, empty directory, then
 # fails if the suite left any app data behind in it.
 #

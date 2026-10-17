@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 public enum GroveError: Error, CustomStringConvertible {
     case processFailed(command: String, exitCode: Int32, stderr: String)
     case timeout(command: String)

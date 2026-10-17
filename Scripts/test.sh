@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Build the test bundles and run them with Xcode's `xctest` directly.
 #
 # Usage:

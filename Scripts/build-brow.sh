@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Builds the release: dist/Brow.app (the app) and dist/brow (the command-line tool).
 # Usage: Scripts/build-brow.sh [--launch]
 #

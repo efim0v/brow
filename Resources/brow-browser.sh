@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Brow's browser router. Point Claude Code at it (`BROWSER=<this file>`) and every
 # sign-in it opens lands in a Chrome profile dedicated to the account that asked:
 #

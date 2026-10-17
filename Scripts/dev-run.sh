@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Builds and runs the development binary of Brow under an identifier of its own.
 # Usage: Scripts/dev-run.sh [--release] [-- <args passed to Brow>]
 #

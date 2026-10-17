@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 
 /// The ONE SwiftUI root the menu-bar panel hosts: the projects section (`RootView`)

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import os
 
 /// Central os.Logger handles for Workspaces, under Brow's one subsystem. Stream with:

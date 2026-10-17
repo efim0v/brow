@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Measures test coverage and enforces the project's coverage policy (see COVERAGE.md).
 #
 # The GATE is the pure/mockable LOGIC layer of the Workspaces engine and the code the

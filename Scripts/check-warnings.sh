@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Builds every target and test target from scratch and fails on any compiler warning
 # that is not on the short list below.
 #

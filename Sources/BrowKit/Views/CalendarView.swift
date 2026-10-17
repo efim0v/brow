@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 
 /// The month under the accounts: a dot per weekly reset in the account's colour, a

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 
 /// Hide-on-scroll plumbing for the collapsible search row (ProjectScreen).

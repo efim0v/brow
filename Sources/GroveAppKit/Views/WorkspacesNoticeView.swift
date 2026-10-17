@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 
 /// What the Workspaces panel shows INSTEAD of the projects when the engine is not

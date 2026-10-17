@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 public enum TranscriptBadge: Equatable {
     case mirrored, restorable, unmirrored
     public static func state(liveExists: Bool, mirrored: Bool) -> TranscriptBadge {

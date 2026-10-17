@@ -1,4 +1,7 @@
 #!/bin/zsh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Packages a release from what Scripts/build-brow.sh built, and checks it the way a
 # user will get it. Uploads nothing: the tag (bare semver, `0.4.0`) and the GitHub
 # release are made by hand.

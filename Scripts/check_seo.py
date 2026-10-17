@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 """Check the SEO head of every page in site/ (stdlib only).
 
 Usage: python3 check_seo.py <site-dir> <base-url>

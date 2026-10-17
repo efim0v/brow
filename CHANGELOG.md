@@ -24,7 +24,7 @@ Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees
 
 ### Changed
 
-- Capturing an account's status line is a choice per account. Grove installed its wrapper into every account's `settings.json` at launch; Brow installs it only where you turn capture on, and keeps it where Grove already had it.
+- Capturing an account's status line is a choice per account. Grove installed its wrapper into every account's `settings.json` at launch; Brow installs it only where you turn capture on, and keeps it where Grove already had it. Claude Code keeps running the wrapper while Workspaces is off, so Settings → Accounts keeps the switch that gives the status line back, whether Workspaces is on or off.
 - The transcript safety net is off for a setup Brow creates; a Grove setup keeps its setting.
 - The transcript safety net no longer puts a transcript back by itself. The transcripts that vanish are listed in Settings → Workspaces, newest first, with Restore: a period passed to `claude --settings` cannot be read from outside, so only you can tell a transcript deleted by accident from one cleaned up on purpose.
 - Sessions Workspaces starts use Brow's own browser router and Settings → General → Path to claude.

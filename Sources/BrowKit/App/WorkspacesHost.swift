@@ -11,10 +11,13 @@ import GroveCore
 /// (`WorkspacesEngineLock`), the menu-bar item and the panel. GroveAppKit never imports
 /// BrowKit; this is where the two meet.
 ///
-/// Nothing of the engine exists until Workspaces is wanted: no `AppState`, so no
-/// read of Grove's config, no account adoption, no status-line reconcile, no timer.
-/// The one exception is the introduction the notch's Workspaces button shows while it
-/// is off — and even that reads nothing until the user adds a project.
+/// Nothing of the engine runs until Workspaces is wanted: no account adoption, no
+/// status-line reconcile, no timer. While it is off, Grove's config is still read for
+/// a status line Workspaces captured, which Claude Code keeps running through the
+/// wrapper (`dormantAccounts`), and changed only to give one back or to take out such
+/// an account whose folder is gone (`withoutEngine`). The introduction the notch's
+/// Workspaces button shows meanwhile sits on a state whose engine never starts, until
+/// the user adds a project.
 @MainActor
 public final class WorkspacesHost: ObservableObject {
     @Published public private(set) var activation: WorkspacesActivation = .off

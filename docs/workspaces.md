@@ -20,7 +20,7 @@ It opens from Brow's item in the menu bar (the notch with two dots) and from the
 
 ## Turning it on
 
-Workspaces is off until you use it. While it is off nothing of it runs: no file is read or written for it and no Claude Code file is touched.
+Workspaces is off until you use it. While it is off nothing of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper, which records each session under `<account>/grove/usage/`, until you turn capture off for that account in Settings → Accounts. To offer that switch, Settings reads Grove's `config.json` when there is one; turning capture off puts your own command back in the account's `settings.json` and records the change in Grove's config. Workspaces touches no other Claude Code file while it is off.
 
 - **Coming from Grove?** Brow finds Grove's `~/Library/Application Support/Grove/config.json` and turns Workspaces on by itself, with your projects, accounts and settings. While `Grove.app` is still running, Workspaces waits and offers **Quit Grove**: two copies of the engine would write the same files. Once Grove has quit you can delete it; take it out of **System Settings → General → Login Items** if you had added it there, and turn on **Launch at login** in Brow's Settings → General instead. Brow's notch then reads every account, Workspaces' included, which Grove never did, and Claude Code's clean-up removes the old transcripts Grove kept putting back: [Coming from Grove](../README.md#coming-from-grove) says what that means and how to keep them.
 - **New to it?** Open **Settings → Workspaces** and turn it on, or press the stacked-squares button in the notch panel and choose **Add project…**.

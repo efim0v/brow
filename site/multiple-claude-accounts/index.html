@@ -43,7 +43,7 @@
   "mainEntityOfPage": "https://efimov.page/brow/multiple-claude-accounts/",
   "inLanguage": "en",
   "datePublished": "2026-10-13",
-  "dateModified": "2026-10-13",
+  "dateModified": "2026-10-17",
   "image": ["https://efimov.page/brow/media/settings.webp"],
   "author": { "@type": "Person", "name": "Artem Efimov", "url": "https://github.com/efim0v" },
   "about": { "@id": "https://efimov.page/brow/#app" }
@@ -243,7 +243,7 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
         <section id="sign-in" aria-labelledby="sign-in-title">
           <h2 id="sign-in-title">Create a folder for each account and sign it in</h2>
           <h3>By hand</h3>
-          <p>Any folder will do. Brow and Grove look for accounts in <code>~/.claude-accounts/</code>, so the examples here use it.</p>
+          <p>Any folder will do. Brow looks for accounts in <code>~/.claude-accounts/</code>, so the examples here use it.</p>
           <pre><code>mkdir -p ~/.claude-accounts/work
 CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
           <p><code>claude auth login</code> signs the folder in to your Anthropic account, and <code>--email</code> pre-fills the address (<a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a>). You can also skip it: the first <code>claude</code> you start with the variable set walks you through login and setup for the new folder.</p>
@@ -295,7 +295,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
           </ul>
           <p>Sign-ins that Brow starts already go through the script. For sign-ins you start yourself, in cmux or any other terminal, Settings → General → One browser profile per account shows a line to add to <code>~/.zshrc</code> once:</p>
           <pre><code>export BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser'</code></pre>
-          <p>The script reads <code>CLAUDE_CONFIG_DIR</code> itself, so one line covers every account. The line sets <code>BROWSER</code> for everything you start from that shell, not only Claude Code. Sessions that <a href="/grove/">Grove</a> starts get the script without it, as long as Brow is installed.</p>
+          <p>The script reads <code>CLAUDE_CONFIG_DIR</code> itself, so one line covers every account. The line sets <code>BROWSER</code> for everything you start from that shell, not only Claude Code. Sessions that Brow’s <a href="/brow/#workspaces">Workspaces</a> starts get the script without it.</p>
         </section>
 
         <section id="limits" aria-labelledby="limits-title">
@@ -319,7 +319,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
           <p>Start it with that account’s folder, as above. Nothing is switched for the whole Mac: each <code>claude</code> runs as the account of the folder it started with, so two terminals can work as two accounts at the same time. To change the account a folder itself is signed in to, run <code>/login</code> in a session that uses it; the new login replaces the old one.</p>
 
           <h3>Can I continue a session under another account?</h3>
-          <p>Not with <code>CLAUDE_CONFIG_DIR</code> alone: a session’s transcript is in the folder of the account that ran it. <a href="/grove/">Grove</a>, Brow’s companion app, moves sessions between accounts. <strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies its transcript, memory, file history and tasks into the other account. <strong>Share</strong> moves it into a store that every linked account can see. Step by step: <a href="/grove/move-session-to-another-account/">continue a Claude Code session on another account</a>.</p>
+          <p>Not with <code>CLAUDE_CONFIG_DIR</code> alone: a session’s transcript is in the folder of the account that ran it. Brow’s <a href="/brow/#workspaces">Workspaces</a>, which used to be the separate Grove app, moves sessions between accounts. <strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies its transcript, memory, file history and tasks into the other account. <strong>Share</strong> moves it into a store that every linked account can see. Step by step: <a href="/grove/move-session-to-another-account/">continue a Claude Code session on another account</a>.</p>
 
           <h3>Where does each account keep its history and settings?</h3>
           <p>In its own folder. With <code>CLAUDE_CONFIG_DIR</code> set, every <code>~/.claude</code> path in Anthropic’s <a href="https://code.claude.com/docs/en/claude-directory">guide to the .claude directory</a> lives under that folder instead: transcripts in <code>projects/</code>, prompt history in <code>history.jsonl</code>, settings in <code>settings.json</code>.</p>
@@ -341,7 +341,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
 <footer class="site-footer">
   <div class="wrap">
     <div>
-      <p><a href="/brow/">Brow</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="/grove/">Grove</a></p>
+      <p><a href="/brow/">Brow</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="/brow/#workspaces">Workspaces</a></p>
       <p>Brow is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. The screenshot shows made-up demo data.</p>
     </div>
   </div>

@@ -361,9 +361,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .faq h3 + p { margin-top: 4px; }
 .faq p + p { margin-top: 10px; }
 
-/* Grove */
+/* Workspaces */
 .companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
-.companion h2 img { flex: none; width: 20px; height: 20px; margin-top: calc((1.3em - 20px) / 2); }
 .companion h2 span span { display: inline-block; }   /* break between the two sentences, not inside one */
 .companion .links { margin-top: 16px; }
 
@@ -752,7 +751,11 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Настройки и&nbsp;последние данные на&nbsp;диске</dt>
-          <dd>Свои настройки и&nbsp;последние полученные данные о&nbsp;лимитах Brow хранит в&nbsp;<code>~/Library/Application Support/Brow</code>. Кроме того, в&nbsp;файле <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> он&nbsp;ведёт учёт частоты запросов к&nbsp;эндпоинту расхода и&nbsp;хранит последние данные каждого аккаунта. Этот путь задан в&nbsp;GroveCore&nbsp;— библиотеке, общей для Brow и&nbsp;Grove.</dd>
+          <dd>Свои настройки и&nbsp;последние полученные данные о&nbsp;лимитах Brow хранит в&nbsp;<code>~/Library/Application Support/Brow</code>. Кроме того, в&nbsp;файле <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> он&nbsp;ведёт учёт частоты запросов к&nbsp;эндпоинту расхода и&nbsp;хранит последние данные каждого аккаунта. Это папка Grove, который теперь стал частью Brow.</dd>
+        </div>
+        <div>
+          <dt>Workspaces&nbsp;— только когда вы его включите</dt>
+          <dd>Он правит <code>settings.json</code> аккаунта, только если включить для него перехват строки состояния, запускает git в&nbsp;ваших репозиториях, управляет cmux и&nbsp;ведёт страховку транскриптов, только если её включить. Полный список&nbsp;— в&nbsp;<a href="https://github.com/efim0v/brow/blob/main/README.ru.md#что-brow-делает-на-вашем-mac">README</a>.</dd>
         </div>
       </dl>
       <p class="small">Brow&nbsp;— независимый инструмент. Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его.</p>
@@ -790,7 +793,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Brow&nbsp;— это приложение для строки меню? Работает&nbsp;ли он&nbsp;без чёлки?</h3>
-          <p>У&nbsp;Brow нет значка ни&nbsp;в&nbsp;строке меню, ни&nbsp;в&nbsp;Dock. Он&nbsp;находится вверху основного дисплея. На&nbsp;MacBook с&nbsp;чёлкой два показателя стоят по&nbsp;бокам от&nbsp;неё или в&nbsp;полосе под ней. На&nbsp;дисплее без чёлки, например на&nbsp;внешнем мониторе, Brow показывает капсулу вверху по&nbsp;центру.</p>
+          <p>У&nbsp;Brow нет значка в&nbsp;Dock. Лимиты&nbsp;— вверху основного дисплея: на&nbsp;MacBook с&nbsp;чёлкой два показателя стоят по&nbsp;бокам от&nbsp;неё или в&nbsp;полосе под ней, на&nbsp;дисплее без чёлки, например на&nbsp;внешнем мониторе,&nbsp;— капсула вверху по&nbsp;центру. У&nbsp;Workspaces, когда вы его включите, есть значок в&nbsp;строке меню. Если Brow нужен вам только ради Workspaces, отображение в&nbsp;чёлке выключается в&nbsp;<span class="nowrap">Настройках → General</span>.</p>
         </div>
         <div>
           <h3>Есть&nbsp;ли в&nbsp;Brow уведомления?</h3>
@@ -833,11 +836,11 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     </div>
   </section>
 
-  <section class="section companion" id="grove" aria-labelledby="grove-title">
+  <section class="section companion" id="workspaces" aria-labelledby="workspaces-title">
     <div class="wrap">
-      <h2 id="grove-title"><img src="../grove-mark.png" width="20" height="20" alt=""><span><span>Brow подсказывает, у&nbsp;какого аккаунта есть запас.</span> <span>Grove переносит туда работу.</span></span></h2>
-      <p class="prose">Grove выделяет каждой фиче проекта из&nbsp;нескольких репозиториев своё рабочее пространство для Claude&nbsp;Code и&nbsp;<a href="https://efimov.page/grove/ru/#accounts">переносит сессию с&nbsp;одного аккаунта на&nbsp;другой</a>. Каждое приложение работает и&nbsp;само по&nbsp;себе, но&nbsp;задуманы они как пара. Пошагово&nbsp;— в&nbsp;руководстве «<a href="/grove/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
-      <p class="links"><a href="https://efimov.page/grove/ru/">Grove&nbsp;— параллельные сессии Claude&nbsp;Code в&nbsp;нескольких репозиториях</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove на&nbsp;GitHub</a></p>
+      <h2 id="workspaces-title"><span><span>Brow подсказывает, у&nbsp;какого аккаунта есть запас.</span> <span>Workspaces переносит туда работу.</span></span></h2>
+      <p class="prose">Grove теперь часть Brow. Workspaces в&nbsp;строке меню выделяет каждой фиче проекта из&nbsp;нескольких репозиториев свою папку с&nbsp;git worktree на&nbsp;одной ветке и&nbsp;запускает в&nbsp;них параллельные сессии Claude&nbsp;Code. <strong>Resume as…</strong> и&nbsp;<strong>Migrate to…</strong> переносят сессию на&nbsp;аккаунт, у&nbsp;которого ещё есть запас, а&nbsp;при выборе аккаунта видны его лимиты. Workspaces выключен, пока вы им не&nbsp;воспользуетесь; если вы пользовались Grove, он сам подхватит ваши проекты. Пошагово&nbsp;— в&nbsp;руководстве «<a href="/grove/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
+      <p class="links"><a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Подробнее о&nbsp;Workspaces</a> (на&nbsp;английском)&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/README.ru.md#если-вы-пользовались-grove">Если вы пользовались Grove</a></p>
     </div>
   </section>
 </main>
@@ -845,7 +848,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 <footer class="site-footer">
   <div class="wrap">
     <div>
-      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU&nbsp;GPL&nbsp;v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Список изменений</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Релизы</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Трекер задач</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efimov.page/grove/ru/">Grove</a></p>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU&nbsp;GPL&nbsp;v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Список изменений</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Релизы</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Трекер задач</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="#workspaces">Workspaces</a></p>
       <p>Автор Brow&nbsp;— <a href="https://github.com/efim0v">Artem Efimov</a>. Это независимый инструмент: Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его. Во&nbsp;всех демо&nbsp;— выдуманные данные.</p>
       <nav class="lang" aria-label="Язык">
         <a href="/brow/" hreflang="en" lang="en">English</a>&nbsp;·

@@ -360,9 +360,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .faq h3 + p { margin-top: 4px; }
 .faq p + p { margin-top: 10px; }
 
-/* Grove */
+/* Workspaces */
 .companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
-.companion h2 img { flex: none; width: 20px; height: 20px; margin-top: calc((1.3em - 20px) / 2); }
 .companion h2 span span { display: inline-block; }   /* break between the two sentences, not inside one */
 .companion .links { margin-top: 16px; }
 
@@ -751,7 +750,11 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Settings and readings on disk</dt>
-          <dd>Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>. It also keeps a pacing record for the usage endpoint, with each account’s last reading, in <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>; that path comes from GroveCore, the library Brow shares with Grove.</dd>
+          <dd>Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>. It also keeps a pacing record for the usage endpoint, with each account’s last reading, in <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>; that folder is Grove’s, which is now part of Brow.</dd>
+        </div>
+        <div>
+          <dt>Workspaces, only once you turn it on</dt>
+          <dd>It edits an account’s <code>settings.json</code> only if you turn on status-line capture for that account, runs git in your repositories, drives cmux, and keeps a transcript safety net only if you turn that on. <a href="https://github.com/efim0v/brow#what-brow-does-on-your-machine">The README</a> lists all of it.</dd>
         </div>
       </dl>
       <p class="small">Brow is an independent tool, not affiliated with or endorsed by Anthropic.</p>
@@ -789,7 +792,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Is Brow a menu bar app? Does it work without a notch?</h3>
-          <p>Brow has no menu-bar icon and no Dock icon. It sits at the top of the main display. On a MacBook with a notch, two readouts sit beside the notch or in a strip below it. On a display without a notch, such as an external one, Brow shows a pill at the top centre.</p>
+          <p>Brow has no Dock icon. The limits sit at the top of the main display: on a MacBook with a notch, two readouts beside the notch or in a strip below it; on a display without a notch, such as an external one, a pill at the top centre. Workspaces, once you turn it on, has an item in the menu bar. If you use Brow for Workspaces only, <span class="nowrap">Settings → General</span> turns the notch off.</p>
         </div>
         <div>
           <h3>Does Brow send notifications?</h3>
@@ -832,11 +835,11 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     </div>
   </section>
 
-  <section class="section companion" id="grove" aria-labelledby="grove-title">
+  <section class="section companion" id="workspaces" aria-labelledby="workspaces-title">
     <div class="wrap">
-      <h2 id="grove-title"><img src="grove-mark.png" width="20" height="20" alt=""><span><span>Brow tells you which account has room.</span> <span>Grove moves the work there.</span></span></h2>
-      <p class="prose">Grove gives each feature of a multi-repo project its own workspace for Claude Code and <a href="https://efimov.page/grove/#accounts">moves a session from one account to another</a>. Each app runs on its own, and they are built to be used together. Step by step: <a href="/grove/move-session-to-another-account/">Continue a Claude Code session on another account</a>.</p>
-      <p class="links"><a href="https://efimov.page/grove/">Grove — parallel Claude Code sessions across multiple repositories</a>&nbsp;· <a href="https://github.com/efim0v/grove">Grove on GitHub</a></p>
+      <h2 id="workspaces-title"><span><span>Brow tells you which account has room.</span> <span>Workspaces moves the work there.</span></span></h2>
+      <p class="prose">Grove is now part of Brow. Workspaces, in the menu bar, gives each feature of a multi-repo project its own folder of git worktrees on one branch and runs parallel Claude Code sessions in them. <strong>Resume as…</strong> and <strong>Migrate to…</strong> move a session to the account that still has room, and every account picker shows that account’s limits. Workspaces stays off until you use it; if you used Grove, it picks up your projects by itself.</p>
+      <p class="links"><a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces in detail</a>&nbsp;· <a href="https://github.com/efim0v/brow#coming-from-grove">Coming from Grove</a>&nbsp;· <a href="/grove/move-session-to-another-account/">Continue a Claude Code session on another account</a></p>
     </div>
   </section>
 </main>
@@ -844,7 +847,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 <footer class="site-footer">
   <div class="wrap">
     <div>
-      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="https://efimov.page/grove/">Grove</a></p>
+      <p>Brow&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/LICENSE">GNU GPL v3</a>&nbsp;· <a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">Changelog</a>&nbsp;· <a href="https://github.com/efim0v/brow/releases">Releases</a>&nbsp;· <a href="https://github.com/efim0v/brow/issues">Issues</a>&nbsp;· <a href="https://github.com/efim0v/brow">GitHub</a>&nbsp;· <a href="#workspaces">Workspaces</a></p>
       <p>Brow is made by <a href="https://github.com/efim0v">Artem Efimov</a>. It is an independent tool, not affiliated with or endorsed by Anthropic. All demos show made-up demo data.</p>
       <nav class="lang" aria-label="Language">
         <a href="/brow/" hreflang="en" lang="en" aria-current="page">English</a>&nbsp;·

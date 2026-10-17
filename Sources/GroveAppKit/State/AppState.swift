@@ -1097,10 +1097,16 @@ extension AppState {
         try? fm.createDirectory(atPath: toConfigDir + "/plugins", withIntermediateDirectories: true)
 
         let retention = folders.claudeRetention
+        let canonical = canonicalDir
+        let allDirs = config.accounts.flatMap(\.allConfigDirs).map(expandTilde)
         let report = await Task.detached(priority: .utility) { () -> MigrateReport in
             // The safety net's copy stands in for a vanished transcript only inside the
-            // window the safety net itself would restore it in (grove#6).
-            let period = retention.resolve(configDir: fromConfigDir)
+            // window the safety net itself would offer it back in (grove#6): the shortest
+            // period of every account that reaches the session's workspace folder — a
+            // shared one is swept by each of them — project settings included.
+            let reaching = TranscriptMirror.foldersSharing(encodedCwd: ClaudeService.mangle(cwd),
+                                                           with: fromConfigDir, among: allDirs)
+            let period = ClaudeRetention.strictest(reaching.map { Self.resolveFolder($0, retention, canonicalDir: canonical) })
             let maxAge = (Double(period.days) - TranscriptMirror.restoreMarginDays) * 86_400
             return SessionMigration.migrateSession(
                 sessionId: sessionId, cwd: cwd,

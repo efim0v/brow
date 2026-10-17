@@ -285,6 +285,49 @@ final class AppStateMigrateSessionTests: XCTestCase {
         XCTAssertEqual(target?.monitoring, true)
     }
 
+    // MARK: - The safety net's copy, inside the strictest retention
+
+    /// Migrating a session whose transcript is gone uses the safety net's copy only inside
+    /// the window it would offer it back in. The default account keeps 30 days, but "team"
+    /// shares the workspace and keeps 7: a 10-day-old copy is not migrated, because team's
+    /// sweep may be what removed it.
+    func testTheMirrorFallbackFollowsEveryAccountThatSharesTheWorkspace() async throws {
+        let cwd = "/Users/x/Projects/shared-app"
+        let mangled = ClaudeService.mangle(cwd)
+        let fm = FileManager.default
+        let state = makeState()
+        let canonical = URL(fileURLWithPath: state.folders.canonicalDir)
+        let shared = canonical.appendingPathComponent("projects/\(mangled)")
+        try fm.createDirectory(at: shared, withIntermediateDirectories: true)
+        let team = root.appendingPathComponent("team")
+        try fm.createDirectory(at: team.appendingPathComponent("projects"), withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: team.appendingPathComponent("projects/\(mangled)"), withDestinationURL: shared)
+        let target = root.appendingPathComponent("target")
+
+        let copy = URL(fileURLWithPath: TranscriptMirror.mirrorRoot(canonicalDir: canonical.path))
+            .appendingPathComponent("\(accountKey(canonical.path))/\(mangled)/gone.jsonl")
+        try fm.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try #"{"type":"user","cwd":"\#(cwd)","sessionId":"gone"}"#.write(to: copy, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-10 * 86_400)], ofItemAtPath: copy.path)
+
+        let source = AccountConfig(name: "default", configDir: canonical.path)
+        let destination = AccountConfig(name: "target", configDir: target.path)
+        state.config.accounts = [source, AccountConfig(name: "team", configDir: team.path, sharedStore: true), destination]
+        let migrated = target.appendingPathComponent("projects/\(mangled)/gone.jsonl")
+
+        try #"{"cleanupPeriodDays": 7}"#.write(to: team.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        await state.migrateSession(cwd: cwd, sessionId: "gone", from: source, to: destination)
+        XCTAssertFalse(fm.fileExists(atPath: migrated.path), "team's 7 days: the copy is not used")
+        XCTAssertTrue(state.actionError?.contains("older than Claude Code keeps transcripts") == true,
+                      state.actionError ?? "no error")
+
+        // Inside every period, the copy stands in for the transcript.
+        state.actionError = nil
+        try #"{"cleanupPeriodDays": 30}"#.write(to: team.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        await state.migrateSession(cwd: cwd, sessionId: "gone", from: source, to: destination)
+        XCTAssertTrue(fm.fileExists(atPath: migrated.path))
+    }
+
     // MARK: - Test 3: no-op when source == target (same name)
 
     func testMigrateSessionIsNoOpWhenSameAccount() async throws {

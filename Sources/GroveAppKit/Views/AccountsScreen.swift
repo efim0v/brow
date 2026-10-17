@@ -406,13 +406,7 @@ struct AccountsScreen: View {
     }
 
     private func modelPicker(project: ProjectConfig) -> some View {
-        Picker("", selection: modelBinding(project)) {
-            Text("(default)").tag(String?.none)
-            ForEach(ModelCatalog.knownModels, id: \.self) { m in
-                Text(m).tag(String?.some(m))
-            }
-        }
-        .pickerStyle(.menu).labelsHidden().controlSize(.small).fixedSize()
+        ModelPicker(model: modelBinding(project), size: .small)
     }
 
     private func effortPicker(project: ProjectConfig) -> some View {

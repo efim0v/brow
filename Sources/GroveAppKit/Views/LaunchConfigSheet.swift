@@ -29,10 +29,7 @@ struct LaunchConfigSheet: View {
                 }.pickerStyle(.menu).labelsHidden().fixedSize()
             }
             row("Model") {
-                Picker("", selection: $request.model) {
-                    Text("(default)").tag(String?.none)
-                    ForEach(ModelCatalog.knownModels, id: \.self) { Text($0).tag(String?.some($0)) }
-                }.pickerStyle(.menu).labelsHidden().fixedSize()
+                ModelPicker(model: $request.model)
             }
             row("Effort") {
                 Picker("", selection: $request.effort) {

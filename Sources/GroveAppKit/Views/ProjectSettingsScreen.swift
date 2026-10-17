@@ -205,15 +205,10 @@ struct ProjectSettingsScreen: View {
             if isSnapshotRender {
                 SnapshotPickerLookalike(text: currentProject(project).defaultModel ?? "(default)")
             } else {
-                Picker("", selection: Binding(
+                ModelPicker(model: Binding(
                     get: { currentProject(project).defaultModel },
-                    set: { state.setProjectModel(projectID: project.id, model: $0) })) {
-                    Text("(default)").tag(String?.none)
-                    ForEach(ModelCatalog.knownModels, id: \.self) { m in
-                        Text(m).tag(String?.some(m))
-                    }
-                }
-                .pickerStyle(.menu).labelsHidden().controlSize(.small).fixedSize()
+                    set: { state.setProjectModel(projectID: project.id, model: $0) }),
+                            size: .small)
             }
         }
     }

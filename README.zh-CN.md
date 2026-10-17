@@ -155,7 +155,7 @@ Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打�
 - **你的配置原样迁移**。Brow 会找到 `~/Library/Application Support/Grove/config.json`，并开启 Workspaces，带上你的项目、账号、已捕获的状态栏和安全网设置。没有任何文件被移动：状态栏包装脚本仍在 `Grove/bin` 中，每个已捕获账号的 `settings.json` 都指向那里。
 - **先退出 Grove.app**。它运行期间，Workspaces 会等待，并提供 **Quit Grove**，以免两者同时写同一批文件。然后删除 `Grove.app`（或运行 `brew uninstall --cask grove`）；如果你把它加入过登录项，请在那里移除，并改为在 Brow 中开启 **Launch at login**。
 - **东西都去了哪里**。菜单栏里的树变成了 Brow 的标志：带两个点的刘海。面板的设置页移到了 **Settings → Workspaces**；添加账号、共享会话和捕获状态栏移到了 **Settings → Accounts**，在那里用 Brow 的一键 **Sign in…** 添加账号。各项目自己的设置仍在面板中。
-- **命令行工具现在叫 `brow`**。`brow-cli.zip` 安装 `brow`，并以 `grove` 作为第二个名字，所以你的脚本无需修改即可继续使用。
+- **命令行工具现在叫 `brow`**。`brow-cli.zip` 安装 `brow`，并以 `grove` 作为第二个名字，所以你的脚本无需修改即可继续使用。如果你通过 Homebrew 安装过 Grove 的命令行工具，请在 `brew install efim0v/tap/brow-cli` 之前先运行 `brew uninstall grove-cli`：两者都会安装 `grove`。
 - **转录安全网不再自行恢复转录**。以前它会自行恢复任何不到 90 天的转录，包括被 Claude Code 自己的清理删除的转录。现在它不会保留超过 Claude Code 保留期限的转录，消失的转录会列在 Settings → Workspaces 中，并附有 **Restore** 按钮。
 
 ## 常见问题

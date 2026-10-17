@@ -64,5 +64,31 @@ codesign --verify --strict "$CHECK/cli/brow"
 
 echo "release $VERSION:"
 ls -l dist/Brow.zip dist/brow-cli.zip dist/SHA256SUMS.txt
-echo "Nothing was uploaded. To publish, by hand: git tag $VERSION && git push origin $VERSION,"
-echo "then gh release create $VERSION --verify-tag dist/Brow.zip dist/brow-cli.zip dist/SHA256SUMS.txt"
+
+# The changelog's heading for this version carries the day it is tagged.
+TODAY=$(date +%F)
+DATED=$(sed -n "s/^## \[$VERSION\] - \([0-9-]*\).*/\1/p" CHANGELOG.md | head -1)
+if [[ "$DATED" != "$TODAY" ]]; then
+    echo "note: CHANGELOG.md dates $VERSION ${DATED:-nowhere}; set it to the day you tag ($TODAY)." >&2
+fi
+
+# The README, the site and the tap point at each other: publish them in one sitting,
+# in this order, so nothing points at something that is not there yet.
+SUM=$(awk '$2 == "Brow.zip" { print $1 }' dist/SHA256SUMS.txt)
+CLISUM=$(awk '$2 == "brow-cli.zip" { print $1 }' dist/SHA256SUMS.txt)
+cat <<EOF
+Nothing was uploaded. To publish, by hand and in one sitting:
+  1. Merge the branch into main and push it: the README, CHANGELOG and docs go live.
+  2. git tag $VERSION && git push origin $VERSION
+  3. gh release create $VERSION --verify-tag dist/Brow.zip dist/brow-cli.zip dist/SHA256SUMS.txt
+     (the README's download links serve the latest release, so this makes them $VERSION)
+  4. efim0v/homebrew-tap:
+     - Casks/brow.rb: version "$VERSION", sha256 "$SUM"
+     - Formula/brow-cli.rb (new; the README already tells people to install it):
+       url .../releases/download/$VERSION/brow-cli.zip, sha256 "$CLISUM",
+       bin.install "brow", "grove" (the zip's grove is a symlink to brow),
+       and conflicts_with "grove-cli" (or formula_renames.json: "grove-cli": "brow-cli")
+     - the tap README
+  5. site/: the usual "docs(site): version $VERSION" commit (softwareVersion, releaseNotes,
+     and the version line on the English, Russian and Chinese pages).
+EOF

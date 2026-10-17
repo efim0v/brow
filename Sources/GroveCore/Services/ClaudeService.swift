@@ -813,7 +813,7 @@ public final class ClaudeService: @unchecked Sendable {
         }
     }
 
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "grove", category: "ClaudeService")
+    private static let log = Logger(subsystem: "dev.artemefimov.brow", category: "ClaudeService")
 
     /// `browser`: the executable `claude auth login` should open (`$BROWSER`) — Brow's
     /// per-account router, so a re-login from a Grove-launched session lands in

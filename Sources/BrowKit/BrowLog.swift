@@ -8,6 +8,9 @@ public enum BrowLog {
     public static let tokens = Logger(subsystem: "dev.artemefimov.brow", category: "tokens")
     public static let panel  = Logger(subsystem: "dev.artemefimov.brow", category: "panel")
     public static let notify = Logger(subsystem: "dev.artemefimov.brow", category: "notify")
+    /// Hosting Workspaces: activation, the Grove-running guard. The engine itself logs
+    /// under the same subsystem (GroveLog).
+    public static let workspaces = Logger(subsystem: "dev.artemefimov.brow", category: "workspaces")
 }
 
 /// "Say this once per process." For conditions that are real failures but are

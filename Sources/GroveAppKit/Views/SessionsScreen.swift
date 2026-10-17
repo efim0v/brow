@@ -125,7 +125,7 @@ struct SessionsScreen: View {
         VStack(spacing: 0) {
             Divider().padding(.horizontal, 12)
             HStack {
-                Text("External — opened outside Grove")
+                Text("External — opened outside Brow")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()

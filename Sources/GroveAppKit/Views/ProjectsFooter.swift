@@ -43,14 +43,14 @@ struct ProjectsFooter: View {
                 Text(issue).font(.caption).foregroundStyle(Palette.mid).lineLimit(1)
             }
             Spacer(minLength: 6)
-            Text("v\(GroveVersion.current)")
+            Text("v\(BrowVersion.current)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize()
             // Rounded/capsule affordance (macOS-26): a pill, not a default
-            // rectangular push button.
+            // rectangular push button. It quits the whole app — the notch too.
             Button { NSApp.terminate(nil) } label: {
-                Text("Quit")
+                Text("Quit Brow")
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)

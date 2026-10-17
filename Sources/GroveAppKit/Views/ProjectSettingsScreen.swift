@@ -119,7 +119,7 @@ struct ProjectSettingsScreen: View {
             }
 
             SettingsSection(title: "Danger") {
-                Button("Remove project from Grove", role: .destructive) {
+                Button("Remove project from Workspaces", role: .destructive) {
                     state.removeProject(id: project.id)
                     state.open(.projects)
                 }

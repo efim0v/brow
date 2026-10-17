@@ -92,6 +92,12 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
     private var anchor = PanelAnchor(rightX: 0, topY: 0)
     private var anchorScreen: NSScreen?
 
+    /// Shown instead of the projects while set — the engine is off or paused — and then
+    /// the panel reads and refreshes nothing behind it.
+    public var notice: WorkspacesNotice? {
+        didSet { host?.rootView = rootContent() }
+    }
+
     /// Whether the menu-bar item exists. Turning it off removes the item; the panel can
     /// still be shown with `show(at:)`.
     public var showsStatusItem: Bool {
@@ -207,7 +213,7 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
             }
             item.isVisible = true
             statusItem = item
-            GroveLog.menubar.info("status item up; isVisible=\(item.isVisible, privacy: .public)")
+            GroveLog.workspaces.info("status item up; isVisible=\(item.isVisible, privacy: .public)")
         } else if let statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
             self.statusItem = nil
@@ -244,7 +250,8 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
         let p = makePanel()
         self.anchor = anchor
         anchorScreen = screen
-        state.isPanelOpen = true                  // starts RootView's refresh loop
+        // Starts RootView's refresh loop — never behind a notice.
+        state.isPanelOpen = notice == nil
         // Size + place the panel BEFORE ordering in so it doesn't flash. The hosting
         // controller can still report 0x0 before its first layout pass, so with no
         // preferred size yet the panel's CURRENT frame is used — the top-right corner
@@ -299,8 +306,7 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
         // Clear, constant Liquid Glass via AppKit NSGlassEffectView — never frosted,
         // never dims on focus (see WindowSubstrate). The hairline border is drawn on
         // MergedRootView; the gray GlassCards provide content surfaces.
-        let chrome = AnyView(MergedRootView(state: state))
-        let h = NSHostingController(rootView: chrome)
+        let h = NSHostingController(rootView: rootContent())
         h.sizingOptions = [.preferredContentSize]
         WindowSubstrate.install(h, radius: DesignRadius.panel, style: WindowSubstrateStyle.current, in: p)
         host = h
@@ -312,6 +318,11 @@ public final class WorkspacesMenuBarController: NSObject, NSWindowDelegate {
         }
         panel = p
         return p
+    }
+
+    private func rootContent() -> AnyView {
+        if let notice { return AnyView(WorkspacesNoticeView(notice: notice)) }
+        return AnyView(MergedRootView(state: state))
     }
 
     /// Rebuilds the panel's substrate from the current `WindowSubstrateStyle`,

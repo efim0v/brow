@@ -10,28 +10,40 @@ import SwiftUI
 /// single `NSVisualEffectView` (state = .active ALWAYS, blendingMode = .behindWindow,
 /// a very transparent material) + a fixed scrim — offered behind this flag so both
 /// substrates are available and switchable at runtime.
-enum WindowSubstrateStyle: String, CaseIterable {
+public enum WindowSubstrateStyle: String, CaseIterable, Sendable {
     case liquidGlass
     case visualEffect
 
-    var label: String {
+    public var label: String {
         switch self {
         case .liquidGlass: return "Liquid Glass"
         case .visualEffect: return "Visual Effect"
         }
     }
 
-    /// Persisted selection (UserDefaults). Defaults to `.liquidGlass`.
-    static let defaultsKey = "GroveWindowSubstrateStyle"
-    static var current: WindowSubstrateStyle {
-        UserDefaults.standard.string(forKey: defaultsKey).flatMap(WindowSubstrateStyle.init) ?? .liquidGlass
+    /// The key Grove.app kept the choice under, in its own defaults domain. Brow copies
+    /// it once into its own settings and keeps it there.
+    public static let groveDefaultsKey = "GroveWindowSubstrateStyle"
+
+    /// A stored value as a style: unknown or missing is Liquid Glass.
+    public init(stored: String?) {
+        self = stored.flatMap(WindowSubstrateStyle.init(rawValue:)) ?? .liquidGlass
+    }
+
+    /// The material the panel uses. The host app sets it from its own settings;
+    /// a change posts `.groveSubstrateStyleChanged`, and an open panel swaps live.
+    @MainActor public static var current: WindowSubstrateStyle = .liquidGlass {
+        didSet {
+            guard current != oldValue else { return }
+            NotificationCenter.default.post(name: .groveSubstrateStyleChanged, object: nil)
+        }
     }
 }
 
 extension Notification.Name {
     /// Posted when the substrate style changes so the panel can live-swap its
     /// contentView without a relaunch.
-    static let groveSubstrateStyleChanged = Notification.Name("groveSubstrateStyleChanged")
+    public static let groveSubstrateStyleChanged = Notification.Name("groveSubstrateStyleChanged")
 }
 
 /// Installs the chosen window substrate as `panel.contentView`, embedding

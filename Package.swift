@@ -7,7 +7,6 @@ let package = Package(
     products: [
         .executable(name: "BrowApp", targets: ["BrowApp"]),
         .executable(name: "grove", targets: ["grove-cli"]),
-        .executable(name: "GroveApp", targets: ["GroveApp"]),
     ],
     targets: [
         // Accounts, credentials, usage and token refresh (used by the notch), and
@@ -17,29 +16,27 @@ let package = Package(
             name: "GroveCore",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // The Workspaces panel and its engine state. Never imports BrowKit: what it
+        // needs from the app hosting it comes in through protocols and closures.
         .target(
             name: "GroveAppKit",
             dependencies: ["GroveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // The notch, the limits, Settings, and Brow's side of Workspaces.
         .target(
             name: "BrowKit",
-            dependencies: ["GroveCore"],
+            dependencies: ["GroveCore", "GroveAppKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
             name: "BrowApp",
-            dependencies: ["BrowKit"],
+            dependencies: ["BrowKit", "GroveAppKit", "GroveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
             name: "grove-cli",
             dependencies: ["GroveCore"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
-        .executableTarget(
-            name: "GroveApp",
-            dependencies: ["GroveAppKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
@@ -54,7 +51,7 @@ let package = Package(
         ),
         .testTarget(
             name: "BrowKitTests",
-            dependencies: ["BrowKit", "GroveCore"],
+            dependencies: ["BrowKit", "GroveAppKit", "GroveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

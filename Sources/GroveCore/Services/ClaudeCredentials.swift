@@ -293,7 +293,7 @@ public struct KeychainCredentialsReader: CredentialsReading {
         var data: Data { lock.withLock { value } }
     }
 
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "grove", category: "keychain")
+    private static let log = Logger(subsystem: "dev.artemefimov.brow", category: "keychain")
 }
 
 /// Caches each account's OAuth token in memory so the macOS Keychain — which prompts

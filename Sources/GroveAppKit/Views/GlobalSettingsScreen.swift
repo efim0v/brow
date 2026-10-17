@@ -9,11 +9,9 @@ import GroveCore
 struct GlobalSettingsScreen: View {
     @ObservedObject var state: AppState
     @Environment(\.isSnapshotRender) private var isSnapshotRender
-    /// Persisted window-substrate selection (Liquid Glass default ⇄ Visual Effect).
-    /// Writing it posts `.groveSubstrateStyleChanged`, which the menu-bar controller
-    /// observes to live-swap the panel backing without a relaunch.
-    @AppStorage(WindowSubstrateStyle.defaultsKey)
-    private var substrateRaw = WindowSubstrateStyle.liquidGlass.rawValue
+    /// Window-substrate selection (Liquid Glass default ⇄ Visual Effect), mirrored so
+    /// the picker redraws; `WindowSubstrateStyle.current` is the source, set by the host.
+    @State private var substrate = WindowSubstrateStyle.current
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -153,15 +151,13 @@ struct GlobalSettingsScreen: View {
 
     // MARK: - Window substrate toggle
 
-    private var currentSubstrate: WindowSubstrateStyle {
-        WindowSubstrateStyle(rawValue: substrateRaw) ?? .liquidGlass
-    }
+    private var currentSubstrate: WindowSubstrateStyle { substrate }
 
     private var substrateBinding: Binding<WindowSubstrateStyle> {
-        Binding(get: { currentSubstrate },
+        Binding(get: { substrate },
                 set: { newValue in
-                    substrateRaw = newValue.rawValue
-                    NotificationCenter.default.post(name: .groveSubstrateStyleChanged, object: nil)
+                    substrate = newValue
+                    state.onPanelMaterialChange?(newValue)
                 })
     }
 

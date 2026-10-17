@@ -192,6 +192,10 @@ public final class AppState: ObservableObject {
     /// files are only edited when they asked for it.
     public var capturesByDefault = true
 
+    /// The host keeps the panel's material in its own settings: the in-panel picker
+    /// hands a change to it here (and the host sets `WindowSubstrateStyle.current`).
+    public var onPanelMaterialChange: ((WindowSubstrateStyle) -> Void)?
+
     /// Test observability: incremented each time `runCodeStatsScan` begins a scan. nil
     /// in production (never read); tests set it to 0 before calling `setStatsBranch`
     /// and assert it equals 1 after the debounce fires to verify coalescing.
@@ -421,7 +425,7 @@ public final class AppState: ObservableObject {
         return nil
     }
 
-    /// Removes the account from Grove's config only — the directory is untouched.
+    /// Removes the account from Workspaces' config only — the directory is untouched.
     public func removeAccount(name: String) {
         config.accounts.removeAll { $0.name == name }
         persist()
@@ -762,7 +766,7 @@ extension AppState {
             return TerminalFocus.focusTerminalApp(tty: tty)
         }.value
         if !focused {
-            actionError = "“\(row.location)” is running, but in a terminal Grove can't focus "
+            actionError = "“\(row.location)” is running, but in a terminal Brow can't focus "
                 + "(not cmux or Terminal.app). Switch to it in your terminal."
         }
     }
@@ -1396,7 +1400,7 @@ extension AppState {
                 // The next launch tries again, should the folder come back.
                 var isDir: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else {
-                    GroveLog.menubar.info("statusline not installed for \(account.name, privacy: .public): its folder is gone")
+                    GroveLog.workspaces.info("statusline not installed for \(account.name, privacy: .public): its folder is gone")
                     continue
                 }
                 let installer = StatuslineInstaller(scriptDir: scriptDir)
@@ -1408,7 +1412,7 @@ extension AppState {
                     let saved = try installer.install(configDir: dir)
                     installed.append((name: account.name, savedStatusline: saved))
                 } catch {
-                    GroveLog.menubar.error("statusline not installed for \(account.name, privacy: .public), retrying next launch: \(error.localizedDescription, privacy: .public)")
+                    GroveLog.workspaces.error("statusline not installed for \(account.name, privacy: .public), retrying next launch: \(error.localizedDescription, privacy: .public)")
                 }
             }
             // Hop back to main actor to persist config changes. A `let` copy: the

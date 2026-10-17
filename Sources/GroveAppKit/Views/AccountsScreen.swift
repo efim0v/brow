@@ -123,7 +123,7 @@ struct AccountsScreen: View {
         } else {
             Button("Remove") { state.removeAccount(name: account.name) }
                 .controlSize(.small)
-                .help("Removes the account from Grove's config only — \(account.configDir) is untouched")
+                .help("Removes the account from Workspaces only — \(account.configDir) is untouched")
         }
     }
 
@@ -161,7 +161,7 @@ struct AccountsScreen: View {
         } else {
             Button("Monitor") { state.installMonitoring(account) }
                 .controlSize(.small)
-                .help("Installs Grove's statusline wrapper to capture usage")
+                .help("Installs Brow's status-line wrapper to capture usage")
         }
     }
 

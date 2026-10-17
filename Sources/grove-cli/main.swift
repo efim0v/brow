@@ -352,7 +352,7 @@ case "create":     status = await cmdCreate(rest)
 case "graph":      status = await cmdGraph(rest)
 case "doctor":     status = await cmdDoctor(rest)
 case "version", "--version":
-    print(GroveVersion.current)
+    print(BrowVersion.current)
     status = 0
 case "help", "--help", "-h":
     print(usageText)

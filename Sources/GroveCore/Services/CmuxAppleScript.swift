@@ -147,7 +147,7 @@ struct CmuxAppleScript: CmuxScripting {
             let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             var text = "AppleScript control of cmux failed: \(stderr)"
             if stderr.contains("-1743") || stderr.contains("Not authorized") {
-                text += " — allow Grove to control cmux in System Settings"
+                text += " — allow Brow to control cmux in System Settings"
                     + " > Privacy & Security > Automation."
             }
             throw traced("error", GroveError.cmuxUnavailable(text))

@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import GroveAppKit
 import GroveCore
 
 /// `TokenKeeper` is an actor: it calls `allowPromptFallback` on its OWN executor,
@@ -29,9 +30,8 @@ private final class SendableText: @unchecked Sendable {
     func set(_ newValue: String) { lock.lock(); value = newValue; lock.unlock() }
 }
 
-/// Process entry: wires the stores, the notch panel, the triggers and the
-/// settings window. Mirrors GroveMenuBarApp: plain AppKit, `.accessory`
-/// activation policy, no MenuBarExtra.
+/// Process entry: wires the stores, the notch panel, the triggers, Workspaces and the
+/// settings window. Plain AppKit, `.accessory` activation policy, no MenuBarExtra.
 public enum BrowApp {
     @MainActor private static var controller: BrowAppController?
 
@@ -54,6 +54,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     private var panel: NotchPanelController!
     private var addFlow: AddAccountFlow!
     private var notifier: LimitNotifier!
+    /// Workspaces: Grove's panel and engine, hosted. Decides at launch whether anything
+    /// of it runs (`WorkspacesActivation`); for a Brow-only user nothing does.
+    private var workspaces: WorkspacesHost?
     private let clock = PanelClock()
     private var settingsWindow: NSWindow?
     /// Names typed into Settings but not committed yet. Owned here, not by the
@@ -130,6 +133,10 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                           onSettings: { [weak self] in self?.showSettings() })
         self.panel.show()
         BrowLog.panel.info("panel shown")
+        // After the notch is up, like everything that may touch the disk.
+        let workspaces = WorkspacesHost(store: store)
+        self.workspaces = workspaces
+        workspaces.start()
         // Off until the user turns it on; even then it reads only what the store has.
         notifier = LimitNotifier(poster: SystemNotifications.isSupported ? SystemNotifications() : UnavailableNotifications())
         notifier.start(store: store)
@@ -188,6 +195,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         if let store { drafts.flush(into: store) }
         triggers?.stop()
         notifier?.stop()
+        workspaces?.stop()
         panel?.hide()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver); self.screenObserver = nil }
         cancellables.removeAll()
@@ -206,12 +214,12 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     }
 
     /// A non-nib app gets NO main menu of its own, and Brow has no Dock icon
-    /// (`LSUIElement` + `.accessory`), no status item and no window at launch —
-    /// so without this menu `Cmd-Q` is inert and the only way out of a running
-    /// Brow is `pkill`. Grove reaches `NSApp.terminate` from its panel footer
-    /// (`ProjectsFooter.swift`); Brow's panel is a hover strip with no room for
-    /// a Quit button, so the menu carries it — and hands the settings window
-    /// back its standard `Cmd-,` and `Cmd-W`.
+    /// (`LSUIElement` + `.accessory`) and no window at launch — and, for a Brow-only
+    /// user, no status item — so without this menu `Cmd-Q` is inert and the only way
+    /// out of a running Brow is `pkill`. The Workspaces panel has its own Quit Brow
+    /// (`ProjectsFooter.swift`); the notch panel is a hover strip with no room for one,
+    /// so the menu carries it — and hands the settings window back its standard
+    /// `Cmd-,` and `Cmd-W`.
     func makeMainMenu() -> NSMenu {
         let main = NSMenu()
 

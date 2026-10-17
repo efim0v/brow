@@ -55,7 +55,7 @@ public enum CmuxProbe {
         let info = ProcessInfo.processInfo
         let fm = FileManager.default
 
-        out.append("grove cmux probe — \(Date()) — grove \(GroveVersion.current)")
+        out.append("brow cmux probe — \(Date()) — brow \(BrowVersion.current)")
         out.append("pid \(info.processIdentifier)  cwd \(fm.currentDirectoryPath)")
         out.append("arguments: \(CommandLine.arguments.joined(separator: " "))")
         out.append("tty: stdin=\(isatty(0)) stdout=\(isatty(1)) stderr=\(isatty(2))")

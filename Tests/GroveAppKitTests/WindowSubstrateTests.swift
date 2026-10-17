@@ -15,19 +15,25 @@ final class WindowSubstrateTests: XCTestCase {
         return (p, h)
     }
 
-    func testStyleDefaultsToLiquidGlassAndPersists() {
-        let key = WindowSubstrateStyle.defaultsKey
-        let saved = UserDefaults.standard.string(forKey: key)
-        defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
-        }
-        UserDefaults.standard.removeObject(forKey: key)
-        XCTAssertEqual(WindowSubstrateStyle.current, .liquidGlass)           // unset → default
-        UserDefaults.standard.set(WindowSubstrateStyle.visualEffect.rawValue, forKey: key)
-        XCTAssertEqual(WindowSubstrateStyle.current, .visualEffect)          // round-trips
-        UserDefaults.standard.set("garbage", forKey: key)
-        XCTAssertEqual(WindowSubstrateStyle.current, .liquidGlass)           // unknown → default
+    /// The host keeps the choice in its own settings; a stored value reads back as a
+    /// style, and anything else is the default.
+    func testAStoredStyleReadsBackAndAnythingElseIsLiquidGlass() {
+        XCTAssertEqual(WindowSubstrateStyle(stored: nil), .liquidGlass)
+        XCTAssertEqual(WindowSubstrateStyle(stored: "visualEffect"), .visualEffect)
+        XCTAssertEqual(WindowSubstrateStyle(stored: "garbage"), .liquidGlass)
+        XCTAssertEqual(WindowSubstrateStyle.groveDefaultsKey, "GroveWindowSubstrateStyle",
+                       "the key Grove.app wrote, which Brow copies once")
+    }
+
+    /// A change of the current style is what makes an open panel swap its substrate.
+    func testChangingTheCurrentStylePostsTheSwap() {
+        let saved = WindowSubstrateStyle.current
+        defer { WindowSubstrateStyle.current = saved }
+        WindowSubstrateStyle.current = .liquidGlass
+        let posted = expectation(forNotification: .groveSubstrateStyleChanged, object: nil)
+        WindowSubstrateStyle.current = .visualEffect
+        wait(for: [posted], timeout: 1)
+        XCTAssertEqual(WindowSubstrateStyle.current, .visualEffect)
     }
 
     func testInstallVisualEffectIsConstantBehindWindowSubstrate() {

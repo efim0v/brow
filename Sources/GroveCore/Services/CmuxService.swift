@@ -415,7 +415,7 @@ extension CmuxService {
 
     static func denialMessage(_ serverLine: String) -> String {
         serverLine
-            + " — Grove runs outside cmux, and cmux's socket control mode"
+            + " — Brow runs outside cmux, and cmux's socket control mode"
             + " (automation.socketControlMode, default \"cmuxOnly\") blocks external"
             + " clients. In cmux: Settings > Automation > Socket control mode ->"
             + " \"Automation\" (allows clients from your user account), or set a"

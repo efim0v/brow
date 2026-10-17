@@ -16,7 +16,7 @@ extension EnvironmentValues {
     }
 }
 
-/// Agent-verifiable UI harness: `GroveApp --snapshot <outDir>` renders the app
+/// Headless UI harness: `BrowApp --snapshot <outDir>` renders the Workspaces panel
 /// with a synthetic fixture state into PNGs and exits without ever starting
 /// NSApplication. Rich fixture (4 workspaces incl. one stacked child, all four
 /// age buckets, busy/waiting/resumable mixes, 2 loose worktrees); every scene

@@ -3,6 +3,6 @@ import GroveCore
 
 final class ScaffoldTests: XCTestCase {
     func testVersionConstant() {
-        XCTAssertEqual(GroveVersion.current, "0.2.2")
+        XCTAssertEqual(BrowVersion.current, "0.3.1")
     }
 }

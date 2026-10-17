@@ -18,7 +18,14 @@ import Foundation
 ///   and every `*.json` drop-in in `managed-settings.d/` beside it;
 /// - the MDM preferences domain `com.anthropic.claudecode`;
 /// - server-managed settings, cached as `<config dir>/remote-settings.json`;
-/// - the account's own `<config dir>/settings.json`.
+/// - the account's own `<config dir>/settings.json`;
+/// - the project settings, `.claude/settings.json` and `.claude/settings.local.json`, of
+///   every folder the account's sessions ran in (`TranscriptCwds`). A session reads its own
+///   project's settings, and its sweep then deletes old transcripts in EVERY project of the
+///   config folder — so the shortest period any one project sets applies to all of them.
+///
+/// One source can't be read from outside: a period passed on the command line with
+/// `--settings`. It lasts one session, and nothing records it.
 ///
 /// Precedence between them does not matter here: the SMALLEST value any of them sets is
 /// the one used, so the mirror is never more generous than any layer Claude Code might
@@ -43,6 +50,8 @@ public struct ClaudeRetention: Sendable {
         case managedPreferences
         case remoteSettings
         case accountSettings
+        case projectSettings
+        case projectLocalSettings
         case claudeDefault
 
         public var label: String {
@@ -52,6 +61,8 @@ public struct ClaudeRetention: Sendable {
             case .managedPreferences: return "a configuration profile"
             case .remoteSettings: return "settings from your organisation"
             case .accountSettings: return "this account's settings.json"
+            case .projectSettings: return "a project's .claude/settings.json"
+            case .projectLocalSettings: return "a project's .claude/settings.local.json"
             case .claudeDefault: return "Claude Code's default"
             }
         }
@@ -66,20 +77,29 @@ public struct ClaudeRetention: Sendable {
         /// Files that exist but could not be read, or held something other than a number.
         /// Non-empty means the period may really be shorter, and nothing is restored.
         public let unreadable: [String]
+        /// The file that set `days`, when it was a file.
+        public let origin: String?
 
-        public init(days: Int, source: Source, unreadable: [String] = []) {
+        public init(days: Int, source: Source, unreadable: [String] = [], origin: String? = nil) {
             self.days = days
             self.source = source
             self.unreadable = unreadable
+            self.origin = origin
         }
 
         public var isCertain: Bool { unreadable.isEmpty }
 
-        /// "30 days (Claude Code's default)", "7 days (this account's settings.json)".
+        /// "30 days (Claude Code's default)", "7 days (this account's settings.json)",
+        /// "3 days (~/Code/shop/.claude/settings.local.json)".
         public var summary: String {
             let period = days == 1 ? "1 day" : "\(days) days"
-            return isCertain ? "\(period) (\(source.label))"
-                             : "\(period) or less (\(unreadable.count == 1 ? "a settings file" : "settings files") could not be read)"
+            guard isCertain else {
+                return "\(period) or less (\(unreadable.count == 1 ? "a settings file" : "settings files") could not be read)"
+            }
+            if let origin, source == .projectSettings || source == .projectLocalSettings {
+                return "\(period) (\((origin as NSString).abbreviatingWithTildeInPath))"
+            }
+            return "\(period) (\(source.label))"
         }
     }
 
@@ -101,15 +121,16 @@ public struct ClaudeRetention: Sendable {
         self.preferences = preferences
     }
 
-    /// The period Claude Code applies to the transcripts in `configDir`.
-    public func resolve(configDir: String) -> Resolution {
-        resolveSources(configDir: configDir)
+    /// The period Claude Code applies to the transcripts in `configDir`, whose sessions
+    /// ran in `projectCwds` (`TranscriptCwds.all`).
+    public func resolve(configDir: String, projectCwds: [String] = []) -> Resolution {
+        resolveSources(configDir: configDir, projectCwds: projectCwds)
     }
 
     /// The managed sources alone (files, drop-ins, configuration profile), else the
     /// default: what applies to a folder whose own settings are unknown.
     public func resolveManaged() -> Resolution {
-        resolveSources(configDir: nil)
+        resolveSources(configDir: nil, projectCwds: [])
     }
 
     /// The strictest of several folders' periods — one account signed in to several
@@ -121,18 +142,18 @@ public struct ClaudeRetention: Sendable {
         let unreadable = resolutions.flatMap(\.unreadable)
         var seen = Set<String>()
         return Resolution(days: first.days, source: first.source,
-                          unreadable: unreadable.filter { seen.insert($0).inserted })
+                          unreadable: unreadable.filter { seen.insert($0).inserted }, origin: first.origin)
     }
 
-    private func resolveSources(configDir: String?) -> Resolution {
+    private func resolveSources(configDir: String?, projectCwds: [String]) -> Resolution {
         let dir = configDir.map(expandTilde)
-        var candidates: [(days: Int, source: Source)] = []
+        var candidates: [(days: Int, source: Source, origin: String?)] = []
         var unreadable: [String] = []
 
         func take(_ reading: Reading, _ source: Source, _ name: String) {
             switch reading {
             case .absent: break
-            case .days(let days): candidates.append((max(0, days), source))
+            case .days(let days): candidates.append((max(0, days), source, name.hasPrefix("/") ? name : nil))
             case .unreadable: unreadable.append(name)
             }
         }
@@ -153,6 +174,13 @@ public struct ClaudeRetention: Sendable {
             let account = dir + "/settings.json"
             take(Self.readSettingsFile(account), .accountSettings, account)
         }
+        var projectFiles = Set<String>()
+        for cwd in projectCwds {
+            for file in Self.projectSettingsFiles(cwd: cwd) where projectFiles.insert(file).inserted {
+                take(Self.readSettingsFile(file),
+                     file.hasSuffix("/settings.local.json") ? .projectLocalSettings : .projectSettings, file)
+            }
+        }
 
         // Smallest wins; on a tie the earlier (more managed) source is named.
         guard let smallest = candidates.enumerated().min(by: { a, b in
@@ -160,7 +188,66 @@ public struct ClaudeRetention: Sendable {
         })?.element else {
             return Resolution(days: Self.defaultDays, source: .claudeDefault, unreadable: unreadable)
         }
-        return Resolution(days: smallest.days, source: smallest.source, unreadable: unreadable)
+        return Resolution(days: smallest.days, source: smallest.source, unreadable: unreadable,
+                          origin: smallest.origin)
+    }
+
+    /// The project settings files that can set the period of a session started in `cwd`:
+    /// `.claude/settings.json` and `.claude/settings.local.json` in `cwd` and in every folder
+    /// above it up to the root of its git repository (Claude Code keeps a repository's
+    /// project settings at its root), plus, for a git worktree, the main checkout's root,
+    /// where Claude Code keeps a worktree's local settings. Outside a repository, `cwd`'s own.
+    public static func projectSettingsFiles(cwd: String) -> [String] {
+        let start = (expandTilde(cwd) as NSString).standardizingPath
+        guard start.hasPrefix("/") else { return [] }
+        let fm = FileManager.default
+        var folders: [String] = []
+        var folder = start
+        var inRepository = false
+        while true {
+            folders.append(folder)
+            var isDirectory: ObjCBool = false
+            if fm.fileExists(atPath: folder + "/.git", isDirectory: &isDirectory) {
+                inRepository = true
+                if !isDirectory.boolValue, let main = mainCheckout(ofGitFile: folder + "/.git") {
+                    folders.append(main)
+                }
+                break
+            }
+            let parent = (folder as NSString).deletingLastPathComponent
+            if parent == folder || parent.isEmpty { break }
+            folder = parent
+        }
+        if !inRepository { folders = [start] }
+        var seen = Set<String>()
+        return folders.filter { seen.insert($0).inserted }
+            .flatMap { [$0 + "/.claude/settings.json", $0 + "/.claude/settings.local.json"] }
+    }
+
+    /// For a worktree's `.git` file (`gitdir: <main>/.git/worktrees/<name>`): `<main>`, the
+    /// main checkout. nil for anything else, such as a submodule's.
+    static func mainCheckout(ofGitFile path: String) -> String? {
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8),
+              let line = text.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("gitdir:") })
+        else { return nil }
+        var gitDir = line.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespaces)
+        if !gitDir.hasPrefix("/") {
+            gitDir = ((path as NSString).deletingLastPathComponent as NSString).appendingPathComponent(gitDir)
+        }
+        gitDir = (gitDir as NSString).standardizingPath
+        // `<main>/.git/worktrees/<name>`, or wherever its `commondir` says the shared one is.
+        var common: String
+        if let relative = try? String(contentsOfFile: gitDir + "/commondir", encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines), !relative.isEmpty {
+            common = relative.hasPrefix("/") ? relative : (gitDir as NSString).appendingPathComponent(relative)
+        } else {
+            let parent = (gitDir as NSString).deletingLastPathComponent
+            guard (parent as NSString).lastPathComponent == "worktrees" else { return nil }
+            common = (parent as NSString).deletingLastPathComponent
+        }
+        common = (common as NSString).standardizingPath
+        guard (common as NSString).lastPathComponent == ".git" else { return nil }
+        return (common as NSString).deletingLastPathComponent
     }
 
     /// `cleanupPeriodDays` from one JSON settings file.

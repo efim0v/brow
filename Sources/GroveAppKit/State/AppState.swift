@@ -977,7 +977,7 @@ extension AppState {
         let settings = config.transcriptMirror
         let result = await Task.detached(priority: .utility) {
             () -> (byAccount: [String: ClaudeRetention.Resolution], report: ReconcileReport?) in
-            let (byAccount, mirrorAccounts) = Self.resolveRetention(dirsByAccount, retention)
+            let (byAccount, mirrorAccounts) = Self.resolveRetention(dirsByAccount, retention, canonicalDir: canonical)
             guard enabled else { return (byAccount, nil) }
             // An entry whose account left the config has no period of its own that can be
             // read, so the shortest that could apply: the managed one, Claude Code's
@@ -998,8 +998,9 @@ extension AppState {
     public func refreshTranscriptRetention() async {
         let retention = folders.claudeRetention
         let dirsByAccount = accountDirs()
+        let canonical = canonicalDir
         let byAccount = await Task.detached(priority: .utility) {
-            Self.resolveRetention(dirsByAccount, retention).byAccount
+            Self.resolveRetention(dirsByAccount, retention, canonicalDir: canonical).byAccount
         }.value
         if transcriptRetention != byAccount { transcriptRetention = byAccount }
     }
@@ -1010,16 +1011,25 @@ extension AppState {
 
     /// File reads only; called off the main actor.
     nonisolated private static func resolveRetention(_ dirsByAccount: [(name: String, dirs: [String])],
-                                                     _ retention: ClaudeRetention)
+                                                     _ retention: ClaudeRetention, canonicalDir: String)
         -> (byAccount: [String: ClaudeRetention.Resolution], mirrorAccounts: [MirrorAccount]) {
         var byAccount: [String: ClaudeRetention.Resolution] = [:]
         var mirrorAccounts: [MirrorAccount] = []
         for (name, dirs) in dirsByAccount {
-            let resolved = dirs.map { (dir: $0, retention: retention.resolve(configDir: $0)) }
+            let resolved = dirs.map { (dir: $0, retention: resolveFolder($0, retention, canonicalDir: canonicalDir)) }
             byAccount[name] = ClaudeRetention.strictest(resolved.map(\.retention))
             mirrorAccounts += resolved.map { MirrorAccount(configDir: $0.dir, retention: $0.retention) }
         }
         return (byAccount, mirrorAccounts)
+    }
+
+    /// One config folder's period, the project settings of every folder its sessions ran
+    /// in included — those its transcripts record, and those of the transcripts only the
+    /// safety net still holds. File reads only; called off the main actor.
+    nonisolated static func resolveFolder(_ dir: String, _ retention: ClaudeRetention,
+                                          canonicalDir: String) -> ClaudeRetention.Resolution {
+        let mirrored = TranscriptMirror.mirrorRoot(canonicalDir: canonicalDir) + "/" + accountKey(dir)
+        return retention.resolve(configDir: dir, projectCwds: TranscriptCwds.all(configDir: dir, extraFolders: [mirrored]))
     }
 
     // MARK: - Session migration (Phase 4A4)

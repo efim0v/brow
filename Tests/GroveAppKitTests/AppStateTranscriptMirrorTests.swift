@@ -142,6 +142,42 @@ final class AppStateTranscriptMirrorTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: mirrored), "nor kept past team's 7 days")
     }
 
+    /// One project's `.claude/settings.local.json` keeps 3 days. A session started there
+    /// sweeps every project of the account, so a 5-day-old transcript of ANOTHER project
+    /// that vanished is not put back, and Settings names the file that set the period.
+    func testAProjectsSettingsCountForEveryTranscriptOfTheAccount() async throws {
+        let canonical = root.appendingPathComponent("canonical-project")
+        let shop = root.appendingPathComponent("code/shop")
+        try fm.createDirectory(at: shop.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        func record(_ cwd: String) -> String { #"{"type":"user","sessionId":"s","cwd":"\#(cwd)"}"# + "\n" }
+        let shopDir = canonical.appendingPathComponent("projects/" + ClaudeService.mangle(shop.path))
+        let otherDir = canonical.appendingPathComponent("projects/-Users-demo-elsewhere")
+        for dir in [shopDir, otherDir] { try fm.createDirectory(at: dir, withIntermediateDirectories: true) }
+        let shopTranscript = shopDir.appendingPathComponent("a.jsonl")
+        let other = otherDir.appendingPathComponent("b.jsonl")
+        try record(shop.path).write(to: shopTranscript, atomically: true, encoding: .utf8)
+        try record("/Users/demo/elsewhere").write(to: other, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-5 * 86_400)], ofItemAtPath: other.path)
+
+        let state = makeState()
+        state.folders.canonicalDir = canonical.path
+        state.config = GroveConfig(version: 1, workspacesRootTemplate: "~/w", projects: [],
+                                   accounts: [AccountConfig(name: "default", configDir: canonical.path)])
+        await state.reconcileTranscripts()
+        XCTAssertEqual(state.transcriptRetention["default"]?.days, 30)
+
+        let local = shop.appendingPathComponent(".claude/settings.local.json")
+        try fm.createDirectory(at: local.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try #"{"cleanupPeriodDays": 3}"#.write(to: local, atomically: true, encoding: .utf8)
+        try fm.removeItem(at: other)
+        await state.reconcileTranscripts()
+
+        XCTAssertFalse(fm.fileExists(atPath: other.path), "a session in shop sweeps it at 3 days")
+        XCTAssertEqual(state.transcriptRetention["default"]?.days, 3)
+        XCTAssertEqual(state.transcriptRetention["default"]?.source, .projectLocalSettings)
+        XCTAssertEqual(state.transcriptRetention["default"]?.origin, local.path)
+    }
+
     /// An entry whose account left the config ages out at the shortest period any
     /// configured account keeps, not at Claude Code's default.
     func testAnOrphanEntryAgesOutAtTheShortestConfiguredPeriod() async throws {

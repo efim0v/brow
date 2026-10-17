@@ -127,6 +127,106 @@ final class ClaudeRetentionTests: XCTestCase {
         XCTAssertEqual(ClaudeRetention.strictest([]).days, 30)
     }
 
+    // MARK: - project settings
+
+    /// A repository with `.claude` settings at its root and a session started in a
+    /// subfolder of it. Returns (repository root, the session's folder).
+    private func repository(_ name: String) throws -> (root: URL, cwd: URL) {
+        let repo = root.appendingPathComponent(name)
+        try fm.createDirectory(at: repo.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        let cwd = repo.appendingPathComponent("app/src")
+        try fm.createDirectory(at: cwd, withIntermediateDirectories: true)
+        return (repo, cwd)
+    }
+
+    /// A session reads its project's settings, and its sweep deletes old transcripts in
+    /// every project of the folder: the shortest any project sets is the folder's.
+    func testAProjectsSettingsSetTheFoldersPeriod() throws {
+        let (repo, cwd) = try repository("shop")
+        try write(#"{"cleanupPeriodDays": 9}"#, to: repo.appendingPathComponent(".claude/settings.json"))
+        try write(#"{"cleanupPeriodDays": 3}"#, to: repo.appendingPathComponent(".claude/settings.local.json"))
+        let r = retention().resolve(configDir: account.path, projectCwds: [cwd.path])
+        XCTAssertEqual(r.days, 3)
+        XCTAssertEqual(r.source, .projectLocalSettings)
+        XCTAssertEqual(r.origin, repo.appendingPathComponent(".claude/settings.local.json").path)
+        XCTAssertTrue(r.summary.hasSuffix("/shop/.claude/settings.local.json)"), r.summary)
+        XCTAssertEqual(retention().resolve(configDir: account.path).days, 30, "without its cwds, no project counts")
+    }
+
+    /// Every folder from the session's up to the repository root, and nothing above it.
+    func testProjectSettingsAreReadUpToTheRepositoryRootOnly() throws {
+        let (repo, cwd) = try repository("notes")
+        try write(#"{"cleanupPeriodDays": 6}"#, to: cwd.appendingPathComponent(".claude/settings.json"))
+        try write(#"{"cleanupPeriodDays": 1}"#, to: root.appendingPathComponent(".claude/settings.json"))
+        XCTAssertEqual(retention().resolve(configDir: account.path, projectCwds: [cwd.path]).days, 6)
+        let files = ClaudeRetention.projectSettingsFiles(cwd: cwd.path)
+        XCTAssertEqual(files.first, cwd.appendingPathComponent(".claude/settings.json").path)
+        XCTAssertEqual(files.last, repo.appendingPathComponent(".claude/settings.local.json").path)
+        XCTAssertEqual(files.count, 6, "src, app and the root, two files each")
+    }
+
+    /// A worktree's local settings live in the main checkout (Claude Code's worktree rule).
+    func testAWorktreeAlsoReadsItsMainCheckout() throws {
+        let (main, _) = try repository("main")
+        let gitDir = main.appendingPathComponent(".git/worktrees/feature")
+        try fm.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "../..\n".write(to: gitDir.appendingPathComponent("commondir"), atomically: true, encoding: .utf8)
+        let worktree = root.appendingPathComponent("Workspaces/shop/feature/main")
+        try fm.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try "gitdir: \(gitDir.path)\n".write(to: worktree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+        try write(#"{"cleanupPeriodDays": 2}"#, to: main.appendingPathComponent(".claude/settings.local.json"))
+
+        XCTAssertEqual(ClaudeRetention.mainCheckout(ofGitFile: worktree.appendingPathComponent(".git").path), main.path)
+        let r = retention().resolve(configDir: account.path, projectCwds: [worktree.path])
+        XCTAssertEqual(r.days, 2)
+        XCTAssertEqual(r.source, .projectLocalSettings)
+    }
+
+    /// A submodule's `.git` file points into the parent's `.git/modules`: no main checkout.
+    func testASubmoduleHasNoMainCheckout() throws {
+        let module = root.appendingPathComponent("parent/vendor/lib")
+        try fm.createDirectory(at: module, withIntermediateDirectories: true)
+        try "gitdir: ../../.git/modules/lib\n".write(to: module.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+        XCTAssertNil(ClaudeRetention.mainCheckout(ofGitFile: module.appendingPathComponent(".git").path))
+    }
+
+    /// A project file that does not parse may set a shorter period too.
+    func testAnUnreadableProjectFileMakesTheAnswerUncertain() throws {
+        let (repo, cwd) = try repository("broken")
+        try write(#"{"cleanupPeriodDays": 4, // mine"#, to: repo.appendingPathComponent(".claude/settings.local.json"))
+        let r = retention().resolve(configDir: account.path, projectCwds: [cwd.path])
+        XCTAssertFalse(r.isCertain)
+        XCTAssertEqual(r.unreadable, [repo.appendingPathComponent(".claude/settings.local.json").path])
+    }
+
+    /// The smallest of several projects, each file read once however many cwds share it.
+    func testTheShortestOfSeveralProjectsWins() throws {
+        let (a, aCwd) = try repository("a")
+        let (b, bCwd) = try repository("b")
+        try write(#"{"cleanupPeriodDays": 20}"#, to: a.appendingPathComponent(".claude/settings.json"))
+        try write(#"{"cleanupPeriodDays": 8}"#, to: b.appendingPathComponent(".claude/settings.json"))
+        let r = retention().resolve(configDir: account.path,
+                                    projectCwds: [aCwd.path, a.path, bCwd.path, b.appendingPathComponent("app").path])
+        XCTAssertEqual(r.days, 8)
+        XCTAssertEqual(r.origin, b.appendingPathComponent(".claude/settings.json").path)
+    }
+
+    /// Outside a repository, the session's own folder.
+    func testOutsideARepositoryOnlyTheFolderItself() throws {
+        var probe = root!
+        while probe.path != "/" {
+            if fm.fileExists(atPath: probe.appendingPathComponent(".git").path) {
+                throw XCTSkip("the temp folder is inside a git repository: \(probe.path)")
+            }
+            probe.deleteLastPathComponent()
+        }
+        let cwd = root.appendingPathComponent("plain/folder")
+        try fm.createDirectory(at: cwd, withIntermediateDirectories: true)
+        XCTAssertEqual(ClaudeRetention.projectSettingsFiles(cwd: cwd.path),
+                       [cwd.appendingPathComponent(".claude/settings.json").path,
+                        cwd.appendingPathComponent(".claude/settings.local.json").path])
+    }
+
     func testFoldersOutsideTheRealManagedFolderNeverReadTheProfileDomain() {
         let folders = WorkspacesFolders.beside(configFile: root.appendingPathComponent("config.json"))
         XCTAssertNotEqual(folders.claudeManagedDir, ClaudeRetention.managedDirectory)

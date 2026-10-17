@@ -94,8 +94,13 @@ struct WorkspacesEngineSettings: View {
     @ObservedObject var state: AppState
     let host: WorkspacesHost
     @State private var material = WindowSubstrateStyle.current
+    /// What the last change made here could not do.
+    @State private var failure: String?
 
     var body: some View {
+        if let failure {
+            Section { FailureNote(text: failure) }
+        }
         Section("Projects") {
             if state.config.projects.isEmpty {
                 Text("No projects yet. A project is a folder that holds your repositories.")
@@ -109,7 +114,7 @@ struct WorkspacesEngineSettings: View {
                             .lineLimit(1).truncationMode(.middle)
                     }
                     Spacer()
-                    Button("Remove") { state.removeProject(id: project.id) }
+                    Button("Remove") { run { state.removeProject(id: project.id) } }
                         .help("Takes the project out of Workspaces only: no repository, worktree or branch is touched")
                 }
             }
@@ -117,7 +122,7 @@ struct WorkspacesEngineSettings: View {
         }
         Section {
             TextField("Workspace folder", text: Binding(get: { state.config.workspacesRootTemplate },
-                                                        set: { state.setWorkspacesRootTemplate($0) }))
+                                                        set: { template in run { state.setWorkspacesRootTemplate(template) } }))
                 .font(.system(.body, design: .monospaced))
         } header: {
             Text("Workspace folders")
@@ -176,9 +181,11 @@ struct WorkspacesEngineSettings: View {
                 set: { value in
                     var settings = state.config.transcriptMirror
                     settings[keyPath: keyPath] = value
-                    state.setTranscriptMirror(settings)
+                    run { state.setTranscriptMirror(settings) }
                 })
     }
+
+    private func run(_ action: () -> Void) { failure = state.attempt(action) }
 
     private func addProject() {
         let panel = NSOpenPanel()
@@ -188,8 +195,20 @@ struct WorkspacesEngineSettings: View {
         panel.prompt = "Add Project"
         panel.message = "Pick the folder that contains your repositories."
         if panel.runModal() == .OK, let url = panel.url {
-            state.addProject(at: url.path)
+            run { state.addProject(at: url.path) }
         }
+    }
+}
+
+/// What a change made in Settings could not do, under the control that made it: the
+/// engine reports a failure in the panel's banner, which is not where the user is looking.
+struct FailureNote: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption).foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -199,6 +218,9 @@ struct WorkspacesEngineSettings: View {
 struct WorkspacesAccountSection: View {
     @ObservedObject var state: AppState
     let account: AccountConfig
+    /// What the last change made here could not do: sharing that could not link, a
+    /// settings.json the capture switch could not edit, a setting not saved.
+    @State private var failure: String?
 
     private var current: AccountConfig {
         state.config.accounts.first { $0.name == account.name } ?? account
@@ -212,29 +234,32 @@ struct WorkspacesAccountSection: View {
             } else if account.sharedStore {
                 Label("Shared with the default account", systemImage: "link").font(.caption)
             } else {
-                Button("Share sessions") { state.linkAccount(account) }
+                Button("Share sessions") { run { state.linkAccount(account) } }
                     .help("Links this account's session stores into ~/.claude, so Resume as… works in both directions")
             }
         }
         Toggle("Capture the status line", isOn: Binding(
             get: { current.monitoring },
-            set: { on in if on { state.installMonitoring(current) } else { state.disableMonitoring(current) } }))
+            set: { on in run { if on { state.installMonitoring(current) } else { state.disableMonitoring(current) } } }))
         Text("Points this account's statusLine in settings.json at Brow's wrapper, which records each session's model, context use and limits, then runs your own status-line command. Turning it off puts your command back.")
             .font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         LabeledContent("Default model") {
             ModelPicker(model: Binding(get: { current.defaultModel },
-                                           set: { state.setAccountModel(name: account.name, model: $0) }))
+                                           set: { model in run { state.setAccountModel(name: account.name, model: model) } }))
         }
         LabeledContent("Default effort") {
             Picker("", selection: Binding(get: { current.defaultEffort },
-                                          set: { state.setAccountEffort(name: account.name, effort: $0) })) {
+                                          set: { effort in run { state.setAccountEffort(name: account.name, effort: effort) } })) {
                 Text("(default)").tag(String?.none)
                 ForEach(ClaudeService.effortLevels, id: \.self) { Text($0).tag(String?.some($0)) }
             }
             .labelsHidden().fixedSize()
         }
+        if let failure { FailureNote(text: failure) }
     }
+
+    private func run(_ action: () -> Void) { failure = state.attempt(action) }
 }
 
 /// The transcripts the safety net can put back, newest first, each with Restore: gone from

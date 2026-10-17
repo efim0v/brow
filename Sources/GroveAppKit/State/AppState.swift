@@ -302,6 +302,20 @@ public final class AppState: ObservableObject {
         return config.accounts.first
     }
 
+    /// Runs one of the actions below for a window of the host's own — Brow's Settings —
+    /// and returns what went wrong, if anything. The failure is shown next to the control
+    /// that caused it, where the user is looking; the panel's banner, which they are not,
+    /// is left as it was.
+    @discardableResult
+    public func attempt(_ action: () -> Void) -> String? {
+        let shown = actionError
+        actionError = nil
+        action()
+        let failure = actionError
+        actionError = shown
+        return failure
+    }
+
     // MARK: - Persistence
 
     private func persist() {

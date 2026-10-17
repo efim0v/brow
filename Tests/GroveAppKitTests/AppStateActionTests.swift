@@ -888,6 +888,49 @@ final class AppStateActionTests: XCTestCase {
         XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.sharedStore, false)
     }
 
+    // MARK: - an action's failure, for the host's Settings window
+
+    /// Settings shows what went wrong next to the control: `attempt` hands the failure
+    /// back and leaves the panel's banner as it was.
+    func testAttemptHandsBackTheFailureAndLeavesTheBannerAlone() async throws {
+        let work = AccountConfig(name: "work", configDir: root.appendingPathComponent("w-attempt").path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = root.appendingPathComponent("no-canonical").path
+        state.actionError = "an older banner"
+
+        let failure = state.attempt { state.linkAccount(work) }
+
+        XCTAssertTrue(failure?.contains("canonical account") == true, failure ?? "nil")
+        XCTAssertEqual(state.actionError, "an older banner")
+        XCTAssertNil(state.attempt { state.setAccountModel(name: "work", model: "opus") }, "a change that works")
+        XCTAssertEqual(state.config.accounts.first?.defaultModel, "opus")
+    }
+
+    /// The capture switch on a settings.json that does not parse: refused, the file left
+    /// as it was, and the reason handed back for the switch to show as it snaps back.
+    func testAttemptReportsACaptureThatCouldNotEditSettings() async throws {
+        let accDir = root.appendingPathComponent("acc-unparseable")
+        try FileManager.default.createDirectory(at: accDir, withIntermediateDirectories: true)
+        let bytes = Data(#"{"permissions":{"allow":["Bash(npm te"#.utf8)
+        try bytes.write(to: accDir.appendingPathComponent("settings.json"))
+        let work = AccountConfig(name: "work", configDir: accDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.bin = root.appendingPathComponent("bin-unparseable").path
+
+        let failure = state.attempt { state.installMonitoring(work) }
+
+        XCTAssertTrue(failure?.hasPrefix("Couldn't enable monitoring") == true, failure ?? "nil")
+        XCTAssertNil(state.actionError)
+        XCTAssertEqual(state.config.accounts.first?.monitoring, false)
+        XCTAssertEqual(try Data(contentsOf: accDir.appendingPathComponent("settings.json")), bytes)
+    }
+
     // MARK: - monitoring (statusline capture)
 
     func testInstallMonitoringRepointsSettingsAndMarksMonitoringWithSavedOriginal() async throws {

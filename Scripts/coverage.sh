@@ -8,8 +8,9 @@
 # notch shares with it (GroveCore services and models, GroveAppKit presentation and
 # state) and must be >= 95%. SwiftUI views are validated by the snapshot/render tests;
 # real cmux/osascript/socket adapters and the NSApplication entry points are validated
-# by manual/integration testing — both are excluded from the gate. BrowKit's own logic
-# (models and state) is reported on a line of its own.
+# by manual/integration testing — both are excluded from the gate. BrowKit is reported
+# on a line of its own: its models, its state and the whole pet, the pet's views and
+# senses included, but not its other views, the notch window or the app delegate.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -33,8 +34,9 @@ fi
 
 # Excluded from the logic gate (validated by other means, not unit coverage).
 GATE_IGNORE='Tests|\.build|GroveAppKit/Views/|WorkspacesMenuBarController|DesignSystem|GroveLog|Snapshot/SnapshotMode|Services/Cmux|Diagnostics/CmuxProbe|BrowKit/|BrowApp/|brow-cli/'
-# BrowKit's logic: its models and state, without the views, the notch window and the
-# app delegate (render tests and the app cover those).
+# BrowKit's line: Model/, State/ and all of Pet/, the pet's views (PetCanvas, PetLayerView),
+# its senses (PetSenses) and its perf log (PetPerfLog) included. Left out: BrowKit's other
+# views, the notch window, the app delegate and its log (render tests and the app cover those).
 BROWKIT_IGNORE='Tests|\.build|GroveCore/|GroveAppKit/|BrowKit/Views/|BrowKit/Panel/|BrowKit/App/|BrowKit/BrowLog|BrowApp/|brow-cli/'
 
 cover() {
@@ -48,7 +50,7 @@ GATE=$(cover "$GATE_IGNORE")
 BROWKIT=$(cover "$BROWKIT_IGNORE")
 echo "Overall line coverage:    ${ALL}%"
 echo "Logic-gate coverage:      ${GATE}%   (policy: >= 95%)"
-echo "BrowKit logic coverage:   ${BROWKIT}%   (reported, not gated)"
+echo "BrowKit coverage:         ${BROWKIT}%   (models, state and the pet; reported, not gated)"
 
 awk -v g="$GATE" 'BEGIN { exit (g+0 >= 95) ? 0 : 1 }' \
     && echo "GATE PASS" || { echo "GATE FAIL"; exit 1; }

@@ -19,10 +19,12 @@ over from Grove — it must stay at **≥ 95%** line coverage:
 These are tested directly with fixtures, temp dirs, and injected runners/fetchers
 (no real network, git, cmux, or `~/.claude` access).
 
-`BrowKit`'s logic (`Model/*`, `State/*`, `Pet/*`) is reported on a line of its own:
-its store, settings, activation and limit-warning logic and the pet's brain, rig and
-words are unit-tested the same way, and its views, its panel and the pet's drawing
-are covered by render tests.
+`BrowKit` is reported on a line of its own, not gated. It measures `Model/*`,
+`State/*` and all of `Pet/*`: the store, settings, activation and limit-warning logic
+and the pet's brain, rig and words, unit-tested the same way, and also the pet's views
+(`PetCanvas`, `PetLayerView`), its senses (`PetSenses`) and its perf log (`PetPerfLog`),
+which render tests and `PetSensesTests` cover only in part. BrowKit's other views, its
+panel and its app delegate are left out, as in the table below.
 
 ## Excluded from the gate (validated by other means)
 

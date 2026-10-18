@@ -76,6 +76,35 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   display: `Beside the notch` (default — one wing each side, the notch itself left
   clear) or `Below the notch` (one centred row in a 22 pt strip under it). It takes
   effect as you click; an external display always shows the pill.
+- **The pet** (Settings → General → **Show the pet**, on by default) lives in the
+  black beside the 5-hour readout, or in the strip below the notch (scale 0.80) or
+  in the pill (0.82), and never covers a number. It eats what the visible accounts
+  use: food is the growth of each account's 5-hour window within one reset period,
+  weighted as the readout weights the accounts, so one point of the left readout is
+  one point of food. The weekly and model weekly windows, a reset, an account
+  appearing or shown again, its first reading and any decrease are not food. Its
+  hunger runs from −50 to 100 (a new pet starts at 30): +20 an hour while you are at
+  the Mac, it is awake and a reading is under 10 min old, slower when the week is
+  ahead of an even pace and stopped 30 points ahead; −6 for each point it eats.
+  Full at 0 or below, Content to 35, Peckish to 65, Hungry from 65, with 5 points of
+  hysteresis on the way back. At an effective 5-hour aggregate of 99.5 % (the
+  readout's `100%`) it falls asleep until the window resets; at 99.5 % weekly it
+  hibernates in the den behind the camera until the weekly reset. A prompt written
+  to an account's `history.jsonl` (watched, never read) makes it eager for 90 s.
+  Moments: its intro, fed-day streaks (a day with 10 points eaten; two rest days
+  allowed) at 3, 7, 14, 30, 60 and 100 days, a good week (an account's weekly limit
+  closing at 70 % or more), a feast (a meal of 8 points or more), a fresh window
+  and a welcome back. Nothing random reacts to you, nothing is lost, and there is
+  no notification or sound. In the panel its row shows the state, the last meal and
+  a hunger meter with no number; a click on the pet boops it. It draws at 30 frames
+  a second at rest, 15 asleep, 10 hibernating, 60 to 120 for a meal or a hop, and
+  nothing when nobody can see it or you have been away for 10 min. Its state is
+  `~/Library/Application Support/Brow/pet.json`. With **Show Brow in the notch** off
+  there is nowhere to see the pet, so it is off as well: no frames, no timers, no
+  file watchers, and the same pet when Brow is back in the notch.
+  `open Brow.app --args -petPerfLog YES`
+  logs its frames and CPU once a minute to the `pet` category, and
+  `-petForceState idle|asleep|hibernating` pins its state for a measurement.
 - The strip is drawn as the notch outline (`NotchShape`), not a rectangle. Its
   tuning knobs are constants in `Sources/BrowKit/Panel/NotchGeometry.swift` —
   `flare` (concave top corners, 6), `collapsedBottomRadius` (14),

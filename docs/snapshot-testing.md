@@ -21,6 +21,14 @@ so the notch's and Workspaces' pictures agree:
 
     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
 
+They draw the pet at rest. Its own renders go to a folder outside the repository:
+`PetFinalRenderTests` films and stills it through Brow's real views (the strip in
+every placement, the hop into the panel, the den, the moods), `PetShowreelTests`
+plays the rig's reels; `PET_FINAL_ONLY` and `PET_SHOWREEL_ONLY` pick some:
+
+    PET_FINAL_DIR=/tmp/pet-final swift test -c release --filter PetFinalRenderTests
+    PET_SHOWREEL_DIR=/tmp/pet-reels swift test -c release --filter PetShowreelTests
+
 ## Regression workflow (any UI change)
 
 1. Change view code.

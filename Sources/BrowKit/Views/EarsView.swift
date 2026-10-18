@@ -84,29 +84,32 @@ public struct EarsView: View {
     /// `outward`: the readout hugs the outer edge of its wing, which is what keeps the
     /// notch-wide middle clear in `beside`. Otherwise it hugs the middle, so the two
     /// halves read as the one centred `● 14%   27% ●` row the strip needs.
+    ///
+    /// Every number comes from `EarsMetrics`, which the pet's zones are worked out from:
+    /// the black the pet lives in is exactly what this leaves free.
     private func ear(_ r: EarReadout, leading: Bool, outward: Bool) -> some View {
         let spacerFirst = outward ? !leading : leading
-        return HStack(spacing: 5) {
+        return HStack(spacing: EarsMetrics.dotSpacing) {
             if spacerFirst { Spacer(minLength: 0) }
             if leading { dot(r) }
-            HStack(spacing: 3) {
+            HStack(spacing: EarsMetrics.initialSpacing) {
                 if let initial = r.modelInitial {
-                    Text(initial).font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
+                    Text(initial).font(EarsMetrics.initialFont).foregroundStyle(.secondary)
                 }
                 Text(PanelText.earsText(r, hasData: aggregate.hasData))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                    .font(EarsMetrics.readoutFont)
                     .foregroundStyle(.white)
             }
             if !leading { dot(r) }
             if !spacerFirst { Spacer(minLength: 0) }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, EarsMetrics.padding)
     }
 
     /// Grey next to the `—`: the severity of a reading we do not have is not `.ok`.
     private func dot(_ r: EarReadout) -> some View {
-        Circle().fill(aggregate.hasData ? color(for: r) : Color.gray).frame(width: 7, height: 7)
+        Circle().fill(aggregate.hasData ? color(for: r) : Color.gray)
+            .frame(width: EarsMetrics.dotSize, height: EarsMetrics.dotSize)
     }
 
     static func color(for r: EarReadout) -> Color {

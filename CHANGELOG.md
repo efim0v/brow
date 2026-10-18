@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2026-10-17
 
-Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md).
+Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md). The notch also gets a pet that eats what your accounts use.
 
 ### Added
 
@@ -21,6 +21,7 @@ Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees
 - The command-line tool is `brow`, with `grove` as a second name, so scripts written for Grove's tool keep working unchanged. `brow --version` prints Brow's version. It ships as `brow-cli.zip`.
 - The model pickers offer Claude Code's aliases (`opus`, `sonnet`, `haiku`), pinned versions, and Other… for any model id.
 - Settings → General → Show Brow in the notch. Off, Brow draws nothing at the top of the screen and no panel opens there, for someone who uses Brow for Workspaces only. Limit warnings still arrive, and opening Brow again shows Workspaces or Settings.
+- **A pet that eats your limits.** A small creature lives in the black beside the notch, below it, or in the pill, and eats what your accounts use: when the 5-hour number goes up, it takes a bite, drawn as a bead of light that leaves the number untouched. Hours at the Mac without Claude Code make it hungry; it never gets hungry while you are away, and its light is its hunger meter. When the 5-hour limit is used up it falls asleep full until the window resets; when the weekly limit is used up it hibernates in its den behind the camera until the weekly reset. It perks up when a prompt is written to an account's `history.jsonl`, which Brow asks macOS to watch and never reads. Hover the notch and it hops into a new first row of the panel, with its state, its last meal and a hunger meter; a click on it boops it. It draws only while someone can see it, follows Reduce Motion, Reduce Transparency and Increase Contrast, and keeps its state in `~/Library/Application Support/Brow/pet.json`. On by default; Settings → General → **Show the pet** turns it off, and with Show Brow in the notch off there is no pet at all.
 
 ### Changed
 

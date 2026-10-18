@@ -179,6 +179,13 @@ public struct SettingsView: View {
                 .disabled(!store.settings.showNotch || !store.settings.showEars)
                 Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
                     .font(.caption).foregroundStyle(.secondary)
+                // On by default: it draws only in Brow's own black, covers no number, needs no
+                // permission and interrupts nothing. It lives in the notch, so with Brow out of the
+                // notch there is no pet to show.
+                Toggle("Show the pet", isOn: $store.settings.showPet)
+                    .disabled(!store.settings.showNotch)
+                Text("A small creature beside the notch that eats what your accounts use: it takes a bite when the 5-hour number goes up, sleeps when a limit is used up and wakes at the reset. It only gets hungry while you are at the Mac, and follows Reduce Motion. Nothing leaves this Mac.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             UsageImageSection(store: store)
             Section("One browser profile per account") {

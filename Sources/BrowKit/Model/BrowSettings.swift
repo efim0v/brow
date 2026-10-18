@@ -70,6 +70,10 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     public var showEars: Bool = true
     /// The month of weekly resets and renewals under the accounts in the panel.
     public var showCalendar: Bool = true
+    /// The pet beside the notch that eats what the accounts use. On by default, like the readouts and
+    /// the calendar: it draws only in Brow's own black, covers no number, interrupts nothing and needs
+    /// no permission. Off: no frames, no timers, no file watchers; `pet.json` is kept.
+    public var showPet: Bool = true
     /// A macOS notification when a visible account passes one of `notifyThresholds`
     /// on any of its windows — see `LimitWarnings`. Off until the user opts in.
     public var notifyLimits: Bool = false
@@ -83,7 +87,7 @@ public struct BrowSettings: Codable, Sendable, Equatable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showNotch, showEars, showCalendar, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets, workspaces }
+    enum CodingKeys: String, CodingKey { case accounts, extraDirs, allowPromptFallback, claudePath, earsPlacement, showNotch, showEars, showCalendar, showPet, cardShowNames, cardShape, notifyLimits, notifyThresholds, notifyResets, workspaces }
 
     // `decodeIfPresent` answers nil only for a MISSING key: a key that is PRESENT with a
     // value of the wrong type or an unmatched raw value (a hand edit, or a value a later
@@ -111,6 +115,7 @@ public struct BrowSettings: Codable, Sendable, Equatable {
         showNotch = field(.showNotch, Bool.self) ?? true
         showEars = field(.showEars, Bool.self) ?? true
         showCalendar = field(.showCalendar, Bool.self) ?? true
+        showPet = field(.showPet, Bool.self) ?? true
         notifyLimits = field(.notifyLimits, Bool.self) ?? false
         notifyThresholds = LimitWarnings.sanitized(field(.notifyThresholds, [Int].self) ?? LimitWarnings.defaultLevels)
         notifyResets = field(.notifyResets, Bool.self) ?? false

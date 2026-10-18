@@ -68,6 +68,7 @@ In the notch:
 - **Every account at a glance.** For each account: the 5-hour limit, the weekly limit and any model-specific weekly limit, as percent used, with the time until each resets.
 - **A reset calendar.** Weekly resets and estimated subscription renewals on a month grid, so you can see which account frees up when.
 - **Limit warnings.** Off by default. Turn them on and Brow posts a macOS notification when an account passes 80 % and 95 % of a limit, once per level until it resets.
+- **A pet that eats your limits.** A small creature lives beside the notch and eats what your accounts use: when the 5-hour number goes up, it takes a bite. Hours at the Mac without Claude Code make it hungry; it never gets hungry while you are away. When the 5-hour limit is used up it falls asleep full until the window resets, and when the weekly limit is used up it hibernates until the weekly reset. On by default; Settings → General → **Show the pet** turns it off.
 - **Copy my week.** One button copies a picture of your limits, ready to paste into a chat or a post. Accounts are numbered unless you choose to show their names, and emails never appear.
 - **Copy the launch command.** One button copies the command that starts Claude Code as that account.
 - **Sign in again, in that account's own browser.** Each account gets a separate browser profile — its own cookies, history and saved logins — so signing in to one never disturbs another. A second button opens that profile directly.
@@ -103,6 +104,7 @@ Worth knowing before you run it. The notch:
 - **Each account's browser profile is a separate directory** under `~/Library/Application Support/Brow/browser-profiles/`. Brow sets the profile's name and allows third-party cookies in it so that sign-in works.
 - **Signing in opens Terminal** with `claude auth login`; macOS asks once for permission to control Terminal.
 - **Brow marks Claude Code's first-run setup as done** in account folders other than `~/.claude` before it starts Claude Code in one: it sets `hasCompletedOnboarding` in that folder's `.claude.json` (and copies your theme if the folder has none), so the session doesn't open the onboarding wizard.
+- **With the pet on, Brow asks macOS to tell it when each account's `history.jsonl` is written**, so the pet can perk up when you start Claude Code. It never reads the file. The pet's own state (its hunger, the last readings it has seen, the days it was fed) is in `~/Library/Application Support/Brow/pet.json`.
 
 Workspaces, only once you turn it on (or Brow finds Grove's settings):
 
@@ -179,6 +181,10 @@ Brow's own network requests go to two Anthropic endpoints and nowhere else: `api
 
 macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead, and with the readouts off, nothing until the pointer reaches the top centre. If you use Brow for Workspaces only, turn off **Show Brow in the notch** and it draws nothing at the top of the screen at all; limit warnings still arrive.
 
+### Does the pet cost battery?
+
+It draws only while the screen is on and you are at the Mac: 30 frames a second at rest, 60 to 120 for a second or two while it eats or moves, and nothing when the screen is locked or asleep, when you have been away for ten minutes, or when the pet is off. It follows Reduce Motion.
+
 ### I don't see Brow's item in the menu bar.
 
 On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside it. Workspaces still opens from the stacked-squares button in the notch panel, from **Show Workspaces** in Brow's menu, and when you open Brow again from Finder or Spotlight. Settings → General → **Show Workspaces in the menu bar** turns the item off altogether.
@@ -198,7 +204,7 @@ On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside 
    For each file it lists, open the script that file's `statusLine.command` names: its `GROVE_ORIG` line holds the command you had before. Put that command back, or delete the `statusLine` key if `GROVE_ORIG` is empty.
 2. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with ⌘Q while its Settings window is in front, or with **Quit Brow** in the Workspaces panel.
 3. Delete the app: `brew uninstall --cask efim0v/tap/brow` and `brew uninstall efim0v/tap/brow-cli`, or move `Brow.app` and the `brow` tool to the Trash.
-4. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings and per-account browser profiles (cookies and saved passwords included), Workspaces' folder (its config, the wrapper scripts, code statistics and the request-pacing file), and what macOS stored for Brow's network requests:
+4. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings, the pet's state and per-account browser profiles (cookies and saved passwords included), Workspaces' folder (its config, the wrapper scripts, code statistics and the request-pacing file), and what macOS stored for Brow's network requests:
 
    ```sh
    rm -rf ~/Library/Application\ Support/Brow
@@ -232,11 +238,11 @@ The app is signed ad hoc by default. macOS then forgets the Keychain and Automat
 |---|---|
 | `Sources/GroveCore` | Accounts, credentials, usage and token refresh; git, worktrees, cmux, Claude Code sessions, the shared store, the transcript safety net, migration, code statistics |
 | `Sources/GroveAppKit` | The Workspaces panel and its state |
-| `Sources/BrowKit` | The notch, the limits, Settings, and Brow's side of Workspaces |
+| `Sources/BrowKit` | The notch, the limits, the pet, Settings, and Brow's side of Workspaces |
 | `Sources/BrowApp` | Entry point |
 | `Sources/brow-cli` | The `brow` command-line tool |
 | `Resources` | The app icon, the per-account browser router, the Info.plist template |
-| `Tests` | About 1,350 tests |
+| `Tests` | About 1,550 tests |
 | `docs` | [The notch in detail](docs/brow.md), [Workspaces](docs/workspaces.md), [architecture](docs/architecture.md), [troubleshooting](docs/troubleshooting.md) |
 
 There are no third-party dependencies. The module names `GroveCore` and `GroveAppKit` come from Grove, whose history this repository includes.

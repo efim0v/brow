@@ -24,9 +24,11 @@ import GroveCore
 /// About shows a generic icon, neither of which the app does.
 ///
 /// The notch and the panel are the real `EarsView` / `PanelView` through ImageRenderer;
-/// the strip of "desktop" behind them is a stand-in. Settings is the real `SettingsView`
-/// in an offscreen window (its `TabView`/`Form` are AppKit-backed and do not survive
-/// ImageRenderer), one image per tab, with Workspaces hosted on a fixture state.
+/// the strip of "desktop" behind them is a stand-in. The pet is the real layer posed from a
+/// scripted state at a fixed instant (`demoPet`), so the images are reproducible. Settings is
+/// the real `SettingsView` in an offscreen window (its `TabView`/`Form` are AppKit-backed
+/// and do not survive ImageRenderer), one image per tab, with Workspaces hosted on a fixture
+/// state.
 final class DemoScreenshotTests: XCTestCase {
 
     func testRenderBrowDemoScreenshots() async throws {
@@ -232,25 +234,36 @@ final class DemoScreenshotTests: XCTestCase {
                                    topRightArea: CGRect(x: 848.5, y: 950, width: 663.5, height: 32),
                                    menuBarHeight: 33, notchHeight: 32)
 
-        // (1) Collapsed: the two readouts beside the notch, and the alternative placement.
+        // (1) Collapsed: the two readouts beside the notch, and the alternative placement, with
+        // the pet at rest in its black. Drawn as the app draws it: the one outline, the strip
+        // inside it, the pet's layer above.
         for placement in [EarsPlacement.beside, .below] {
-            let frames = NotchGeometry.frames(for: screen, expandedHeight: 200, placement: placement)
-            let ears = EarsView(aggregate: store.aggregate, frames: frames)
-                .frame(width: frames.collapsed.width, height: frames.collapsed.height)
-            try renderOnDesktop(ears, canvas: CGSize(width: 640, height: 120),
+            let frames = NotchGeometry.frames(for: screen, expandedHeight: 120, placement: placement)
+            let model = NotchPanelModel(frames: frames, pet: Self.demoPet(frames: frames, aggregate: store.aggregate,
+                                                                           expanded: false))
+            model.ears = AnyView(EarsView(aggregate: store.aggregate, frames: frames, drawsBackground: false)
+                .frame(width: frames.collapsed.width, height: frames.collapsed.height))
+            try renderOnDesktop(NotchRootView(model: model), canvas: CGSize(width: 640, height: 120),
                                 to: out.appendingPathComponent(placement == .beside
                                                                ? "brow-notch-collapsed.png"
                                                                : "brow-notch-collapsed-below.png"))
         }
 
-        // (2) + (3) Expanded: without the calendar, then the default panel with it. The
-        // footer carries the Workspaces button, as it does in the app.
+        // (2) + (3) Expanded: without the calendar, then the default panel with it, the pet in
+        // its header. The footer carries the Workspaces button, as it does in the app.
         let frames = NotchGeometry.frames(for: screen, expandedHeight: 200, placement: .beside)
+        let words = PetPanelModel()
+        words.header = PetText.Header(word: "Content", detail: "Ate 3 % · 2 min ago", moment: nil)
+        words.meter = 22
         func panel() -> some View {
-            PanelView(store: store, clock: clock, topInset: frames.contentTopInset, flare: frames.flare,
-                      onSettings: {}, onRefresh: {}, onWorkspaces: {})
-                .frame(width: frames.expanded.width)
-                .fixedSize(horizontal: false, vertical: true)
+            ZStack(alignment: .topLeading) {
+                PanelView(store: store, clock: clock, topInset: frames.contentTopInset, flare: frames.flare,
+                          pet: words, onSettings: {}, onRefresh: {}, onWorkspaces: {})
+                    .frame(width: frames.expanded.width)
+                PetLayerView(layer: Self.demoPet(frames: frames, aggregate: store.aggregate, expanded: true),
+                             size: CGSize(width: frames.expanded.width, height: 200), expanded: true)
+            }
+            .fixedSize(horizontal: false, vertical: true)
         }
         store.settings.showCalendar = false
         try renderOnDesktop(panel(), canvas: CGSize(width: 640, height: 0),
@@ -322,6 +335,25 @@ final class DemoScreenshotTests: XCTestCase {
         }
         .padding(.horizontal, 14)
         .frame(width: 320, height: 33)
+    }
+
+    /// The pet at rest, content, at a fixed instant of a scripted timeline: the same picture on every
+    /// run. In the panel it has landed in the header's stage.
+    @MainActor
+    static func demoPet(frames: NotchFrames, aggregate: LimitsAggregate, expanded: Bool) -> PetLayer {
+        let layer = PetLayer()
+        layer.zones = PetLayout.zones(frames: frames, aggregate: aggregate, showEars: true, fiveHour: nil)
+        layer.timeline.segments = [PetSegment(start: 0, behaviour: .idle(.content))]
+        layer.timeline.meter = [PetMeterKey(t: 0, value: 22, rate: 0)]
+        layer.seed = 7
+        if expanded { layer.dock.changes = [PetDockChange(t: 1, kind: .expand)] }
+        // An instant with the eyes open: never mid-blink in a README.
+        var t = 9.0
+        while PetRigIdle.blinkOpen(at: t, seed: layer.seed) < 0.999 || PetRigIdle.blinkOpen(at: t - 0.2, seed: layer.seed) < 0.999 {
+            t += 0.05
+        }
+        layer.now = { t }
+        return layer
     }
 
     // MARK: - Rendering

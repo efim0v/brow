@@ -1,13 +1,13 @@
 # Architecture
 
-Brow is one SwiftPM package with no dependencies: the notch and its limits, the Workspaces engine and panel, one Settings window, and the `brow` command-line tool. Until 0.4 the Workspaces half was a separate app, Grove, in its own repository; it came into this one with its history, so `git log --follow` and `git blame` reach every Grove commit.
+Brow is one SwiftPM package with no dependencies: the notch with its limits and its pet, the Workspaces engine and panel, one Settings window, and the `brow` command-line tool. Until 0.4 the Workspaces half was a separate app, Grove, in its own repository; it came into this one with its history, so `git log --follow` and `git blame` reach every Grove commit.
 
 ## Modules
 
 ```
 GroveCore            ← no dependencies
    ├── GroveAppKit   ← the Workspaces panel and engine state
-   │      └── BrowKit       ← the notch, the limits, Settings, hosting Workspaces
+   │      └── BrowKit       ← the notch, the limits, the pet, Settings, hosting Workspaces
    │             └── BrowApp       ← main.swift
    └── brow-cli      ← the `brow` tool (`grove` is a second name)
 ```
@@ -16,7 +16,7 @@ GroveCore            ← no dependencies
 |---|---|
 | `GroveCore` | Accounts, Keychain credentials, the usage and profile endpoints, token refresh (the notch's), and git, worktrees, cmux, Claude Code sessions, the shared session store, the transcript safety net, session migration and code statistics (Workspaces'). |
 | `GroveAppKit` | The Workspaces panel (`WorkspacesMenuBarController`, `RootView` and its screens) and its state (`AppState`). It never imports `BrowKit`: what it needs from the app hosting it comes in as values, closures and the `AccountLimitsProviding` protocol. |
-| `BrowKit` | The notch (`NotchPanelController`, `PanelView`), the limits (`LimitsStore`), the Settings window, and `WorkspacesHost`, Brow's side of Workspaces. |
+| `BrowKit` | The notch (`NotchPanelController`, `PanelView`), the limits (`LimitsStore`), the pet (`PetController` and the rest of `Pet/`), the Settings window, and `WorkspacesHost`, Brow's side of Workspaces. |
 | `BrowApp` | `main.swift`: `--snapshot` and `--cmux-probe`, then the app. |
 | `brow-cli` | The command-line tool. |
 
@@ -44,6 +44,7 @@ Nothing moved in 0.4.0. Brow keeps its own folder; Workspaces keeps Grove's.
 |---|---|---|
 | Brow's settings, Workspaces' on/off, menu-bar item and panel material | `~/Library/Application Support/Brow/config.json` (`.bak` beside it when a value could not be read) | Brow |
 | Limits cache, token-refresh bookkeeping | `…/Brow/limits.json`, `…/Brow/token-attempts.json` | Brow |
+| The pet's hunger, the readings it has seen, the days it was fed | `…/Brow/pet.json` | Brow |
 | Per-account browser profiles | `…/Brow/browser-profiles/<accountKey>/` | the browser router |
 | Request pacing | `…/Grove/oauth-usage-ledger.json` | Brow (under Grove's folder for historical reasons) |
 | Projects, accounts, safety-net settings | `…/Grove/config.json` (+ `.bak`) | Workspaces; Grove 0.2.2 can still read and write it |
@@ -72,7 +73,7 @@ What is still refused, deliberately: anything that would give **one session** tw
 
 ## Logs
 
-One subsystem, `dev.artemefimov.brow`. The notch logs under `limits`, `tokens`, `panel` and `notify`; Workspaces under `workspaces` and `perf`; the services both use under `keychain`, `TokenKeeper`, `ClaudeService` and `ProcessRunner`.
+One subsystem, `dev.artemefimov.brow`. The notch logs under `limits`, `tokens`, `panel` and `notify`, its pet under `pet`; Workspaces under `workspaces` and `perf`; the services both use under `keychain`, `TokenKeeper`, `ClaudeService` and `ProcessRunner`.
 
 ```sh
 log stream --level info --predicate 'subsystem == "dev.artemefimov.brow"'

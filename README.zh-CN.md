@@ -70,6 +70,7 @@ Workspaces 为多仓库产品的每个功能单独建一个文件夹，里面是
 - **所有账号一目了然**：每个账号显示 5 小时限额、每周限额，以及特定模型的每周限额（如有），均以已用百分比表示，并附上距离各自重置还剩多久。
 - **重置日历**：在月历上标出每周重置日和预计的订阅续费日，哪个账号什么时候恢复，一看便知。
 - **限额预警**：默认关闭。开启后，账号用到某项限额的 80% 和 95% 时，Brow 会发出 macOS 通知；每个阈值在限额重置前只提醒一次。
+- **一只吃限额的宠物**：一个小家伙住在刘海旁边，你的账号用掉什么，它就吃什么：5 小时限额的数字一上涨，它就咬一口。你在 Mac 前好几个小时都没用 Claude Code，它就会饿；你不在的时候，它从不变饿。5 小时限额用完时，它吃饱睡着，直到窗口重置；每周限额用完时，它冬眠到每周重置。默认开启；在 Settings → General → **Show the pet** 中可以关闭。
 - **复制“我的一周”**：一个按钮可以把各账号的限额复制成一张图片，直接粘贴到聊天或帖子里。除非你选择显示名称，图片上的账号只显示编号，也不会出现邮箱。
 - **复制启动命令**：一个按钮即可复制以该账号身份启动 Claude Code 的命令。
 - **在账号自己的浏览器里重新登录**：每个账号都有独立的浏览器配置文件，Cookie、历史记录和已保存的登录信息互不相通，登录一个账号绝不会影响另一个。第二个按钮可以直接打开这个配置文件。
@@ -105,6 +106,7 @@ Workspaces 里：
 - **每个账号的浏览器配置文件都是一个单独的目录**，位于 `~/Library/Application Support/Brow/browser-profiles/` 下。Brow 会设置配置文件的名称，并在其中允许第三方 Cookie，以便登录正常进行。
 - **登录时会打开“终端”**，在其中运行 `claude auth login`；macOS 会询问一次是否允许 Brow 控制“终端”。
 - **Brow 会把 Claude Code 的首次设置标记为已完成**：在 `~/.claude` 以外的账号文件夹中启动 Claude Code 之前，它会在该文件夹的 `.claude.json` 中设置 `hasCompletedOnboarding`（如果那里没有主题，还会复制你的主题），这样会话就不会打开首次运行向导。
+- **开启宠物后，Brow 会请 macOS 在每个账号的 `history.jsonl` 被写入时通知它**，好让宠物在你开始使用 Claude Code 时打起精神。Brow 从不读取这个文件。宠物自己的状态（它的饥饿程度、它看到的最近读数、它吃饱的日子）保存在 `~/Library/Application Support/Brow/pet.json` 中。
 
 Workspaces 部分，只在你开启它之后（或 Brow 找到 Grove 的设置时）：
 
@@ -181,6 +183,10 @@ Brow 自己的网络请求只发往两个 Anthropic 接口，不会发往别处�
 
 macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于主显示器顶部。如果主显示器有刘海，两个读数会显示在刘海两侧（默认），或者显示在刘海下方的横条里：Settings → General → **Ears**。在同一标签页中关闭 **Show readouts next to the notch** 后，指针移到刘海之前不会绘制任何内容。如果主显示器没有刘海（例如外接显示器），Brow 会改为在屏幕顶部中央显示一个胶囊；关闭读数后，指针移到屏幕顶部中央之前不会绘制任何内容。如果你只用 Brow 的 Workspaces，可以关闭 **Show Brow in the notch**，这样它不会在屏幕顶部绘制任何内容，限额提醒仍会照常发送。
 
+### 宠物费电吗？
+
+它只在屏幕亮着、你在 Mac 前时才绘制：静止时每秒 30 帧，进食或移动的一两秒内每秒 60 到 120 帧；屏幕锁定或休眠、你离开满十分钟，或者宠物已关闭时，一帧也不画。它遵循“减弱动态效果”（Reduce Motion）设置。
+
 ### 菜单栏里看不到 Brow 的图标。
 
 在带刘海的 MacBook 上，macOS 会隐藏刘海旁放不下的菜单栏图标。这时 Workspaces 仍然可以通过刘海面板上叠放方块的按钮、Brow 菜单中的 **Show Workspaces**，以及从访达或聚焦搜索再次打开 Brow 来打开。Settings → General → **Show Workspaces in the menu bar** 可以完全关闭这个图标。
@@ -200,7 +206,7 @@ macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于�
    对列出的每个文件，打开其 `statusLine.command` 指向的脚本：其中的 `GROVE_ORIG` 一行保存着你原来的命令。把这条命令填回去；如果 `GROVE_ORIG` 为空，就删除 `statusLine` 键。
 2. 如果开启过 **Launch at login**，先在 Settings → General 中关闭它。然后在 Brow 的设置窗口位于最前面时按 ⌘Q 退出 Brow，或者使用 Workspaces 面板中的 **Quit Brow**。
 3. 删除应用：运行 `brew uninstall --cask efim0v/tap/brow` 和 `brew uninstall efim0v/tap/brow-cli`，或者把 `Brow.app` 和 `brow` 工具移到废纸篓。
-4. 关闭 Brow 为各账号打开的浏览器窗口，然后删除 Brow 的文件：它的设置、缓存的读数、各账号的浏览器配置文件（包括其中的 Cookie 和已保存的密码）、Workspaces 的文件夹（其配置、包装脚本、代码统计和请求节奏文件），以及 macOS 为 Brow 的网络请求保存的数据：
+4. 关闭 Brow 为各账号打开的浏览器窗口，然后删除 Brow 的文件：它的设置、缓存的读数、宠物的状态、各账号的浏览器配置文件（包括其中的 Cookie 和已保存的密码）、Workspaces 的文件夹（其配置、包装脚本、代码统计和请求节奏文件），以及 macOS 为 Brow 的网络请求保存的数据：
 
    ```sh
    rm -rf ~/Library/Application\ Support/Brow
@@ -234,11 +240,11 @@ cp -R dist/Brow.app /Applications/
 |---|---|
 | `Sources/GroveCore` | 账号、凭据、用量和令牌刷新；git、worktree、cmux、Claude Code 会话、共享存储、转录安全网、会话迁移、代码统计 |
 | `Sources/GroveAppKit` | Workspaces 面板及其状态 |
-| `Sources/BrowKit` | 刘海、限额、设置，以及 Brow 对 Workspaces 的承载 |
+| `Sources/BrowKit` | 刘海、限额、宠物、设置，以及 Brow 对 Workspaces 的承载 |
 | `Sources/BrowApp` | 入口 |
 | `Sources/brow-cli` | 命令行工具 `brow` |
 | `Resources` | 应用图标、按账号区分的浏览器路由脚本、Info.plist 模板 |
-| `Tests` | 约 1350 个测试 |
+| `Tests` | 约 1550 个测试 |
 | `docs` | [刘海详解](docs/brow.md)、[Workspaces](docs/workspaces.md)、[架构](docs/architecture.md)、[故障排除](docs/troubleshooting.md)（均为英文） |
 
 没有任何第三方依赖。模块名 `GroveCore` 和 `GroveAppKit` 来自 Grove，本仓库包含了它的历史。

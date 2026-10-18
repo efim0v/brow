@@ -146,6 +146,10 @@ public final class LimitsStore: ObservableObject {
     public private(set) var aggregate: LimitsAggregate
     /// Newest `fetchedAt` across visible accounts; nil until any fetch succeeded.
     public private(set) var dataAsOf: Date?
+    /// True once an account scan has landed, however late (a scan parked behind a Keychain
+    /// prompt lands after `bootstrap()` has returned). Before it, an empty `rows` means "not
+    /// looked yet", not "no account", and the pet waits rather than going into its den.
+    public private(set) var hasScanned = false
     /// Set only when NO visible account succeeded in the last cycle.
     @Published public private(set) var footerError: String?
     /// A configuration problem that no fetch can fix — today only "`claude` not
@@ -727,6 +731,11 @@ public final class LimitsStore: ObservableObject {
         let locked = scanned.contains(where: \.keychainLocked)
         accounts = scanned
         setKeychainState(locked || (answered.isEmpty && deniable) ? .denied : .ok)
+        // Published even when the scan changes nothing else: an empty answer is an answer too.
+        if !hasScanned {
+            objectWillChange.send()
+            hasScanned = true
+        }
         recompute()
     }
 

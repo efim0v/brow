@@ -60,6 +60,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     /// Workspaces: Grove's panel and engine, hosted. Decides at launch whether anything
     /// of it runs (`WorkspacesActivation`); for a Brow-only user nothing does.
     private var workspaces: WorkspacesHost?
+    private var pet: PetController!
     private let clock = PanelClock()
     private var settingsWindow: NSWindow?
     /// Names typed into Settings but not committed yet. Owned here, not by the
@@ -133,7 +134,10 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         triggers.$isOnline
             .sink { [online] reachable in online.set(reachable) }
             .store(in: &cancellables)
-        self.panel = NotchPanelController(store: store, clock: clock,
+        // The pet reads only what the store already has; it adds no request and no Keychain read.
+        let pet = PetController(store: store)
+        self.pet = pet
+        self.panel = NotchPanelController(store: store, clock: clock, pet: pet,
                                           onExpandedChange: { [weak self] in self?.triggers.setExpanded($0) },
                                           onSettings: { [weak self] in self?.showSettings() },
                                           onWorkspaces: { [weak self] in self?.workspaces?.togglePanel() })
@@ -151,6 +155,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                 }
             }
             .store(in: &cancellables)
+        // After the panel, so its first frame has its zones; from the persisted accounts alone until the
+        // first account scan lands.
+        pet.start()
         // After the notch is up, like everything that may touch the disk.
         let workspaces = WorkspacesHost(store: store)
         self.workspaces = workspaces
@@ -216,6 +223,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         notifier?.stop()
         workspaces?.stop()
         panel?.hide()
+        // After the panel, whose collapse and leaving the screen are the last the pet hears: `pet.json`
+        // is written whatever its schedule says, so nothing since the last save is lost.
+        pet?.flush()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver); self.screenObserver = nil }
         cancellables.removeAll()
     }

@@ -73,6 +73,10 @@ public final class LimitsStore: ObservableObject {
         /// Asked only when the keeper may be about to run the CLI. nil: never asked, and
         /// the keeper runs as it always did (tests that are not about this).
         public var activity: ClaudeCodeActivityProbing?
+        /// Whether the main display is asleep. Asked only between the Mac going to sleep
+        /// and waking for a person (`markAsleep`), to tell a dark wake from a sleep that
+        /// never ended in a wake notification. The default takes the Mac's word alone.
+        public var displayAsleep: @Sendable () -> Bool = { true }
         public init(directory: AccountDirectory, keeper: TokenKeeper, client: OAuthUsageClient,
                     snapshotStore: LimitSnapshotStore, settingsStore: BrowSettingsStore,
                     now: @escaping @Sendable () -> Date,
@@ -323,6 +327,25 @@ public final class LimitsStore: ObservableObject {
         BrowLog.limits.info("network is \(online ? "up" : "down", privacy: .public)")
     }
 
+    /// The Mac went to sleep, and no wake for a person has come since.
+    private(set) var asleep = false
+
+    /// Sleep and wake, pushed in by `RefreshTriggers`. In between, the poll still fires in
+    /// the Mac's dark wakes (Power Nap, maintenance): a `claude doctor` started in one can
+    /// be frozen mid-refresh when the Mac goes back to sleep, with the refresh token
+    /// already rotated on the server, and a `claude -p` spends limit while nobody is there.
+    /// So no CLI runs then; the reading still goes out.
+    public func markAsleep(_ asleep: Bool) {
+        guard asleep != self.asleep else { return }
+        self.asleep = asleep
+        BrowLog.tokens.info("the Mac \(asleep ? "went to sleep" : "woke up", privacy: .public)")
+    }
+
+    /// A dark wake: asleep by the Mac's word, and the display agrees. The display is asked
+    /// because a sleep that ends without a wake notification must not hold the keeper off
+    /// for someone sitting at the screen.
+    private var inDarkWake: Bool { asleep && deps.displayAsleep() }
+
     /// The `claude` binary could not be found (or the configured path is wrong).
     /// Shown in the panel footer as well as Settings › General (spec, Error handling).
     /// Passing nil clears it — a path typed into Settings, or a detection that lands
@@ -501,6 +524,8 @@ public final class LimitsStore: ObservableObject {
             if case .signInRequired = outcome { return org }
             return nil
         })
+        let darkWake = inDarkWake
+        if darkWake { BrowLog.tokens.info("dark wake: no claude runs in this cycle") }
         cycleResults = [:]
         var outstanding = visible.map(\.organizationUuid)
         phase = .fetching(outstanding)
@@ -516,7 +541,8 @@ public final class LimitsStore: ObservableObject {
             for account in ordered {
                 let result = await Self.fetch(deps: deps, account: account, force: force,
                                               forceAttempt: rejected[account.organizationUuid] ?? false,
-                                              signedOut: signedOut.contains(account.organizationUuid))
+                                              signedOut: signedOut.contains(account.organizationUuid),
+                                              darkWake: darkWake)
                 guard cycle == generation else { return }
                 handle(result, outstanding: &outstanding)
             }
@@ -527,7 +553,7 @@ public final class LimitsStore: ObservableObject {
                     let isSignedOut = signedOut.contains(account.organizationUuid)
                     group.addTask { [deps] in
                         await Self.fetch(deps: deps, account: account, force: force, forceAttempt: forceAttempt,
-                                         signedOut: isSignedOut)
+                                         signedOut: isSignedOut, darkWake: darkWake)
                     }
                 }
                 for await result in group {
@@ -639,9 +665,10 @@ public final class LimitsStore: ObservableObject {
     ///
     /// A Claude Code session holding the account may hold the keeper off, briefly: see
     /// `holderRule`. `signedOut`: the keeper's last word on this account was that its login
-    /// is dead.
+    /// is dead. `darkWake`: the keeper is left out altogether (see `markAsleep`).
     nonisolated private static func fetch(deps: Dependencies, account: DiscoveredAccount,
-                                          force: Bool, forceAttempt: Bool, signedOut: Bool) async -> FetchResult {
+                                          force: Bool, forceAttempt: Bool, signedOut: Bool,
+                                          darkWake: Bool) async -> FetchResult {
         let now = deps.now()
         var holder: ClaudeCodeUse?
         var rule: HolderRule?
@@ -652,10 +679,10 @@ public final class LimitsStore: ObservableObject {
                               signedOut: signedOut, now: now)
         }
         let postponed = rule == .postpone
-        let token: TokenRefreshOutcome? = postponed
+        let token: TokenRefreshOutcome? = postponed || darkWake
             ? nil
             : await deps.keeper.ensureFresh(configDir: account.configDir, authRejected: forceAttempt)
-        let episode = holder.flatMap { holder in
+        let episode = darkWake ? nil : holder.flatMap { holder in
             rule.flatMap { HolderEpisode($0, holder: holder, configDir: account.configDir,
                                          expiry: account.tokenExpiresAt, token: token, now: now) }
         }

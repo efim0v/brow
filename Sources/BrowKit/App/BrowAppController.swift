@@ -109,15 +109,18 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
                                       // sees the reading and the bucket it left behind.
                                       ledger: FileUsagePacingLedger(),
                                       credentials: credentials)
-        let store = LimitsStore(deps: .init(directory: AccountDirectory(credentials: credentials),
+        var deps = LimitsStore.Dependencies(directory: AccountDirectory(credentials: credentials),
                                             keeper: keeper, client: client,
                                             snapshotStore: LimitSnapshotStore(), settingsStore: settingsStore,
                                             now: { Date() },
                                             profileClient: OAuthProfileClient(fetcher: URLSessionUsageFetcher(),
                                                                               userAgent: nil, credentials: credentials),
                                             statusline: FileStatuslineCaptures(),
-                                            // A due refresh is left to Claude Code while it runs as the account.
-                                            activity: ClaudeCodeActivity()))
+                                            // A session running as the account gets the first go at a due refresh.
+                                            activity: ClaudeCodeActivity())
+        // With the Mac asleep by its own word, a dark display is what makes it a dark wake.
+        deps.displayAsleep = { CGDisplayIsAsleep(CGMainDisplayID()) != 0 }
+        let store = LimitsStore(deps: deps)
         self.store = store
         // Settings can change either of these at any time; keep the boxes the keeper
         // reads — and the "`claude` not found" banner — in step with the live values.

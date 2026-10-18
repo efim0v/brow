@@ -239,7 +239,8 @@ final class LimitsStoreTests: XCTestCase {
 
     private func makeStore(fetcher: Fetcher, creds: Creds, runner: CommandRunning = MockRunnerBK(results: []),
                            sleeper: Sleeper? = nil, captures: Captures? = nil,
-                           activity: FakeActivity? = nil) -> LimitsStore {
+                           activity: FakeActivity? = nil,
+                           displayAsleep: (@Sendable () -> Bool)? = nil) -> LimitsStore {
         let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300,
                                       // No endpoint pacing here: these tests pin the CYCLE mechanics (one
                                       // cycle at a time, force vs cache vs backoff), not the 100 s refill.
@@ -254,6 +255,7 @@ final class LimitsStoreTests: XCTestCase {
         if let sleeper { deps.sleep = sleeper.closure }
         deps.statusline = captures
         deps.activity = activity
+        if let displayAsleep { deps.displayAsleep = displayAsleep }
         return LimitsStore(deps: deps)
     }
 
@@ -769,6 +771,44 @@ final class LimitsStoreTests: XCTestCase {
         }
         XCTAssertEqual(runner.invocations.count, ranFirst + 1, "one forced attempt, not one per cycle")
         XCTAssertTrue(fetcher.calls.isEmpty)
+    }
+
+    /// A Mac that went to sleep still fires the poll in its dark wakes (Power Nap,
+    /// maintenance), and a `claude doctor` frozen mid-refresh when it goes back to sleep
+    /// can lose the one refresh token that works. Until it wakes for a person nothing is
+    /// run; the reading still goes out.
+    func testNoClaudeRunsInADarkWake() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 7, seven: 7), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, displayAsleep: { true })
+
+        store.markAsleep(true)
+        await store.refresh(force: false)
+        XCTAssertTrue(runner.invocations.isEmpty, "no doctor and no -p in a dark wake")
+        XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 7)
+
+        store.markAsleep(false)
+        now = t0.addingTimeInterval(30)
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "awake again: the keeper runs")
+    }
+
+    /// The Mac's word counts only while the display agrees: a sleep that never ended in a
+    /// wake notification must not hold the keeper off for someone at the screen.
+    func testALitDisplayOverrulesASleepThatNeverEnded() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 7, seven: 7), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, displayAsleep: { false })
+
+        store.markAsleep(true)
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]])
     }
 
     /// The sign-in button turns orange for a login that is really dead, and only then: the

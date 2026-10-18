@@ -98,6 +98,7 @@ final class RefreshTriggersTests: XCTestCase {
         let poll = triggers.timer
         let ticker = triggers.ticker
         let wake = triggers.wakeObserver
+        let sleep = triggers.sleepObserver
         let path = triggers.pathMonitor
 
         triggers.start()
@@ -105,11 +106,43 @@ final class RefreshTriggersTests: XCTestCase {
         XCTAssertIdentical(triggers.timer, poll)
         XCTAssertIdentical(triggers.ticker, ticker)
         XCTAssertIdentical(triggers.wakeObserver as AnyObject?, wake as AnyObject?)
+        XCTAssertIdentical(triggers.sleepObserver as AnyObject?, sleep as AnyObject?)
         XCTAssertIdentical(triggers.pathMonitor, path)
         XCTAssertTrue(triggers.installed.timer)
         XCTAssertTrue(triggers.installed.ticker)
         XCTAssertTrue(triggers.installed.wake)
+        XCTAssertTrue(triggers.installed.sleep)
         XCTAssertTrue(triggers.installed.path)
+    }
+
+    /// Going to sleep reaches the store on the spot — the first poll after it may already
+    /// be in a dark wake — and waking for a person ends it.
+    func testSleepAndWakeReachTheStore() async throws {
+        let store = makeStore()
+        let triggers = RefreshTriggers(store: store)
+        defer { triggers.stop() }
+        triggers.start()
+        XCTAssertFalse(store.asleep)
+
+        let center = NSWorkspace.shared.notificationCenter
+        center.post(name: NSWorkspace.willSleepNotification, object: NSWorkspace.shared)
+        try await waitUntil("the store to hear the Mac go to sleep") { store.asleep }
+        center.post(name: NSWorkspace.didWakeNotification, object: NSWorkspace.shared)
+        try await waitUntil("the store to hear it wake") { !store.asleep }
+
+        triggers.stop()
+        XCTAssertFalse(triggers.installed.sleep)
+        center.post(name: NSWorkspace.willSleepNotification, object: NSWorkspace.shared)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(store.asleep, "stop() takes the observer away")
+    }
+
+    private func waitUntil(_ what: String, timeout: TimeInterval = 5, _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            if Date() > deadline { return XCTFail("timed out waiting for \(what)") }
+            try await Task.sleep(nanoseconds: 2_000_000)
+        }
     }
 
     /// `isOnline` is read by two consumers that cannot see `NWPathMonitor`: the panel's

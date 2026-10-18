@@ -111,7 +111,7 @@ Workspaces 里：
 运行之前，值得了解这些。刘海部分：
 
 - **Brow 从 macOS 钥匙串读取 Claude Code 的登录令牌**，只用它调用 Anthropic 的用量（usage）和个人资料（profile）接口。这些接口并非有公开文档的 API，可能会发生变化。令牌不会写入磁盘，也不会记入日志，任何数据都不会发往别处。如果 macOS 不让 Brow 读取某个账号的令牌，该账号旁会显示一把钥匙；点击它，Brow 会向 macOS 申请访问权限。
-- **Brow 会查看正在运行的 Claude Code 进程**：只在某个账号的令牌需要刷新或被 Anthropic 拒绝时查看，以免刷新正被会话使用的令牌。它读取 `claude`、node、bun 和 deno 进程的命令行，以判断哪些是 Claude Code，从它们的环境中只取 `CLAUDE_CONFIG_DIR`，另外还会读取每个账号最近一次保存提示词的时间（`history.jsonl`）。原因见[常见问题](#brow-会刷新-claude-code-正在使用的令牌吗)。
+- **Brow 会查看正在运行的 Claude Code 进程**：只在某个账号的令牌需要刷新或被 Anthropic 拒绝时查看，好让正在工作的会话先自行续期。它读取 `claude`、node、bun 和 deno 进程的命令行，以判断哪些是 Claude Code，从它们的环境中只取 `CLAUDE_CONFIG_DIR`，另外还会读取每个账号最近一次保存提示词的时间（`history.jsonl`）。原因见[常见问题](#brow-会刷新-claude-code-正在使用的令牌吗)。
 - **备用令牌刷新默认开启**。如果常规刷新失效，Brow 会运行一个很小的 `claude -p` 请求，这会消耗少量限额，并开启该账号的 5 小时窗口。可在 Settings → Accounts 中关闭；它具体何时运行，见[常见问题](#brow-会消耗我的限额吗)。
 - **每个账号的浏览器配置文件都是一个单独的目录**，位于 `~/Library/Application Support/Brow/browser-profiles/` 下。Brow 会设置配置文件的名称，并在其中允许第三方 Cookie，以便登录正常进行。
 - **登录时会打开“终端”**，在其中运行 `claude auth login`；macOS 会询问一次是否允许 Brow 控制“终端”。
@@ -177,11 +177,11 @@ Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打�
 
 只有备用令牌刷新会消耗，而且可以关闭。读取限额是向 Anthropic 的用量接口发请求，而不是调用模型；空闲账号的令牌通过 `claude doctor` 保持有效，它也不会调用模型。
 
-备用刷新默认开启。当某个账号的令牌剩余有效期不超过 30 分钟，而 `claude doctor` 没能续期时，Brow 会在该账号中用 Haiku 运行一次单轮 `claude -p` 请求。这会消耗该账号极少的限额，并开启它的 5 小时窗口。如果 Anthropic 已拒绝该令牌，或者 `claude doctor` 超时或无法启动，Brow 不会发出这个请求。对每个账号，它最多每 30 分钟运行一次；连续三次尝试都没有效果后，Brow 就不再对该账号使用这个办法。在 Settings → Accounts → **Allow `claude -p` fallback** 中可以将其关闭。
+备用刷新默认开启。当 `claude doctor` 在令牌最后 4.5 分钟内没能为某个账号续期时，Brow 会在该账号中用 Haiku 运行一次单轮 `claude -p` 请求。这会消耗该账号极少的限额，并开启它的 5 小时窗口。如果 Anthropic 已拒绝该令牌，`claude doctor` 超时或无法启动，或者它表示登录已失效，Brow 不会发出这个请求。对每个账号，它最多每 30 分钟运行一次；连续三次尝试都没有效果后，Brow 就不再对该账号使用这个办法。在 Settings → Accounts → **Allow `claude -p` fallback** 中可以将其关闭。
 
 ### Brow 会刷新 Claude Code 正在使用的令牌吗？
 
-不会。Claude Code 用刷新令牌（refresh token）为令牌续期，而刷新令牌每次续期都会更换；两次续期几乎同时发生时，会话可能会拿着失效的令牌，并要求你运行 `/login`。因此，只要某个账号文件夹有正在运行的 `claude` 进程（未设置 `CLAUDE_CONFIG_DIR` 即对应 `~/.claude`），无论该会话空闲了多久，或者过去 15 分钟内在该账号中输入过提示词，Brow 都不会刷新这个账号的令牌，而是让会话自己续期。在此之前，Settings → Accounts 中该账号的令牌显示为 *in use by Claude Code, waiting for it to refresh*。如果令牌已经过期，面板会显示 *Token in use by Claude Code*，而不是让你重新登录；等你再次使用该会话或将其关闭后，数字就会恢复。
+只在会话自己不会续期时才刷新。会话在令牌最后五分钟内发出请求时会自行续期，所以你正在使用的会话总会比 Brow 先续期。只要令牌剩余时间超过两分钟，对于文件夹有正在运行的 `claude` 进程（未设置 `CLAUDE_CONFIG_DIR` 即对应 `~/.claude`）、或者过去 15 分钟内输入过提示词的账号，Brow 都会交给会话处理，Settings → Accounts 中该账号的令牌显示为 *in use by Claude Code, waiting for it to refresh*。此后，以及 Anthropic 拒绝该令牌之后、你按下 ⟳ 时，Brow 会自己在该账号中运行 `claude doctor`：空闲的会话不会续期。Claude Code 每次续期都会加锁，并在锁内重新读取令牌，因此 Brow 的续期和会话的续期不会互相冲突。恰好在那一刻正忙的会话可能会遇到一次被拒绝的请求，随后会自行恢复。Brow 0.3.1 无论会话空闲多久都不碰这类账号，结果它们的令牌都过期了。
 
 ### Brow 从哪里读取令牌？会有数据离开我的 Mac 吗？
 

@@ -8,31 +8,48 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   belong to the same organisation are shown once.
 - If macOS asks for access to Claude Code's Keychain item, choose "Always Allow".
   An account whose item is withheld shows a key: press it to grant access.
-- Idle accounts' tokens are kept fresh by running `claude doctor` in that
-  account (no model call). If that ever stops working, the `claude -p` fallback
-  (Settings → Accounts, **on by default**) spends a little limit and starts the
-  account's 5-hour window. It is never used after a 401/403 or a `doctor` that
-  timed out — neither is evidence the token itself can be fixed — and it is
-  dropped for good after three ineffective rounds.
-- An account Claude Code is using is left to Claude Code: Brow runs neither
-  `claude doctor` nor `claude -p` in it, whether the token is about to expire or
-  Anthropic has rejected it. A running session refreshes its own token, and the
-  refresh token changes on every refresh, so two refreshes at about the same
-  time leave one side with a dead token and the session asks you to `/login`.
-  "Using" means a running `claude` process whose `CLAUDE_CONFIG_DIR` is that
-  account's folder (not set means `~/.claude`), however long it has sat idle, or
-  a prompt typed in that account in the last 15 minutes (going by when its
-  `history.jsonl` was last written). While Brow waits, the account's token line
-  in Settings reads *in use by Claude Code, waiting for it to refresh*. If the token has already expired,
-  the panel says *Token in use by Claude Code* instead of asking you to sign in,
-  and the numbers come back once the session refreshes it (as soon as you use
-  it) or you close it. Brow checks only when a refresh is due or Anthropic has
-  rejected the token. It reads the process list: the command line of each
-  `claude`, node, bun or deno process, to tell which ones are Claude Code, and
-  from a Claude Code process's environment only `CLAUDE_CONFIG_DIR`. A session
-  still counts after an update has deleted the binary it was started from. It
-  also reads the modification time of `history.jsonl`. It reads no file's
-  contents and nothing from the Keychain for this, and starts no process.
+- Tokens are kept fresh by running `claude doctor` in the account (no model
+  call) in the token's last 4½ minutes: Claude Code renews a token only in its
+  last five, so an earlier `doctor` would change nothing. If that ever stops
+  working, the `claude -p` fallback (Settings → Accounts, **on by default**)
+  spends a little limit and starts the account's 5-hour window. It is never used
+  after a 401/403, after a `doctor` that timed out — neither is evidence the
+  token itself can be fixed — or when `claude doctor` says the login is dead,
+  and it is dropped for good after three ineffective rounds. A `doctor` or `-p`
+  that runs past its time limit gets five seconds after SIGTERM before it is
+  killed: on its way out Claude Code waits up to two seconds for a refresh in
+  flight to be saved. Nothing is run while the Mac is in a dark wake (between
+  going to sleep and waking up, with the display asleep).
+- A Claude Code session open in an account gets the first go at renewing its
+  token: a session at work renews it with its next request in the token's last
+  five minutes. While the token has more than two minutes left, Brow waits, and
+  the account's token line in Settings reads *in use by Claude Code, waiting for
+  it to refresh*. After that, after Anthropic rejects the token, and when you
+  press ⟳, Brow runs `claude doctor` whoever holds the account. An idle session
+  renews nothing, and Claude Code takes a lock around every refresh and re-reads
+  the token under it, so a refresh by Brow no longer races the session's. That
+  race was the reason 0.3.1 left such accounts alone however long the session had
+  sat idle, which in the end meant their tokens were not refreshed at all. A
+  session busy at that moment may see one rejected request, which Claude Code
+  recovers from by itself. Brow logs each time it waits for a session or runs
+  `doctor` past one. "Open" means a running `claude` process whose
+  `CLAUDE_CONFIG_DIR` is that account's folder (not set means `~/.claude`), or a
+  prompt typed in that account in the last 15 minutes (going by when its
+  `history.jsonl` was last written). The `grep`, `find` and `rg` Claude Code
+  runs from its own binary are not sessions. Brow checks only when a refresh is
+  due or Anthropic has rejected the token. It reads the process list: the
+  command line of each `claude`, node, bun or deno process, to tell which ones
+  are Claude Code, and from a Claude Code process's environment only
+  `CLAUDE_CONFIG_DIR`. A session still counts after an update has deleted the
+  binary it was started from. It also reads the modification time of
+  `history.jsonl`. It reads no file's contents and nothing from the Keychain for
+  this, and starts no process.
+- A token past its expiry is not sent to Anthropic: the panel says *Token expired
+  12 min ago*, and adds *— Claude Code hasn't refreshed it* while a session holds
+  the account. A token Anthropic rejected reads *Anthropic rejected the token*.
+  The account's sign-in button turns orange only when the login is dead: `claude
+  doctor` or `claude -p` said *Please run /login*, three attempts in a row did
+  not renew the token, or the account has no token.
 - The usage endpoint is rate-limited server-side (measured: a small token bucket
   refilled at roughly one request per 100 s, `retry-after: 0`, and 429s that do
   not extend the window). Brow paces itself to it: background polls that arrive

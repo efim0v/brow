@@ -373,6 +373,68 @@ final class TokenKeeperTests: XCTestCase {
                        "the keeper's word that the login is dead")
     }
 
+    /// The breaker's verdict is about the login, not about `-p`: with the fallback off,
+    /// three ineffective rounds in a row say the same thing. It used to come only from
+    /// the `-p` leg, so with the fallback off the sign-in key never lit.
+    func testTheBreakersVerdictDoesNotNeedThePromptLeg() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(60)
+        let runner = FakeCLI()                 // nothing ever moves the expiry
+        let clock = Clock(t0)
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { false }, now: { clock.date })
+        for minutes in [0, 31, 92] {           // past the floor each time: 30 min, then 60
+            clock.date = t0.addingTimeInterval(TimeInterval(minutes * 60))
+            let out = await keeper.ensureFresh(configDir: "/d")
+            XCTAssertEqual(out, .failed("claude doctor did not refresh the token"), "at \(minutes) min")
+        }
+        clock.date = t0.addingTimeInterval(213 * 60)                       // then 120
+        let fourth = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(fourth, .signInRequired("3 attempts in a row did not renew the token"))
+        XCTAssertTrue(runner.invocations.allSatisfy { $0.args == ["doctor"] }, "the fallback is off")
+    }
+
+    /// A token past its expiry was not refused by Anthropic: the store never sends one, and
+    /// flags it as rejected only so that the floor lets one attempt through. `-p` renews it
+    /// like any token that is due — skipping `-p` after a 401 is about a token with life
+    /// left that the server refused anyway — and the breaker has its say. Before, every
+    /// attempt on an expired token came in flagged, so neither ever ran, and a login that
+    /// died with its token never lit the sign-in key.
+    func testAnExpiredTokenIsNotARefusedOne() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(-10 * 60)
+        let runner = FakeCLI()
+        let clock = Clock(t0)
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { clock.date })
+        let first = await keeper.ensureFresh(configDir: "/d", authRejected: true)
+        XCTAssertEqual(first, .failed("neither claude doctor nor claude -p refreshed the token"))
+        XCTAssertEqual(runner.invocations.map { $0.args.first }, ["doctor", "-p"])
+        for minutes in [31, 92] {
+            clock.date = t0.addingTimeInterval(TimeInterval(minutes * 60))
+            _ = await keeper.ensureFresh(configDir: "/d", authRejected: true)
+        }
+        clock.date = t0.addingTimeInterval(213 * 60)
+        let fourth = await keeper.ensureFresh(configDir: "/d", authRejected: true)
+        XCTAssertEqual(fourth, .signInRequired("3 attempts in a row did not renew the token"))
+        XCTAssertEqual(runner.invocations.filter { $0.args.first == "-p" }.count, 3)
+    }
+
+    /// The one case the verdict stays out of: a token with life left that the server
+    /// refused. `doctor` does not try to renew a token outside the CLI's own window, so
+    /// its failing says nothing about the login, and `-p` stays off it.
+    func testARefusedTokenWithLifeLeftNeverGetsTheBreakersVerdict() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(8 * 3600)
+        let runner = FakeCLI()
+        let clock = Clock(t0)
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { clock.date })
+        for minutes in [0, 31, 92, 213, 454] {
+            clock.date = t0.addingTimeInterval(TimeInterval(minutes * 60))
+            let out = await keeper.ensureFresh(configDir: "/d", authRejected: true)
+            XCTAssertEqual(out, .failed("claude doctor did not refresh the token"), "at \(minutes) min")
+        }
+        XCTAssertTrue(runner.invocations.allSatisfy { $0.args == ["doctor"] })
+    }
+
     /// The breaker must not outlive the trouble. `succeed` runs only when THIS keeper
     /// moved the expiry, and `ensureFresh` returns `.fresh` before it, so an account
     /// refreshed OUT OF BAND — Claude Code itself, a `claude` run in a terminal, a new

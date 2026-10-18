@@ -62,7 +62,8 @@ public actor TokenKeeper {
     public static let maxAttemptInterval: TimeInterval = 12 * 3600
     /// After this many consecutive ineffective attempts the `-p` leg is dropped for
     /// good: `doctor` is free, `-p` spends the account's limit and starts its
-    /// 5-hour window, and by now we know it does not help.
+    /// 5-hour window, and by now we know it does not help. The next ineffective
+    /// attempt is the keeper's word that the login needs a new sign-in.
     public static let promptGiveUpAfter = 3
     /// Quiet period after a CLI that could not run at all. The attempt floor is
     /// deliberately NOT consumed by `.couldNotAttempt` (the spec: no evidence, no
@@ -172,7 +173,8 @@ public actor TokenKeeper {
     /// - Parameter authRejected: the server answered 401/403 for this account. That is
     ///   the authoritative word on the token and it outranks `expiresAt`, so the "still
     ///   fresh" shortcut is skipped for as long as the rejection stands; the attempt
-    ///   floor is bypassed ONCE (see `Attempt.forced`).
+    ///   floor is bypassed ONCE (see `Attempt.forced`). For a token past its own expiry it
+    ///   buys that one attempt and nothing else: such a token is renewed like a due one.
     public func ensureFresh(configDir: String, authRejected: Bool = false) async -> TokenRefreshOutcome {
         loadStateIfNeeded()
         let at = now()
@@ -247,21 +249,29 @@ public actor TokenKeeper {
             return fail("claude doctor failed: \(error)", configDir: configDir, counts: true)
         }
 
-        // `-p` spends the account's limit and starts its 5-hour window, so it runs only
-        // when `doctor` failing is real evidence about the TOKEN. After a 401/403 it is
-        // not: the server rejected the bearer, which a token with hours of nominal life
-        // left can do for reasons no CLI can fix (a revoked session, an org change), and
-        // the account is then charged a fresh 5-hour window on every rejection episode.
-        // Same reasoning the spec already applies to a timed-out `doctor`.
-        guard allowPromptFallback(), !authRejected else {
-            return fail("claude doctor did not refresh the token".appending(Self.suffix(details)),
-                        configDir: configDir, counts: true)
-        }
-        // Circuit breaker: `-p` costs limit and starts the 5-hour window. Three
-        // ineffective rounds is enough to conclude it cannot fix this account.
-        guard failures < Self.promptGiveUpAfter else {
+        // A rejection says more than the token's own clock only about a token with life
+        // left. One past its expiry is refused for that alone — the store never sends it,
+        // and flags it as rejected only so that the floor lets one attempt through — and
+        // it is renewed like any token that is due.
+        let refusedWithLifeLeft = authRejected && before > at
+        // Circuit breaker. Three ineffective rounds in a row are enough to conclude that
+        // nothing Brow runs renews this login, with the `-p` leg or without it. Not for a
+        // token refused with life left: `doctor` does not try to renew a token outside the
+        // CLI's own window, so its failing says nothing about the login.
+        guard failures < Self.promptGiveUpAfter || refusedWithLifeLeft else {
             return signInRequired("\(failures) attempts in a row did not renew the token"
                                     .appending(Self.suffix(details)), configDir: configDir, token: before)
+        }
+        // `-p` spends the account's limit and starts its 5-hour window, so it runs only
+        // when `doctor` failing is real evidence about the TOKEN. After a 401/403 for a
+        // token with life left it is not: the server rejected the bearer, which a token
+        // with hours of nominal life left can do for reasons no CLI can fix (a revoked
+        // session, an org change), and the account is then charged a fresh 5-hour window
+        // on every rejection episode. Same reasoning the spec already applies to a
+        // timed-out `doctor`.
+        guard allowPromptFallback(), !refusedWithLifeLeft else {
+            return fail("claude doctor did not refresh the token".appending(Self.suffix(details)),
+                        configDir: configDir, counts: true)
         }
         do {
             let prompt = Self.invocation(claude: claudePath(), args: ["-p", ".", "--model", "haiku", "--max-turns", "1"],

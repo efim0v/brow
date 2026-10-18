@@ -760,16 +760,16 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.rows[0].status, .error("Token expired 3 h ago"))
         XCTAssertEqual(runner.invocations.count, ranFirst)
 
-        // …so the next one spends the forced attempt on it, once.
+        // …so the next one spends the forced attempt on it, once: `doctor` and, the token
+        // being past its expiry rather than refused, `-p`.
         now = t0.addingTimeInterval(120)
         await store.refresh(force: false)
-        XCTAssertEqual(runner.invocations.count, ranFirst + 1)
-        XCTAssertEqual(runner.invocations.last?.args, ["doctor"])
+        XCTAssertEqual(runner.invocations.dropFirst(ranFirst).map { $0.args.first }, ["doctor", "-p"])
         for minute in 3...5 {
             now = t0.addingTimeInterval(TimeInterval(minute * 60))
             await store.refresh(force: false)
         }
-        XCTAssertEqual(runner.invocations.count, ranFirst + 1, "one forced attempt, not one per cycle")
+        XCTAssertEqual(runner.invocations.count, ranFirst + 2, "one forced attempt, not one per cycle")
         XCTAssertTrue(fetcher.calls.isEmpty)
     }
 
@@ -865,6 +865,31 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertFalse(store.rows[0].needsSignIn)
         XCTAssertEqual(store.rows[0].status, .ok)
         XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 8 h")
+    }
+
+    /// A login that died with its token, a session still open on it, and a CLI that says
+    /// nothing about it: nothing Brow runs renews it. Once the token has expired, every
+    /// attempt the keeper makes is one the store forced, and those used to stop at
+    /// `doctor` and never reach the breaker, so the sign-in key never lit.
+    func testALoginThatDiedWithItsTokenLightsTheSignInKey() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        creds.invalidateRefreshes = false
+        let runner = MockRunnerBK(results: [])              // runs, says nothing, renews nothing
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 3, seven: 3), 200)
+        let activity = FakeActivity(); activity.set(.process(pid: 77), for: a)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        var litAt: Int?
+        for minute in stride(from: 0, through: 4 * 60, by: 5) {
+            now = t0.addingTimeInterval(TimeInterval(minute * 60))
+            await store.refresh(force: false)
+            if store.rows[0].needsSignIn { litAt = minute; break }
+        }
+        XCTAssertNotNil(litAt, "the sign-in key lights for a login nothing renews")
+        XCTAssertEqual(store.rows[0].tokenStatus, "sign in again: 3 attempts in a row did not renew the token")
+        XCTAssertEqual(runner.invocations.filter { $0.args.first == "-p" }.count, 3, "-p three times, as the breaker allows")
     }
 
     /// A 401 for a token a session holds is no longer the session's to fix: the next cycle

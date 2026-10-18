@@ -965,6 +965,50 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(runner.invocations.count, 1, "one doctor per rejection, not one per cycle")
     }
 
+    /// The same inside the minutes a session would otherwise have to itself: Anthropic has
+    /// refused the token, and waiting for the session does not change that.
+    func testARejectedTokenIsNotLeftToASessionWhileItHasTheFirstGo() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(4 * 60)
+        creds.invalidateRefreshes = false                  // neither the 401 retry nor doctor fixes it
+        let runner = MockRunnerBK(results: [])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
+        let activity = FakeActivity(); activity.set(.process(pid: 77), for: a)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        await store.refresh(force: false)
+        XCTAssertTrue(runner.invocations.isEmpty, "four minutes left: the session's first go")
+
+        now = t0.addingTimeInterval(30)                    // 3 ½ min left, still more than two
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "the rejection's forced attempt runs anyway")
+    }
+
+    /// Nor is a login the keeper found dead: no session renews it. The key stays lit, the
+    /// row keeps the keeper's word, and the keeper's floor still holds.
+    func testADeadLoginIsNotLeftToASession() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(4 * 60)
+        creds.invalidateRefreshes = false
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 1, stdout: "",
+                                                          stderr: "Login expired · Please run /login\n")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 3, seven: 3), 200)
+        let activity = FakeActivity()
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        await store.refresh(force: false)
+        XCTAssertTrue(store.rows[0].needsSignIn)
+
+        activity.set(.process(pid: 77), for: a)           // a session opens on the dead login
+        now = t0.addingTimeInterval(30)                    // 3 ½ min left: a live login would be its
+        await store.refresh(force: false)
+        XCTAssertTrue(store.rows[0].needsSignIn, "the key stays lit")
+        XCTAssertEqual(store.rows[0].tokenStatus, "sign in again: doctor: Login expired · Please run /login")
+        XCTAssertEqual(runner.invocations.count, 1, "nothing more runs inside the floor")
+    }
+
     /// ⟳ is someone asking: it runs the keeper even while a session would still have had
     /// the first go.
     func testTheRefreshButtonRunsTheKeeperDespiteASession() async throws {
@@ -992,9 +1036,10 @@ final class LimitsStoreTests: XCTestCase {
     /// When a session holding the account holds the keeper off, and why the keeper runs
     /// when it does not.
     func testWhenASessionHoldsTheKeeperOff() {
-        func rule(_ left: TimeInterval?, force: Bool = false, rejected: Bool = false) -> LimitsStore.HolderRule {
+        func rule(_ left: TimeInterval?, force: Bool = false, rejected: Bool = false,
+                  signedOut: Bool = false) -> LimitsStore.HolderRule {
             LimitsStore.holderRule(expiry: left.map { t0.addingTimeInterval($0) }, force: force,
-                                   authRejected: rejected, now: t0)
+                                   authRejected: rejected, signedOut: signedOut, now: t0)
         }
         XCTAssertEqual(rule(5 * 3600), .notDue)
         XCTAssertEqual(rule(TokenKeeper.threshold + 1), .notDue, "outside the keeper's window nothing runs anyway")
@@ -1006,6 +1051,9 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(rule(3 * 60, force: true), .override(.asked))
         XCTAssertEqual(rule(20 * 60, force: true), .notDue, "⟳ cannot make due a token the CLI would not refresh")
         XCTAssertEqual(rule(5 * 3600, rejected: true), .override(.rejected))
+        XCTAssertEqual(rule(3 * 60, rejected: true), .override(.rejected))
+        XCTAssertEqual(rule(3 * 60, signedOut: true), .override(.signedOut))
+        XCTAssertEqual(rule(5 * 3600, signedOut: true), .notDue, "the keeper repeats its word without running anything")
         XCTAssertEqual(rule(nil), .override(.expiryUnknown))
         XCTAssertEqual(LimitsStore.holderGrace, 2 * 60)
         XCTAssertLessThan(LimitsStore.holderGrace, TokenKeeper.threshold)

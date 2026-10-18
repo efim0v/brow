@@ -156,6 +156,10 @@
   --button-hover: #ead3a4;
   --button-edge: rgba(42, 34, 24, .14);
   --window-edge: rgba(0, 0, 0, .35);
+  /* Brow's mark: a soft shadow and a hairline edge set the cream tile off the
+     light page; in dark the cream stands out, and a faint rim keeps the top edge
+     of its black notch */
+  --mark-shadow: drop-shadow(0 1.5px 2.5px rgba(42, 34, 24, .28)) drop-shadow(0 .5px .5px rgba(42, 34, 24, .3)) drop-shadow(0 0 .5px rgba(42, 34, 24, .5));
   --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -167,6 +171,7 @@
     --rule: #2b2b2a;
     --code-bg: #1c1c1b;
     --window-edge: rgba(255, 255, 255, .28);
+    --mark-shadow: drop-shadow(0 0 .5px rgba(255, 255, 255, .2));
   }
 }
 
@@ -241,7 +246,7 @@ pre code { padding: 0; background: none; font-size: 1em; }
   display: inline-flex; align-items: center; gap: 8px;
   color: var(--ink); font-size: 1.0625rem; font-weight: 600; text-decoration: none;
 }
-.brand svg { width: 22px; height: 22px; flex: none; }
+.brand svg { width: 22px; height: 22px; flex: none; filter: var(--mark-shadow); }
 .site-header ul { display: flex; gap: 20px; padding: 0; list-style: none; }
 .site-header nav a { display: block; padding: 8px 0; color: var(--muted); font-size: .9375rem; text-decoration: none; }
 .site-header nav a:hover { color: var(--ink); text-decoration: underline; }

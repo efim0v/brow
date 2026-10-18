@@ -20,9 +20,9 @@ extension PetTime {
 }
 
 extension PetTuning.Eager {
-    /// Writes to one `history.jsonl` this close together are one prompt: a single append can reach the
-    /// watcher as two events. Nobody types two prompts a quarter of a second apart, and the brain would
-    /// do nothing more with the second.
+    /// Writes to one `history.jsonl` this close together, each to the one before it, are one prompt: a
+    /// single append can reach the watcher as two events. Nobody types two prompts a quarter of a second
+    /// apart, and the brain would do nothing more with the second.
     public static let promptBurst: TimeInterval = 0.25
 }
 
@@ -138,8 +138,8 @@ final class PetHistoryWatcher {
     private var reopen: DispatchWorkItem?
     /// The file did not exist when last looked at: its appearing is a prompt being written.
     private var missing = false
-    /// `ProcessInfo.systemUptime` of the last prompt passed on.
-    private var lastPrompt: TimeInterval = -.infinity
+    /// `ProcessInfo.systemUptime` of the last write seen, whether it was passed on as a prompt or not.
+    private var lastWrite: TimeInterval = -.infinity
 
     init(directory: String, onPrompt: @escaping @MainActor () -> Void) {
         self.directory = directory
@@ -204,11 +204,12 @@ final class PetHistoryWatcher {
     }
 
     /// One append can reach the vnode source as two events, and a file created with its first line can
-    /// be seen appearing and then written: either way it is one prompt.
+    /// be seen appearing and then written: either way it is one prompt. Each write is measured from the
+    /// write before it, not from the prompt, so a burst stays one prompt however late its events arrive.
     private func prompt() {
         let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastPrompt >= PetTuning.Eager.promptBurst else { return }
-        lastPrompt = now
+        defer { lastWrite = now }
+        guard now - lastWrite >= PetTuning.Eager.promptBurst else { return }
         onPrompt()
     }
 

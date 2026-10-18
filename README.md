@@ -25,9 +25,19 @@ The notch is for looking, Workspaces is for working. Brow works with a single ac
 Hover the notch: every account's 5-hour and weekly limits open out of it. Copy an account's launch command and Claude Code starts as that account.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-hero-v1.webp">
-  <img src="docs/media/brow-hero-v1.png" width="840" alt="Hovering the notch opens the limits of every account; the launch command of the account with room is copied and Claude Code starts as that account">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v2.webp">
+  <img src="docs/media/brow-hero-v2.png" width="840" alt="Glim takes a bite as the 5-hour number goes up; hovering the notch opens the limits of every account and Glim hops into the panel; the launch command of the account with room is copied and Claude Code starts as that account">
+</picture></p>
+
+### Glim, a pet that eats your limits
+
+A small creature lives beside the 5-hour readout. Each time the number goes up it takes a bite, and its glow is its hunger meter. At the 5-hour limit it falls asleep full, at the weekly limit it hides in its den behind the camera, and it comes back out at the reset. Settings → General → **Show the pet** turns it off.
+
+<p align="center"><picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v1.png">
+  <source type="image/webp" srcset="docs/media/brow-glim-v1.webp">
+  <img src="docs/media/brow-glim-v1.png" width="840" alt="Glim beside the notch eats twice as the 5-hour number goes up, falls asleep when the 5-hour limit reaches 100 %, wakes at the reset, hides behind the camera when the weekly limit reaches 100 % and comes back out at the weekly reset">
 </picture></p>
 
 ### When each limit resets
@@ -35,9 +45,9 @@ Hover the notch: every account's 5-hour and weekly limits open out of it. Copy a
 The calendar marks every account's weekly resets and subscription renewals. Point at a day to see what frees up.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-calendar-v1.webp">
-  <img src="docs/media/brow-calendar-v1.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v2.webp">
+  <img src="docs/media/brow-calendar-v2.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
 </picture></p>
 
 ### Sign in again in one click
@@ -45,9 +55,9 @@ The calendar marks every account's weekly resets and subscription renewals. Poin
 When an account's sign-in expires, the key next to it starts `claude auth login` for that account and opens the browser profile that belongs to it, already signed in to that account. Other accounts stay signed in.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-signin-v1.webp">
-  <img src="docs/media/brow-signin-v1.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v2.webp">
+  <img src="docs/media/brow-signin-v2.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
 </picture></p>
 
 ### One branch across every repository
@@ -68,7 +78,7 @@ In the notch:
 - **Every account at a glance.** For each account: the 5-hour limit, the weekly limit and any model-specific weekly limit, as percent used, with the time until each resets.
 - **A reset calendar.** Weekly resets and estimated subscription renewals on a month grid, so you can see which account frees up when.
 - **Limit warnings.** Off by default. Turn them on and Brow posts a macOS notification when an account passes 80 % and 95 % of a limit, once per level until it resets.
-- **A pet that eats your limits.** A small creature lives beside the notch and eats what your accounts use: when the 5-hour number goes up, it takes a bite. Hours at the Mac without Claude Code make it hungry; it never gets hungry while you are away. When the 5-hour limit is used up it falls asleep full until the window resets, and when the weekly limit is used up it hibernates until the weekly reset. On by default; Settings → General → **Show the pet** turns it off.
+- **Glim, a pet that eats your limits.** A small creature lives beside the notch and eats what your accounts use: when the 5-hour number goes up, it takes a bite. Hours at the Mac without Claude Code make it hungry; it never gets hungry while you are away. When the 5-hour limit is used up it falls asleep full until the window resets, and when the weekly limit is used up it hibernates until the weekly reset. On by default; Settings → General → **Show the pet** turns it off.
 - **Copy my week.** One button copies a picture of your limits, ready to paste into a chat or a post. Accounts are numbered unless you choose to show their names, and emails never appear.
 - **Copy the launch command.** One button copies the command that starts Claude Code as that account.
 - **Sign in again, in that account's own browser.** Each account gets a separate browser profile — its own cookies, history and saved logins — so signing in to one never disturbs another. A second button opens that profile directly.

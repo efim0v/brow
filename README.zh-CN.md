@@ -27,9 +27,19 @@
 将指针悬停在刘海上，所有账号的 5 小时限额和每周限额就会从刘海中展开。复制某个账号的启动命令，Claude Code 就会以该账号的身份启动。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-hero-v1.webp">
-  <img src="docs/media/brow-hero-v1.png" width="840" alt="悬停在刘海上会展开所有账号的限额；复制还有余量的账号的启动命令后，Claude Code 以该账号的身份启动">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v2.webp">
+  <img src="docs/media/brow-hero-v2.png" width="840" alt="5 小时限额数字上涨时 Glim 咬了一口；把指针移到刘海上，所有账号的限额展开，Glim 跳进面板；复制有余量账号的启动命令，Claude Code 以该账号启动">
+</picture></p>
+
+### Glim：一只吃限额的宠物
+
+一个小家伙住在 5 小时限额的数字旁边。数字每上涨一次，它就咬一口；它身上的光就是它的饥饿程度。5 小时限额用完时，它吃饱睡着；每周限额用完时，它躲进摄像头后面的窝里，等重置后再出来。在 Settings → General → **Show the pet** 中可以关闭。
+
+<p align="center"><picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v1.png">
+  <source type="image/webp" srcset="docs/media/brow-glim-v1.webp">
+  <img src="docs/media/brow-glim-v1.png" width="840" alt="刘海旁的 Glim：5 小时限额数字上涨时吃了两次，5 小时限额到 100 % 时睡着，重置后醒来，每周限额到 100 % 时躲到摄像头后面，每周重置后又出来">
 </picture></p>
 
 ### 每个限额何时重置
@@ -37,9 +47,9 @@
 日历标出每个账号的每周重置日和订阅续费日。指向某一天，就能看到那天会恢复什么。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-calendar-v1.webp">
-  <img src="docs/media/brow-calendar-v1.png" width="840" alt="重置日历：指向某一天，可以看到哪个账号的每周限额在那天重置，或哪个订阅在那天续费">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v2.webp">
+  <img src="docs/media/brow-calendar-v2.png" width="840" alt="重置日历：指向某一天，可以看到哪个账号的每周限额在那天重置，或哪个订阅在那天续费">
 </picture></p>
 
 ### 一键重新登录
@@ -47,9 +57,9 @@
 某个账号的登录过期后，点击它旁边的钥匙，就会为该账号运行 `claude auth login`，并打开属于它的浏览器配置文件，其中已经登录了这个账号。其他账号的登录状态不受影响。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-signin-v1.webp">
-  <img src="docs/media/brow-signin-v1.png" width="840" alt="登录过期：点一下钥匙，就会打开该账号专属且已登录的浏览器配置文件，Claude Code 随即重新登录">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v2.webp">
+  <img src="docs/media/brow-signin-v2.png" width="840" alt="登录过期：点一下钥匙，就会打开该账号专属且已登录的浏览器配置文件，Claude Code 随即重新登录">
 </picture></p>
 
 ### 所有仓库同一个分支
@@ -70,7 +80,7 @@ Workspaces 为多仓库产品的每个功能单独建一个文件夹，里面是
 - **所有账号一目了然**：每个账号显示 5 小时限额、每周限额，以及特定模型的每周限额（如有），均以已用百分比表示，并附上距离各自重置还剩多久。
 - **重置日历**：在月历上标出每周重置日和预计的订阅续费日，哪个账号什么时候恢复，一看便知。
 - **限额预警**：默认关闭。开启后，账号用到某项限额的 80% 和 95% 时，Brow 会发出 macOS 通知；每个阈值在限额重置前只提醒一次。
-- **一只吃限额的宠物**：一个小家伙住在刘海旁边，你的账号用掉什么，它就吃什么：5 小时限额的数字一上涨，它就咬一口。你在 Mac 前好几个小时都没用 Claude Code，它就会饿；你不在的时候，它从不变饿。5 小时限额用完时，它吃饱睡着，直到窗口重置；每周限额用完时，它冬眠到每周重置。默认开启；在 Settings → General → **Show the pet** 中可以关闭。
+- **Glim，一只吃限额的宠物**：一个小家伙住在刘海旁边，你的账号用掉什么，它就吃什么：5 小时限额的数字一上涨，它就咬一口。你在 Mac 前好几个小时都没用 Claude Code，它就会饿；你不在的时候，它从不变饿。5 小时限额用完时，它吃饱睡着，直到窗口重置；每周限额用完时，它冬眠到每周重置。默认开启；在 Settings → General → **Show the pet** 中可以关闭。
 - **复制“我的一周”**：一个按钮可以把各账号的限额复制成一张图片，直接粘贴到聊天或帖子里。除非你选择显示名称，图片上的账号只显示编号，也不会出现邮箱。
 - **复制启动命令**：一个按钮即可复制以该账号身份启动 Claude Code 的命令。
 - **在账号自己的浏览器里重新登录**：每个账号都有独立的浏览器配置文件，Cookie、历史记录和已保存的登录信息互不相通，登录一个账号绝不会影响另一个。第二个按钮可以直接打开这个配置文件。

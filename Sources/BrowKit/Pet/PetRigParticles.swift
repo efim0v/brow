@@ -92,7 +92,7 @@ enum PetRigParticles {
         case .eat(let meal):
             guard current || tau < PetRigActions.timing(meal).end + 0.6 else { return }
             food(meal, start: seg.start, body: body, current: current, scene: scene, into: &out)
-        case .satisfied(.meal):
+        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful):
             for (k, at) in [0.12, 0.38, 0.62].enumerated() where (end ?? .infinity) > seg.start + at {
                 sparkle(at: seg.start + at, origin: CGPoint(x: crown.x + [-6, 5, -1][k] * s, y: crown.y + 2 * s),
                         seed: seed, k: k, size: 2.0 * s, scene: scene, into: &out)

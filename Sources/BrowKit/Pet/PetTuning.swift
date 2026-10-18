@@ -98,12 +98,16 @@ public enum PetTuning {
         public static let paceStop: Double = 30
         /// The weekly window's length, for an even week's pace (`PetLimits.evenPace`).
         public static let week: TimeInterval = 7 * 86_400
-        /// Mood thresholds, judged on H + pendingDrop: Content above 0, Peckish from 35, Hungry from
-        /// 65. A mood is entered at its threshold on the way up and left `moodHysteresis` below it
-        /// on the way down.
+        /// Mood thresholds, judged on H + pendingDrop: Full above −30, Content above 0, Peckish from 35,
+        /// Hungry from 65, Famished from 90. A mood is entered at its threshold on the way up and left
+        /// `moodHysteresis` below it on the way down: Stuffed from −35 coming down, Hungry again below 85.
+        /// Stuffed takes a big meal (about six points from H = 0, a feast from 13 or below) and lasts up to
+        /// an hour of hunger time from the floor; Famished comes 4 h 30 min after H = 0 at an even pace.
+        public static let fullAbove: Double = -30
         public static let contentAbove: Double = 0
         public static let peckishFrom: Double = 35
         public static let hungryFrom: Double = 65
+        public static let famishedFrom: Double = 90
         public static let moodHysteresis: Double = 5
     }
 

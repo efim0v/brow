@@ -79,7 +79,7 @@ enum PetRigActions {
         case .eat(let meal):
             let snap = meal.reduceMotion ? PetTuning.Reduced.mealFade : timing(meal).snap
             return keyed(e, [(0, .eager, 0.1), (snap, .munch, 0.12)])
-        case .satisfied(.meal): return .satisfied
+        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful): return .satisfied
         case .satisfied(.feast): return keyed(e, [(0, .stuffed, 0.3), (2.6, .satisfied, 1.0)])
         case .satisfied(.lick): return .content
         case .boop: return .content
@@ -243,7 +243,7 @@ enum PetRigActions {
         case .perk(let kind):
             let pop = PetCurve.envelope(e, 0.04, 0.2, 0.24, kind == .prompt ? 0.46 : 0.7, up: { PetEase.outBack($0) })
             return (0, 0.4 * s * PetCurve.bump(e, 0.06, 0.36), 0.05 * pop)
-        case .satisfied(.meal):
+        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful):
             let sigh = PetCurve.envelope(e, 0.2, 0.6, 0.62, 1.05, up: PetEase.inOutSine, down: PetEase.inOutSine)
             return (0, 0, 0.05 * sigh - 0.02 * (PetCurve.bump(e, 1.1, 1.36) + PetCurve.bump(e, 1.6, 1.86)))
         case .satisfied(.feast):
@@ -488,7 +488,7 @@ enum PetRigActions {
             }
             return out
         case .perk: return [(0.1, .jiggle, 0.8), (0.08, .brows, 4)]
-        case .satisfied(.meal): return [(1.25, .jiggle, -0.4), (1.75, .jiggle, -0.4)]
+        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful): return [(1.25, .jiggle, -0.4), (1.75, .jiggle, -0.4)]
         case .satisfied(.feast): return [(1.45, .jiggle, 1.4), (0.65, .jiggle, -0.4), (1.1, .jiggle, -0.4)]
         case .boop(let giggle): return [(0.02, .jiggle, -3.0), (0.02, .brows, 9)] + (giggle ? [(0.32, .jiggle, -1.0), (0.62, .jiggle, -1.0)] : [])
         case .celebrate(.streak): return [(0.96, .jiggle, -0.7), (twirl.land, .jiggle, -0.6)]
@@ -591,7 +591,7 @@ enum PetRigActions {
             }
             p.eyeSize += 0.1 * PetCurve.envelope(e, 0.02, 0.08, 0.3, kind == .prompt ? 0.5 : 0.8)
             p.smile += 0.25 * PetCurve.envelope(e, 0.02, 0.08, 0.2, 0.3)
-        case .satisfied(.meal):
+        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful):
             p.nod += 0.2 * PetCurve.envelope(e, 0.2, 0.6, 0.62, 1.05)
             pats(&p, e: e, at: [1.2, 1.7])
             p.happy = max(p.happy, 0.85 * (1 - PetCurve.ramp(e, 2.6, 3.0)))

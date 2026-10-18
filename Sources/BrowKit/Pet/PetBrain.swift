@@ -814,7 +814,7 @@ extension PetBrain {
             return change
         }
         if case .eat(let meal) = behaviour, done {
-            return .satisfied(meal.feast ? .feast : meal.size == .full ? .meal : .lick)
+            return .satisfied(satisfaction(after: meal))
         }
         guard from == .open || (from == .doze && targetPlace == .open) else {
             return done ? held(from, target: target) : nil
@@ -962,7 +962,17 @@ extension PetBrain {
         let quiet = sinceLastMeal(at: t).map { $0 >= P.fullMealAfter } ?? true
         let chews = points < P.twoChewsFrom ? 1 : points < P.threeChewsFrom ? 2 : P.maxChews
         return PetMeal(size: feast || (quiet && !flush) ? .full : .nibble, chews: chews, feast: feast,
-                       points: points, reduceMotion: motion.reduceMotion)
+                       points: points, reduceMotion: motion.reduceMotion, mood: mood)
+    }
+
+    /// What follows a meal that has just ended, its drop already on the meter: after a nibble a lick;
+    /// a full meal or a feast eaten famished, the grateful one; a feast its own; a full meal that leaves
+    /// it stuffed, the brim; any other full meal, the plain one.
+    func satisfaction(after meal: PetMeal) -> PetBehaviour.Satisfaction {
+        guard meal.size == .full || meal.feast else { return .lick }
+        if meal.mood == .famished { return .grateful }
+        if meal.feast { return .feast }
+        return mood == .stuffed ? .brim : .meal
     }
 
     func isSatisfied(_ behaviour: PetBehaviour) -> Bool {

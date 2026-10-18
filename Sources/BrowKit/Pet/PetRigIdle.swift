@@ -123,8 +123,8 @@ enum PetRigIdle {
                                    small: false, rare: false)
         case .eager: p = Profile(amplitude: 0.6, breath: 1, blinks: true, glances: false, small: true, rare: false)
         case .unsureIdle: p = Profile(amplitude: 0.7, breath: 1, blinks: true, glances: false, small: false, rare: false)
-        case .satisfied(.meal), .satisfied(.feast): p = Profile(amplitude: 0.4, breath: 1, blinks: false, glances: false,
-                                                                 small: false, rare: false)
+        case .satisfied(.meal), .satisfied(.feast), .satisfied(.brim), .satisfied(.grateful):
+            p = Profile(amplitude: 0.4, breath: 1, blinks: false, glances: false, small: false, rare: false)
         case .asleep, .hibernating, .stirring, .rollOver: p = Profile(amplitude: 0, breath: 1, blinks: false, glances: false,
                                                            small: false, rare: false)
         case .drowsy: p = Profile(amplitude: 0.15, breath: 1, blinks: false, glances: false, small: false, rare: false)
@@ -253,10 +253,10 @@ enum PetRigIdle {
         // The glutton's small habits, the rare idles, the hungry tummy.
         if profile.small { smallIdle(&body, beat: beat, scene: scene) }
         if profile.rare { rareIdle(&body, beat: beat, scene: scene) }
-        if case .idle(let mood) = beat.behaviour, mood == .peckish || mood == .hungry {
+        if case .idle(let mood) = beat.behaviour, mood == .peckish || mood == .hungry || mood == .famished {
             rumble(&body, beat: beat, scene: scene)
         }
-        if case .settled(let mood) = beat.behaviour, mood == .hungry {
+        if case .settled(let mood) = beat.behaviour, mood == .hungry || mood == .famished {
             rumble(&body, beat: beat, scene: scene)
         }
 
@@ -277,11 +277,12 @@ enum PetRigIdle {
 
     enum Small: CaseIterable { case lick, browFlick, squish, sigh, shuffle }
 
-    /// Which small habit the k-th one is. Eager only licks its lips, and hungry never sighs: it licks.
+    /// Which small habit the k-th one is. Eager only licks its lips, and hungry and famished never sigh:
+    /// they lick.
     static func smallKind(_ k: Int, seed: UInt64, behaviour: PetBehaviour) -> Small {
         if case .eager = behaviour { return .lick }
         let kind = Small.allCases[Int(PetNoise.hash(seed, PetRigChannel.smallKind, k) * Double(Small.allCases.count))]
-        if case .idle(.hungry) = behaviour, kind == .sigh { return .lick }
+        if case .idle(let mood) = behaviour, mood == .hungry || mood == .famished, kind == .sigh { return .lick }
         return kind
     }
 
@@ -476,7 +477,7 @@ enum PetRigIdle {
         case .idle(let m), .settled(let m): mood = m
         default: mood = nil
         }
-        guard let m = mood, m == .hungry || (m == .peckish && isIdle(beat)) else { return nil }
+        guard let m = mood, m == .hungry || m == .famished || (m == .peckish && isIdle(beat)) else { return nil }
         return rumbles.recent(at: scene.t, lookBack: 0.4, seed: scene.seed).last { $0.at > beat.start + 1.5 }?.at
     }
 

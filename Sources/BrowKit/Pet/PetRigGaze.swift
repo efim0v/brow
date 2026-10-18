@@ -100,7 +100,7 @@ enum PetRigGaze {
         let t = scene.t, seed = scene.seed
         let hungry: Bool
         switch beat.behaviour {
-        case .idle(let m), .settled(let m): hungry = m == .hungry || m == .peckish
+        case .idle(let m), .settled(let m): hungry = m == .hungry || m == .peckish || m == .famished
         default: hungry = false
         }
         var eye = Look(), head = Look()

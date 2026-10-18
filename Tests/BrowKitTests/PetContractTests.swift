@@ -81,6 +81,14 @@ final class PetContractTests: XCTestCase {
         XCTAssertEqual((H.hungryFrom - H.contentAbove) / H.perHour * 60, 195, accuracy: 1e-9)
         XCTAssertEqual(H.maximum / H.perHour, 5, accuracy: 1e-9)
         XCTAssertEqual(-H.minimum / H.perHour * 60, 150, accuracy: 1e-9)
+        // The ends: Famished 4 h 30 min after 0, 1 h 15 min after Hungry. Stuffed takes about six points
+        // from 0, about four from −10, a feast from 13 or below, and from the floor it lasts an hour.
+        XCTAssertEqual((H.famishedFrom - H.contentAbove) / H.perHour * 60, 270, accuracy: 1e-9)
+        XCTAssertEqual((H.famishedFrom - H.hungryFrom) / H.perHour * 60, 75, accuracy: 1e-9)
+        XCTAssertEqual(-(H.fullAbove - H.moodHysteresis) / H.perPoint, 5.83, accuracy: 0.01)
+        XCTAssertEqual((-10 - (H.fullAbove - H.moodHysteresis)) / H.perPoint, 4.17, accuracy: 0.01)
+        XCTAssertEqual((H.fullAbove - H.moodHysteresis) + PetTuning.Plate.feastFrom * H.perPoint, 13, accuracy: 1e-9)
+        XCTAssertEqual((H.fullAbove - H.minimum) / H.perHour * 60, 60, accuracy: 1e-9)
     }
 
     /// How long each behaviour lasts when nothing cuts it; the open ones have no length of their own.
@@ -89,13 +97,15 @@ final class PetContractTests: XCTestCase {
             (.intro(noAccounts: false), 3.6), (.intro(noAccounts: true), 2.2),
             (.perk(.prompt), 0.5), (.perk(.freshData), 0.8),
             (.satisfied(.meal), 3.0), (.satisfied(.feast), 4.0), (.satisfied(.lick), 0.6),
+            (.satisfied(.brim), 3.0), (.satisfied(.grateful), 3.0),
             (.boop(giggle: false), 0.6), (.boop(giggle: true), 1.2),
             (.celebrate(.streak(days: 7)), 2.4), (.celebrate(.goodWeek), 2.8),
             (.freshWindow, 1.0), (.fallAsleep, 2.6), (.wake, 2.7), (.rollOver, 1.0),
             (.enterDen(retreat: false), 3.2), (.enterDen(retreat: true), 1.6),
             (.leaveDen(stretch: true), 3.7), (.leaveDen(stretch: false), 1.6),
             (.peek, 2.2), (.dozeIn, 2.0), (.welcomeBack, 1.8),
-            (.idle(.content), nil), (.settled(.hungry), nil), (.eager, nil), (.asleep, nil), (.drowsy, nil), (.stirring, nil),
+            (.idle(.content), nil), (.settled(.hungry), nil), (.idle(.stuffed), nil), (.settled(.famished), nil),
+            (.unsureIdle(.stuffed), nil), (.eager, nil), (.asleep, nil), (.drowsy, nil), (.stirring, nil),
             (.hibernating, nil), (.denWait, nil), (.unsureIdle(.full), nil), (.doze, nil), (.off, nil),
         ]
         for (behaviour, duration) in expected {
@@ -121,6 +131,11 @@ final class PetContractTests: XCTestCase {
         XCTAssertEqual(PetBehaviour.stirring.frameClass(elapsed: 0), .sleep)
         XCTAssertEqual(PetBehaviour.eat(meal).frameClass(elapsed: 0), .fast)
         XCTAssertEqual(PetBehaviour.satisfied(.lick).frameClass(elapsed: 0), .action)
+        XCTAssertEqual(PetBehaviour.satisfied(.brim).frameClass(elapsed: 1.5), .action)
+        XCTAssertEqual(PetBehaviour.satisfied(.grateful).frameClass(elapsed: 1.5), .action)
+        XCTAssertEqual(PetBehaviour.idle(.stuffed).frameClass(elapsed: 0), .idle)
+        XCTAssertEqual(PetBehaviour.idle(.famished).frameClass(elapsed: 0), .idle)
+        XCTAssertEqual(PetBehaviour.settled(.famished).frameClass(elapsed: 0), .still)
         XCTAssertEqual(PetBehaviour.denWait.frameClass(elapsed: 0), .off)
         XCTAssertEqual(PetBehaviour.peek.frameClass(elapsed: 0), .action)
         // The wake's shake, its last 0.5 s, runs fast; the stir and the stretch at the action rate.

@@ -158,13 +158,14 @@ extension PetPosture {
         p.smile = 0.3; p.blush = 0.5; p.armL = -0.2; p.armR = -0.2; p.glow = 0.85
     }
 
-    /// The posture of a mood, the open behaviours' base.
+    /// The posture of a mood, the open behaviours' base. The two ends of the meter look like their
+    /// neighbours for now: stuffed like full, famished like hungry.
     static func mood(_ m: PetMood) -> PetPosture {
         switch m {
-        case .full: return .full
+        case .stuffed, .full: return .full
         case .content: return .content
         case .peckish: return .peckish
-        case .hungry: return .hungry
+        case .hungry, .famished: return .hungry
         }
     }
 }

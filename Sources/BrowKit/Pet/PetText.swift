@@ -136,10 +136,12 @@ public enum PetText {
 
     static func word(_ mood: PetMood) -> String {
         switch mood {
+        case .stuffed: return "Stuffed"
         case .full: return "Full"
         case .content: return "Content"
         case .peckish: return "Peckish"
         case .hungry: return "Hungry"
+        case .famished: return "Famished"
         }
     }
 

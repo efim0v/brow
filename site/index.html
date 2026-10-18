@@ -52,8 +52,8 @@
       "operatingSystem": "macOS 26 or later",
       "processorRequirements": "Apple silicon (arm64)",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.3.1",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.3.1",
+      "softwareVersion": "0.4.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.4.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
@@ -93,7 +93,8 @@
         "Limit warnings: a macOS notification when an account passes 80% and 95% of a limit, off by default",
         "Copy my week: a picture of every account’s limits, ready to paste into a chat or a post",
         "Tokens of idle accounts kept fresh in the background",
-        "Limits checked every 30 seconds, on wake, when the network comes back and on hover"
+        "Limits checked every 30 seconds, on wake, when the network comes back and on hover",
+        "Glim, a pet beside the notch that eats what your accounts use; its glow is its hunger meter"
       ],
       "softwareHelp": { "@type": "CreativeWork", "name": "Brow in detail", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
       "author": { "@id": "https://efimov.page/#person" },
@@ -283,6 +284,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .tour-row h3 { margin-bottom: 8px; }
 .tour-row p { color: var(--muted); font-size: 1rem; }
 .tour-row p + p { margin-top: 12px; }
+.tour-row + .spec { margin-top: 48px; }
 .settings-shot { max-width: 520px; }
 .settings-shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
 @media (max-width: 860px) {
@@ -422,7 +424,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </p>
         <p class="brew">Or with Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>Free and open source</span>&nbsp;· <span>macOS 26 or later</span>&nbsp;· <span>Apple silicon</span>&nbsp;· <span>Version 0.3.1,</span> <span><time datetime="2026-10-15">15 October 2026</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">changelog</a>)</span>&nbsp;· <a href="#install">Install notes</a></p>
+      <p class="meta"><span>Free and open source</span>&nbsp;· <span>macOS 26 or later</span>&nbsp;· <span>Apple silicon</span>&nbsp;· <span>Version 0.4.0,</span> <span><time datetime="2026-10-17">17 October 2026</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">changelog</a>)</span>&nbsp;· <a href="#install">Install notes</a></p>
 
       <figure class="hero-shot">
         <picture>
@@ -488,6 +490,48 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <img src="media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Brow’s Accounts settings: an Add an account row with a Sign in button, then an account card with name, email, tier, folder, token state and launch command">
         </figure>
       </div>
+    </div>
+  </section>
+
+  <section class="section" id="glim" aria-labelledby="glim-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="glim-title">Glim, a small pet that eats your limits</h2>
+        <p>Glim lives in the black beside the 5-hour readout and eats what your accounts use. When the 5-hour number goes up, a bead of light pops out of it, flies to Glim and is eaten. The number stays as it was.</p>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Its glow is its hunger meter</h3>
+          <p>Fed, Glim glows bright; hungry, its light dims. Hours at the Mac without Claude Code make it hungry, and a hungry Glim looks hopeful, never sad.</p>
+          <p>Step away for ten minutes and it dozes off. It never gets hungry while you are gone.</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="media/glim-still.webp" type="image/webp">
+            <img src="media/glim.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Glim beside the MacBook notch: the 5-hour readout goes up, a bead of light pops out of the number, and Glim eats it and glows brighter">
+          </picture>
+        </figure>
+      </div>
+
+      <dl class="spec">
+        <div>
+          <dt>A used-up limit is a nap</dt>
+          <dd>When the 5-hour limit is used up, Glim falls asleep full until the window resets. When the weekly limit is used up, it hides in its den behind the camera and comes out at the weekly reset.</dd>
+        </div>
+        <div>
+          <dt>It comes into the panel with you</dt>
+          <dd>Hover the notch and Glim hops into the panel’s header, next to its state, its last meal and a hunger meter. Its eyes follow the pointer, and a click on it boops it.</dd>
+        </div>
+        <div>
+          <dt>It stays out of the way</dt>
+          <dd>Glim never covers a number, makes no sound and sends no notification. It draws only while you can see it, and it follows Reduce Motion. It is on by default; <span class="nowrap">Settings → General</span> → <strong>Show the pet</strong> turns it off.</dd>
+        </div>
+        <div>
+          <dt>It keeps to itself</dt>
+          <dd>Glim sends nothing anywhere and reads no transcripts. To perk up when you start Claude Code, it has macOS tell it when an account’s <code>history.jsonl</code> is written, and it never opens the file.</dd>
+        </div>
+      </dl>
     </div>
   </section>
 
@@ -753,6 +797,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <dd>Brow keeps its settings and the last readings in <code>~/Library/Application Support/Brow</code>. It also keeps a pacing record for the usage endpoint, with each account’s last reading, in <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code>; that folder is Grove’s, which is now part of Brow.</dd>
         </div>
         <div>
+          <dt>Glim notices prompts without reading them</dt>
+          <dd>With Glim on, Brow asks macOS to tell it when each account’s <code>history.jsonl</code> is written, so Glim can perk up when you start Claude Code. It never reads the file. Glim’s own state, such as its hunger and the days it was fed, is in <code>~/Library/Application Support/Brow/pet.json</code>.</dd>
+        </div>
+        <div>
           <dt>Workspaces, only once you turn it on</dt>
           <dd>It edits an account’s <code>settings.json</code> only if you turn on status-line capture for that account, runs git in your repositories, drives cmux, and keeps a transcript safety net only if you turn that on. <a href="https://github.com/efim0v/brow#what-brow-does-on-your-machine">The README</a> lists all of it.</dd>
         </div>
@@ -801,6 +849,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Is there a desktop widget?</h3>
           <p>No. Brow lives at the notch, or in a pill on other displays: hover it to open the panel.</p>
+        </div>
+        <div>
+          <h3>Does Glim use much battery?</h3>
+          <p>It draws only while the screen is on and you are at the Mac: 30 frames a second at rest, 60 to 120 for a second or two while it eats or moves, and nothing when the screen is locked or asleep, when you have been away for ten minutes, or when Glim is off. It follows Reduce Motion.</p>
         </div>
         <div>
           <h3>How often does Brow update the numbers?</h3>

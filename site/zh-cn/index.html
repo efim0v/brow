@@ -52,8 +52,8 @@
       "operatingSystem": "macOS 26 或更高版本",
       "processorRequirements": "Apple 芯片（arm64）",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.3.1",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.3.1",
+      "softwareVersion": "0.4.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.4.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
@@ -93,7 +93,8 @@
         "限额预警：账号用到某项限额的 80% 和 95% 时发出 macOS 通知，默认关闭",
         "把所有账号的限额复制成一张图片，可直接粘贴到聊天或帖子里",
         "空闲账号的令牌在后台保持有效",
-        "每 30 秒检查一次限额，Mac 唤醒、网络恢复和指针悬停时也会检查"
+        "每 30 秒检查一次限额，Mac 唤醒、网络恢复和指针悬停时也会检查",
+        "Glim：刘海旁的一只小宠物，你的账号用掉多少额度，它就吃掉多少；它的光就是它的饥饿条"
       ],
       "softwareHelp": { "@type": "CreativeWork", "name": "Brow 详解", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
       "author": { "@id": "https://efimov.page/#person" },
@@ -293,6 +294,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .tour-row h3 { margin-bottom: 8px; }
 .tour-row p { color: var(--muted); font-size: 1rem; }
 .tour-row p + p { margin-top: 12px; }
+.tour-row + .spec { margin-top: 48px; }
 .settings-shot { max-width: 520px; }
 .settings-shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
 @media (max-width: 860px) {
@@ -432,7 +434,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </p>
         <p class="brew">或者用 Homebrew 安装：<code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.3.1，</span><span><time datetime="2026-10-15">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;15&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
+      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.4.0，</span><span><time datetime="2026-10-17">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;17&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
 
       <figure class="hero-shot">
         <picture>
@@ -498,6 +500,48 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <img src="../media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Brow 的 Accounts 设置：顶部是 Add an account 一栏和 Sign in 按钮，下面是一张账号卡片，显示名称、邮箱、套餐、文件夹、令牌状态和启动命令">
         </figure>
       </div>
+    </div>
+  </section>
+
+  <section class="section" id="glim" aria-labelledby="glim-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="glim-title">Glim：一只吃限额的小宠物</h2>
+        <p>Glim 住在刘海旁、5&nbsp;小时限额读数边上的那片黑色里，你的账号用掉什么，它就吃什么。5&nbsp;小时限额的数字一上涨，就会有一粒光珠从数字里蹦出来，飞向 Glim，被它吃掉。数字本身保持不变。</p>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>它的光就是它的饥饿条</h3>
+          <p>吃饱时，Glim 亮亮的；饿了，光就暗下来。你在 Mac 前好几个小时都没用 Claude Code，它就会饿，但饿着的 Glim 只会满怀期待，从不难过。</p>
+          <p>你离开 Mac 十分钟，它就会打起瞌睡；你不在的时候，它从不变饿。</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/glim-still.webp" type="image/webp">
+            <img src="../media/glim.webp" width="1280" height="800" loading="lazy" decoding="async" alt="MacBook 刘海旁的 Glim：5 小时限额读数上涨，一粒光珠从数字里蹦出来，Glim 把它吃掉，变得更亮">
+          </picture>
+        </figure>
+      </div>
+
+      <dl class="spec">
+        <div>
+          <dt>限额用完，就睡一觉</dt>
+          <dd>5&nbsp;小时限额用完时，Glim 吃饱睡着，直到窗口重置。每周限额用完时，它躲进摄像头后面的小窝里冬眠，到每周重置时再出来。</dd>
+        </div>
+        <div>
+          <dt>跟着你进入面板</dt>
+          <dd>把指针悬停在刘海上，Glim 会跳进面板的标题行，旁边是它的状态、上一顿饭和饥饿条。它的眼睛会跟着指针转，点它一下，就像轻轻碰了碰它的鼻尖。</dd>
+        </div>
+        <div>
+          <dt>从不碍事</dt>
+          <dd>Glim 从不遮挡任何数字，不发声，也不发通知。它只在你看得见时才绘制，并遵循“减弱动态效果”设置。默认开启；在 <span class="nowrap">Settings → General</span> → <strong>Show the pet</strong> 中可以关闭。</dd>
+        </div>
+        <div>
+          <dt>什么都不外传</dt>
+          <dd>Glim 不向任何地方发送数据，也不读取任何转录。为了在你启动 Claude Code 时打起精神，它只请 macOS 在某个账号的 <code>history.jsonl</code> 被写入时通知它，从不打开这个文件。</dd>
+        </div>
+      </dl>
     </div>
   </section>
 
@@ -763,6 +807,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <dd>Brow 把自己的设置和最近的读数保存在 <code>~/Library/Application Support/Brow</code> 中。它还在 <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> 中保存一份用量接口的请求节奏记录，其中包含每个账号最近一次的读数；这个文件夹属于 Grove，而 Grove 现在已是 Brow 的一部分。</dd>
         </div>
         <div>
+          <dt>Glim 留意提示词，但不读取它们</dt>
+          <dd>开启 Glim 后，Brow 会请 macOS 在每个账号的 <code>history.jsonl</code> 被写入时通知它，好让 Glim 在你开始使用 Claude Code 时打起精神。Brow 从不读取这个文件。Glim 自己的状态（例如它的饥饿程度和它吃饱的日子）保存在 <code>~/Library/Application Support/Brow/pet.json</code> 中。</dd>
+        </div>
+        <div>
           <dt>Workspaces：只在你开启后才运行</dt>
           <dd>只有为某个账号开启状态栏捕获后，它才会修改该账号的 <code>settings.json</code>；它会在你的仓库中运行 git、控制 cmux，并且只有在你开启后才会保留转录安全网。完整列表见 <a href="https://github.com/efim0v/brow/blob/main/README.zh-CN.md#brow-会在你的-mac-上做什么">README</a>。</dd>
         </div>
@@ -811,6 +859,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>有桌面小组件吗？</h3>
           <p>没有。Brow 待在刘海处，在其他显示器上则是一个胶囊：把指针悬停在上面即可打开面板。</p>
+        </div>
+        <div>
+          <h3>Glim 费电吗？</h3>
+          <p>它只在屏幕亮着、你在 Mac 前时才绘制：静止时每秒 30 帧，进食或移动的一两秒内每秒 60 到 120 帧；屏幕锁定或休眠、你离开满十分钟，或者 Glim 已关闭时，一帧也不画。它遵循“减弱动态效果”（Reduce Motion）设置。</p>
         </div>
         <div>
           <h3>Brow 多久更新一次数字？</h3>

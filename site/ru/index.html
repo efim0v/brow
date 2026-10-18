@@ -52,8 +52,8 @@
       "operatingSystem": "macOS 26 или новее",
       "processorRequirements": "Apple silicon (arm64)",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.3.1",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.3.1",
+      "softwareVersion": "0.4.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.4.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
@@ -93,7 +93,8 @@
         "Предупреждения о лимитах: уведомление macOS, когда аккаунт израсходует 80 % и 95 % лимита; по умолчанию выключены",
         "Картинка с лимитами всех аккаунтов, чтобы вставить её в чат или пост",
         "Токены простаивающих аккаунтов обновляются в фоне",
-        "Проверка лимитов каждые 30 секунд, после выхода из сна, при восстановлении сети и при наведении курсора"
+        "Проверка лимитов каждые 30 секунд, после выхода из сна, при восстановлении сети и при наведении курсора",
+        "Glim — питомец у чёлки, который ест то, что тратят ваши аккаунты; его свечение — шкала голода"
       ],
       "softwareHelp": { "@type": "CreativeWork", "name": "Brow в подробностях", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
       "author": { "@id": "https://efimov.page/#person" },
@@ -284,6 +285,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .tour-row h3 { margin-bottom: 8px; }
 .tour-row p { color: var(--muted); font-size: 1rem; }
 .tour-row p + p { margin-top: 12px; }
+.tour-row + .spec { margin-top: 48px; }
 .settings-shot { max-width: 520px; }
 .settings-shot img { border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
 @media (max-width: 860px) {
@@ -423,7 +425,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </p>
         <p class="brew">Или через Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.3.1,</span> <span><time datetime="2026-10-15">15&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
+      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.4.0,</span> <span><time datetime="2026-10-17">17&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
 
       <figure class="hero-shot">
         <picture>
@@ -489,6 +491,48 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <img src="../media/settings.webp" width="1108" height="900" loading="lazy" decoding="async" alt="Настройки аккаунтов в Brow: строка Add an account с кнопкой Sign in, под ней карточка аккаунта с именем, почтой, тарифом, папкой, состоянием токена и командой запуска">
         </figure>
       </div>
+    </div>
+  </section>
+
+  <section class="section" id="glim" aria-labelledby="glim-title">
+    <div class="wrap">
+      <div class="prose">
+        <h2 id="glim-title">Glim&nbsp;— маленький питомец, который ест ваши лимиты</h2>
+        <p>Glim живёт у&nbsp;чёлки, рядом с&nbsp;показателем <span class="nowrap">5-часового</span> лимита, и&nbsp;ест то, что тратят ваши аккаунты. Когда число <span class="nowrap">5-часового</span> лимита растёт, из&nbsp;него выскакивает бусинка света, летит к&nbsp;Glim, и&nbsp;он её съедает. А&nbsp;само число остаётся каким было.</p>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Свечение&nbsp;— это его шкала голода</h3>
+          <p>Сытый Glim светится ярко, голодный&nbsp;— тускнеет. Если вы несколько часов за&nbsp;Mac, а&nbsp;Claude&nbsp;Code молчит, Glim проголодается, но&nbsp;и&nbsp;голодный он смотрит с&nbsp;надеждой, а&nbsp;не&nbsp;грустит.</p>
+          <p>Отойдите от&nbsp;Mac на&nbsp;десять минут&nbsp;— и&nbsp;он задремлет. Пока вас нет, голод не&nbsp;растёт.</p>
+        </div>
+        <figure>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/glim-still.webp" type="image/webp">
+            <img src="../media/glim.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Glim у чёлки MacBook: показатель 5-часового лимита растёт, из числа выскакивает бусинка света, Glim её съедает и начинает светиться ярче">
+          </picture>
+        </figure>
+      </div>
+
+      <dl class="spec">
+        <div>
+          <dt>Исчерпанный лимит&nbsp;— повод поспать</dt>
+          <dd>Когда <span class="nowrap">5-часовой</span> лимит исчерпан, Glim засыпает сытым до&nbsp;сброса окна. Когда исчерпан недельный, он прячется в&nbsp;свою норку за&nbsp;камерой и&nbsp;выходит из&nbsp;неё при недельном сбросе.</dd>
+        </div>
+        <div>
+          <dt>Заходит в&nbsp;панель вместе с&nbsp;вами</dt>
+          <dd>Наведите курсор на&nbsp;чёлку&nbsp;— и&nbsp;Glim запрыгнет в&nbsp;заголовок панели, где видны его состояние, последняя еда и&nbsp;шкала голода. Он следит глазами за&nbsp;курсором, а&nbsp;кликом его можно легонько ткнуть в&nbsp;нос.</dd>
+        </div>
+        <div>
+          <dt>Не&nbsp;мешает</dt>
+          <dd>Glim никогда не&nbsp;закрывает цифры, не&nbsp;издаёт звуков и&nbsp;не&nbsp;присылает уведомлений. Он рисуется, только пока его видно, и&nbsp;учитывает настройку «Уменьшение движения». Включён по&nbsp;умолчанию; выключается в&nbsp;<span class="nowrap">Settings → General</span> → <strong>Show the pet</strong>.</dd>
+        </div>
+        <div>
+          <dt>Ничего не&nbsp;выносит наружу</dt>
+          <dd>Glim ничего никуда не&nbsp;отправляет и&nbsp;не&nbsp;читает транскрипты. Чтобы оживляться, когда вы запускаете Claude&nbsp;Code, он просит macOS сообщать о&nbsp;записи в&nbsp;<code>history.jsonl</code> аккаунта, а&nbsp;сам файл не&nbsp;открывает.</dd>
+        </div>
+      </dl>
     </div>
   </section>
 
@@ -754,6 +798,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <dd>Свои настройки и&nbsp;последние полученные данные о&nbsp;лимитах Brow хранит в&nbsp;<code>~/Library/Application Support/Brow</code>. Кроме того, в&nbsp;файле <code>~/Library/Application Support/Grove/oauth-usage-ledger.json</code> он&nbsp;ведёт учёт частоты запросов к&nbsp;эндпоинту расхода и&nbsp;хранит последние данные каждого аккаунта. Это папка Grove, который теперь стал частью Brow.</dd>
         </div>
         <div>
+          <dt>Glim замечает промпты, не&nbsp;читая их</dt>
+          <dd>Когда Glim включён, Brow просит macOS сообщать ему о&nbsp;каждой записи в&nbsp;<code>history.jsonl</code> каждого аккаунта, чтобы Glim оживлялся, когда вы запускаете Claude&nbsp;Code. Сам файл Brow не&nbsp;читает. Состояние Glim, например его голод и&nbsp;дни, когда он был сыт, хранится в&nbsp;<code>~/Library/Application Support/Brow/pet.json</code>.</dd>
+        </div>
+        <div>
           <dt>Workspaces&nbsp;— только когда вы его включите</dt>
           <dd>Он правит <code>settings.json</code> аккаунта, только если включить для него перехват строки состояния, запускает git в&nbsp;ваших репозиториях, управляет cmux и&nbsp;ведёт страховку транскриптов, только если её включить. Полный список&nbsp;— в&nbsp;<a href="https://github.com/efim0v/brow/blob/main/README.ru.md#что-brow-делает-на-вашем-mac">README</a>.</dd>
         </div>
@@ -802,6 +850,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Есть&nbsp;ли виджет для рабочего стола?</h3>
           <p>Нет. Brow живёт в&nbsp;чёлке, а&nbsp;на&nbsp;других дисплеях&nbsp;— в&nbsp;капсуле: наведите на&nbsp;неё курсор, чтобы открыть панель.</p>
+        </div>
+        <div>
+          <h3>Сильно&nbsp;ли Glim расходует батарею?</h3>
+          <p>Он рисуется, только пока экран включён и&nbsp;вы за&nbsp;Mac: 30&nbsp;кадров в&nbsp;секунду в&nbsp;покое, от&nbsp;60 до&nbsp;120 на&nbsp;секунду-другую, пока он ест или двигается, и&nbsp;ни&nbsp;одного, когда экран заблокирован или спит, когда вас нет уже десять минут или когда Glim выключен. Он учитывает настройку «Уменьшение движения» (Reduce Motion).</p>
         </div>
         <div>
           <h3>Как часто Brow обновляет цифры?</h3>

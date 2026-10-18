@@ -105,17 +105,18 @@ public final class LimitsStore: ObservableObject {
     /// numbers with no way out. The spec's table says 240 s from `doctor` 90 + `-p` 120;
     /// the real worst case has four more terms in it:
     ///
-    ///     keychainPatience                       5
-    ///     doctor  (timeout + SIGKILL + drain)   90 + 0.5 + 2
-    ///     -p      (timeout + SIGKILL + drain)  120 + 0.5 + 2
+    ///     keychainPatience                                  5
+    ///     doctor  (timeout + SIGTERM→SIGKILL + drain)      90 + 5 + 2
+    ///     -p      (timeout + SIGTERM→SIGKILL + drain)     120 + 5 + 2
     ///     usage   (request timeout, ×2 — the client retries once on 401/403)  2 × 15
     ///     ------------------------------------------------------------------------
-    ///                                                                        250
+    ///                                                                        259
     ///
-    /// 270 leaves 20 s of scheduling slack on top. `testTheCycleWatchdogOutlastsEveryDeadlineInsideIt`
+    /// 280 leaves 21 s of scheduling slack on top. The CLI's 5 s between SIGTERM and
+    /// SIGKILL is `TokenKeeper.killGrace`. `testTheCycleWatchdogOutlastsEveryDeadlineInsideIt`
     /// recomputes this sum from the constants themselves, so no later timeout change can
     /// quietly reintroduce the gap.
-    public static let cycleWatchdog: TimeInterval = 270
+    public static let cycleWatchdog: TimeInterval = 280
     /// How long a cycle waits for `AccountDirectory.scan` before carrying on with the
     /// accounts it already knows (spec, The cycle §3).
     public static let keychainPatience: TimeInterval = 5

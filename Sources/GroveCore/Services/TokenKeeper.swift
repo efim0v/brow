@@ -59,6 +59,12 @@ public actor TokenKeeper {
     public static let couldNotAttemptInterval: TimeInterval = 300
     public static let doctorTimeout: TimeInterval = 90
     public static let promptTimeout: TimeInterval = 120
+    /// What `doctor` and `-p` get between SIGTERM and SIGKILL when they run past their
+    /// timeout. On its way out Claude Code waits up to 2 s for a token refresh in flight
+    /// to land and be saved (read out of 2.1.290–2.1.302), and the refresh token rotates
+    /// with every refresh: a SIGKILL inside that wait, as the runner's default half
+    /// second allowed, could throw away the one refresh token that still works.
+    public static let killGrace: TimeInterval = 5
 
     private static let log = Logger(subsystem: "dev.artemefimov.brow", category: "TokenKeeper")
 
@@ -183,7 +189,8 @@ public actor TokenKeeper {
         var details: [String] = []
         do {
             let doctor = Self.invocation(claude: claudePath(), args: ["doctor"], configDir: configDir)
-            let result = try await runner.run(doctor.executable, doctor.args, cwd: nil, env: doctor.env, timeout: Self.doctorTimeout)
+            let result = try await runner.run(doctor.executable, doctor.args, cwd: nil, env: doctor.env,
+                                              timeout: Self.doctorTimeout, killGrace: Self.killGrace)
             // 127 is the shell's "command not found": a wrong "Path to claude", or a GUI
             // app's PATH without the CLI on it. The binary never ran.
             if result.exitCode == 127 {
@@ -222,7 +229,8 @@ public actor TokenKeeper {
         do {
             let prompt = Self.invocation(claude: claudePath(), args: ["-p", ".", "--model", "haiku", "--max-turns", "1"],
                                          configDir: configDir)
-            let result = try await runner.run(prompt.executable, prompt.args, cwd: nil, env: prompt.env, timeout: Self.promptTimeout)
+            let result = try await runner.run(prompt.executable, prompt.args, cwd: nil, env: prompt.env,
+                                              timeout: Self.promptTimeout, killGrace: Self.killGrace)
             switch reread(after: before, configDir: configDir) {
             case .advanced:   return succeed(.refreshedByPrompt, configDir: configDir)
             case .unreadable: return fail("token became unreadable after claude -p", configDir: configDir, counts: true)

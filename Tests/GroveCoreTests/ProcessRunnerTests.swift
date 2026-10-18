@@ -83,6 +83,35 @@ final class ProcessRunnerTests: XCTestCase {
         XCTAssertTrue(result.stderr.contains("err"), "stderr was \(result.stderr.debugDescription)")
     }
 
+    /// Claude Code has work to do on SIGTERM: it waits up to two seconds for a token
+    /// refresh in flight to land and be saved. The default half second before SIGKILL
+    /// cut that short; a caller's longer grace has to be honoured. The stand-in needs a
+    /// second after SIGTERM and leaves a mark only if it gets it.
+    func testAKillGraceLetsTheChildFinishWhatItDoesOnSIGTERM() async throws {
+        let dir = try Fixture.tempDir("runner-grace")
+        let script = #"trap 'sleep 1; : > "$0"; exit 0' TERM; while :; do sleep 0.1; done"#
+        func stoppedAtTimeout(grace: TimeInterval?, mark: String) async throws -> Bool {
+            let start = Date()
+            do {
+                if let grace {
+                    _ = try await runner.run("/bin/sh", ["-c", script, mark], timeout: 0.5, killGrace: grace)
+                } else {
+                    _ = try await runner.run("/bin/sh", ["-c", script, mark], timeout: 0.5)
+                }
+                XCTFail("expected GroveError.timeout")
+            } catch let error as GroveError {
+                guard case .timeout = error else { XCTFail("expected .timeout, got \(error)"); return false }
+            }
+            XCTAssertLessThan(Date().timeIntervalSince(start), 8, "the grace bounds the call too")
+            try await Task.sleep(nanoseconds: 300_000_000)     // a survivor would have left its mark by now
+            return FileManager.default.fileExists(atPath: mark)
+        }
+        let graced = try await stoppedAtTimeout(grace: 5, mark: dir.appendingPathComponent("graced").path)
+        XCTAssertTrue(graced, "SIGTERM, then the child's own exit work, and no SIGKILL in the middle of it")
+        let killed = try await stoppedAtTimeout(grace: nil, mark: dir.appendingPathComponent("default").path)
+        XCTAssertFalse(killed, "the default grace is still half a second for everything else")
+    }
+
     /// Same grandchild, but the child itself outlives the timeout: the watchdog
     /// still wins, and the bounded drain that follows it does not swallow the throw
     /// or stretch the call out to the grandchild's lifetime.

@@ -1023,9 +1023,10 @@ final class LimitsStoreTests: XCTestCase {
     /// `doctor` 90 + `-p` 120 alone and left out the Keychain patience, the two
     /// SIGTERM→SIGKILL steps, the two drain graces and the usage request — which the
     /// client makes TWICE, retrying once on 401/403. Computed from the constants, so a
-    /// later timeout change cannot quietly reintroduce the gap.
+    /// later timeout change cannot quietly reintroduce the gap. The CLI's own grace
+    /// between SIGTERM and SIGKILL is the keeper's, not the runner's default.
     func testTheCycleWatchdogOutlastsEveryDeadlineInsideIt() {
-        let oneCommand = { (timeout: TimeInterval) in timeout + ProcessRunner.killGrace + ProcessRunner.drainGrace }
+        let oneCommand = { (timeout: TimeInterval) in timeout + TokenKeeper.killGrace + ProcessRunner.drainGrace }
         let worstCase = LimitsStore.keychainPatience
             + oneCommand(TokenKeeper.doctorTimeout)
             + oneCommand(TokenKeeper.promptTimeout)

@@ -30,6 +30,7 @@ final class TokenKeeperTests: XCTestCase {
         private let lock = NSLock()
         private var recorded: [(executable: String, args: [String], env: [String: String]?)] = []
         private var recordedTimeouts: [TimeInterval] = []
+        private var recordedKillGraces: [TimeInterval] = []
         private let sideEffect: @Sendable (Int) -> Void
         /// What the 1-based invocation returns — or throws. The default is the working
         /// CLI (exit 0, no output); overriding it lets the same double stand in for a
@@ -48,6 +49,14 @@ final class TokenKeeperTests: XCTestCase {
             lock.withLock { recorded }
         }
         var timeouts: [TimeInterval] { lock.withLock { recordedTimeouts } }
+        /// The grace each invocation asked for between SIGTERM and SIGKILL.
+        var killGraces: [TimeInterval] { lock.withLock { recordedKillGraces } }
+
+        func run(_ executable: String, _ args: [String], cwd: String?, env: [String: String]?,
+                 timeout: TimeInterval, killGrace: TimeInterval) async throws -> ProcessResult {
+            lock.withLock { recordedKillGraces.append(killGrace) }
+            return try await run(executable, args, cwd: cwd, env: env, timeout: timeout)
+        }
 
         func run(_ executable: String, _ args: [String], cwd: String?, env: [String: String]?,
                  timeout: TimeInterval) async throws -> ProcessResult {
@@ -601,5 +610,7 @@ final class TokenKeeperTests: XCTestCase {
                                  allowPromptFallback: { true }, now: { self.t0 })
         _ = await keeper.ensureFresh(configDir: "/d")
         XCTAssertEqual(runner.timeouts, [90, 120])
+        XCTAssertEqual(runner.killGraces, [5, 5],
+                       "both get 5 s after SIGTERM: the CLI waits up to 2 s on exit for a refresh in flight")
     }
 }

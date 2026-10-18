@@ -21,9 +21,24 @@ public protocol CommandRunning: Sendable {
         _ executable: String, _ args: [String],
         cwd: String?, env: [String: String]?, timeout: TimeInterval
     ) async throws -> ProcessResult
+
+    /// `run`, giving the command `killGrace` between SIGTERM and SIGKILL once `timeout`
+    /// has passed: for a command that still has work to do on its way out.
+    func run(
+        _ executable: String, _ args: [String],
+        cwd: String?, env: [String: String]?, timeout: TimeInterval, killGrace: TimeInterval
+    ) async throws -> ProcessResult
 }
 
 public extension CommandRunning {
+    /// A runner that sends no signals of its own, as every test double, has no grace to give.
+    func run(
+        _ executable: String, _ args: [String],
+        cwd: String?, env: [String: String]?, timeout: TimeInterval, killGrace: TimeInterval
+    ) async throws -> ProcessResult {
+        try await run(executable, args, cwd: cwd, env: env, timeout: timeout)
+    }
+
     /// Like run, but throws GroveError.processFailed when the exit code is non-zero.
     @discardableResult
     func runOK(
@@ -194,16 +209,25 @@ public struct ProcessRunner: CommandRunning, Sendable {
     /// that inherited fd 1/2 can hold the pipes open long after the child exits;
     /// past this grace the readers are abandoned and `run` returns what it has.
     public static let drainGrace: TimeInterval = 2
-    /// How long a child gets between SIGTERM and SIGKILL once the timeout fires. Named
-    /// because it is part of every caller's real worst case, not just the timeout.
+    /// How long a child gets between SIGTERM and SIGKILL once the timeout fires, unless
+    /// the caller asks for longer (`run(…, killGrace:)`). Named because it is part of
+    /// every caller's real worst case, not just the timeout.
     public static let killGrace: TimeInterval = 0.5
 
     public init() {}
 
+    /// Runs `executable` and returns its exit code and output, with the default `killGrace`.
+    public func run(
+        _ executable: String, _ args: [String],
+        cwd: String? = nil, env: [String: String]? = nil, timeout: TimeInterval = 10
+    ) async throws -> ProcessResult {
+        try await run(executable, args, cwd: cwd, env: env, timeout: timeout, killGrace: Self.killGrace)
+    }
+
     /// Runs `executable` and returns its exit code and output.
     ///
-    /// `run` returns within `timeout + drainGrace` plus scheduling slack in every
-    /// case. The pipes are read by an abandonable `poll`/`read` loop rather than
+    /// `run` returns within `timeout + killGrace + drainGrace` plus scheduling slack in
+    /// every case. The pipes are read by an abandonable `poll`/`read` loop rather than
     /// `readDataToEndOfFile`, which is unusable here on two counts: it waits for
     /// the *last* writer to close — any backgrounded grandchild of the child holds
     /// it open — and it cannot be interrupted, because closing the handle under a
@@ -211,7 +235,8 @@ public struct ProcessRunner: CommandRunning, Sendable {
     /// returning.
     public func run(
         _ executable: String, _ args: [String],
-        cwd: String? = nil, env: [String: String]? = nil, timeout: TimeInterval = 10
+        cwd: String? = nil, env: [String: String]? = nil, timeout: TimeInterval,
+        killGrace: TimeInterval
     ) async throws -> ProcessResult {
         let commandDescription = ([executable] + args).joined(separator: " ")
 
@@ -269,14 +294,14 @@ public struct ProcessRunner: CommandRunning, Sendable {
             drainPipe(stderrHandle, stream: "stderr", command: commandDescription, abandon: abandon)
         }
 
-        // Watchdog: SIGTERM at the deadline, escalate to SIGKILL 500ms later.
+        // Watchdog: SIGTERM at the deadline, escalate to SIGKILL `killGrace` later.
         let flag = TimeoutFlag()
         let watchdog = Task.detached {
             try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
             guard !Task.isCancelled, process.isRunning else { return }
             flag.set()
             process.terminate()
-            try? await Task.sleep(nanoseconds: UInt64(Self.killGrace * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(max(0, killGrace) * 1_000_000_000))
             if process.isRunning {
                 kill(process.processIdentifier, SIGKILL)
             }

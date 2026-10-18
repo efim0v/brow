@@ -652,6 +652,17 @@ public final class LimitsStore: ObservableObject {
             FetchResult(org: account.organizationUuid, snapshot: snapshot, error: error, token: token,
                         rejected: rejected, rateLimited: rateLimited, postponed: postponed, episode: episode)
         }
+        // A token past its expiry is not sent (the client will not), and the row says so
+        // at once rather than after the endpoint's window. Such a token is one the server
+        // would refuse: when the keeper's attempt floor is what kept it from running, it
+        // gets the one forced attempt a 401 would have bought it.
+        func expired(_ expiredAt: Date) -> FetchResult {
+            result(nil, error: Self.expiredMessage(expiredAt, holder: holder, now: at),
+                   rejected: token == .skippedRateLimited)
+        }
+        if let expiredAt = await deps.client.expiredToken(configDir: account.configDir, now: at) {
+            return expired(expiredAt)
+        }
         // A background poll inside the endpoint's window is not sent and not an error:
         // the reading on screen is the freshest one there can be. (A forced refresh
         // goes on to the client, which throws so the store can queue it.)
@@ -662,6 +673,8 @@ public final class LimitsStore: ObservableObject {
             let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
             let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
             return result(snap, error: snap == nil ? "No limit windows in response" : nil)
+        } catch OAuthUsageError.expired(let expiredAt) {
+            return expired(expiredAt)
         } catch {
             return result(nil, error: Self.errorText(error), rejected: Self.isAuthRejection(error),
                           rateLimited: Self.isRateLimit(error))
@@ -1098,10 +1111,19 @@ public final class LimitsStore: ObservableObject {
         return h >= 1 ? "fresh · \(h) h" : "fresh · \(Int(max(0, exp.timeIntervalSince(now)) / 60)) min"
     }
 
+    /// The row's error for a token past its expiry, which is not sent. While a session
+    /// holds the account the row says that session has not renewed it: an idle one does
+    /// not, and the keeper has had its go by then too (its own line is in Settings).
+    nonisolated static func expiredMessage(_ expiry: Date, holder: ClaudeCodeUse?, now: Date) -> String {
+        let text = "Token expired \(Formatting.age(expiry, now: now))"
+        return holder == nil ? text : text + " — Claude Code hasn't refreshed it"
+    }
+
     /// Same wording Grove's usage panel uses, so the two apps never disagree.
     nonisolated public static func errorText(_ error: Error) -> String {
         switch error {
         case OAuthUsageError.noCredentials:   return "No Claude credentials found"
+        case OAuthUsageError.expired:         return "Token expired"
         case OAuthUsageError.tooManyRequests: return "Rate limited — try again shortly"
         case OAuthUsageError.backoff:         return "Rate limited — waiting to retry"
         case OAuthUsageError.malformed:       return "Unexpected response from Anthropic"

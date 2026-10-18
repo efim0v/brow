@@ -729,6 +729,48 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertNil(store.footerError)
     }
 
+    /// A token the keeper could not renew stays dead, and is not sent: the row says how
+    /// long ago it died and, while a session holds the account, that the session has not
+    /// renewed it either — not "rate limited", which is what a dead token sent every 30 s
+    /// earned. Such a token is one the server would refuse, so once the keeper's attempt
+    /// floor holds it back it gets the one forced attempt a 401 would have bought.
+    func testAnExpiredTokenIsNotSentAndTheRowSaysSo() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(-3 * 3600)
+        creds.invalidateRefreshes = false                  // doctor and -p change nothing
+        let runner = MockRunnerBK(results: [])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
+        let activity = FakeActivity(); activity.set(.process(pid: 77), for: a)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.first?.args, ["doctor"], "the keeper had its go")
+        XCTAssertTrue(fetcher.calls.isEmpty, "a dead token is not sent")
+        XCTAssertEqual(store.rows[0].status, .error("Token expired 3 h ago — Claude Code hasn't refreshed it"))
+        XCTAssertEqual(store.footerError, "Token expired 3 h ago — Claude Code hasn't refreshed it")
+        let ranFirst = runner.invocations.count
+
+        // The session goes; the row stops naming it. The keeper's floor holds this cycle…
+        now = t0.addingTimeInterval(60)
+        activity.set(nil, for: a)
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows[0].status, .error("Token expired 3 h ago"))
+        XCTAssertEqual(runner.invocations.count, ranFirst)
+
+        // …so the next one spends the forced attempt on it, once.
+        now = t0.addingTimeInterval(120)
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.count, ranFirst + 1)
+        XCTAssertEqual(runner.invocations.last?.args, ["doctor"])
+        for minute in 3...5 {
+            now = t0.addingTimeInterval(TimeInterval(minute * 60))
+            await store.refresh(force: false)
+        }
+        XCTAssertEqual(runner.invocations.count, ranFirst + 1, "one forced attempt, not one per cycle")
+        XCTAssertTrue(fetcher.calls.isEmpty)
+    }
+
     /// A 401 for a token a session holds is no longer the session's to fix: the next cycle
     /// spends the rejection's one forced `doctor` on it, and the one after does not spend
     /// another.

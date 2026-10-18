@@ -213,6 +213,94 @@ final class OAuthTokenExpiryTests: XCTestCase {
         func invalidate(configDir: String) { invalidations += 1 }
     }
 
+    // MARK: - a token past its expiry is not sent
+
+    /// Credentials the test sets: one token, and what a re-read after `invalidate`
+    /// hands out instead.
+    private final class SetCredentials: CredentialsReading, @unchecked Sendable {
+        var current: ClaudeToken?
+        var afterInvalidate: ClaudeToken?
+        init(_ token: ClaudeToken?) { current = token }
+        func token(configDir: String) -> ClaudeToken? { current }
+        func invalidate(configDir: String) { if let next = afterInvalidate { current = next } }
+    }
+
+    /// Answers every request with one status, and counts them.
+    private final class StatusFetcher: UsageFetching, @unchecked Sendable {
+        var count = 0
+        let status: Int
+        init(status: Int) { self.status = status }
+        func fetch(_ request: URLRequest) async throws -> (Data, Int) {
+            count += 1
+            return (Data("{}".utf8), status)
+        }
+    }
+
+    /// What `usage` threw, or nil when it returned.
+    private func usageError(_ client: OAuthUsageClient, now: Date, force: Bool = false) async -> OAuthUsageError? {
+        do {
+            _ = try await client.usage(configDir: "/d", now: now, force: force)
+            return nil
+        } catch {
+            return error as? OAuthUsageError
+        }
+    }
+
+    /// The endpoint can only refuse a dead token, the client's 401 retry doubled every
+    /// poll, and a dead token sent every 30 s is what turned the row's "rejected" into
+    /// "rate limited". It is not sent at all, and the caller hears when it died.
+    func testATokenPastItsExpiryIsNotSent() async {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let died = t0.addingTimeInterval(-3 * 3600)
+        let creds = SetCredentials(ClaudeToken(value: "dead", expiresAt: died))
+        let fetcher = AuthAwareFetcher(body: okBody())
+        let client = OAuthUsageClient(fetcher: fetcher, appVersion: "x", credentials: creds)
+
+        let known = await client.expiredToken(configDir: "/d", now: t0)
+        XCTAssertEqual(known, died)
+        let error = await usageError(client, now: t0, force: true)
+        XCTAssertEqual(error, .expired(died))
+        XCTAssertTrue(fetcher.bearers.isEmpty, "nothing goes out with a dead token")
+
+        creds.current = ClaudeToken(value: "fresh", expiresAt: t0.addingTimeInterval(8 * 3600))
+        let live = await client.expiredToken(configDir: "/d", now: t0)
+        XCTAssertNil(live)
+        let none = await usageError(client, now: t0, force: true)
+        XCTAssertNil(none)
+        XCTAssertEqual(fetcher.bearers, ["Bearer fresh"])
+
+        creds.current = ClaudeToken(value: "legacy", expiresAt: nil)
+        let unknown = await client.expiredToken(configDir: "/d", now: t0)
+        XCTAssertNil(unknown, "no stated expiry is not an expired token")
+    }
+
+    /// The re-read after a 401 is the token Claude Code holds now; if that one is dead
+    /// too, it is not sent either.
+    func testTheRetryAfterA401DoesNotSendADeadToken() async {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let creds = SetCredentials(ClaudeToken(value: "stale", expiresAt: t0.addingTimeInterval(3600)))
+        creds.afterInvalidate = ClaudeToken(value: "dead", expiresAt: t0.addingTimeInterval(-60))
+        let fetcher = AuthAwareFetcher(body: okBody())
+        let client = OAuthUsageClient(fetcher: fetcher, appVersion: "x", credentials: creds)
+        let error = await usageError(client, now: t0)
+        XCTAssertEqual(error, .expired(t0.addingTimeInterval(-60)))
+        XCTAssertEqual(fetcher.bearers, ["Bearer stale"], "the first request only")
+    }
+
+    /// The dead token is the reason to report, not the wait in front of it: a rate-limit
+    /// window still open from earlier does not hide it.
+    func testADeadTokenIsReportedAheadOfTheRateLimitWait() async {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let creds = SetCredentials(ClaudeToken(value: "live", expiresAt: t0.addingTimeInterval(60)))
+        let fetcher = StatusFetcher(status: 429)
+        let client = OAuthUsageClient(fetcher: fetcher, appVersion: "x", credentials: creds)
+        let limited = await usageError(client, now: t0, force: true)
+        XCTAssertEqual(limited, .tooManyRequests)
+        let later = await usageError(client, now: t0.addingTimeInterval(90), force: true)   // the backoff runs for minutes
+        XCTAssertEqual(later, .expired(t0.addingTimeInterval(60)))
+        XCTAssertEqual(fetcher.count, 1)
+    }
+
     func testUnauthorizedRetriesAtMostOnce() async {
         let creds = AlwaysStaleCredentials()
         let fetcher = AuthAwareFetcher(body: okBody())

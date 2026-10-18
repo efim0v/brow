@@ -27,7 +27,8 @@ public enum TokenRefreshOutcome: Sendable, Equatable {
 /// credentials; the unmodified CLI is the sanctioned path).
 ///
 /// Verified on Claude Code 2.1.273: `claude doctor` refreshes the Keychain token
-/// with NO model call, so the account's 5-hour window stays unstarted. That is
+/// with NO model call, so the account's 5-hour window stays unstarted — once the
+/// token is inside the CLI's own refresh window (see `threshold`). That is
 /// an undocumented side effect, so a `claude -p` fallback (which does spend a
 /// sliver of limit and starts the window) exists behind a user setting.
 ///
@@ -37,7 +38,16 @@ public enum TokenRefreshOutcome: Sendable, Equatable {
 /// `.couldNotAttempt`: it says so instead of hiding behind "neither … refreshed
 /// the token", and it is charged neither the attempt floor nor the breaker.
 public actor TokenKeeper {
-    public static let threshold: TimeInterval = 30 * 60
+    /// Claude Code renews a token only inside the token's last five minutes: every
+    /// refresh it makes, short of answering a 401, first asks `now + 5 min >= expiresAt`
+    /// (read out of 2.1.290–2.1.302). A `doctor` started earlier changes nothing.
+    public static let cliRefreshWindow: TimeInterval = 5 * 60
+    /// The keeper acts only inside the CLI's window, with half a minute to spare for the
+    /// CLI's own start-up. At 30 min, as it was, the first `doctor` of every token did
+    /// nothing, counted as a failure, and the `-p` after it spent limit and started the
+    /// account's 5-hour window for nothing; only a later attempt, at or past the expiry,
+    /// refreshed anything.
+    public static let threshold: TimeInterval = cliRefreshWindow - 30
     /// Floor between two attempts for one account — the spec's "one token-refresh
     /// attempt per account per 30 min". Consecutive ineffective attempts double it.
     public static let attemptInterval: TimeInterval = 30 * 60

@@ -749,7 +749,7 @@ final class LimitsStoreTests: XCTestCase {
 
     func testTokenStatusWhileClaudeCodeHoldsTheToken() {
         let due = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
-                                    tokenExpiresAt: t0.addingTimeInterval(10 * 60))
+                                    tokenExpiresAt: t0.addingTimeInterval(3 * 60))
         let healthy = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
                                         tokenExpiresAt: t0.addingTimeInterval(2 * 3600))
         let waiting = "in use by Claude Code, waiting for it to refresh"
@@ -757,7 +757,7 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(LimitsStore.tokenStatus(healthy, outcome: nil, error: LimitsStore.inUseMessage, inUse: true, now: t0),
                        waiting, "refused while in use")
         XCTAssertEqual(LimitsStore.tokenStatus(healthy, outcome: nil, error: nil, inUse: true, now: t0), "fresh · 2 h")
-        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, now: t0), "fresh · 10 min", "not in use: as before")
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, now: t0), "fresh · 3 min", "not in use: as before")
         XCTAssertEqual(LimitsStore.tokenStatus(healthy, outcome: nil, error: "Claude sign-in expired", now: t0),
                        "sign-in revoked", "not in use: as before")
     }

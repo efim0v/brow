@@ -101,7 +101,7 @@ final class TokenKeeperTests: XCTestCase {
     /// "not logged in" forever and the token Brow reads is never refreshed.
     func testDefaultDirRunsTheCLIWithTheVariableRemoved() async {
         let home = NSHomeDirectory() + "/.claude"
-        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(10 * 60)
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(4 * 60)
         let runner = FakeCLI(sideEffect: { _ in creds.expiry = self.t0.addingTimeInterval(8 * 3600) })
         let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
                                  allowPromptFallback: { true }, now: { self.t0 })
@@ -121,7 +121,7 @@ final class TokenKeeperTests: XCTestCase {
     }
 
     func testDoctorRunsBelowThresholdAndSucceedsWhenExpiryMoves() async {
-        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(10 * 60)
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(4 * 60)
         // The runner can't move the Keychain; emulate the CLI doing so as `doctor` runs,
         // which is the only moment that makes the post-doctor re-read see a new expiry.
         let runner = FakeCLI(sideEffect: { _ in creds.expiry = self.t0.addingTimeInterval(8 * 3600) })
@@ -134,6 +134,36 @@ final class TokenKeeperTests: XCTestCase {
         XCTAssertEqual(runner.invocations[0].args, ["doctor"])
         XCTAssertEqual(runner.invocations[0].env?["CLAUDE_CONFIG_DIR"], "/d")
         XCTAssertEqual(creds.invalidations, 1, "the cached token must be dropped so the re-read sees the new one")
+    }
+
+    /// Claude Code renews a token only inside its last five minutes (`now + 5 min >=
+    /// expiresAt`), so a `doctor` run earlier does nothing — and used to count as a
+    /// failure and fall through to `claude -p`, which spends limit and starts the
+    /// account's 5-hour window. Ten minutes out, nothing runs.
+    func testNothingRunsBeforeTheCLIsOwnRefreshWindow() async {
+        let runner = FakeCLI()
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(10 * 60)
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { self.t0 })
+        let out = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(out, .fresh)
+        XCTAssertTrue(runner.invocations.isEmpty, "no doctor and no -p ten minutes before the CLI would refresh")
+    }
+
+    /// Inside the window, with half a minute to spare for the CLI's start-up: the CLI
+    /// reads the clock a moment after the keeper and must still find the token due.
+    func testTheKeeperActsInsideTheCLIsOwnRefreshWindow() async {
+        XCTAssertEqual(TokenKeeper.cliRefreshWindow, 5 * 60)
+        XCTAssertLessThan(TokenKeeper.threshold, TokenKeeper.cliRefreshWindow)
+        XCTAssertGreaterThanOrEqual(TokenKeeper.threshold, 4 * 60, "early enough to leave the poll a few turns")
+
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(TokenKeeper.threshold)
+        let runner = FakeCLI(sideEffect: { _ in creds.expiry = self.t0.addingTimeInterval(8 * 3600) })
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { self.t0 })
+        let out = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(out, .refreshedByDoctor)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]])
     }
 
     func testExpiredTokenTriggers() async {

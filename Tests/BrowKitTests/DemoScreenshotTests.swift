@@ -322,16 +322,18 @@ final class DemoScreenshotTests: XCTestCase {
     }
 
     /// A strip of menu bar with Brow's item among two stand-ins, the way the bar tints a
-    /// template image: white on a dark bar, and the clock at the demo's time.
+    /// template image: dark on a light bar, in the ink drawn on cream, and the clock at the
+    /// demo's time.
     @MainActor
     private func menuBarItem(now: Date) -> some View {
         let mark = BrowMark.templateImage(width: 22)
+        let ink = Color(red: 0x2A / 255, green: 0x22 / 255, blue: 0x18 / 255)
         return HStack(spacing: 14) {
             Spacer()
-            Image(systemName: "wifi").foregroundStyle(.white)
-            Image(nsImage: mark).renderingMode(.template).foregroundStyle(.white)
-            Image(systemName: "battery.75percent").foregroundStyle(.white)
-            Text(Self.menuBarClock(now)).font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+            Image(systemName: "wifi").foregroundStyle(ink)
+            Image(nsImage: mark).renderingMode(.template).foregroundStyle(ink)
+            Image(systemName: "battery.75percent").foregroundStyle(ink)
+            Text(Self.menuBarClock(now)).font(.system(size: 13, weight: .medium)).foregroundStyle(ink)
         }
         .padding(.horizontal, 14)
         .frame(width: 320, height: 33)
@@ -358,17 +360,15 @@ final class DemoScreenshotTests: XCTestCase {
 
     // MARK: - Rendering
 
-    /// `content` hanging from the top edge of a stand-in desktop: a wallpaper gradient
-    /// under a translucent menu-bar band. Height 0 = as tall as the content plus a margin.
+    /// `content` hanging from the top edge of a stand-in desktop: plain cream under a lighter
+    /// menu-bar band, both flat, the desktop of the animations and the website. Height 0 =
+    /// as tall as the content plus a margin.
     @MainActor
     private func renderOnDesktop<V: View>(_ content: V, canvas: CGSize, to url: URL) throws {
         let menuBar: CGFloat = 33
         let desktop = ZStack(alignment: .top) {
-            LinearGradient(colors: [Color(red: 0.20, green: 0.27, blue: 0.52),
-                                    Color(red: 0.45, green: 0.33, blue: 0.62),
-                                    Color(red: 0.86, green: 0.52, blue: 0.48)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            Rectangle().fill(Color.black.opacity(0.22)).frame(height: menuBar)
+            Color(red: 0xF3 / 255, green: 0xE8 / 255, blue: 0xD2 / 255)
+            Rectangle().fill(Color(red: 0xFA / 255, green: 0xF4 / 255, blue: 0xE7 / 255)).frame(height: menuBar)
         }
         let body = VStack(spacing: 0) {
             content
@@ -381,7 +381,20 @@ final class DemoScreenshotTests: XCTestCase {
         let renderer = ImageRenderer(content: body)
         renderer.scale = 2
         let image = try XCTUnwrap(renderer.cgImage, "no image for \(url.lastPathComponent)")
-        try write(NSBitmapImageRep(cgImage: image), to: url)
+        try write(NSBitmapImageRep(cgImage: eightBit(image)), to: url)
+    }
+
+    /// `image` at 8 bits a channel, as the PNG stores it. With Brow's mark in it (an `NSImage`)
+    /// ImageRenderer hands back half floats, which are dithered on the way into the PNG: the flat
+    /// desktop comes out speckled a level or two off its colour. Drawn into an 8-bit context they
+    /// are rounded instead.
+    private func eightBit(_ image: CGImage) throws -> CGImage {
+        guard image.bitsPerComponent != 8 else { return image }
+        let context = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                              bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return try XCTUnwrap(context.makeImage(), "no 8-bit image")
     }
 
     /// The view as the content of a real window (ordered in far off-screen, never

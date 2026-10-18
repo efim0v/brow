@@ -46,7 +46,7 @@
       "@type": "SoftwareApplication",
       "@id": "https://efimov.page/brow/#app",
       "name": "Brow",
-      "description": "A free, open-source macOS app that shows the 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account in the MacBook notch, as percent used, and when each one resets.",
+      "description": "A free, open-source macOS app that shows the 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account in the MacBook notch, as percent used, and when each one resets. Workspaces, in the menu bar, gives each feature of a multi-repo project a folder of git worktrees on one branch and runs parallel Claude Code sessions in them.",
       "url": "https://efimov.page/brow/",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS 26 or later",
@@ -81,6 +81,13 @@
           "width": 1108,
           "height": 900,
           "caption": "Brow’s Accounts settings with an account’s email, tier, folder, token state and launch command"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efimov.page/brow/media/workspaces-project.webp",
+          "width": 1200,
+          "height": 1520,
+          "caption": "Workspaces: the workspaces of a multi-repo project, each a folder of git worktrees on one branch, with its Claude Code sessions"
         }
       ],
       "featureList": [
@@ -94,9 +101,15 @@
         "Copy my week: a picture of every account’s limits, ready to paste into a chat or a post",
         "Tokens of idle accounts kept fresh in the background",
         "Limits checked every 30 seconds, on wake, when the network comes back and on hover",
-        "Glim, a pet beside the notch that eats what your accounts use; its glow is its hunger meter"
+        "Glim, a pet beside the notch that eats what your accounts use; its glow is its hunger meter",
+        "Workspaces: a folder per feature with a git worktree of each repository, all on one branch, for parallel Claude Code sessions across several repositories",
+        "Resume as…, Migrate to… and Share move a Claude Code session to another account, and every account picker shows that account’s limits",
+        "The brow command-line tool, also installed as grove: scan, workspaces, sessions, create, graph and doctor"
       ],
-      "softwareHelp": { "@type": "CreativeWork", "name": "Brow in detail", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
+      "softwareHelp": [
+        { "@type": "CreativeWork", "name": "Brow in detail", "url": "https://github.com/efim0v/brow/blob/main/docs/brow.md" },
+        { "@type": "CreativeWork", "name": "Workspaces in detail", "url": "https://github.com/efim0v/brow/blob/main/docs/workspaces.md" }
+      ],
       "author": { "@id": "https://efimov.page/#person" },
       "sameAs": ["https://github.com/efim0v/brow"]
     },
@@ -139,6 +152,7 @@
   --button: #161616;
   --button-ink: #fff;
   --button-hover: #333;
+  --window-edge: rgba(0, 0, 0, .35);
   --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -152,6 +166,7 @@
     --button: #ededec;
     --button-ink: #121212;
     --button-hover: #fff;
+    --window-edge: rgba(255, 255, 255, .28);
   }
 }
 
@@ -362,10 +377,12 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
 .faq h3 + p { margin-top: 4px; }
 .faq p + p { margin-top: 10px; }
 
-/* Workspaces */
-.companion h2 { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 1.375rem; line-height: 1.3; letter-spacing: 0; }
-.companion h2 span span { display: inline-block; }   /* break between the two sentences, not inside one */
-.companion .links { margin-top: 16px; }
+/* Workspaces: a window brings its own rounded corners, so its hairline follows them;
+   the launch sheet is square and gets the settings shot's frame */
+.window-shot { max-width: 440px; }
+.window-shot img { filter: drop-shadow(0 0 1px var(--window-edge)); }
+.sheet-shot { max-width: 340px; }
+.sheet-shot img { border-radius: 10px; box-shadow: 0 0 0 1px var(--rule); }
 
 /* Footer */
 .site-footer { color: var(--muted); font-size: .875rem; }
@@ -417,7 +434,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose">
         <h1 id="hero-title">Claude Code usage limits for every account, in the MacBook notch</h1>
-        <p class="lead">Brow is a free, open-source macOS app that shows the 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account, as percent used, and when each one resets. It works with one account, which it finds in <code class="nowrap">~/.claude</code> by itself, or with several.</p>
+        <p class="lead">Brow is a free, open-source macOS app that shows the 5-hour limit, the weekly limit and any model-specific weekly limit of each Claude Code account, as percent used, and when each one resets. It works with one account, which it finds in <code class="nowrap">~/.claude</code> by itself, or with several. And <a href="#workspaces">Workspaces</a>, in the menu bar, runs parallel Claude Code sessions on a product split across several repositories.</p>
         <p class="actions">
           <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Download Brow</a>
           <a href="https://github.com/efim0v/brow">Source on GitHub</a>
@@ -720,6 +737,58 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     </div>
   </section>
 
+  <section class="section" id="workspaces" aria-labelledby="workspaces-title">
+    <div class="wrap">
+      <div class="prose text">
+        <h2 id="workspaces-title">Workspaces: parallel Claude Code sessions across several repositories</h2>
+        <p>Brow tells you which account has room; Workspaces moves the work there. It is the menu-bar half of Brow: Grove, which used to be a separate app, is now part of it.</p>
+        <p>Claude Code works best when it sees the whole product in one folder. When the product is split across repositories, parallel sessions trip over branches: one checks out a branch in the server repository, and another, working on a different feature, is suddenly looking at the wrong code. Workspaces gives each feature a folder of its own, with a git worktree of each repository you pick, all on one branch. Claude Code starts there and sees the whole product, and no session can switch the branch under another.</p>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>One branch across every repository</h3>
+          <p>A new workspace takes a name and a click. Brow runs <code class="nowrap">git worktree add</code> in each repository, names the branch from your template, <code class="nowrap">feat/{name}</code> by default, seeds shared files such as <code>CLAUDE.md</code> and runs the post-create hooks you set. A workspace can fork from another one, and each shows its branches, its uncommitted changes and its Claude Code sessions.</p>
+          <p>The Graph and Stats tabs show each repository’s commit graph and the lines of code across the project.</p>
+        </div>
+        <figure class="window-shot">
+          <img src="media/workspaces-project.webp" width="1200" height="1520" loading="lazy" decoding="async" alt="Workspaces for a project called acme-shop: five workspaces in a tree, one open with worktrees of web-client and api-server on feat/checkout-redesign, its two Claude Code sessions, and the New Claude, Resume, cmux and Child buttons">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Move a session to the account with room</h3>
+          <p><strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies it in full, even into an account that is in use. <strong>Share</strong> makes it visible to every linked account.</p>
+          <p>Every account picker shows that account’s 5-hour and weekly use as the notch last read it, under the name you gave it in <span class="nowrap">Settings → Accounts</span>.</p>
+        </div>
+        <figure class="sheet-shot">
+          <img src="media/workspaces-launch-sheet.webp" width="680" height="614" loading="lazy" decoding="async" alt="The launch sheet for a new Claude Code session in checkout-redesign: open in cmux or Terminal, the Work account with 78% of its 5-hour limit and 61% of its weekly limit used, the model opus and high effort">
+        </figure>
+      </div>
+
+      <dl class="spec">
+        <div>
+          <dt>Where to find it</dt>
+          <dd>Brow’s item in the menu bar, the notch with two dots, or the button with stacked squares in the notch panel. Workspaces stays off until you use it: open <span class="nowrap">Settings → Workspaces</span>, or press that button and choose <strong>Add project…</strong>.</dd>
+        </div>
+        <div>
+          <dt>The <code>brow</code> command-line tool</dt>
+          <dd><code>scan</code>, <code>workspaces</code>, <code>sessions</code>, <code>create</code>, <code>graph</code> and <code>doctor</code>, each with <code>--json</code>. Install it with <code class="nowrap">brew install efim0v/tap/brow-cli</code>. It keeps <code>grove</code> as a second name, so scripts written for Grove’s tool work unchanged.</dd>
+        </div>
+        <div>
+          <dt>cmux or Terminal.app</dt>
+          <dd>Sessions open in <a href="https://cmux.dev">cmux</a>, which is recommended, or, from the launch sheet, in Terminal.app. A workspace is an ordinary folder, so you can also start Claude Code in it from any terminal.</dd>
+        </div>
+        <div>
+          <dt>Coming from Grove</dt>
+          <dd>Brow finds your Grove projects, accounts and settings and runs them in Workspaces. Quit Grove.app first: while it runs, Workspaces waits. <a href="https://github.com/efim0v/brow#coming-from-grove">What changes</a>.</dd>
+        </div>
+      </dl>
+      <p class="spec-note">Step by step: <a href="/grove/move-session-to-another-account/">Continue a Claude Code session on another account</a>. More in <a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces in detail</a>.</p>
+    </div>
+  </section>
+
   <section class="section" id="install" aria-labelledby="install-title">
     <div class="wrap">
       <h2 id="install-title">Install Brow on your Mac</h2>
@@ -730,6 +799,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
             <p>With Homebrew:</p>
             <pre><code class="select-all">brew install --cask efim0v/tap/brow</code></pre>
             <p>Or download <a href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Brow.zip</a> from the <a href="https://github.com/efim0v/brow/releases/latest">latest release</a>, unzip it and move <code class="nowrap">Brow.app</code> to <code class="nowrap">/Applications</code>.</p>
+            <p>The <code>brow</code> command-line tool installs with <code class="nowrap">brew install efim0v/tap/brow-cli</code>, or comes as <code class="nowrap">brow-cli.zip</code> in the same release. Either way you also get <code>grove</code>, a second name for the same tool.</p>
           </li>
           <li>
             <h3>Allow the first launch</h3>
@@ -740,6 +810,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
             <h3>Find it in the notch</h3>
             <p>Brow has no Dock icon: hover the notch to open the panel. The ⚙ in the panel opens Settings, and <strong>Launch at login</strong> is in Settings → General.</p>
             <p>If macOS withholds an account’s Keychain item, that account shows an orange key. Click it and choose <strong>Always Allow</strong>.</p>
+            <p>To start using Workspaces, open <span class="nowrap">Settings → Workspaces</span>, or press the button with stacked squares in the notch panel and choose <strong>Add project…</strong>.</p>
           </li>
         </ol>
         <aside aria-label="Requirements and checks">
@@ -751,12 +822,13 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
               <li><a href="https://claude.com/claude-code">Claude Code</a></li>
               <li>A MacBook with a notch for the notch layout; other displays show a pill</li>
               <li>Google Chrome, Chromium, Brave or Edge for separate browser profiles</li>
+              <li>For Workspaces: git, and <a href="https://cmux.dev">cmux</a> (recommended) or Terminal.app</li>
             </ul>
           </div>
           <div>
             <h3>Check the download</h3>
-            <p>The release includes <code class="nowrap">SHA256SUMS.txt</code>. With it next to <code class="nowrap">Brow.zip</code>, run:</p>
-            <pre><code>shasum -a 256 -c SHA256SUMS.txt</code></pre>
+            <p>The release includes <code class="nowrap">SHA256SUMS.txt</code>. With it in the folder you downloaded to, run:</p>
+            <pre><code>shasum -a 256 -c --ignore-missing SHA256SUMS.txt</code></pre>
           </div>
           <div>
             <h3>Build it yourself</h3>
@@ -843,6 +915,10 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>Brow has no Dock icon. The limits sit at the top of the main display: on a MacBook with a notch, two readouts beside the notch or in a strip below it; on a display without a notch, such as an external one, a pill at the top centre. Workspaces, once you turn it on, has an item in the menu bar. If you use Brow for Workspaces only, <span class="nowrap">Settings → General</span> turns the notch off.</p>
         </div>
         <div>
+          <h3>Why don’t I see Brow’s item in the menu bar?</h3>
+          <p>On a MacBook with a notch, macOS hides the menu-bar items that don’t fit beside it. Workspaces still opens from the button with stacked squares in the notch panel, from <strong>Show Workspaces</strong> in Brow’s menu while its Settings window is in front, and when you open Brow again from Finder or Spotlight. <span class="nowrap">Settings → General</span> → <strong>Show Workspaces in the menu bar</strong> turns the item off altogether.</p>
+        </div>
+        <div>
           <h3>Does Brow send notifications?</h3>
           <p>Yes, if you turn them on in <span class="nowrap">Settings → General → Notifications</span>: Brow posts a macOS notification when an account passes 80% and 95% of its 5-hour or weekly limit, once per level until the limit resets. The levels can be changed. The dot next to each readout also turns orange at 70% and red at 90%.</p>
         </div>
@@ -865,7 +941,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Where does Brow read my token, and does anything leave my Mac?</h3>
           <p>From the Keychain item Claude Code keeps for each account folder, or from <code class="nowrap">.credentials.json</code> in that folder when Claude Code keeps the sign-in there. Brow uses the access token only and leaves renewing it to Claude Code.</p>
-          <p>Brow’s own requests go to <code>api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code>api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check. The <code class="nowrap">claude</code> commands it runs make Claude Code’s usual connections, and the browser profiles open claude.ai.</p>
+          <p>Brow’s own requests go to <code>api.anthropic.com/api/oauth/usage</code> and, about once a day per account, <code>api.anthropic.com/api/oauth/profile</code>, and nowhere else. It has no analytics and no update check, and Workspaces makes no network requests of its own. The <code class="nowrap">claude</code> and <code>git</code> commands Brow runs make their usual connections, and the browser profiles open claude.ai.</p>
         </div>
         <div>
           <h3>How is Brow different from ccusage or <code>/usage</code>?</h3>
@@ -884,14 +960,6 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>No. Brow is made by Artem Efimov and is not affiliated with or endorsed by Anthropic.</p>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section class="section companion" id="workspaces" aria-labelledby="workspaces-title">
-    <div class="wrap">
-      <h2 id="workspaces-title"><span><span>Brow tells you which account has room.</span> <span>Workspaces moves the work there.</span></span></h2>
-      <p class="prose">Grove is now part of Brow. Workspaces, in the menu bar, gives each feature of a multi-repo project its own folder of git worktrees on one branch and runs parallel Claude Code sessions in them. <strong>Resume as…</strong> and <strong>Migrate to…</strong> move a session to the account that still has room, and every account picker shows that account’s limits. Workspaces stays off until you use it; if you used Grove, it picks up your projects by itself.</p>
-      <p class="links"><a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces in detail</a>&nbsp;· <a href="https://github.com/efim0v/brow#coming-from-grove">Coming from Grove</a>&nbsp;· <a href="/grove/move-session-to-another-account/">Continue a Claude Code session on another account</a></p>
     </div>
   </section>
 </main>

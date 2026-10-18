@@ -1,21 +1,38 @@
 name: Bug report
-description: Something in Brow does not work the way it should.
+description: Something in Brow or the brow command-line tool does not work the way it should.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. With a notch app, the Mac, the display and the accounts matter as much as the steps, so the form asks for each.
+        Thanks for reporting a bug. With a notch and menu-bar app, the Mac, the display and the accounts matter as much as the steps, so the form asks for each.
 
         - Questions and setup help: [Discussions → Q&A](https://github.com/efim0v/brow/discussions/categories/q-a).
         - Security problems: never here. See [SECURITY.md](https://github.com/efim0v/brow/blob/main/SECURITY.md).
-        - Never paste a token, a Keychain item or a `.credentials.json` file. The panel shows account names or emails; blur them in screenshots if you prefer.
+        - **"cmux unavailable" while cmux is running** has a known cause and fix in [troubleshooting](https://github.com/efim0v/brow/blob/main/docs/troubleshooting.md).
+        - Never paste a token, a Keychain item or a `.credentials.json` file. Logs and command output can contain account emails, project paths and repository names: look through what you paste, and blur screenshots if you prefer.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part of Brow
+      multiple: true
+      options:
+        - "Notch and limits: the readouts, the panel, limit warnings, copy my week"
+        - "Accounts and sign-in: adding an account, Sign in again, browser profiles, Keychain access"
+        - "Workspaces and sessions: projects, workspaces, Resume as…, Migrate to…, Share, Graph, Stats"
+        - Transcript safety net
+        - Settings
+        - brow command-line tool
+        - Something else
+    validations:
+      required: true
 
   - type: textarea
     id: what-happened
     attributes:
       label: What happened
-      description: What you did, what you expected, and what Brow did instead. A screenshot or screen recording of the notch, the panel or Settings helps a lot.
+      description: What you did, what you expected, and what Brow did instead. A screenshot or screen recording of the notch, the panel, Workspaces or Settings helps a lot.
     validations:
       required: true
 
@@ -31,8 +48,8 @@ body:
     id: brow-version
     attributes:
       label: Brow version
-      description: "Run `plutil -extract CFBundleShortVersionString raw /Applications/Brow.app/Contents/Info.plist`. For a build of your own, give the commit."
-      placeholder: "0.2.0"
+      description: "Run `plutil -extract CFBundleShortVersionString raw /Applications/Brow.app/Contents/Info.plist`, or read it at the bottom of the Workspaces panel. For a build of your own, give the commit."
+      placeholder: "0.4.0"
     validations:
       required: true
 
@@ -96,6 +113,20 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: cmux-version
+    attributes:
+      label: cmux version
+      description: "For Workspaces problems: run `cmux --version` in a cmux terminal. Leave it empty if you don't use cmux."
+      placeholder: cmux 0.x
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of brow doctor --json
+      description: "For Workspaces problems, if you have the command-line tool (`brow-cli.zip` from the release, or `brew install efim0v/tap/brow-cli`): paste what `brow doctor --json` prints (`grove doctor --json` with the older tool). It shows the git, Claude Code and cmux that Brow finds."
+      render: json
+
   - type: markdown
     attributes:
       value: |
@@ -113,7 +144,9 @@ body:
         log show --last 1h --info --style compact --predicate 'subsystem == "dev.artemefimov.brow"'
         ```
 
-        The log names account folders and organization IDs. Look it over and remove anything you would rather not post.
+        The log names account folders, project folders and organization IDs. Look it over and remove anything you would rather not post.
+
+        For cmux problems a probe report helps most. Run `open -nW /Applications/Brow.app --args --cmux-probe /tmp/cmux-probe.txt` and attach `/tmp/cmux-probe.txt` ([more on the probe](https://github.com/efim0v/brow/blob/main/docs/troubleshooting.md#cmux-diagnostic-probe)). The probe opens and closes a test workspace in cmux, and the report lists your environment variables, so remove secrets before you attach it.
 
   - type: textarea
     id: log
@@ -126,4 +159,14 @@ body:
     id: context
     attributes:
       label: Anything else
-      description: "Did it start after an update of Brow, Claude Code or macOS? Do you also use Grove? Which browser opens the account profiles? Is the `claude -p` fallback on (Settings → Accounts)?"
+      description: "Did it start after an update of Brow, Claude Code or macOS? Is Grove.app still installed or running? Which browser opens the account profiles? Is the `claude -p` fallback on (Settings → Accounts)? For Workspaces: how your repositories are laid out (how many, side by side or nested)."
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues for this problem.
+          required: true
+        - label: I removed tokens, emails and private paths from what I pasted.
+          required: true

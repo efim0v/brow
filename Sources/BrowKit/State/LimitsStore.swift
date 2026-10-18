@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
+import GroveAppKit
 import GroveCore
 
 public enum AccountStatus: Sendable, Equatable {
@@ -142,6 +146,10 @@ public final class LimitsStore: ObservableObject {
     public private(set) var aggregate: LimitsAggregate
     /// Newest `fetchedAt` across visible accounts; nil until any fetch succeeded.
     public private(set) var dataAsOf: Date?
+    /// True once an account scan has landed, however late (a scan parked behind a Keychain
+    /// prompt lands after `bootstrap()` has returned). Before it, an empty `rows` means "not
+    /// looked yet", not "no account", and the pet waits rather than going into its den.
+    public private(set) var hasScanned = false
     /// Set only when NO visible account succeeded in the last cycle.
     @Published public private(set) var footerError: String?
     /// A configuration problem that no fetch can fix — today only "`claude` not
@@ -174,6 +182,17 @@ public final class LimitsStore: ObservableObject {
             catch { BrowLog.limits.error("settings save failed: \(String(describing: error), privacy: .public)") }
             recompute()
         }
+    }
+
+    /// Folders Workspaces knows that the scan would not find by itself (anything outside
+    /// `~/.claude` and `~/.claude-accounts`), scanned along with `settings.extraDirs`.
+    /// Not saved: they are Workspaces' own, and come back with it.
+    public var runtimeExtraDirs: [String] = []
+
+    /// Every extra folder a scan walks.
+    var scanExtraDirs: [String] {
+        var seen = Set<String>()
+        return (settings.extraDirs + runtimeExtraDirs).filter { seen.insert(expandTilde($0)).inserted }
     }
 
     /// The path auto-detection found, or nil while it is pending / found nothing.
@@ -350,7 +369,7 @@ public final class LimitsStore: ObservableObject {
     /// Keyed on `extraDirs`: a scan started before a dir was typed into Settings never
     /// looked at that dir and cannot answer for it.
     private func liveScan() -> Task<[DiscoveredAccount], Never> {
-        let dirs = settings.extraDirs
+        let dirs = scanExtraDirs
         if let live = scanInFlight, live.extraDirs == dirs {
             BrowLog.limits.info("joining the account scan already in flight")
             return live.task
@@ -593,7 +612,7 @@ public final class LimitsStore: ObservableObject {
             deps.directory.invalidate(configDir: account.configDir)
             for alias in account.aliasDirs { deps.directory.invalidate(configDir: alias) }
         }
-        deps.directory.invalidateCandidates(extraDirs: settings.extraDirs)
+        deps.directory.invalidateCandidates(extraDirs: scanExtraDirs)
     }
 
     /// One account's token upkeep and usage request, off the main actor. Sampled
@@ -712,8 +731,17 @@ public final class LimitsStore: ObservableObject {
         let locked = scanned.contains(where: \.keychainLocked)
         accounts = scanned
         setKeychainState(locked || (answered.isEmpty && deniable) ? .denied : .ok)
+        // Published even when the scan changes nothing else: an empty answer is an answer too.
+        if !hasScanned {
+            objectWillChange.send()
+            hasScanned = true
+        }
         recompute()
     }
+
+    /// Offscreen renders only: the accounts a scan would have found, applied as a
+    /// scan's are, with no Keychain and no disk.
+    func preview(accounts: [DiscoveredAccount]) { applyScan(accounts) }
 
     /// The user pressed the key: read this account's items WITH the Keychain dialog
     /// allowed — "Always Allow" there is what makes every later cycle silent — then
@@ -964,6 +992,32 @@ public final class LimitsStore: ObservableObject {
         case let url as URLError where url.code == .notConnectedToInternet || url.code == .networkConnectionLost || url.code == .cannotFindHost:
             return "Offline"
         default: return (error as NSError).localizedDescription
+        }
+    }
+}
+
+/// Workspaces shows each account as the notch does: its limits in the account pickers,
+/// and its name and plan everywhere it names the account. The notch's row for the
+/// account that owns any of the folders asked about, hidden ones included.
+extension LimitsStore: AccountLimitsProviding {
+    public func limits(forConfigDirs dirs: [String]) -> AccountLimits? {
+        guard let snapshot = row(forConfigDirs: dirs)?.snapshot else { return nil }
+        return AccountLimits(fiveHour: snapshot.fiveHour?.usedPercentage,
+                             weekly: snapshot.sevenDay?.usedPercentage,
+                             stale: snapshot.isStale(now: deps.now()))
+    }
+
+    /// The name from Settings › Accounts (else the email or the folder, as the panel has
+    /// it) and the plan as the panel writes it.
+    public func label(forConfigDirs dirs: [String]) -> AccountLabel? {
+        guard let row = row(forConfigDirs: dirs) else { return nil }
+        return AccountLabel(name: row.name, plan: row.account.tier.map(PanelText.tierLabel))
+    }
+
+    private func row(forConfigDirs dirs: [String]) -> AccountRow? {
+        let wanted = Set(dirs.map(WorkspacesAccountJoin.normalized))
+        return allRows.first { row in
+            !wanted.isDisjoint(with: ([row.account.configDir] + row.account.aliasDirs).map(WorkspacesAccountJoin.normalized))
         }
     }
 }

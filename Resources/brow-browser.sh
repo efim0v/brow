@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Brow's browser router. Point Claude Code at it (`BROWSER=<this file>`) and every
 # sign-in it opens lands in a Chrome profile dedicated to the account that asked:
 #
@@ -22,6 +25,12 @@ if command -v shasum >/dev/null 2>&1; then
     key=$(printf '%s' "$dir" | shasum -a 256 | cut -c1-8)
 else
     key=$(printf '%s' "$dir" | openssl dgst -sha256 | awk '{print substr($NF,1,8)}')
+fi
+# `brow-browser --print-key` prints the key and touches nothing: the app's own
+# accountKey() (GroveCore/Model/Paths.swift) is pinned to it by a test.
+if [ "$url" = "--print-key" ]; then
+    printf '%s\n' "$key"
+    exit 0
 fi
 profile="$HOME/Library/Application Support/Brow/browser-profiles/$key"
 mkdir -p "$profile"

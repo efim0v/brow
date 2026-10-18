@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
 
 /// Every string the notch puts on screen, in one pure place. The views below hold

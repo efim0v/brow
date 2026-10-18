@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import AppKit
 import SwiftUI
 import Combine
@@ -30,8 +33,14 @@ final class NotchPanelModel: ObservableObject {
     @Published var showEars = true
     @Published var ears = AnyView(EmptyView())
     @Published var panel = AnyView(EmptyView())
+    /// The pet's layer, the third one, above the strip and the panel. Set once, so its identity is stable:
+    /// `render()` replacing `ears` and `panel` on every store publish never resets it.
+    let pet: PetLayer?
 
-    init(frames: NotchFrames) { self.frames = frames }
+    init(frames: NotchFrames, pet: PetLayer? = nil) {
+        self.frames = frames
+        self.pet = pet
+    }
 }
 
 /// What the hosting view shows, hung from the top edge of a window that never moves:
@@ -43,22 +52,45 @@ final class NotchPanelModel: ObservableObject {
 /// what animating the window from the strip's rect to the panel's rect used to do.
 struct NotchRootView: View {
     @ObservedObject var model: NotchPanelModel
+    /// Offscreen renders only: the outline caught part-way through its spring, 0 the strip and 1 the
+    /// panel, drawn the way SwiftUI interpolates a change of `expanded` (the size and the corner radius
+    /// along the spring, the strip fading out as the panel fades in). `ImageRenderer` cannot run a
+    /// spring. The app always passes nil and animates `model.expanded`.
+    var outlineProgress: CGFloat?
 
     private var frames: NotchFrames { model.frames }
 
     private var shapeSize: CGSize {
-        if model.expanded { return frames.expanded.size }
-        if !model.showEars, let notch = frames.notch {
-            return CGSize(width: notch.width + 2 * frames.flare, height: notch.height)
+        if let p = outlineProgress {
+            let collapsed = Self.outlineSize(frames: frames, expanded: false, showEars: model.showEars)
+            return CGSize(width: collapsed.width + (frames.expanded.width - collapsed.width) * p,
+                          height: collapsed.height + (frames.expanded.height - collapsed.height) * p)
         }
-        return frames.collapsed.size
+        return Self.outlineSize(frames: frames, expanded: model.expanded, showEars: model.showEars)
+    }
+
+    /// The black outline's size. Expanded, the panel's. Collapsed with the readouts on,
+    /// the strip's. With them off, the physical notch, which the black then hides in — and
+    /// on a display without a notch, nothing at all: the pill's width at no height, so
+    /// nothing is drawn until the pointer reaches the top centre, and the panel unrolls
+    /// from the top edge.
+    static func outlineSize(frames: NotchFrames, expanded: Bool, showEars: Bool) -> CGSize {
+        if expanded { return frames.expanded.size }
+        guard !showEars else { return frames.collapsed.size }
+        guard let notch = frames.notch else { return CGSize(width: frames.collapsed.width, height: 0) }
+        return CGSize(width: notch.width + 2 * frames.flare, height: notch.height)
     }
 
     private var outline: AnyShape {
         if frames.hasNotch {
-            return AnyShape(NotchShape(topFlare: frames.flare,
-                                       bottomRadius: model.expanded ? NotchGeometry.expandedBottomRadius
-                                                                    : NotchGeometry.collapsedBottomRadius))
+            let radius: CGFloat
+            if let p = outlineProgress {
+                radius = NotchGeometry.collapsedBottomRadius
+                    + (NotchGeometry.expandedBottomRadius - NotchGeometry.collapsedBottomRadius) * p
+            } else {
+                radius = model.expanded ? NotchGeometry.expandedBottomRadius : NotchGeometry.collapsedBottomRadius
+            }
+            return AnyShape(NotchShape(topFlare: frames.flare, bottomRadius: radius))
         }
         return AnyShape(RoundedRectangle(cornerRadius: NotchGeometry.collapsedBottomRadius, style: .continuous))
     }
@@ -68,10 +100,17 @@ struct NotchRootView: View {
             outline.fill(Color.black)
                 .frame(width: shapeSize.width, height: shapeSize.height)
             ZStack(alignment: .top) {
-                if model.expanded {
+                if let p = outlineProgress {
+                    if model.showEars { model.ears.opacity(Double(1 - min(max(p, 0), 1))) }
+                    model.panel.opacity(Double(min(max(p, 0), 1)))
+                } else if model.expanded {
                     model.panel.transition(.opacity)
                 } else if model.showEars {
                     model.ears.transition(.opacity)
+                }
+                // The pet, inside the clip: cut by the same shape as it grows, never over the menu bar.
+                if let pet = model.pet {
+                    PetLayerView(layer: pet, size: frames.expanded.size, expanded: model.expanded)
                 }
             }
             .frame(width: shapeSize.width, height: shapeSize.height, alignment: .top)
@@ -94,14 +133,22 @@ public final class NotchPanelController {
     public static let collapseDelay: TimeInterval = 0.5
     public static let animation: TimeInterval = 0.18
     /// Opening springs a little; closing is quicker and settles without a bounce —
-    /// a strip that overshoots into the notch reads as a glitch.
-    static let openAnimation: Animation = .spring(response: 0.32, dampingFraction: 0.86)
-    static let closeAnimation: Animation = .spring(response: 0.26, dampingFraction: 1.0)
+    /// a strip that overshoots into the notch reads as a glitch. Built from the numbers the
+    /// pet's hop is timed against, so the two cannot drift apart.
+    static let openAnimation: Animation = .spring(response: PetTuning.Hop.openResponse,
+                                                  dampingFraction: PetTuning.Hop.openDamping)
+    static let closeAnimation: Animation = .spring(response: PetTuning.Hop.closeResponse,
+                                                   dampingFraction: PetTuning.Hop.closeDamping)
 
     private let store: LimitsStore
     private let clock: PanelClock
+    /// The pet; nil only where a panel is built without one.
+    private let pet: PetController?
     private let onExpandedChange: (Bool) -> Void
     private let onSettings: () -> Void
+    private let onWorkspaces: (() -> Void)?
+    /// Holds the notch shut after the Workspaces button (see `NotchHoverLatch`).
+    private var latch = NotchHoverLatch()
     private let panel: BrowPanel
     private let host: FirstMouseHostingView<NotchRootView>
     private let model: NotchPanelModel
@@ -114,14 +161,19 @@ public final class NotchPanelController {
     private var collapseWork: DispatchWorkItem?
     private var mouseMonitor: Any?
     private var localMonitor: Any?
+    private var clickMonitor: Any?
+    private var occlusionObserver: (any NSObjectProtocol)?
     private var cancellables: Set<AnyCancellable> = []
 
-    public init(store: LimitsStore, clock: PanelClock, onExpandedChange: @escaping (Bool) -> Void,
-                onSettings: @escaping () -> Void) {
+    public init(store: LimitsStore, clock: PanelClock, pet: PetController? = nil,
+                onExpandedChange: @escaping (Bool) -> Void, onSettings: @escaping () -> Void,
+                onWorkspaces: (() -> Void)? = nil) {
         self.store = store
         self.clock = clock
+        self.pet = pet
         self.onExpandedChange = onExpandedChange
         self.onSettings = onSettings
+        self.onWorkspaces = onWorkspaces
         self.frames = NotchGeometry.frames(for: Self.metrics(), expandedHeight: 200,
                                            placement: store.settings.earsPlacement)
         panel = BrowPanel(contentRect: frames.expanded,
@@ -141,7 +193,7 @@ public final class NotchPanelController {
         // The ears and the panel are drawn on black; `.secondary` text only reads
         // as light grey in a dark appearance, so the host never inherits a light one.
         panel.appearance = NSAppearance(named: .darkAqua)
-        model = NotchPanelModel(frames: frames)
+        model = NotchPanelModel(frames: frames, pet: pet?.layer)
         host = FirstMouseHostingView(rootView: NotchRootView(model: model))
         panel.contentView = host
         space = SkyLightSpace()
@@ -153,7 +205,12 @@ public final class NotchPanelController {
         }.store(in: &cancellables)
     }
 
+    /// Whether the panel is up, its pointer monitors with it.
+    public private(set) var isShown = false
+
     public func show() {
+        guard !isShown else { return }
+        isShown = true
         render()
         panel.orderFrontRegardless()
         // Only once the window is ordered in does it have a window number to add.
@@ -165,14 +222,39 @@ public final class NotchPanelController {
             Task { @MainActor in self?.mouseMoved() }
             return event
         }
+        guard let pet else { return }
+        // A window macOS reports as occluded (covered, or on a display that is off) shows nobody the
+        // pet: it stops drawing.
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: panel, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.pet?.windowVisibility(self.panel.occlusionState.contains(.visible))
+                }
+            }
+        pet.windowVisibility(panel.occlusionState.contains(.visible))
+        // A click on the pet in the open panel boops it. The click still goes on to the panel:
+        // under the pet there is only the header's empty stage.
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, self.expanded, event.window === self.panel else { return }
+                self.pet?.click(at: self.hostPoint(fromWindow: event.locationInWindow))
+            }
+            return event
+        }
     }
 
     /// Tears down the global monitors and any pending collapse. Without this the two
     /// `NSEvent` monitors installed by `show()` outlive the controller.
     public func hide() {
+        guard isShown else { return }
+        isShown = false
+        if expanded { setExpanded(false) }
         collapseWork?.cancel(); collapseWork = nil
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
         if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor); self.clickMonitor = nil }
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver); self.occlusionObserver = nil }
         space?.remove(panel)
         panel.orderOut(nil)
     }
@@ -185,6 +267,13 @@ public final class NotchPanelController {
 
     private func mouseMoved() {
         let point = NSEvent.mouseLocation
+        // Wherever it is on the screen: the pet notices it from 160 pt and watches it.
+        // Ahead of the latch, which holds the notch shut, not the pet's eyes: the Workspaces
+        // panel the latch makes room for opens right under the strip the pet sits in.
+        pet?.pointerMoved(to: hostPoint(fromScreen: point))
+        // After the Workspaces button the notch stays shut until the pointer has left
+        // the expanded panel's area once: the Workspaces panel opens right under it.
+        guard latch.allowsHover(pointerInExpandedArea: frames.expanded.contains(point)) else { return }
         // With the readouts hidden there is nothing beside the notch to hover: the
         // pointer has to reach the notch itself.
         let collapsedHot = store.settings.showEars ? frames.collapsed : (frames.notch ?? frames.collapsed)
@@ -200,10 +289,23 @@ public final class NotchPanelController {
         }
     }
 
+    /// The notch panel's Workspaces button: the notch closes at once and stays closed
+    /// until the pointer has left it (the latch), and the Workspaces panel opens.
+    private func openWorkspaces() {
+        latch.engage()
+        collapseWork?.cancel(); collapseWork = nil
+        setExpanded(false)
+        onWorkspaces?()
+    }
+
     /// A screen point in the hosting view's space — the `.global` space SwiftUI's
     /// `GeometryReader` reports in: origin top-left, whatever the view's flip.
     private func hostPoint(fromScreen point: NSPoint) -> CGPoint {
-        let inHost = host.convert(panel.convertPoint(fromScreen: point), from: nil)
+        hostPoint(fromWindow: panel.convertPoint(fromScreen: point))
+    }
+
+    private func hostPoint(fromWindow point: NSPoint) -> CGPoint {
+        let inHost = host.convert(point, from: nil)
         return CGPoint(x: inHost.x, y: host.isFlipped ? inHost.y : host.bounds.height - inHost.y)
     }
 
@@ -218,6 +320,8 @@ public final class NotchPanelController {
         if value { clock.start() } else { clock.stop() }
         onExpandedChange(value)
         render()
+        // The same instant as the outline's spring: the hop is timed against it.
+        pet?.dockChanged(expanded: value)
         withAnimation(value ? Self.openAnimation : Self.closeAnimation) { model.expanded = value }
         BrowLog.panel.debug("expanded=\(value)")
     }
@@ -240,8 +344,9 @@ public final class NotchPanelController {
                                   // The frame's OWN flare, not the constant: an
                                   // external display's frame carries none.
                                   flare: frames.flare, drawsBackground: false, hover: hover,
-                                  onSettings: onSettings,
-                                  onRefresh: { [store] in Task { await store.refresh(force: true) } })
+                                  pet: pet?.panel, onSettings: onSettings,
+                                  onRefresh: { [store] in Task { await store.refresh(force: true) } },
+                                  onWorkspaces: onWorkspaces == nil ? nil : { [weak self] in self?.openWorkspaces() })
             // The flare-widened frame, not `expandedWidth`: `NotchShape` draws its
             // concave corners in those 6 pt, and the visible black still starts at
             // the notch edge.
@@ -252,6 +357,8 @@ public final class NotchPanelController {
         model.showEars = store.settings.showEars
         model.ears = AnyView(ears)
         model.panel = AnyView(panelView)
+        // The pet's zones come from the very frames and readouts just drawn, so they match the screen.
+        pet?.layout(frames: frames, aggregate: store.aggregate, showEars: store.settings.showEars)
         applyFrame()
     }
 
@@ -268,7 +375,8 @@ public final class NotchPanelController {
     private func expandedHeight() -> CGFloat {
         let modelled = Self.estimatedExpandedHeight(barCounts: store.rows.map(Self.barCount),
                                                     topInset: frames.contentTopInset,
-                                                    calendar: store.settings.showCalendar && !store.rows.isEmpty)
+                                                    calendar: store.settings.showCalendar && !store.rows.isEmpty,
+                                                    pet: pet != nil && store.settings.showPet)
         guard expanded else { return max(120, modelled, measuredHeight) }
         host.layoutSubtreeIfNeeded()
         measuredHeight = max(modelled, host.fittingSize.height)
@@ -277,20 +385,24 @@ public final class NotchPanelController {
 
     /// A layout-independent floor for the expanded panel, from the model PanelView
     /// draws: the top inset that keeps the content clear of the notch, 14 pt of bottom
-    /// padding, the Overall line, one block per account (header + bars) each followed
-    /// by a divider, and the footer, with 10 pt stack spacing. The inset is PanelView's
-    /// whole top padding, so it is added, not stacked on a second 14.
+    /// padding, the pet's header row when the pet is on, the Overall line, one block per
+    /// account (header + bars) each followed by a divider, and the footer, with 10 pt
+    /// stack spacing. The inset is PanelView's whole top padding, so it is added, not
+    /// stacked on a second 14.
     ///
     /// Deliberately WITHOUT `PanelView`'s `max(topInset, 14)` floor: this is a floor,
     /// and `expandedHeight()` takes `max(modelled, fittingSize)`, so the laid-out tree —
     /// which does carry the floor — wins on the only path where the two differ (a screen
     /// with no notch, inset 8).
-    static func estimatedExpandedHeight(barCounts: [Int], topInset: CGFloat, calendar: Bool = false) -> CGFloat {
+    static func estimatedExpandedHeight(barCounts: [Int], topInset: CGFloat, calendar: Bool = false,
+                                        pet: Bool = false) -> CGFloat {
         let bottomPadding: CGFloat = 14, overall: CGFloat = 20, footer: CGFloat = 20
         let spacing: CGFloat = 10, divider: CGFloat = 1
         let blocks = barCounts.reduce(CGFloat(0)) { $0 + 18 + CGFloat($1) * 19 + spacing + divider + spacing }
         let month = calendar ? CalendarView.estimatedHeight + spacing + divider + spacing : 0
-        return topInset + bottomPadding + overall + spacing + divider + spacing + blocks + month + footer
+        // The pet's header row and the stack spacing under it.
+        let header = pet ? CGFloat(PetTuning.Panel.addedHeight) : 0
+        return topInset + bottomPadding + header + overall + spacing + divider + spacing + blocks + month + footer
     }
 
     /// 5h and Weekly always; the model-scoped weekly only when the snapshot has one.

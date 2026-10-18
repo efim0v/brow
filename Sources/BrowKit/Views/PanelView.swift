@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 import Combine
 
@@ -48,8 +51,14 @@ public struct PanelView: View {
     let drawsBackground: Bool
     let onSettings: () -> Void
     let onRefresh: () -> Void
+    /// The way into Workspaces, and the one that is always there: macOS hides a status
+    /// item that does not fit beside the notch. Left of share, so ⟳ keeps its place at
+    /// the corner (`PanelRefreshGateTests`). nil: no button.
+    let onWorkspaces: (() -> Void)?
     /// The calendar's hovered day, driven by the controller's mouse monitor.
     @ObservedObject var hover: CalendarHoverTracker
+    /// The pet's words and meter for the header row; nil where the panel is drawn without a pet.
+    let pet: PetPanelModel?
     /// The share button's checkmark, like the copy button's in `AccountBlockView`.
     @State private var copiedCard = false
 
@@ -60,19 +69,26 @@ public struct PanelView: View {
 
     public init(store: LimitsStore, clock: PanelClock, topInset: CGFloat, flare: CGFloat,
                 drawsBackground: Bool = true, hover: CalendarHoverTracker = CalendarHoverTracker(),
-                onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void) {
+                pet: PetPanelModel? = nil, onSettings: @escaping () -> Void, onRefresh: @escaping () -> Void,
+                onWorkspaces: (() -> Void)? = nil) {
         self.store = store
         self.clock = clock
         self.topInset = topInset
         self.flare = flare
         self.drawsBackground = drawsBackground
         self.hover = hover
+        self.pet = pet
         self.onSettings = onSettings
         self.onRefresh = onRefresh
+        self.onWorkspaces = onWorkspaces
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // The pet's row, first, while the pet is on. Its own view, so the words re-render it alone.
+            if let pet, store.settings.showPet {
+                PetHeaderRow(model: pet)
+            }
             overall
             Divider().overlay(Color.white.opacity(0.15))
             if store.rows.isEmpty {
@@ -97,6 +113,9 @@ public struct PanelView: View {
                             bottom: Self.padding, trailing: Self.padding))
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
+        .onPreferenceChange(PetFiveHourFrame.self) { [pet] rect in
+            if let rect { MainActor.assumeIsolated { pet?.fiveHourFrameChanged(rect) } }
+        }
         .background { if drawsBackground { Color.black } }
         // Same outline as the collapsed strip, with the wider bottom radius the spec
         // gives the panel; the fill is behind the clip, so the black — inset included —
@@ -119,13 +138,15 @@ public struct PanelView: View {
             Spacer()
             // Greyed out when the aggregate is stale: a three-day-old 32 % must not
             // render as confident green (spec, Staleness).
-            stat("5h", store.aggregate.fiveHour)
+            stat("5h", store.aggregate.fiveHour, reportsFrame: pet != nil)
             stat("Weekly", store.aggregate.weekly)
             if let s = store.aggregate.weeklyScoped { stat(s.model, s.percentage) }
         }
     }
 
-    private func stat(_ label: String, _ value: Double) -> some View {
+    /// `reportsFrame`: the 5-hour figure is where the pet's food comes from in the panel, so its frame
+    /// goes up as a preference, the way `CalendarView` reports its cells.
+    private func stat(_ label: String, _ value: Double, reportsFrame: Bool = false) -> some View {
         let readout = EarReadout(usedPercentage: value, modelInitial: nil,
                                  severity: LimitsAggregate.severity(value), stale: store.aggregate.stale)
         // Same rule as the ears, one inch away from them: with no snapshot behind it the
@@ -135,6 +156,11 @@ public struct PanelView: View {
             Text(PanelText.earsText(readout, hasData: store.aggregate.hasData))
                 .font(.system(size: 12, weight: .semibold)).monospacedDigit()
                 .foregroundStyle(store.aggregate.hasData ? EarsView.color(for: readout) : Color.gray)
+                .background {
+                    if reportsFrame {
+                        GeometryReader { geo in Color.clear.preference(key: PetFiveHourFrame.self, value: geo.frame(in: .global)) }
+                    }
+                }
         }
     }
 
@@ -156,6 +182,13 @@ public struct PanelView: View {
                     .foregroundStyle(store.panelError == nil ? Color.secondary : Color.orange)
             }
             Spacer()
+            if let onWorkspaces {
+                Button(action: onWorkspaces) {
+                    Image(systemName: "square.stack.3d.up")
+                        .frame(width: 20, height: 20).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help("Workspaces")
+            }
             // Left of ⟳ on purpose: `PanelRefreshGateTests` finds ⟳ at a fixed offset
             // from the bottom-right corner. The clipboard needs no activation, so this
             // works from the non-activating panel; saving a file lives in Settings.
@@ -194,5 +227,68 @@ public struct PanelView: View {
             Button(action: onSettings) { Image(systemName: "gearshape").frame(width: 20, height: 20).contentShape(Rectangle()) }
                 .buttonStyle(.plain).help("Settings")
         }
+    }
+}
+
+/// The Overall line's "5h" figure, in the hosting view's space (window coordinates): the pet's food
+/// source in the panel.
+struct PetFiveHourFrame: PreferenceKey {
+    static let defaultValue: CGRect? = nil
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) { value = nextValue() ?? value }
+}
+
+/// The pet's row at the top of the panel: the stage the pet layer draws in, the state word, the detail and
+/// the moment line, and the hunger meter with no number. One VoiceOver element for all of it, whose action
+/// boops the pet.
+struct PetHeaderRow: View {
+    @ObservedObject var model: PetPanelModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private typealias P = PetTuning.Panel
+
+    var body: some View {
+        HStack(alignment: .center, spacing: P.rowSpacing) {
+            // The pet layer draws here; the stage only holds the place, and its tooltip is the detail.
+            Color.clear
+                .frame(width: P.stageWidth, height: P.stageHeight)
+                .contentShape(Rectangle())
+                .help(model.header.detail)
+            VStack(alignment: .leading, spacing: P.textSpacing) {
+                Text(model.header.word).font(.system(size: P.wordSize, weight: .semibold)).foregroundStyle(.white)
+                Text(model.header.detail).font(.system(size: P.detailSize)).foregroundStyle(.secondary).lineLimit(1)
+                if let moment = model.header.moment {
+                    Text(moment).font(.system(size: P.detailSize)).foregroundStyle(.tertiary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: P.spacerMinimum)
+            VStack(alignment: .trailing, spacing: P.meterSpacing) {
+                Text("Hunger").font(.system(size: P.detailSize)).foregroundStyle(.secondary)
+                meter
+            }
+        }
+        .frame(height: P.rowHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(PetText.label)
+        .accessibilityValue(model.accessibilityValue)
+        .accessibilityAddTraits(.updatesFrequently)
+        .accessibilityAction(named: PetText.actionName) { model.boop() }
+    }
+
+    /// 120 × 6 pt: the track, the fill in the pet's own light (never a severity colour, which would read
+    /// as a limit), the two mood thresholds. Under Reduce Motion it changes without animating.
+    private var meter: some View {
+        let fill = P.meterWidth * min(max(model.meter, 0), 100) / 100
+        return ZStack(alignment: .leading) {
+            Rectangle().fill(Color.white.opacity(P.meterTrackOpacity))
+            Rectangle().fill(PetPalette.standard.colors.glow.color(opacity: P.meterFillOpacity))
+                .frame(width: fill)
+            ForEach(P.meterTicks, id: \.self) { tick in
+                Rectangle().fill(Color.white.opacity(P.tickOpacity))
+                    .frame(width: P.tickWidth, height: P.meterHeight)
+                    .offset(x: P.meterWidth * tick / 100 - P.tickWidth / 2)
+            }
+        }
+        .frame(width: P.meterWidth, height: P.meterHeight)
+        .clipShape(Capsule())
+        .animation(reduceMotion ? nil : .easeInOut(duration: P.meterAnimation), value: model.meter)
     }
 }

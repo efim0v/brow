@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 import GroveCore
 
@@ -119,14 +122,14 @@ extension CardShape {
 }
 
 /// The card itself: the expanded notch hanging from the top of a tile in the app
-/// icon's grey. Explicit colours throughout — `ImageRenderer` draws without the
+/// icon's cream. Explicit colours throughout — `ImageRenderer` draws without the
 /// panel's darkAqua appearance, so `.secondary` would come out dark on black.
 struct WeekCardView: View {
     let model: WeekCardModel
     let shape: CardShape
 
     /// The app icon's tile.
-    private static let tile = Color(red: 0x7A / 255, green: 0x7B / 255, blue: 0x80 / 255)
+    private static let tile = Color(red: 0xF2 / 255, green: 0xDF / 255, blue: 0xB8 / 255)
     private static let margin: CGFloat = 20
     /// How much larger than the panel's own sizes the content is drawn, largest
     /// first; the first that fits the black panel wins. A chat or a feed shows the

@@ -1,0 +1,1090 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
+import XCTest
+import GroveCore
+@testable import GroveAppKit
+
+@MainActor
+final class AppStateActionTests: XCTestCase {
+    private var root: URL!
+    private var configURL: URL!
+
+    /// Non-default account so launchCommand carries the CLAUDE_CONFIG_DIR prefix. In the
+    /// test's own temp dir: a launch stamps onboarding into the folder's .claude.json, and
+    /// a fixed /tmp path collected one from every run.
+    private var account: AccountConfig {
+        AccountConfig(name: "work", configDir: root.appendingPathComponent("grove-test-claude").path)
+    }
+
+    override func setUp() async throws {
+        root = try FixtureLite.tempDir("appstate-actions")
+        configURL = root.appendingPathComponent("config.json")
+    }
+
+    /// Builds an AppState wired to the test runner/config. ALWAYS points
+    /// canonicalDirOverride at a per-state temp dir so linking can never touch the
+    /// real ~/.claude — tests that need a specific canonical dir re-point it after.
+    private func makeState(runner: ScriptedRunner) -> AppState {
+        let state = AppState(configStore: ConfigStore(url: configURL))
+        state.cmuxOverride = stubbedCmux(runner)
+        // Fail-safe: default the canonical store to a temp dir, NEVER $HOME/.claude.
+        state.folders.canonicalDir = root.appendingPathComponent("canonical-default").path
+        // The launch-command assertions pin the command shape; whether Brow happens
+        // to be installed on this machine must not change it.
+        state.browserRouter = nil
+        return state
+    }
+
+    // MARK: - launchClaude
+
+    func testLaunchClaudeCreatesFocusedCmuxWorkspaceWithLaunchCommand() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        // The claude binary resolves to an absolute path on this machine; the
+        // launch command embeds it shell-quoted (PATH-independent by design).
+        let claude = shellQuote(ClaudeService.claudeExecutable())
+
+        await state.launchClaude(cwd: "/ws/feat-x", title: "feat-x", account: account, resume: nil)
+
+        XCTAssertNil(state.actionError)
+        let newCalls = runner.calls(startingWith: "new-workspace")
+        XCTAssertEqual(newCalls.count, 1)
+        XCTAssertEqual(newCalls[0].args,
+                       ["new-workspace", "--name", "feat-x", "--cwd", "/ws/feat-x",
+                        "--command", "CLAUDE_CONFIG_DIR=\(shellQuote(account.configDir)) \(claude)",
+                        "--focus", "true"])
+        // focus=true triggers app activation through the SAME stub runner — never for real
+        XCTAssertEqual(runner.calls.filter { $0.executable == "/usr/bin/open" }.count, 1)
+    }
+
+    /// Hosted in Brow, sessions launch with Brow's own browser router and its Path to
+    /// claude rather than the engine's guesses.
+    func testLaunchesUseTheHostsRouterAndClaude() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.browserRouter = "/Applications/Brow.app/Contents/Resources/brow-browser"
+        state.claudePath = { "/opt/tools/claude" }
+
+        await state.launchClaude(cwd: "/ws/feat-x", title: "feat-x", account: account, resume: nil)
+
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first?.args)
+        let command = try XCTUnwrap(args.firstIndex(of: "--command").map { args[$0 + 1] })
+        XCTAssertEqual(command, "CLAUDE_CONFIG_DIR=\(shellQuote(account.configDir)) "
+                       + "BROWSER='/Applications/Brow.app/Contents/Resources/brow-browser' '/opt/tools/claude'")
+    }
+
+    func testLaunchClaudeResumeAppendsQuotedSessionId() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        let claude = shellQuote(ClaudeService.claudeExecutable())
+
+        await state.launchClaude(cwd: "/ws/feat-x", title: "feat-x", account: account,
+                                 resume: "abc-123")
+
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].hasSuffix(" \(claude) --resume 'abc-123'"),
+                      "got: \(args[commandIndex + 1])")
+    }
+
+    func testLaunchClaudeFailureLandsInActionError() async throws {
+        let runner = ScriptedRunner(responses: [
+            "ping": .ok("PONG"),
+            "new-workspace": .fail("no window"),
+        ])
+        let state = makeState(runner: runner)
+
+        await state.launchClaude(cwd: "/ws/feat-x", title: "feat-x", account: account, resume: nil)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.contains("new-workspace"), "got: \(error)")
+    }
+
+    func testLaunchClaudePassesModelAndEffortIntoTheCommand() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        await state.launchClaude(cwd: "/ws/x", title: "X", account: account,
+                                 resume: nil, model: "claude-opus-4-6", effort: "high")
+        let call = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first)
+        let commandIndex = try XCTUnwrap(call.args.firstIndex(of: "--command"))
+        let command = call.args[commandIndex + 1]
+        XCTAssertTrue(command.contains("--model 'claude-opus-4-6'"), command)
+        XCTAssertTrue(command.contains("--effort 'high'"), command)
+    }
+
+    /// SAFETY NET (pre-refactor characterization): a project's
+    /// `dangerouslySkipPermissions` flows through the launchClaude chokepoint into
+    /// the cmux `--command`. Pins this BEFORE launchClaude gains an optional
+    /// `skipPermissions` override param, so the per-project default can't silently
+    /// regress. (The no-project case — no flag — is already pinned by
+    /// testLaunchClaudeCreatesFocusedCmuxWorkspaceWithLaunchCommand.)
+    func testLaunchClaudeAppliesProjectSkipPermissionsToCommand() async throws {
+        var project = ProjectConfig(name: "p", path: "/proj")
+        project.workspacesRoot = "/ws"
+        project.dangerouslySkipPermissions = true
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [project], accounts: [account]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+
+        await state.launchClaude(cwd: "/ws/feat-x", title: "feat-x", account: account, resume: nil)
+
+        let call = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first)
+        let i = try XCTUnwrap(call.args.firstIndex(of: "--command"))
+        XCTAssertTrue(call.args[i + 1].contains("--dangerously-skip-permissions"), call.args[i + 1])
+    }
+
+    /// resumeSession applies the project's default model/effort (project beats
+    /// account default). The session's project is resolved by cwd prefix.
+    func testResumeSessionAppliesProjectDefaultModelEffort() async throws {
+        var project = ProjectConfig(name: "p", path: "/proj")
+        project.workspacesRoot = "/ws"
+        project.defaultModel = "claude-sonnet-4-6"
+        project.defaultEffort = "medium"
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [project], accounts: [account]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.selectedProjectID = project.id
+        let session = ClaudeSession(id: "s1", cwd: "/ws/feat-x", title: "T",
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+        await state.resumeSession(session, as: account)   // same account -> no link
+        let call = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first)
+        let commandIndex = try XCTUnwrap(call.args.firstIndex(of: "--command"))
+        XCTAssertTrue(call.args[commandIndex + 1].contains("--model 'claude-sonnet-4-6'"))
+        XCTAssertTrue(call.args[commandIndex + 1].contains("--effort 'medium'"))
+    }
+
+    // MARK: - goToCmux
+
+    func testGoToCmuxSelectsWorkspaceAndActivates() async {
+        let runner = ScriptedRunner(responses: [:])
+        let state = makeState(runner: runner)
+
+        await state.goToCmux(CmuxWorkspace(id: "ws-7", title: "t", currentDirectory: "/x"))
+
+        XCTAssertNil(state.actionError)
+        XCTAssertEqual(runner.calls(startingWith: "select-workspace").first?.args,
+                       ["select-workspace", "--workspace", "ws-7"])
+    }
+
+    func testGoToCmuxFailureLandsInActionError() async {
+        let runner = ScriptedRunner(responses: ["select-workspace": .fail("gone")])
+        let state = makeState(runner: runner)
+
+        await state.goToCmux(CmuxWorkspace(id: "ws-7", title: "t", currentDirectory: "/x"))
+
+        XCTAssertNotNil(state.actionError)
+    }
+
+    // MARK: - goToSession
+
+    func testGoToSessionPrefersHookMappedWorkspace() async throws {
+        let runner = ScriptedRunner(responses: [:])
+        let state = makeState(runner: runner)
+        let hookFile = root.appendingPathComponent("hooks.json")
+        try Data(#"{"sess-1": {"workspaceId": "ws-42", "cwd": "/ws/feat-x"}}"#.utf8)
+            .write(to: hookFile)
+        state.cmuxHookFile = hookFile.path
+        let session = ClaudeSession(id: "sess-1", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+
+        await state.goToSession(session, fallbackCwd: "/ws/feat-x", fallbackTitle: "feat-x",
+                                account: account)
+
+        XCTAssertEqual(runner.calls(startingWith: "select-workspace").first?.args,
+                       ["select-workspace", "--workspace", "ws-42"])
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty)
+        XCTAssertNil(state.actionError)
+    }
+
+    func testGoToSessionWithoutMappingResumesInNewWorkspace() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.cmuxHookFile = root.appendingPathComponent("no-such-hooks.json").path
+        let session = ClaudeSession(id: "sess-9", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+
+        await state.goToSession(session, fallbackCwd: "/ws/feat-x", fallbackTitle: "feat-x",
+                                account: account)
+
+        XCTAssertTrue(runner.calls(startingWith: "select-workspace").isEmpty)
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let cwdIndex = try XCTUnwrap(args.firstIndex(of: "--cwd"))
+        XCTAssertEqual(args[cwdIndex + 1], "/ws/feat-x")
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume 'sess-9'"))
+    }
+
+    /// A `.go` row resolved only via the cwd-match path (no hook entry) carries
+    /// the matched cmux workspace id; goToSession must selectWorkspace it
+    /// directly, NOT relaunch --resume in a fresh workspace (issue 2).
+    func testGoToSessionWithExplicitWorkspaceIdSelectsItWithoutHookFile() async throws {
+        let runner = ScriptedRunner(responses: [:])
+        let state = makeState(runner: runner)
+        state.cmuxHookFile = root.appendingPathComponent("no-such-hooks.json").path
+        let session = ClaudeSession(id: "sess-cwd", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+
+        await state.goToSession(session, fallbackCwd: "/ws/feat-x", fallbackTitle: "feat-x",
+                                account: account, workspaceId: "cw-cwd")
+
+        XCTAssertEqual(runner.calls(startingWith: "select-workspace").first?.args,
+                       ["select-workspace", "--workspace", "cw-cwd"])
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty,
+                      "Go must jump to the matched workspace, not spawn a second writer")
+        XCTAssertNil(state.actionError)
+    }
+
+    // MARK: - resumeSession (cross-account, feasibility verdict: FEASIBLE)
+
+    /// Same-account resume links nothing and just launches --resume in the
+    /// session's own cwd under its owning account.
+    func testResumeSessionSameAccountLaunchesWithoutCopying() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        let session = ClaudeSession(id: "sess-same", cwd: "/ws/feat-x", title: "Tidy up",
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+
+        await state.resumeSession(session, as: account)   // account.name == "work"
+
+        XCTAssertNil(state.actionError)
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let cwdIndex = try XCTUnwrap(args.firstIndex(of: "--cwd"))
+        XCTAssertEqual(args[cwdIndex + 1], "/ws/feat-x")
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume 'sess-same'"))
+    }
+
+    /// Cross-account resume LINKS both the owning and the target account into the
+    /// canonical default (`~/.claude`) store, then launches --resume under the
+    /// target's CLAUDE_CONFIG_DIR. No copy: the transcript physically lives in
+    /// canonical and is visible to the target through the symlinked projects dir.
+    func testResumeSessionCrossAccountLinksBothAccountsThenLaunchesUnderTarget() async throws {
+        let home = NSHomeDirectory()
+        let cwd = "/ws/feat-x"
+        let id = "sess-cross"
+        // Canonical = the default account at $HOME/.claude (the real canonical
+        // path; we never write into it — the owner OWNS the transcript under it,
+        // staged below in a temp dir we point configDir at). To keep tests off the
+        // real ~/.claude, the default account's configDir is a TEMP dir we treat
+        // as canonical, and AppState's canonical check matches on configDir, so we
+        // make the default account point at a temp "canonical" dir.
+        let canonicalDir = root.appendingPathComponent("canonical")   // default account dir
+        let ownerDir = root.appendingPathComponent("acc-owner")        // owning, non-canonical
+        let targetDir = root.appendingPathComponent("acc-target")      // target, non-canonical
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+
+        // The owning account holds the transcript at its projects/<mangled> path.
+        let mangled = ClaudeService.mangle(cwd)
+        let ownerProjects = ownerDir.appendingPathComponent("projects").appendingPathComponent(mangled)
+        try FileManager.default.createDirectory(at: ownerProjects, withIntermediateDirectories: true)
+        try "transcript".write(to: ownerProjects.appendingPathComponent("\(id).jsonl"),
+                               atomically: true, encoding: .utf8)
+
+        // Config: the canonical/default account FIRST (its configDir is treated as
+        // canonical because AppState resolves canonical = the account whose expanded
+        // configDir is the default account dir; see canonicalAccount). Mark it by
+        // pointing the default account at canonicalDir via a test seam.
+        let defaultAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
+        let owner = AccountConfig(name: "owner", configDir: ownerDir.path)
+        let target = AccountConfig(name: "work", configDir: targetDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [defaultAccount, owner, target]))
+
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = canonicalDir.path   // test seam: treat this as ~/.claude
+        let session = ClaudeSession(id: id, cwd: cwd, title: "Tidy",
+                                    lastActivity: Date(), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: target)
+
+        XCTAssertNil(state.actionError)
+        // Owner's wholesale dirs are symlinked into canonical.
+        for name in SharedSessionStore.wholesaleDirs {
+            let link = ownerDir.appendingPathComponent(name).path
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link),
+                           canonicalDir.appendingPathComponent(name).path, "owner \(name)")
+            let tlink = targetDir.appendingPathComponent(name).path
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: tlink),
+                           canonicalDir.appendingPathComponent(name).path, "target \(name)")
+        }
+        // Owner's projects/<mangled> is symlinked; the transcript migrated into canonical.
+        let ownerLink = ownerDir.appendingPathComponent("projects/\(mangled)").path
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: ownerLink),
+                       canonicalDir.appendingPathComponent("projects/\(mangled)").path)
+        XCTAssertEqual(try String(contentsOf: canonicalDir
+            .appendingPathComponent("projects/\(mangled)/\(id).jsonl"), encoding: .utf8), "transcript")
+        // Target's projects/<mangled> is a symlink into canonical → transcript visible.
+        let targetLink = targetDir.appendingPathComponent("projects/\(mangled)").path
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: targetLink),
+                       canonicalDir.appendingPathComponent("projects/\(mangled)").path)
+        // Both accounts are now marked sharedStore in config.
+        XCTAssertEqual(state.config.accounts.first { $0.name == "owner" }?.sharedStore, true)
+        XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.sharedStore, true)
+        XCTAssertEqual(state.config.accounts.first { $0.name == "default" }?.sharedStore, false,
+                       "the canonical account is never marked shared")
+        // Launched under the TARGET account's config dir with --resume.
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("CLAUDE_CONFIG_DIR=\(shellQuote(targetDir.path))"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume '\(id)'"))
+        _ = home
+    }
+
+    /// Cross-account resume when the owning account is no longer in config: we
+    /// can't locate/link the transcript, so resuming would only surface "No
+    /// conversation found". resumeSession must abort with an actionError and
+    /// launch nothing.
+    func testResumeSessionCrossAccountWithMissingOwnerSetsActionErrorAndDoesNotLaunch() async throws {
+        let canonicalDir = root.appendingPathComponent("canonical-missing-owner")
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+        let defaultAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
+        let target = AccountConfig(name: "work", configDir: root.appendingPathComponent("t").path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [defaultAccount, target]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = canonicalDir.path
+        let session = ClaudeSession(id: "sess-ghost", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "ghost", gitBranch: nil)
+
+        await state.resumeSession(session, as: target)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.contains("ghost"), "got: \(error)")
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty,
+                      "no launch when the owning account can't be linked")
+    }
+
+    /// Cross-account resume with NO canonical/default account in config: sharing
+    /// is impossible without a canonical `~/.claude`. Abort with a clear error,
+    /// launch nothing.
+    func testResumeSessionCrossAccountWithoutCanonicalAccountAborts() async throws {
+        // Two non-canonical accounts, neither pointing at the canonical dir.
+        let owner = AccountConfig(name: "owner", configDir: root.appendingPathComponent("o").path)
+        let target = AccountConfig(name: "work", configDir: root.appendingPathComponent("t2").path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [owner, target]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = root.appendingPathComponent("nonexistent-canonical").path
+        let session = ClaudeSession(id: "sess-x", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: target)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.lowercased().contains("canonical") || error.contains("~/.claude"),
+                      "got: \(error)")
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty)
+    }
+
+    /// Resuming the canonical (default) account's OWN session under another
+    /// account: the canonical account is never linked to itself, only the TARGET
+    /// is linked. Still launches under the target.
+    func testResumeSessionFromCanonicalOwnerLinksOnlyTheTarget() async throws {
+        let cwd = "/ws/feat-z"
+        let id = "sess-canon"
+        let canonicalDir = root.appendingPathComponent("canon-owner")
+        let targetDir = root.appendingPathComponent("acc-target-2")
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+        let mangled = ClaudeService.mangle(cwd)
+        let canonProjects = canonicalDir.appendingPathComponent("projects").appendingPathComponent(mangled)
+        try FileManager.default.createDirectory(at: canonProjects, withIntermediateDirectories: true)
+        try "t".write(to: canonProjects.appendingPathComponent("\(id).jsonl"),
+                      atomically: true, encoding: .utf8)
+        let defaultAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
+        let target = AccountConfig(name: "work", configDir: targetDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [defaultAccount, target]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = canonicalDir.path
+        let session = ClaudeSession(id: id, cwd: cwd, title: nil,
+                                    lastActivity: Date(), accountName: "default", gitBranch: nil)
+
+        await state.resumeSession(session, as: target)
+
+        XCTAssertNil(state.actionError)
+        // Canonical owner is NOT symlinked to itself (its file-history stays absent/real).
+        XCTAssertFalse((try? FileManager.default.destinationOfSymbolicLink(
+            atPath: canonicalDir.appendingPathComponent("file-history").path)) != nil,
+            "the canonical account is never symlinked to itself")
+        // Target is linked.
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+            atPath: targetDir.appendingPathComponent("file-history").path),
+            canonicalDir.appendingPathComponent("file-history").path)
+        XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.sharedStore, true)
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume '\(id)'"))
+    }
+
+    /// If the SAME sessionId is live under a DIFFERENT account, resuming it under
+    /// `account` would write two processes into one transcript and corrupt it.
+    /// resumeSession must BLOCK (actionError naming the other account) and launch
+    /// nothing — not merely warn.
+    func testResumeSessionBlockedWhenSessionLiveUnderAnotherAccount() async throws {
+        let cwd = "/ws/feat-x"
+        let id = "sess-live"
+        let canonicalDir = root.appendingPathComponent("canon-guard")
+        let ownerDir = root.appendingPathComponent("acc-owner-guard")
+        let targetDir = root.appendingPathComponent("acc-target-guard")
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+        // The owner has a LIVE process for `id` recorded under its sessions/ dir.
+        let ownerSessions = ownerDir.appendingPathComponent("sessions")
+        try FileManager.default.createDirectory(at: ownerSessions, withIntermediateDirectories: true)
+        try Data(#"{"pid": 999999, "sessionId": "sess-live", "cwd": "/ws/feat-x", "status": "busy"}"#.utf8)
+            .write(to: ownerSessions.appendingPathComponent("999999.json"))
+
+        let defaultAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
+        let owner = AccountConfig(name: "owner", configDir: ownerDir.path)
+        let target = AccountConfig(name: "work", configDir: targetDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [defaultAccount, owner, target]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = canonicalDir.path
+        // Force the validator to treat pid 999999 as alive (no real process exists).
+        state.liveProcessValidatorOverride = { _ in true }
+        let session = ClaudeSession(id: id, cwd: cwd, title: nil,
+                                    lastActivity: Date(), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: target)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.contains("owner") && error.lowercased().contains("live"),
+                      "got: \(error)")
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty,
+                      "a live session under another account blocks the launch")
+    }
+
+    /// SAFETY NET (pre-refactor characterization): the liveness guard MUST precede
+    /// the canonical-account check. With a session live under another account AND
+    /// NO canonical/default account configured, resumeSession must fail with the
+    /// LIVE error (naming the other account), NOT the canonical-missing error.
+    /// Pins guard ORDER so extracting this block into a shared helper (for
+    /// confirmLaunch cross-account linking) can't silently reorder it — the one
+    /// ordering edge the existing 5 resumeSession tests don't cover (they all
+    /// configure a canonical account).
+    func testResumeSessionLivenessGuardPrecedesCanonicalCheck() async throws {
+        let ownerDir = root.appendingPathComponent("acc-owner-order")
+        let targetDir = root.appendingPathComponent("acc-target-order")
+        let ownerSessions = ownerDir.appendingPathComponent("sessions")
+        try FileManager.default.createDirectory(at: ownerSessions, withIntermediateDirectories: true)
+        try Data(#"{"pid": 999998, "sessionId": "sess-order", "cwd": "/ws/feat-x", "status": "busy"}"#.utf8)
+            .write(to: ownerSessions.appendingPathComponent("999998.json"))
+        // NO default/canonical account in config — only owner + target.
+        let owner = AccountConfig(name: "owner", configDir: ownerDir.path)
+        let target = AccountConfig(name: "work", configDir: targetDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [owner, target]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = root.appendingPathComponent("no-canonical-order").path
+        state.liveProcessValidatorOverride = { _ in true }
+        let session = ClaudeSession(id: "sess-order", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: target)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.contains("owner") && error.lowercased().contains("live"),
+                      "liveness error must win over canonical-missing; got: \(error)")
+        XCTAssertFalse(error.lowercased().contains("canonical"),
+                       "canonical check must NOT pre-empt the liveness guard; got: \(error)")
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty)
+    }
+
+    /// Cross-account resume fixture: a canonical (default) account, an owner whose
+    /// transcript for `sessionId` sits in a REAL projects/<mangled> dir (so a
+    /// resume would move it), and a target account named "work".
+    private func saveResumeAsFixture(_ label: String, cwd: String, sessionId: String) throws
+        -> (canonicalDir: URL, ownerProjects: URL, target: AccountConfig) {
+        let canonicalDir = root.appendingPathComponent("canon-\(label)")
+        let ownerDir = root.appendingPathComponent("acc-owner-\(label)")
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+        let ownerProjects = ownerDir.appendingPathComponent("projects/\(ClaudeService.mangle(cwd))")
+        try FileManager.default.createDirectory(at: ownerProjects, withIntermediateDirectories: true)
+        try "transcript".write(to: ownerProjects.appendingPathComponent("\(sessionId).jsonl"),
+                               atomically: true, encoding: .utf8)
+        let target = AccountConfig(name: "work",
+                                   configDir: root.appendingPathComponent("acc-target-\(label)").path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
+            accounts: [AccountConfig(name: "default", configDir: canonicalDir.path),
+                       AccountConfig(name: "owner", configDir: ownerDir.path), target]))
+        return (canonicalDir, ownerProjects, target)
+    }
+
+    /// #25: a session still open in a plain `claude` (no --resume) is in the
+    /// process table with its folder but no session id, and the file records are
+    /// often missing. Resume as… must still refuse, the way Share does: linking
+    /// would move the transcript out from under the running claude.
+    func testResumeSessionBlockedWhenFreshClaudeIsLiveInTheSessionFolder() async throws {
+        let cwd = "/ws/feat-x"
+        let id = "sess-fresh"
+        let fixture = try saveResumeAsFixture("fresh", cwd: cwd, sessionId: id)
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = fixture.canonicalDir.path
+        // How the table lists a fresh claude: cwd only, no session id, no account.
+        state.allLiveProcessesOverride = [LiveProcess(pid: 4242, sessionId: "", cwd: cwd,
+                                                      status: "idle", accountName: "")]
+        let session = ClaudeSession(id: id, cwd: cwd, title: nil,
+                                    lastActivity: Date(), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: fixture.target)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.lowercased().contains("live"), "got: \(error)")
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty,
+                      "a claude running in the session's folder blocks the launch")
+        XCTAssertNil(try? FileManager.default.destinationOfSymbolicLink(atPath: fixture.ownerProjects.path),
+                     "the owner's folder must not be linked away while a claude writes in it")
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: fixture.ownerProjects.appendingPathComponent("\(id).jsonl").path))
+    }
+
+    /// The other side of #25: with nothing running in the session's folder or
+    /// under its id (only other sessions are live), Resume as… goes ahead.
+    func testResumeSessionAsAnotherAccountGoesAheadWhenTheSessionIsNotLive() async throws {
+        let cwd = "/ws/feat-x"
+        let id = "sess-quiet"
+        let fixture = try saveResumeAsFixture("quiet", cwd: cwd, sessionId: id)
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = fixture.canonicalDir.path
+        state.allLiveProcessesOverride = [
+            LiveProcess(pid: 4243, sessionId: "", cwd: "/ws/feat-y", status: "idle", accountName: ""),
+            LiveProcess(pid: 4244, sessionId: "sess-other", cwd: "", status: "busy", accountName: ""),
+        ]
+        let session = ClaudeSession(id: id, cwd: cwd, title: nil,
+                                    lastActivity: Date(), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: fixture.target)
+
+        XCTAssertNil(state.actionError)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: fixture.ownerProjects.path),
+                       fixture.canonicalDir.appendingPathComponent("projects/\(ClaudeService.mangle(cwd))").path)
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume '\(id)'"))
+    }
+
+    /// Resuming under the session's OWN account links and moves nothing, so a
+    /// claude running in the same folder doesn't stop it: the #25 check guards
+    /// only the cross-account path.
+    func testResumeSessionSameAccountIgnoresClaudeLiveInTheSessionFolder() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.allLiveProcessesOverride = [LiveProcess(pid: 4245, sessionId: "", cwd: "/ws/feat-x",
+                                                      status: "idle", accountName: "")]
+        let session = ClaudeSession(id: "sess-same-live", cwd: "/ws/feat-x", title: nil,
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+
+        await state.resumeSession(session, as: account)   // account.name == "work"
+
+        XCTAssertNil(state.actionError)
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume 'sess-same-live'"))
+    }
+
+    /// The relaunch sheet's account switch is the other way into the same move, so
+    /// a claude running in the session's folder blocks it too (#25).
+    func testConfirmLaunchAccountSwitchBlockedWhenClaudeIsLiveInTheSessionFolder() async throws {
+        let cwd = "/ws/feat-x"
+        let id = "sess-sheet"
+        let fixture = try saveResumeAsFixture("sheet", cwd: cwd, sessionId: id)
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = fixture.canonicalDir.path
+        state.allLiveProcessesOverride = [LiveProcess(pid: 4246, sessionId: "", cwd: cwd,
+                                                      status: "idle", accountName: "")]
+
+        await state.confirmLaunch(LaunchRequest(sessionId: id, cwd: cwd, title: "feat-x",
+                                                account: fixture.target.name, originAccount: "owner"))
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.lowercased().contains("live"), "got: \(error)")
+        XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty)
+        XCTAssertNil(try? FileManager.default.destinationOfSymbolicLink(atPath: fixture.ownerProjects.path),
+                     "the owner's folder must not be linked away while a claude writes in it")
+    }
+
+    // MARK: - model/effort defaults + relaunch
+
+    func testSetProjectModelAndEffortPersist() async throws {
+        let project = ProjectConfig(name: "p", path: "/proj")
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [project], accounts: [account]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.setProjectModel(projectID: project.id, model: "claude-opus-4-6")
+        state.setProjectEffort(projectID: project.id, effort: "high")
+        XCTAssertEqual(state.config.projects[0].defaultModel, "claude-opus-4-6")
+        XCTAssertEqual(state.config.projects[0].defaultEffort, "high")
+        // Reload from disk -> persisted.
+        let reloaded = ConfigStore(url: configURL).load().config
+        XCTAssertEqual(reloaded.projects[0].defaultModel, "claude-opus-4-6")
+    }
+
+    func testRelaunchSessionWithModelResumesWithThatModel() async throws {
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [account]))
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        let session = ClaudeSession(id: "s1", cwd: "/ws/x", title: "T",
+                                    lastActivity: Date(), accountName: "work", gitBranch: nil)
+        await state.relaunchSession(session, as: account, model: "claude-opus-4-6", effort: nil)
+        let call = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first)
+        let i = try XCTUnwrap(call.args.firstIndex(of: "--command"))
+        XCTAssertTrue(call.args[i + 1].contains("--resume 's1'"))
+        XCTAssertTrue(call.args[i + 1].contains("--model 'claude-opus-4-6'"))
+    }
+
+    // MARK: - createWorkspace / rollback (real git fixture)
+
+    private func saveProjectFixture() throws -> (project: ProjectConfig, repo: RepoInfo, workspacesRoot: URL) {
+        let projectDir = root.appendingPathComponent("project", isDirectory: true)
+        let workspacesRoot = root.appendingPathComponent("workspaces", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        let repoURL = try FixtureLite.makeRepo(in: projectDir, name: "alpha")
+        let project = ProjectConfig(name: "project", path: projectDir.path,
+                                    workspacesRoot: workspacesRoot.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [project],
+            accounts: [AccountConfig(name: "test",
+                                     configDir: root.appendingPathComponent("claude-home").path)]))
+        return (project, RepoInfo(path: repoURL.path, dirName: "alpha"), workspacesRoot)
+    }
+
+    func testCreateWorkspaceThenScanThenRollback() async throws {
+        let fixture = try saveProjectFixture()
+        let state = makeState(runner: ScriptedRunner(responses: [
+            "ping": .ok("PONG"),
+            "rpc": .ok(#"{"workspaces": []}"#),
+        ]))
+
+        let maybeReport = await state.createWorkspace(
+            name: "feat-y", branch: "feat/y", repos: [fixture.repo], forkFrom: nil)
+        let report = try XCTUnwrap(maybeReport)
+
+        XCTAssertNil(report.failure)
+        XCTAssertNil(state.actionError)
+        XCTAssertEqual(report.artifacts.count, 1)
+        let worktreePath = fixture.workspacesRoot.appendingPathComponent("feat-y/alpha").path
+        XCTAssertEqual(report.artifacts.first?.worktreePath, worktreePath)
+        XCTAssertEqual(report.artifacts.first?.branch, "feat/y")
+        XCTAssertEqual(report.artifacts.first?.branchWasCreated, true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: worktreePath))
+
+        // a fresh scan now sees the created workspace
+        await state.refresh()
+        XCTAssertEqual(state.selectedSnapshot?.workspaces.map { $0.name }, ["feat-y"])
+
+        // rollback removes ONLY this run's artifacts
+        let log = await state.rollback(report.artifacts)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreePath))
+        XCTAssertTrue(log.contains { $0.contains("removed worktree") }, "got: \(log)")
+
+        await state.refresh()
+        XCTAssertEqual(state.selectedSnapshot?.workspaces.count, 0)
+    }
+
+    func testCreateWorkspaceForwardsStartPointOverrides() async throws {
+        let fixture = try saveProjectFixture()
+        // A "dev" branch one commit ahead of main: the override must make the
+        // new worktree start from dev's head, not main's.
+        try FixtureLite.sh("git switch -qc dev", cwd: URL(fileURLWithPath: fixture.repo.path))
+        try FixtureLite.commit(repo: URL(fileURLWithPath: fixture.repo.path),
+                               file: "dev.txt", content: "dev\n", message: "dev work")
+        let devHead = try FixtureLite.sh("git rev-parse dev",
+                                         cwd: URL(fileURLWithPath: fixture.repo.path))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        try FixtureLite.sh("git switch -q main", cwd: URL(fileURLWithPath: fixture.repo.path))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+
+        let maybeReport = await state.createWorkspace(
+            name: "feat-z", branch: "feat/z", repos: [fixture.repo], forkFrom: nil,
+            startPointOverrides: ["alpha": "dev"])
+        let report = try XCTUnwrap(maybeReport)
+
+        XCTAssertNil(report.failure)
+        let worktreePath = fixture.workspacesRoot.appendingPathComponent("feat-z/alpha").path
+        let head = try FixtureLite.sh("git rev-parse HEAD",
+                                      cwd: URL(fileURLWithPath: worktreePath))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(head, devHead)
+    }
+
+    func testCreateWorkspaceWithInvalidNameSetsActionError() async throws {
+        let fixture = try saveProjectFixture()
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+
+        let maybeReport = await state.createWorkspace(
+            name: "bad name!", branch: "feat/bad", repos: [fixture.repo], forkFrom: nil)
+        let report = try XCTUnwrap(maybeReport)
+
+        XCTAssertNotNil(report.failure)
+        XCTAssertEqual(state.actionError, report.failure)
+        XCTAssertTrue(report.artifacts.isEmpty)
+    }
+
+    func testCreateWorkspaceWithoutSelectedProjectReturnsNil() async {
+        let state = makeState(runner: ScriptedRunner(responses: [:]))   // default config: no projects
+        let report = await state.createWorkspace(name: "x", branch: "b", repos: [], forkFrom: nil)
+        XCTAssertNil(report)
+        XCTAssertNil(state.actionError)
+    }
+
+    // MARK: - openCmuxShell
+
+    func testOpenCmuxShellCreatesFocusedShellOnlyWorkspace() async throws {
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+
+        await state.openCmuxShell(cwd: "/ws/feat-x", title: "feat-x")
+
+        XCTAssertNil(state.actionError)
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        // No --command pair: cmux starts its default shell in cwd.
+        XCTAssertEqual(args, ["new-workspace", "--name", "feat-x", "--cwd", "/ws/feat-x",
+                              "--focus", "true"])
+        // focus=true activates the app through the SAME stub runner — never for real.
+        XCTAssertEqual(runner.calls.filter { $0.executable == "/usr/bin/open" }.count, 1)
+    }
+
+    func testOpenCmuxShellFailureLandsInActionError() async {
+        let runner = ScriptedRunner(responses: [
+            "ping": .ok("PONG"),
+            "new-workspace": .fail("no window"),
+        ])
+        let state = makeState(runner: runner)
+
+        await state.openCmuxShell(cwd: "/ws/feat-x", title: "feat-x")
+
+        XCTAssertNotNil(state.actionError)
+    }
+
+    // MARK: - loadGraph
+
+    func testLoadGraphReadsRealRepo() async throws {
+        let parent = root.appendingPathComponent("graph", isDirectory: true)
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let repo = try FixtureLite.makeRepo(in: parent, name: "g")
+        try FixtureLite.commit(repo: repo, file: "a.txt", content: "a\n", message: "second")
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+
+        await state.loadGraph(repoPath: repo.path)
+
+        XCTAssertEqual(state.graphRepoPath, repo.path)
+        XCTAssertEqual(state.graphNodes.map { $0.subject }, ["second", "base"])
+        XCTAssertEqual(state.graphNodes.map { $0.lane }, [0, 0])
+        XCTAssertNil(state.actionError)
+    }
+
+    func testLoadGraphFailureSetsActionErrorAndClearsNodes() async {
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        await state.loadGraph(repoPath: root.appendingPathComponent("not-a-repo").path)
+        XCTAssertTrue(state.graphNodes.isEmpty)
+        XCTAssertNotNil(state.actionError)
+    }
+
+    // MARK: - linkAccount
+
+    func testLinkAccountSymlinksWholesaleDirsAndMarksShared() async throws {
+        let canonicalDir = root.appendingPathComponent("canon-link")
+        let workDir = root.appendingPathComponent("acc-work-link")
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+        let defaultAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
+        let work = AccountConfig(name: "work", configDir: workDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [defaultAccount, work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = canonicalDir.path
+        // An engine that captures by default would install the statusline wrapper here
+        // too (Phase 5A); keep any such write inside a temp dir, never the real
+        // ~/Library/Application Support/Grove.
+        state.folders.bin = root.appendingPathComponent("bin-link-symlink").path
+
+        state.linkAccount(work)
+
+        XCTAssertNil(state.actionError)
+        for name in SharedSessionStore.wholesaleDirs {
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                atPath: workDir.appendingPathComponent(name).path),
+                canonicalDir.appendingPathComponent(name).path)
+        }
+        XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.sharedStore, true)
+    }
+
+    /// Phase 5A: an engine that captures by default (Grove.app's; no host turns it on now)
+    /// also installs the grove statusline wrapper when it links an account, so its usage
+    /// is captured (the icloud "no usage" fix). Install is best-effort, idempotent, and
+    /// preserves the user's original statusLine.command.
+    func testLinkAccountAutoInstallsStatuslineMonitoring() async throws {
+        let canonicalDir = root.appendingPathComponent("canon-link-mon")
+        let workDir = root.appendingPathComponent("acc-work-link-mon")
+        try FileManager.default.createDirectory(at: canonicalDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        let original = "/bin/echo original-status"
+        try #"{"statusLine":{"type":"command","command":"\#(original)"}}"#
+            .write(to: workDir.appendingPathComponent("settings.json"),
+                   atomically: true, encoding: .utf8)
+        let defaultAccount = AccountConfig(name: "default", configDir: canonicalDir.path)
+        let work = AccountConfig(name: "work", configDir: workDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [defaultAccount, work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = canonicalDir.path
+        state.folders.bin = root.appendingPathComponent("bin-link").path
+        state.capturesByDefault = true
+
+        state.linkAccount(work)
+
+        XCTAssertNil(state.actionError)
+        // settings.json now points at the grove wrapper (per-account script path).
+        let data = try Data(contentsOf: workDir.appendingPathComponent("settings.json"))
+        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let command = (obj?["statusLine"] as? [String: Any])?["command"] as? String
+        XCTAssertNotNil(command)
+        XCTAssertTrue(command?.contains("grove-statusline-") == true,
+                      "linkAccount must repoint statusLine at the grove wrapper; got \(command ?? "nil")")
+        // The account is marked monitored with its original preserved.
+        let saved = state.config.accounts.first { $0.name == "work" }
+        XCTAssertEqual(saved?.monitoring, true)
+        XCTAssertEqual(saved?.savedStatusline, original)
+    }
+
+    func testLinkAccountWithoutCanonicalSetsActionError() async throws {
+        let work = AccountConfig(name: "work", configDir: root.appendingPathComponent("w3").path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = root.appendingPathComponent("nope").path
+
+        state.linkAccount(work)
+
+        let error = try XCTUnwrap(state.actionError)
+        XCTAssertTrue(error.lowercased().contains("canonical") || error.contains("~/.claude"))
+        XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.sharedStore, false)
+    }
+
+    // MARK: - an action's failure, for the host's Settings window
+
+    /// Settings shows what went wrong next to the control: `attempt` hands the failure
+    /// back and leaves the panel's banner as it was.
+    func testAttemptHandsBackTheFailureAndLeavesTheBannerAlone() async throws {
+        let work = AccountConfig(name: "work", configDir: root.appendingPathComponent("w-attempt").path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = root.appendingPathComponent("no-canonical").path
+        state.actionError = "an older banner"
+
+        let failure = state.attempt { state.linkAccount(work) }
+
+        XCTAssertTrue(failure?.contains("canonical account") == true, failure ?? "nil")
+        XCTAssertEqual(state.actionError, "an older banner")
+        XCTAssertNil(state.attempt { state.setAccountModel(name: "work", model: "opus") }, "a change that works")
+        XCTAssertEqual(state.config.accounts.first?.defaultModel, "opus")
+    }
+
+    /// The capture switch on a settings.json that does not parse: refused, the file left
+    /// as it was, and the reason handed back for the switch to show as it snaps back.
+    func testAttemptReportsACaptureThatCouldNotEditSettings() async throws {
+        let accDir = root.appendingPathComponent("acc-unparseable")
+        try FileManager.default.createDirectory(at: accDir, withIntermediateDirectories: true)
+        let bytes = Data(#"{"permissions":{"allow":["Bash(npm te"#.utf8)
+        try bytes.write(to: accDir.appendingPathComponent("settings.json"))
+        let work = AccountConfig(name: "work", configDir: accDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.bin = root.appendingPathComponent("bin-unparseable").path
+
+        let failure = state.attempt { state.installMonitoring(work) }
+
+        XCTAssertTrue(failure?.hasPrefix("Couldn't enable monitoring") == true, failure ?? "nil")
+        XCTAssertNil(state.actionError)
+        XCTAssertEqual(state.config.accounts.first?.monitoring, false)
+        XCTAssertEqual(try Data(contentsOf: accDir.appendingPathComponent("settings.json")), bytes)
+    }
+
+    // MARK: - monitoring (statusline capture)
+
+    func testInstallMonitoringRepointsSettingsAndMarksMonitoringWithSavedOriginal() async throws {
+        let accDir = root.appendingPathComponent("acc-monitor")
+        try FileManager.default.createDirectory(at: accDir, withIntermediateDirectories: true)
+        let original = "/bin/echo hi"
+        try #"{"statusLine":{"type":"command","command":"\#(original)"}}"#
+            .write(to: accDir.appendingPathComponent("settings.json"),
+                   atomically: true, encoding: .utf8)
+        let work = AccountConfig(name: "work", configDir: accDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.bin = root.appendingPathComponent("support-bin").path
+
+        state.installMonitoring(work)
+
+        XCTAssertNil(state.actionError)
+        let saved = state.config.accounts.first { $0.name == "work" }
+        XCTAssertEqual(saved?.monitoring, true)
+        XCTAssertEqual(saved?.savedStatusline, original)
+    }
+
+    func testDisableMonitoringRestoresOriginalAndClearsFlag() async throws {
+        let accDir = root.appendingPathComponent("acc-monitor-off")
+        try FileManager.default.createDirectory(at: accDir, withIntermediateDirectories: true)
+        let original = "/bin/echo hi"
+        try #"{"statusLine":{"type":"command","command":"\#(original)"}}"#
+            .write(to: accDir.appendingPathComponent("settings.json"),
+                   atomically: true, encoding: .utf8)
+        var work = AccountConfig(name: "work", configDir: accDir.path)
+        work.monitoring = true
+        work.savedStatusline = original
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.bin = root.appendingPathComponent("support-bin2").path
+
+        state.disableMonitoring(work)
+
+        XCTAssertEqual(state.config.accounts.first { $0.name == "work" }?.monitoring, false)
+        XCTAssertNil(state.config.accounts.first { $0.name == "work" }?.savedStatusline)
+        let data = try Data(contentsOf: accDir.appendingPathComponent("settings.json"))
+        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let line = obj?["statusLine"] as? [String: Any]
+        XCTAssertEqual(line?["command"] as? String, original)
+    }
+
+    /// A login with a second folder: both run the wrapper, and turning capture off gives
+    /// both their own status line back — the second from its wrapper's record.
+    func testDisableMonitoringGivesEveryFolderOfTheLoginItsCommandBack() async throws {
+        let main = root.appendingPathComponent("acc-main")
+        let second = root.appendingPathComponent("acc-second")
+        for (dir, command) in [(main, "/bin/echo main"), (second, "/bin/echo second")] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try #"{"statusLine":{"type":"command","command":"\#(command)"}}"#
+                .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        }
+        let work = AccountConfig(name: "work", configDir: main.path, aliasDirs: [second.path])
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.bin = root.appendingPathComponent("support-bin-alias").path
+        state.installMonitoring(work)
+        let installed = try XCTUnwrap(state.config.accounts.first)
+
+        state.disableMonitoring(installed)
+
+        func command(_ dir: URL) throws -> String? {
+            let data = try Data(contentsOf: dir.appendingPathComponent("settings.json"))
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return (obj?["statusLine"] as? [String: Any])?["command"] as? String
+        }
+        XCTAssertEqual(try command(main), "/bin/echo main")
+        XCTAssertEqual(try command(second), "/bin/echo second")
+    }
+
+    /// While the config can't be saved — Grove.app has started, and writes it too — the
+    /// capture switch and Share sessions change nothing at all: not an account's
+    /// settings.json, not its folders. Half a change left settings.json on the user's own
+    /// command while the config still said the account was captured.
+    func testNothingIsEditedThatTheConfigCouldNotThenRecord() async throws {
+        let canonical = root.appendingPathComponent("canon-refused")
+        let captured = root.appendingPathComponent("acc-captured-refused")
+        let plain = root.appendingPathComponent("acc-plain-refused")
+        for dir in [canonical, captured, plain] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        for (dir, command) in [(captured, "/bin/echo captured"), (plain, "/bin/echo plain")] {
+            try #"{"statusLine":{"type":"command","command":"\#(command)"}}"#
+                .write(to: dir.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        }
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
+            accounts: [AccountConfig(name: "default", configDir: canonical.path),
+                       AccountConfig(name: "captured", configDir: captured.path),
+                       AccountConfig(name: "plain", configDir: plain.path)]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        state.folders.canonicalDir = canonical.path
+        state.folders.bin = root.appendingPathComponent("bin-refused").path
+        state.installMonitoring(state.config.accounts[1])
+        XCTAssertNil(state.actionError, "fixture: captured while the config could be saved")
+        func settings(_ dir: URL) throws -> Data { try Data(contentsOf: dir.appendingPathComponent("settings.json")) }
+        let before = (captured: try settings(captured), plain: try settings(plain))
+        let savedConfig = try Data(contentsOf: configURL)
+
+        state.mayWrite = { false }
+        let refusals = [state.attempt { state.disableMonitoring(state.config.accounts[1]) },
+                        state.attempt { state.installMonitoring(state.config.accounts[2]) },
+                        state.attempt { state.linkAccount(state.config.accounts[2]) }]
+
+        for refusal in refusals {
+            XCTAssertTrue(refusal?.contains("Grove.app is running") == true, refusal ?? "nil")
+        }
+        XCTAssertEqual(try settings(captured), before.captured, "still the wrapper, as the config says")
+        XCTAssertEqual(try settings(plain), before.plain)
+        XCTAssertNil(try? FileManager.default.destinationOfSymbolicLink(
+            atPath: plain.appendingPathComponent("file-history").path), "nothing linked")
+        XCTAssertEqual(try Data(contentsOf: configURL), savedConfig)
+        XCTAssertEqual(state.config.accounts.map(\.monitoring), [false, true, false])
+        XCTAssertEqual(state.config.accounts.map(\.sharedStore), [false, false, false])
+    }
+
+    /// refresh() must populate the captures on the Accounts route even when NO
+    /// project is selected — refreshUsage runs BEFORE the
+    /// `guard let project = selectedProject` early-return (it iterates accounts).
+    @MainActor
+    func testRefreshPopulatesUsageWithNoSelectedProject() async throws {
+        let accDir = root.appendingPathComponent("acc-no-project")
+        try FileManager.default.createDirectory(at: accDir, withIntermediateDirectories: true)
+        // A capture snapshot the account-scoped reader will pick up.
+        let usageDir = accDir.appendingPathComponent("grove/usage")
+        try FileManager.default.createDirectory(at: usageDir, withIntermediateDirectories: true)
+        try #"""
+        {"capturedAt":"2025-06-15T10:00:00Z","raw":{"session_id":"s1",
+          "workspace":{"current_dir":"/ws/x"},
+          "rate_limits":{"five_hour":{"used_percentage":40,"resets_at":"2025-06-15T13:00:00Z"}}}}
+        """#.write(to: usageDir.appendingPathComponent("s1.json"),
+                   atomically: true, encoding: .utf8)
+        let work = AccountConfig(name: "work", configDir: accDir.path)
+        try ConfigStore(url: configURL).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}",
+            projects: [], accounts: [work]))
+        let state = makeState(runner: ScriptedRunner(responses: [:]))
+        // No project selected — the early-return path.
+        state.selectedProjectID = nil
+
+        await state.refresh()
+
+        XCTAssertNil(state.actionError)
+        // Usage populated despite no selected project (refreshUsage ran first).
+        XCTAssertNotNil(state.snapshotsByAccount["work"])
+        XCTAssertEqual(state.snapshotsByAccount["work"]?.first?.fiveHour?.usedPercentage, 40)
+    }
+}

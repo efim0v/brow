@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
 
 /// Everything `limits.json` holds: the per-organisation snapshots and the

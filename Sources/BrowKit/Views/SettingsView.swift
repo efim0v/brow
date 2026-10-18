@@ -1,21 +1,62 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
+import GroveAppKit
+import GroveCore
 import ServiceManagement
 import SwiftUI
+
+/// The tabs of Brow's one Settings window.
+public enum SettingsPane: String, CaseIterable, Sendable {
+    case general, accounts, workspaces, about
+
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .accounts: return "Accounts"
+        case .workspaces: return "Workspaces"
+        case .about: return "About"
+        }
+    }
+
+    /// Where the Workspaces panel's links land.
+    public init(_ link: WorkspacesSettingsLink) {
+        switch link {
+        case .workspaces: self = .workspaces
+        case .accounts: self = .accounts
+        }
+    }
+}
+
+/// Which tab the window shows. Owned outside the view tree, so the panel's gear can
+/// turn the window to Workspaces while it is already open.
+@MainActor
+public final class SettingsNavigation: ObservableObject {
+    @Published public var pane: SettingsPane = .general
+    public init() {}
+}
 
 public struct SettingsView: View {
     @ObservedObject var store: LimitsStore
     @ObservedObject var addFlow: AddAccountFlow
+    @ObservedObject var navigation: SettingsNavigation
     /// Names typed but not committed yet. Held outside the view tree so closing the
     /// window cannot discard them — see `SettingsDrafts`.
     let drafts: SettingsDrafts
     /// nil where nothing can post (the README screenshots): the permission row is left out.
     let notifier: LimitNotifier?
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    /// nil where Workspaces is not hosted (tests, screenshots of the notch only).
+    let workspaces: WorkspacesHost?
 
-    public init(store: LimitsStore, addFlow: AddAccountFlow, drafts: SettingsDrafts, notifier: LimitNotifier? = nil) {
+    @MainActor
+    public init(store: LimitsStore, addFlow: AddAccountFlow, drafts: SettingsDrafts, notifier: LimitNotifier? = nil,
+                workspaces: WorkspacesHost? = nil, navigation: SettingsNavigation? = nil) {
         self.store = store
         self.addFlow = addFlow
         self.drafts = drafts
         self.notifier = notifier
+        self.workspaces = workspaces
+        self.navigation = navigation ?? SettingsNavigation()
     }
 
     /// The RAW auto-detection result, never the effective path: its only job is to
@@ -31,147 +72,26 @@ public struct SettingsView: View {
     private var claudePath: String { store.settings.claudePath ?? claudeDetected ?? "claude" }
 
     public var body: some View {
-        TabView {
-            accounts.tabItem { Text("Accounts") }
-            general.tabItem { Text("General") }
+        TabView(selection: $navigation.pane) {
+            general.tabItem { Text(SettingsPane.general.title) }.tag(SettingsPane.general)
+            AccountsTab(store: store, addFlow: addFlow, drafts: drafts, workspaces: workspaces, claudePath: claudePath)
+                .tabItem { Text(SettingsPane.accounts.title) }.tag(SettingsPane.accounts)
+            workspacesTab.tabItem { Text(SettingsPane.workspaces.title) }.tag(SettingsPane.workspaces)
+            AboutView().tabItem { Text(SettingsPane.about.title) }.tag(SettingsPane.about)
         }
-        .frame(width: 560, height: 420)
+        .frame(width: 620, height: 500)
         .padding()
     }
 
-    /// `allRows`, not `rows`: a hidden account has to stay listed here or its
-    /// "Show" toggle could never be turned back on.
-    private var accounts: some View {
-        Form {
-            Section {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Add an account").font(.headline)
-                        Text("One click: Terminal opens with Anthropic's sign-in; Brow does the rest.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    // Nothing to pick or name: the folder is chosen for the user
-                    // (~/.claude-accounts/account-N) and the sign-in is Anthropic's own.
-                    Button { addFlow.quickAdd(claudePath: claudePath) } label: {
-                        Label("Sign in…", systemImage: "person.badge.plus")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    // For a config folder that already exists somewhere else.
-                    Button("Existing folder…") {
-                        if let dir = addFlow.chooseFolder() { addFlow.begin(dir: dir) }
-                    }
-                }
-                if let dir = addFlow.pendingDir {
-                    let command = AddAccountFlow.launchCommand(dir: dir)
-                    HStack {
-                        Text(command).font(.system(.caption, design: .monospaced))
-                            .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
-                        Spacer()
-                        Button { AddAccountFlow.copyToPasteboard(command) } label: { Label("Copy", systemImage: "doc.on.doc") }
-                    }
-                }
-                if let s = addFlow.status { Text(s).font(.caption) }
-            }
-            ForEach(store.allRows) { row in
-                Section {
-                    // Committed on Return / focus loss / window close, not on every
-                    // keystroke: each write of `store.settings` is a synchronous atomic
-                    // JSON write plus a full recompute plus a panel re-render with a
-                    // 0.18 s animation.
-                    AccountNameField(accountID: row.id, initial: store.settings.accounts[row.id]?.name ?? "",
-                                     drafts: drafts, store: store)
-                    LabeledContent("Email", value: row.account.email ?? "—")
-                    LabeledContent("Tier", value: PanelText.tierLabel(row.account.tier))
-                    LabeledContent("Folder") {
-                        Text(row.account.configDir + (row.account.aliasDirs.isEmpty ? "" : " (+\(row.account.aliasDirs.count) alias)"))
-                            .font(.caption).textSelection(.enabled)
-                    }
-                    LabeledContent("Token", value: row.tokenStatus)
-                    // The command that runs Claude Code as this account, in plain sight:
-                    // paste it into any terminal. The copy button sits right on it.
-                    LabeledContent("Launch") {
-                        let command = AddAccountFlow.launchCommand(dir: row.account.configDir)
-                        HStack(spacing: 6) {
-                            Text(command)
-                                .font(.system(.caption, design: .monospaced))
-                                .lineLimit(1).truncationMode(.middle)
-                                .textSelection(.enabled)
-                            Button { AddAccountFlow.copyToPasteboard(command) } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Copy the launch command")
-                        }
-                    }
-                    HStack {
-                        Toggle("Show", isOn: Binding(
-                            get: { !store.settings.isHidden(row.id) },
-                            set: { store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].hidden = !$0 }))
-                        Spacer()
-                        if row.account.keychainLocked {
-                            Button {
-                                Task { await store.grantKeychainAccess(row.account) }
-                            } label: { Label("Grant Keychain access", systemImage: "key.fill") }
-                                .help("macOS asks once; choose “Always Allow”. Needed again only after a fresh `claude auth login` recreates the item.")
-                        }
-                        Button {
-                            AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir))
-                        } label: { Label("Copy launch command", systemImage: "doc.on.doc") }
-                        Button {
-                            AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)
-                        } label: { Label("Sign in again", systemImage: "person.badge.key") }
-                            .help("Opens Terminal with `claude auth login` for this account; the browser window is this account's own profile.")
-                    }
-                    HStack {
-                        Text("Browser profile: a complete Chrome profile of its own, named after the account — every site's sessions, cookies and saved passwords stay in it between launches.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Button {
-                            AddAccountFlow.openBrowserProfile(dir: row.account.configDir)
-                        } label: { Label("Open browser profile", systemImage: "globe") }
-                            .help("Open this account's own Chrome profile on claude.ai. Sign in there once (Apple, Google, email — and any other site you like); it all stays, and every later `claude auth login` is one click.")
-                    }
-                }
-            }
-            Section {
-                Toggle("Allow `claude -p` fallback", isOn: $store.settings.allowPromptFallback)
-                Text("Used only when `claude doctor` fails to refresh a token. Spends a small amount of that account's limit and starts its 5-hour window.")
+    @ViewBuilder private var workspacesTab: some View {
+        if let workspaces {
+            WorkspacesSettingsTab(host: workspaces)
+        } else {
+            Form {
+                Text(WorkspacesSettingsTab.explanation(activation: .off, groveSetup: false))
                     .font(.caption).foregroundStyle(.secondary)
             }
-        }
-        .formStyle(.grouped)
-    }
-
-    /// A name field whose edits stay local until the user is done with them — but
-    /// every keystroke is recorded in `drafts`, which outlives this view. Closing the
-    /// window destroys the SwiftUI tree and this `@State` with it, and the focus-loss
-    /// change is not guaranteed to be delivered first, so a rename typed and then
-    /// "finished" with Cmd-W used to be silently discarded. `drafts` is what
-    /// `windowWillClose` flushes.
-    private struct AccountNameField: View {
-        let accountID: String
-        let initial: String
-        let drafts: SettingsDrafts
-        let store: LimitsStore
-        @State private var text: String
-        @FocusState private var focused: Bool
-
-        init(accountID: String, initial: String, drafts: SettingsDrafts, store: LimitsStore) {
-            self.accountID = accountID
-            self.initial = initial
-            self.drafts = drafts
-            self.store = store
-            _text = State(initialValue: initial)
-        }
-
-        var body: some View {
-            TextField("Name", text: $text)
-                .focused($focused)
-                .onChange(of: text) { _, value in drafts.record(value, for: accountID) }
-                .onSubmit { drafts.flush(into: store) }
-                .onChange(of: focused) { _, isFocused in if !isFocused { drafts.flush(into: store) } }
-                .onChange(of: initial) { _, value in if !focused { text = value } }
+            .formStyle(.grouped)
         }
     }
 
@@ -227,11 +147,12 @@ public struct SettingsView: View {
 
     private var general: some View {
         Form {
-            Toggle("Launch at login", isOn: $launchAtLogin)
-                .onChange(of: launchAtLogin) { _, on in
-                    do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
-                    catch { BrowLog.panel.error("launch at login: \(error.localizedDescription, privacy: .public)") }
-                }
+            LaunchAtLoginRow()
+            Section {
+                Toggle("Show Workspaces in the menu bar", isOn: $store.settings.workspaces.showInMenuBar)
+                Text("While Workspaces is on (Settings › Workspaces). Off, it still opens from the button in the notch panel and when you open Brow again.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             NotificationSettings(settings: $store.settings, notifier: notifier)
             Section {
                 Toggle("Show the reset calendar in the panel", isOn: $store.settings.showCalendar)
@@ -239,8 +160,13 @@ public struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
+                Toggle("Show Brow in the notch", isOn: $store.settings.showNotch)
+                Text("Off: Brow draws nothing at the top of the screen and no panel opens there. Limit warnings still arrive, Workspaces still opens from its menu-bar item, and opening Brow again from Finder or Spotlight shows Workspaces or this window.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Toggle("Show readouts next to the notch", isOn: $store.settings.showEars)
-                Text("Off: nothing is drawn until the pointer reaches the notch itself; the panel then opens with its animation.")
+                    .disabled(!store.settings.showNotch)
+                Text("Off: nothing is drawn until the pointer reaches the notch itself — on a display without one, the top centre of the screen — and the panel then opens with its animation.")
                     .font(.caption).foregroundStyle(.secondary)
                 // The store writes config.json and publishes on every change, and the
                 // panel re-reads `earsPlacement` on every render — so the strip reshapes
@@ -250,8 +176,15 @@ public struct SettingsView: View {
                     Text("Below the notch").tag(EarsPlacement.below)
                 }
                 .pickerStyle(.segmented)
-                .disabled(!store.settings.showEars)
+                .disabled(!store.settings.showNotch || !store.settings.showEars)
                 Text("Where the two readouts sit on a built-in display with a notch. An external display always shows the pill.")
+                    .font(.caption).foregroundStyle(.secondary)
+                // On by default: it draws only in Brow's own black, covers no number, needs no
+                // permission and interrupts nothing. It lives in the notch, so with Brow out of the
+                // notch there is no pet to show.
+                Toggle("Show the pet", isOn: $store.settings.showPet)
+                    .disabled(!store.settings.showNotch)
+                Text("A small creature beside the notch that eats what your accounts use: it takes a bite when the 5-hour number goes up, sleeps when a limit is used up and wakes at the reset. It only gets hungry while you are at the Mac, and follows Reduce Motion. Nothing leaves this Mac.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             UsageImageSection(store: store)
@@ -286,9 +219,403 @@ public struct SettingsView: View {
                 case .notFound:
                     Text("Not found. Ran: \(ClaudePathResolver.detectionCommand)").font(.caption).foregroundStyle(.orange)
                 }
+                Text("Sign-ins, Open in Terminal, token refresh and the sessions Workspaces starts all run this claude.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Settings › Accounts: one card per account Brow found, and — while Workspaces runs —
+/// the card's Workspaces section, for the Workspaces account in the same config folder.
+struct AccountsTab: View {
+    @ObservedObject var store: LimitsStore
+    @ObservedObject var addFlow: AddAccountFlow
+    let drafts: SettingsDrafts
+    let workspaces: WorkspacesHost?
+    let claudePath: String
+
+    /// `allRows`, not `rows`: a hidden account has to stay listed here or its
+    /// "Show" toggle could never be turned back on.
+    var body: some View {
+        Form {
+            Section {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add an account").font(.headline)
+                        Text("One click: Terminal opens with Anthropic's sign-in; Brow does the rest.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    // Nothing to pick or name: the folder is chosen for the user
+                    // (~/.claude-accounts/account-N) and the sign-in is Anthropic's own.
+                    Button { addFlow.quickAdd(claudePath: claudePath) } label: {
+                        Label("Sign in…", systemImage: "person.badge.plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    // For a config folder that already exists somewhere else.
+                    Button("Existing folder…") {
+                        if let dir = addFlow.chooseFolder() { addFlow.begin(dir: dir) }
+                    }
+                }
+                if let dir = addFlow.pendingDir {
+                    let command = AddAccountFlow.launchCommand(dir: dir)
+                    HStack {
+                        Text(command).font(.system(.caption, design: .monospaced))
+                            .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        Spacer()
+                        Button { AddAccountFlow.copyToPasteboard(command) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                    }
+                }
+                if let s = addFlow.status { Text(s).font(.caption) }
+            }
+            ForEach(store.allRows) { row in
+                Section {
+                    card(row)
+                    if let workspaces { WorkspacesCardSection(host: workspaces, row: row) }
+                } footer: {
+                    // What Capture the status line does, once, under the last card.
+                    if let workspaces, row.id == store.allRows.last?.id { CaptureFootnote(host: workspaces) }
+                }
+            }
+            if let workspaces { WorkspacesOtherAccounts(host: workspaces, cards: store.allRows.map(\.account)) }
+            Section {
+                Toggle("Allow `claude -p` fallback", isOn: $store.settings.allowPromptFallback)
+                Text("Used only when `claude doctor` fails to refresh a token. Spends a small amount of that account's limit and starts its 5-hour window.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        // A status line Workspaces captured stays captured while it is off: read which.
+        .onAppear { workspaces?.reloadDormantAccounts() }
+    }
+
+    @ViewBuilder private func card(_ row: AccountRow) -> some View {
+        // Committed on Return / focus loss / window close, not on every keystroke: each
+        // write of `store.settings` is a synchronous atomic JSON write plus a full
+        // recompute plus a panel re-render with a 0.18 s animation.
+        AccountNameField(accountID: row.id, initial: store.settings.accounts[row.id]?.name ?? "",
+                         drafts: drafts, store: store)
+        LabeledContent("Email", value: row.account.email ?? "—")
+        LabeledContent("Tier", value: PanelText.tierLabel(row.account.tier))
+        LabeledContent("Folder") {
+            Text(row.account.configDir + (row.account.aliasDirs.isEmpty ? "" : " (+\(row.account.aliasDirs.count) alias)"))
+                .font(.caption).textSelection(.enabled)
+        }
+        LabeledContent("Token", value: row.tokenStatus)
+        // The command that runs Claude Code as this account, in plain sight: paste it
+        // into any terminal. The copy button sits right on it.
+        LabeledContent("Launch") {
+            let command = AddAccountFlow.launchCommand(dir: row.account.configDir, home: addFlow.home)
+            HStack(spacing: 6) {
+                Text(command)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1).truncationMode(.middle)
+                    .textSelection(.enabled)
+                Button { AddAccountFlow.copyToPasteboard(command) } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy the launch command")
+            }
+        }
+        HStack {
+            Toggle("Show", isOn: Binding(
+                get: { !store.settings.isHidden(row.id) },
+                set: { store.settings.accounts[row.id, default: AccountOverride(name: nil, hidden: false)].hidden = !$0 }))
+            Spacer()
+            if row.account.keychainLocked {
+                Button {
+                    Task { await store.grantKeychainAccess(row.account) }
+                } label: { Label("Grant Keychain access", systemImage: "key.fill") }
+                    .help("macOS asks once; choose “Always Allow”. Needed again only after a fresh `claude auth login` recreates the item.")
+            }
+            Button {
+                AddAccountFlow.copyToPasteboard(AddAccountFlow.launchCommand(dir: row.account.configDir, home: addFlow.home))
+            } label: { Label("Copy launch command", systemImage: "doc.on.doc") }
+            Button {
+                AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)
+            } label: { Label("Sign in again", systemImage: "person.badge.key") }
+                .help("Opens Terminal with `claude auth login` for this account; the browser window is this account's own profile.")
+        }
+        HStack {
+            Text("Browser profile: a complete Chrome profile of its own, named after the account — every site's sessions, cookies and saved passwords stay in it between launches.")
+                .font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                AddAccountFlow.openBrowserProfile(dir: row.account.configDir)
+            } label: { Label("Open browser profile", systemImage: "globe") }
+                .help("Open this account's own Chrome profile on claude.ai. Sign in there once (Apple, Google, email — and any other site you like); it all stays, and every later `claude auth login` is one click.")
+        }
+    }
+}
+
+/// The Workspaces part of one account card: all of it while Workspaces runs; while it
+/// does not, the switch that gives back a status line it captured, which goes on
+/// running Brow's wrapper until that switch is turned off.
+private struct WorkspacesCardSection: View {
+    @ObservedObject var host: WorkspacesHost
+    let row: AccountRow
+
+    var body: some View {
+        if host.activation == .on, let state = host.state {
+            WorkspacesCardJoin(state: state, row: row)
+        } else if let account = WorkspacesAccountJoin.match(row.account, in: host.dormantCaptures) {
+            Text("Workspaces").font(.subheadline.weight(.semibold)).padding(.top, 4)
+            DormantCaptureSwitch(host: host, account: account)
+        }
+    }
+}
+
+/// The Workspaces accounts no card above shows (`WorkspacesAccountJoin.unmatched`), each
+/// in a section of its own: every one while Workspaces runs, the ones whose status line
+/// it captured while it does not.
+private struct WorkspacesOtherAccounts: View {
+    @ObservedObject var host: WorkspacesHost
+    let cards: [DiscoveredAccount]
+
+    var body: some View {
+        if host.activation == .on, let state = host.state {
+            WorkspacesOtherAccountList(state: state, cards: cards)
+        } else {
+            ForEach(WorkspacesAccountJoin.unmatched(host.dormantCaptures, cards: cards), id: \.name) { account in
+                let gone = WorkspacesAccountJoin.isGone(account)
+                Section {
+                    LabeledContent("Folder") {
+                        Text(account.configDir).font(.caption).textSelection(.enabled)
+                    }
+                    if gone {
+                        GoneAccountRow(disabled: host.dormantChangeBlock != nil) { host.removeAccount(account) }
+                        if let error = host.changeError(for: account) { FailureNote(text: error) }
+                    } else {
+                        DormantCaptureSwitch(host: host, account: account)
+                    }
+                } header: {
+                    Text("Workspaces account “\(account.name)”")
+                } footer: {
+                    if gone { GoneAccountRow.footer }
+                }
+            }
+        }
+    }
+}
+
+/// Capture the status line, for an account Workspaces captured while Workspaces is off
+/// or paused: on, and turning it off gives the account its own command back. Not while
+/// Grove.app, or another copy of Brow running Workspaces, could write the same files.
+struct DormantCaptureSwitch: View {
+    @ObservedObject var host: WorkspacesHost
+    let account: AccountConfig
+
+    var body: some View {
+        let waitsFor = host.dormantChangeBlock
+        // Why it is still on is said once, under the account cards (`CaptureFootnote`).
+        Toggle("Capture the status line", isOn: Binding(
+            get: { true },
+            set: { on in if !on { host.releaseStatusLine(account) } }))
+            .disabled(waitsFor != nil)
+            .help(Self.explanation(activation: host.activation, waitsFor: waitsFor))
+        if let error = host.changeError(for: account) {
+            FailureNote(text: error)
+        }
+    }
+
+    /// Why a status line Workspaces captured is still on while Workspaces is not, and how
+    /// to turn it off. `waitsFor`: what writes the same files meanwhile, if anything
+    /// (`WorkspacesHost.dormantChangeBlock`).
+    static func explanation(activation: WorkspacesActivation, waitsFor: WorkspacesPause?) -> String {
+        switch (activation, waitsFor) {
+        case (_, .anotherBrow?):
+            return "Workspaces runs in another copy of Brow, and the status lines it captured still go through Brow's wrapper. Turn capture off there, or quit that copy to turn it off here."
+        case (.paused, _):
+            return "Workspaces is paused while Grove runs, and the status lines it captured still go through Brow's wrapper. Quit Grove to turn Capture the status line off here."
+        case (_, .groveRunning?):
+            return offText + " Grove is running and edits the same files: quit Grove to turn it off here."
+        default:
+            return offText + " Turn it off to put your command back."
+        }
+    }
+
+    private static let offText = "Workspaces is off, but the status line of each account with Capture the status line on still goes through Brow's wrapper, which records each session for the notch and then runs your own command."
+}
+
+/// What Capture the status line does, said once under the account cards instead of in
+/// every card: how it works while Workspaces runs, why it is still on while it does not.
+struct CaptureFootnote: View {
+    @ObservedObject var host: WorkspacesHost
+
+    static let capturing = "Capture the status line points the account's statusLine in settings.json at Brow's wrapper, which records each session's model, context use and limits, then runs your own status-line command. Turning it off puts your command back."
+
+    var body: some View {
+        if let text = Self.text(activation: host.activation, waitsFor: host.dormantChangeBlock,
+                                hasAccounts: !(host.state?.config.accounts.isEmpty ?? true),
+                                hasDormantCaptures: !host.dormantCaptures.isEmpty) {
+            Text(text)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// nil when no switch is shown above it. `waitsFor`: as `DormantCaptureSwitch` has it.
+    static func text(activation: WorkspacesActivation, waitsFor: WorkspacesPause?,
+                     hasAccounts: Bool, hasDormantCaptures: Bool) -> String? {
+        switch activation {
+        case .on: return hasAccounts ? capturing : nil
+        case .paused, .off:
+            return hasDormantCaptures ? DormantCaptureSwitch.explanation(activation: activation, waitsFor: waitsFor) : nil
+        }
+    }
+}
+
+private struct WorkspacesOtherAccountList: View {
+    @ObservedObject var state: AppState
+    let cards: [DiscoveredAccount]
+    /// What the last Remove could not do.
+    @State private var failure: String?
+
+    var body: some View {
+        ForEach(WorkspacesAccountJoin.unmatched(state.config.accounts, cards: cards), id: \.name) { account in
+            let gone = WorkspacesAccountJoin.isGone(account)
+            Section {
+                LabeledContent("Folder") {
+                    Text(account.configDir).font(.caption).textSelection(.enabled)
+                }
+                if gone {
+                    GoneAccountRow(disabled: false) {
+                        failure = state.attempt { state.removeAccount(name: account.name) }
+                    }
+                    if let failure { FailureNote(text: failure) }
+                } else {
+                    WorkspacesAccountSection(state: state, account: account)
+                }
+            } header: {
+                Text("Workspaces account “\(account.name)”")
+            } footer: {
+                if gone {
+                    GoneAccountRow.footer
+                } else {
+                    Text("Brow shows no limits for this account: its folder has no sign-in Brow can read, or it is a second folder of an account above.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+}
+
+/// A Workspaces account whose folder is gone. Nothing about it can change any more —
+/// its status line, sessions and settings went with the folder, and nothing re-creates
+/// it — but whether Workspaces still lists it, in its pickers and here.
+struct GoneAccountRow: View {
+    let disabled: Bool
+    let remove: () -> Void
+
+    var body: some View {
+        LabeledContent {
+            Button("Remove from Workspaces", action: remove)
+                .disabled(disabled)
+                .help("Takes the account out of Workspaces' list only: nothing on disk changes")
+        } label: {
+            Label("Its folder is gone", systemImage: "folder.badge.questionmark")
+        }
+    }
+
+    static var footer: some View {
+        Text(explanation)
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    static let explanation = "Its folder was deleted or is on a disk that isn't connected, so Brow shows no limits for it and nothing can launch in it. Remove from Workspaces takes it out of the account pickers and of Settings; a project that launched on it by default uses the first account instead."
+}
+
+private struct WorkspacesCardJoin: View {
+    @ObservedObject var state: AppState
+    let row: AccountRow
+
+    var body: some View {
+        if let account = WorkspacesAccountJoin.match(row.account, in: state.config.accounts) {
+            Text("Workspaces").font(.subheadline.weight(.semibold)).padding(.top, 4)
+            WorkspacesAccountSection(state: state, account: account)
+        }
+    }
+}
+
+/// A name field whose edits stay local until the user is done with them — but every
+/// keystroke is recorded in `drafts`, which outlives this view. Closing the window
+/// destroys the SwiftUI tree and this `@State` with it, and the focus-loss change is not
+/// guaranteed to be delivered first, so a rename typed and then "finished" with Cmd-W
+/// used to be silently discarded. `drafts` is what `windowWillClose` flushes.
+struct AccountNameField: View {
+    let accountID: String
+    let initial: String
+    let drafts: SettingsDrafts
+    let store: LimitsStore
+    @State private var text: String
+    @FocusState private var focused: Bool
+
+    init(accountID: String, initial: String, drafts: SettingsDrafts, store: LimitsStore) {
+        self.accountID = accountID
+        self.initial = initial
+        self.drafts = drafts
+        self.store = store
+        _text = State(initialValue: initial)
+    }
+
+    var body: some View {
+        TextField("Name", text: $text)
+            .focused($focused)
+            .onChange(of: text) { _, value in drafts.record(value, for: accountID) }
+            .onSubmit { drafts.flush(into: store) }
+            .onChange(of: focused) { _, isFocused in if !isFocused { drafts.flush(into: store) } }
+            .onChange(of: initial) { _, value in if !focused { text = value } }
+    }
+}
+
+/// Launch at login, as macOS has it — read back after every change, so the toggle can
+/// never show on while it is off (brow#8): a register that fails, or one waiting for the
+/// user's approval in System Settings, leaves it off and says why.
+struct LaunchAtLoginRow: View {
+    @State private var status = SMAppService.mainApp.status
+    @State private var failure: String?
+
+    var body: some View {
+        Toggle("Launch at login", isOn: Binding(get: { LaunchAtLogin.isOn(status) }, set: change))
+        if let note = LaunchAtLogin.note(status: status, failure: failure) {
+            HStack {
+                Text(note).font(.caption).foregroundStyle(.orange)
+                Spacer()
+                if status == .requiresApproval {
+                    Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                }
+            }
+        }
+    }
+
+    private func change(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            failure = nil
+        } catch {
+            failure = error.localizedDescription
+            BrowLog.panel.error("launch at login: \(error.localizedDescription, privacy: .public)")
+        }
+        status = SMAppService.mainApp.status
+    }
+}
+
+/// The launch-at-login toggle's rules, apart from the view.
+enum LaunchAtLogin {
+    /// On only when macOS says it is: waiting for approval is not on.
+    static func isOn(_ status: SMAppService.Status) -> Bool { status == .enabled }
+
+    static func note(status: SMAppService.Status, failure: String?) -> String? {
+        if status == .requiresApproval {
+            return "Waiting for your approval in System Settings › General › Login Items."
+        }
+        if let failure { return "macOS did not change it: \(failure)" }
+        return nil
     }
 }
 

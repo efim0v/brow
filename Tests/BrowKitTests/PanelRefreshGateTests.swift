@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import XCTest
 import SwiftUI
 import GroveCore
@@ -74,6 +77,22 @@ final class PanelRefreshGateTests: XCTestCase {
         await forced.value
     }
 
+    /// The Workspaces button joins the footer LEFT of share, so the ⟳ the test above
+    /// measures is drawn exactly where it was, pixel for pixel.
+    func testTheWorkspacesButtonLeavesTheRefreshButtonWhereItIs() async throws {
+        let dir = try makeAccount()
+        let creds = Creds(); creds.expiry[dir] = t0.addingTimeInterval(3600)
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(dir)"] = (Self.body, 200)
+        let store = makeStore(fetcher: fetcher, creds: creds)
+        await store.refresh(force: false)
+        clock.date = t0.addingTimeInterval(60)
+        let without = try button(of: render(store))
+        let with = try button(of: render(store, onWorkspaces: {}))
+        XCTAssertGreaterThan(without, 0)
+        XCTAssertEqual(with, without, accuracy: 0.002)
+    }
+
     // MARK: the button's own pixels
 
     /// Mean ink in the 20 × 20 pt box the ⟳ button occupies, measured from the panel's
@@ -93,10 +112,10 @@ final class PanelRefreshGateTests: XCTestCase {
         return total / 400
     }
 
-    private func render(_ store: LimitsStore) throws -> NSBitmapImageRep {
+    private func render(_ store: LimitsStore, onWorkspaces: (() -> Void)? = nil) throws -> NSBitmapImageRep {
         let view = PanelView(store: store, clock: PanelClock(now: { [clock] in clock.date }),
                              topInset: 40, flare: NotchGeometry.flare,
-                             onSettings: {}, onRefresh: {})
+                             onSettings: {}, onRefresh: {}, onWorkspaces: onWorkspaces)
             .frame(width: NotchGeometry.expandedWidth + 2 * NotchGeometry.flare)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1

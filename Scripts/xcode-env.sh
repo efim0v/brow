@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Artem Efimov
+
 # Source me: `source Scripts/xcode-env.sh`
 #
 # Why this exists: after a macOS/Xcode update the Xcode license must be
@@ -14,7 +17,13 @@
 # directly instead:
 #   swift build --build-tests
 #   "$DEVELOPER_DIR/usr/bin/xctest" .build/debug/*.xctest
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+# The Xcode xcode-select points at (a CI image may keep several side by side), else
+# the usual place. xcode-select itself is not one of the shims, so it answers.
+if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+    DEVELOPER_DIR=$(xcode-select --print-path 2>/dev/null)
+    [[ "$DEVELOPER_DIR" == */Xcode*.app/Contents/Developer ]] || DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi
+export DEVELOPER_DIR
 export SDKROOT="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$DEVELOPER_DIR/usr/bin:$PATH"
 export DYLD_FRAMEWORK_PATH="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/Library/Frameworks"

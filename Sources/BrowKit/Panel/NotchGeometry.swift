@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
 
 /// The subset of NSScreen the geometry needs, so the math is testable without a display.

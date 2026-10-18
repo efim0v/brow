@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
+import XCTest
+import SwiftUI
+@testable import GroveAppKit
+import GroveCore
+
+/// Drives the LIVE render paths the snapshot scenes skip: real controls across every
+/// routed screen.
+/// Forcing `ImageRenderer.cgImage` evaluates every body, so a crash or a broken
+/// chart expression is caught in CI even though the offscreen pixels are blank.
+@MainActor
+final class DashboardRenderTests: XCTestCase {
+    private func render<V: View>(_ view: V, height: CGFloat = 1_400) {
+        let renderer = ImageRenderer(content:
+            view.frame(width: 320, height: height).environment(\.colorScheme, .dark))
+        renderer.scale = 1
+        _ = renderer.cgImage   // forces body evaluation, incl. the live Chart code
+    }
+
+    /// Renders every scene with isSnapshotRender=FALSE so the LIVE branches the
+    /// snapshot pipeline skips execute — real Picker/Menu/TextField/Swift Charts
+    /// and the .glassEffect chrome across every routed screen. ImageRenderer draws
+    /// glass/AppKit controls blank offscreen, but the bodies still evaluate, so a
+    /// broken live-branch expression is caught.
+    func testAllScenesRenderLiveBranches() {
+        for scene in SnapshotMode.SnapshotScene.allCases {
+            let state = SnapshotMode.configuredState(for: scene)
+            let size = scene.size
+            let view = RootView(state: state)
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+                .environment(\.isSnapshotRender, false)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 1
+            _ = renderer.cgImage
+        }
+    }
+
+    /// The Accounts screen's live branch: the settings link appears only when the host
+    /// can open its Settings window.
+    func testAccountsScreenRendersLiveBranchWithAndWithoutTheSettingsLink() {
+        let state = SnapshotMode.fixtureState()
+        render(AccountsScreen(state: state).environment(\.isSnapshotRender, false), height: 480)
+        var opened: [WorkspacesSettingsLink] = []
+        state.openSettings = { opened.append($0) }
+        render(AccountsScreen(state: state).environment(\.isSnapshotRender, false), height: 480)
+        XCTAssertTrue(opened.isEmpty, "rendering opens nothing")
+    }
+
+    func testProjectsTabEmptyAndPopulatedStates() {
+        let populated = SnapshotMode.fixtureState()
+        render(ProjectsTab(state: populated).environment(\.isSnapshotRender, true), height: 520)
+        // No-projects empty state.
+        let empty = AppState(configStore: ConfigStore(
+            url: URL(fileURLWithPath: NSTemporaryDirectory() + "grove-empty-\(UUID().uuidString).json")))
+        render(ProjectsTab(state: empty).environment(\.isSnapshotRender, true), height: 520)
+    }
+}

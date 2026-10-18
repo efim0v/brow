@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import AppKit
 import Combine
 import SwiftUI
+import GroveAppKit
 import GroveCore
 
 /// `TokenKeeper` is an actor: it calls `allowPromptFallback` on its OWN executor,
@@ -29,9 +33,8 @@ private final class SendableText: @unchecked Sendable {
     func set(_ newValue: String) { lock.lock(); value = newValue; lock.unlock() }
 }
 
-/// Process entry: wires the stores, the notch panel, the triggers and the
-/// settings window. Mirrors GroveMenuBarApp: plain AppKit, `.accessory`
-/// activation policy, no MenuBarExtra.
+/// Process entry: wires the stores, the notch panel, the triggers, Workspaces and the
+/// settings window. Plain AppKit, `.accessory` activation policy, no MenuBarExtra.
 public enum BrowApp {
     @MainActor private static var controller: BrowAppController?
 
@@ -54,11 +57,17 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     private var panel: NotchPanelController!
     private var addFlow: AddAccountFlow!
     private var notifier: LimitNotifier!
+    /// Workspaces: Grove's panel and engine, hosted. Decides at launch whether anything
+    /// of it runs (`WorkspacesActivation`); for a Brow-only user nothing does.
+    private var workspaces: WorkspacesHost?
+    private var pet: PetController!
     private let clock = PanelClock()
     private var settingsWindow: NSWindow?
     /// Names typed into Settings but not committed yet. Owned here, not by the
     /// window's SwiftUI tree, because that tree is destroyed when the window closes.
     private let drafts = SettingsDrafts()
+    /// Which Settings tab is in front; the Workspaces panel's links turn it.
+    private let navigation = SettingsNavigation()
     private var screenObserver: (any NSObjectProtocol)?
     private let promptFallback = SendableFlag(true)
     /// Reachability, mirrored out of `RefreshTriggers`' path monitor. Same reason as
@@ -125,11 +134,35 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         triggers.$isOnline
             .sink { [online] reachable in online.set(reachable) }
             .store(in: &cancellables)
-        self.panel = NotchPanelController(store: store, clock: clock,
+        // The pet reads only what the store already has; it adds no request and no Keychain read.
+        let pet = PetController(store: store)
+        self.pet = pet
+        self.panel = NotchPanelController(store: store, clock: clock, pet: pet,
                                           onExpandedChange: { [weak self] in self?.triggers.setExpanded($0) },
-                                          onSettings: { [weak self] in self?.showSettings() })
-        self.panel.show()
-        BrowLog.panel.info("panel shown")
+                                          onSettings: { [weak self] in self?.showSettings() },
+                                          onWorkspaces: { [weak self] in self?.workspaces?.togglePanel() })
+        // Unless Settings › General has it off: then nothing at the top of the screen.
+        if settings.showNotch { self.panel.show() }
+        BrowLog.panel.info("panel \(settings.showNotch ? "shown" : "off", privacy: .public)")
+        store.$settings
+            .map(\.showNotch)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] show in
+                Task { @MainActor in
+                    guard let panel = self?.panel else { return }
+                    if show { panel.show() } else { panel.hide() }
+                }
+            }
+            .store(in: &cancellables)
+        // After the panel, so its first frame has its zones; from the persisted accounts alone until the
+        // first account scan lands.
+        pet.start()
+        // After the notch is up, like everything that may touch the disk.
+        let workspaces = WorkspacesHost(store: store)
+        self.workspaces = workspaces
+        workspaces.openSettings = { [weak self] link in self?.showSettings(pane: SettingsPane(link)) }
+        workspaces.start()
         // Off until the user turns it on; even then it reads only what the store has.
         notifier = LimitNotifier(poster: SystemNotifications.isSupported ? SystemNotifications() : UnavailableNotifications())
         notifier.start(store: store)
@@ -188,7 +221,11 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         if let store { drafts.flush(into: store) }
         triggers?.stop()
         notifier?.stop()
+        workspaces?.stop()
         panel?.hide()
+        // After the panel, whose collapse and leaving the screen are the last the pet hears: `pet.json`
+        // is written whatever its schedule says, so nothing since the last save is lost.
+        pet?.flush()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver); self.screenObserver = nil }
         cancellables.removeAll()
     }
@@ -206,12 +243,12 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     }
 
     /// A non-nib app gets NO main menu of its own, and Brow has no Dock icon
-    /// (`LSUIElement` + `.accessory`), no status item and no window at launch —
-    /// so without this menu `Cmd-Q` is inert and the only way out of a running
-    /// Brow is `pkill`. Grove reaches `NSApp.terminate` from its panel footer
-    /// (`ProjectsFooter.swift`); Brow's panel is a hover strip with no room for
-    /// a Quit button, so the menu carries it — and hands the settings window
-    /// back its standard `Cmd-,` and `Cmd-W`.
+    /// (`LSUIElement` + `.accessory`) and no window at launch — and, for a Brow-only
+    /// user, no status item — so without this menu `Cmd-Q` is inert and the only way
+    /// out of a running Brow is `pkill`. The Workspaces panel has its own Quit Brow
+    /// (`ProjectsFooter.swift`); the notch panel is a hover strip with no room for one,
+    /// so the menu carries it — and hands the settings window back its standard
+    /// `Cmd-,` and `Cmd-W`.
     func makeMainMenu() -> NSMenu {
         let main = NSMenu()
 
@@ -221,6 +258,9 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettingsMenuItem(_:)), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        let showWorkspaces = NSMenuItem(title: "Show Workspaces", action: #selector(showWorkspacesMenuItem(_:)), keyEquivalent: "")
+        showWorkspaces.target = self
+        appMenu.addItem(showWorkspaces)
         appMenu.addItem(.separator())
         // nil target: the action walks the responder chain up to NSApp, which
         // implements `terminate:` — the same exit Grove's footer button takes.
@@ -255,8 +295,26 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     }
 
     @objc private func openSettingsMenuItem(_ sender: Any?) { showSettings() }
+    @objc private func showWorkspacesMenuItem(_ sender: Any?) { workspaces?.showPanel() }
 
-    func showSettings() {
+    /// What opening Brow again (Finder, Spotlight, `open -a Brow`) shows: the Workspaces
+    /// panel while Workspaces is wanted — the way in when macOS hides the menu-bar item
+    /// behind the notch — and Settings otherwise. It used to do nothing.
+    enum ReopenTarget: Equatable { case workspaces, settings }
+
+    static func reopenTarget(for activation: WorkspacesActivation) -> ReopenTarget {
+        activation.isWanted ? .workspaces : .settings
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        switch Self.reopenTarget(for: workspaces?.activation ?? .off) {
+        case .workspaces: workspaces?.showPanel()
+        case .settings: showSettings()
+        }
+        return true
+    }
+
+    func showSettings(pane: SettingsPane? = nil) {
         // `Cmd-,` is live from the moment the menu is installed, which is before
         // the launch Task has built the store — and both are implicitly
         // unwrapped, so an early hit would trap instead of doing nothing.
@@ -264,12 +322,14 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
             BrowLog.panel.error("settings opened before the accounts finished loading; ignoring")
             return
         }
+        if let pane { navigation.pane = pane }
         if settingsWindow == nil {
             // The detected path is NOT passed in: the window is built once and cached,
             // and detection can still be running. `SettingsView` reads it live off the
             // store instead (`store.claudeDetection`).
-            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts, notifier: notifier)
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 460),
+            let view = SettingsView(store: store, addFlow: addFlow, drafts: drafts, notifier: notifier,
+                                    workspaces: workspaces, navigation: navigation)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 540),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Brow Settings"
             window.contentView = NSHostingView(rootView: view)

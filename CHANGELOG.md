@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-18
+
+Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md). The notch also gets a pet that eats what your accounts use.
+
+### Added
+
+- **Workspaces**, in the menu bar: Grove's panel — projects, workspaces, sessions, Resume as…, Migrate to…, Share, the commit graph and the code statistics — on Liquid Glass, behind Brow's mark, the notch with two dots. It is off until you use it: for someone who never used Grove nothing of it runs, and nothing is read or written for it. It turns on by itself for someone who did, with their projects, accounts and settings ([what changes](README.md#coming-from-grove)).
+- While Grove.app is running, Workspaces waits and offers Quit Grove, so the two never write the same files. It also runs in one copy of Brow at a time: a second install or a development build waits while another copy runs it.
+- The notch panel gets a Workspaces button, which also opens Workspaces when macOS hides the menu-bar item behind the notch. Opening Brow again from Finder or Spotlight shows Workspaces while it is on, and Settings otherwise. Brow's menu gets Show Workspaces.
+- Every account picker in Workspaces — the launch sheet, Resume as…, Migrate to…, the Accounts screen — shows that account's 5-hour and weekly use as the notch reads it. Workspaces names each account as the notch does, by the name given in Settings → Accounts, and writes its plan the same way (Max 20x).
+- One Settings window with four tabs. General gains Show Workspaces in the menu bar. Each card in Accounts gains a Workspaces section: Share sessions, Capture the status line, and the account's default model and effort; a Workspaces account with no card of its own, such as a second folder of the same login, gets a section after the cards, and one whose folder is gone can be removed from Workspaces there. Workspaces holds the projects, the workspace folder, the transcript safety net and the panel material. About has the version, the licence and the credits.
+- The command-line tool is `brow`, with `grove` as a second name, so scripts written for Grove's tool keep working unchanged. `brow --version` prints Brow's version. It ships as `brow-cli.zip`.
+- The model pickers offer Claude Code's aliases (`opus`, `sonnet`, `haiku`), pinned versions, and Other… for any model id.
+- Settings → General → Show Brow in the notch. Off, Brow draws nothing at the top of the screen and no panel opens there, for someone who uses Brow for Workspaces only. Limit warnings still arrive, and opening Brow again shows Workspaces or Settings.
+- **Glim, a pet that eats your limits.** A small creature lives in the black beside the notch, below it, or in the pill, and eats what your accounts use: when the 5-hour number goes up, it takes a bite, drawn as a bead of light that leaves the number untouched. Hours at the Mac without Claude Code make it hungry; it never gets hungry while you are away, and its light is its hunger meter. When the 5-hour limit is used up it falls asleep full until the window resets; when the weekly limit is used up it hibernates in its den behind the camera until the weekly reset. It perks up when a prompt is written to an account's `history.jsonl`, which Brow asks macOS to watch and never reads. Hover the notch and it hops into a new first row of the panel, with its state, its last meal and a hunger meter; a click on it boops it. It draws only while someone can see it, follows Reduce Motion, Reduce Transparency and Increase Contrast, and keeps its state in `~/Library/Application Support/Brow/pet.json`. On by default; Settings → General → **Show the pet** turns it off, and with Show Brow in the notch off there is no pet at all.
+
+### Changed
+
+- Capturing an account's status line is a choice per account. Grove installed its wrapper into every account's `settings.json` at launch; Brow installs it only where you turn capture on, and keeps it where Grove already had it. Claude Code keeps running the wrapper while Workspaces is off, so Settings → Accounts keeps the switch that gives the status line back, whether Workspaces is on or off.
+- The transcript safety net is off for a setup Brow creates; a Grove setup keeps its setting.
+- The transcript safety net no longer puts a transcript back by itself. The transcripts that vanish are listed in Settings → Workspaces, newest first, with Restore: a period passed to `claude --settings` cannot be read from outside, so only you can tell a transcript deleted by accident from one cleaned up on purpose.
+- Sessions Workspaces starts use Brow's own browser router and Settings → General → Path to claude.
+- Brow's settings decode field by field: a value that cannot be read costs that one setting instead of all of them, and the file as it was is kept as `config.json.bak` ([#7](https://github.com/efim0v/brow/issues/7)).
+- One log subsystem, `dev.artemefimov.brow`, for the whole app.
+
+### Fixed
+
+- The transcript safety net no longer brings back, or keeps, transcripts Claude Code's own retention deleted. It restored every mirrored transcript under 90 days old; it now reads `cleanupPeriodDays` from your organization's managed settings, server-managed settings, the account's settings and the project settings of every folder the account's sessions ran in, takes the shortest — for a workspace shared between accounts, the shortest of all of theirs — and keeps nothing past it. Migrate to… follows the same rule when it falls back on the safety net's copy ([efim0v/grove#6](https://github.com/efim0v/grove/issues/6)).
+- Opening Accounts no longer shows a red "unknown session store" banner for the folders Claude Code itself writes ([efim0v/grove#7](https://github.com/efim0v/grove/issues/7)).
+- Launch no longer re-creates an account folder you deleted ([efim0v/grove#12](https://github.com/efim0v/grove/issues/12)).
+- Reading a token through the `security` tool gives up after ten seconds, as it was meant to ([efim0v/grove#9](https://github.com/efim0v/grove/issues/9)).
+- The model pickers no longer miss new models ([efim0v/grove#10](https://github.com/efim0v/grove/issues/10)).
+- The launch-at-login toggle can no longer show on while it is off, and says when macOS is waiting for your approval ([#8](https://github.com/efim0v/brow/issues/8)).
+- The build has no compiler warnings again ([efim0v/grove#11](https://github.com/efim0v/grove/issues/11)).
+- With Show readouts next to the notch off, a display without a notch no longer shows an empty black pill: nothing is drawn until the pointer reaches the top centre, as the setting says.
+
 ## [0.3.1] - 2026-10-15
 
 ### Fixed
@@ -77,7 +113,8 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.3.1...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/efim0v/brow/compare/0.3.1...0.4.0
 [0.3.1]: https://github.com/efim0v/brow/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/efim0v/brow/compare/0.2.3...0.3.0
 [0.2.3]: https://github.com/efim0v/brow/compare/0.2.2...0.2.3

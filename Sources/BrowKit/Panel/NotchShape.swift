@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import SwiftUI
 
 /// The notch outline: concave where the black meets the screen edge (the physical

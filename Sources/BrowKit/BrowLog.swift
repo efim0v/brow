@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Artem Efimov
+
 import Foundation
 import os
 
@@ -8,6 +11,12 @@ public enum BrowLog {
     public static let tokens = Logger(subsystem: "dev.artemefimov.brow", category: "tokens")
     public static let panel  = Logger(subsystem: "dev.artemefimov.brow", category: "panel")
     public static let notify = Logger(subsystem: "dev.artemefimov.brow", category: "notify")
+    /// Hosting Workspaces: activation, the Grove-running guard. The engine itself logs
+    /// under the same subsystem (GroveLog).
+    public static let workspaces = Logger(subsystem: "dev.artemefimov.brow", category: "workspaces")
+    /// The pet: an unreadable `pet.json`, a clock that jumped, and the `-petPerfLog` lines once a
+    /// minute.
+    public static let pet    = Logger(subsystem: "dev.artemefimov.brow", category: "pet")
 }
 
 /// "Say this once per process." For conditions that are real failures but are

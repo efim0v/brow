@@ -70,8 +70,10 @@
   --muted: #5f5e5a;
   --rule: #e4e3df;
   --code-bg: #f2f1ee;
-  --button: #161616;
-  --button-ink: #fff;
+  /* Buttons in Brow's cream, the colour of Glim, the same in light and dark */
+  --button: #f2dfb8;
+  --button-ink: #2a2218;
+  --button-edge: rgba(42, 34, 24, .14);
   --window-edge: rgba(0, 0, 0, .35);
   --sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -83,8 +85,6 @@
     --muted: #a3a29e;
     --rule: #2b2b2a;
     --code-bg: #1c1c1b;
-    --button: #ededec;
-    --button-ink: #121212;
     --window-edge: rgba(255, 255, 255, .28);
   }
 }
@@ -144,7 +144,7 @@ pre code { padding: 0; background: none; font-size: 1em; }
 
 .skip {
   position: absolute; left: 16px; top: -64px; z-index: 1;
-  padding: 10px 16px; border-radius: 6px;
+  padding: 9px 15px; border: 1px solid var(--button-edge); border-radius: 6px;
   background: var(--button); color: var(--button-ink);
   font-weight: 600; text-decoration: none;
 }
@@ -225,7 +225,7 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
           <clipPath id="brow-tile"><rect width="64" height="64" rx="15"/></clipPath>
         </defs>
         <g clip-path="url(#brow-tile)">
-          <rect width="64" height="64" fill="#7a7b80"/>
+          <rect width="64" height="64" fill="#f2dfb8"/>
           <path d="M7 0h50v17a11 11 0 0 1-11 11H18A11 11 0 0 1 7 17z" fill="#000"/>
           <circle cx="19.5" cy="14" r="5.5" fill="#34c759"/>
           <circle cx="44.5" cy="14" r="5.5" fill="#ff9f0a"/>

@@ -526,6 +526,7 @@ public final class LimitsStore: ObservableObject {
         })
         let darkWake = inDarkWake
         if darkWake { BrowLog.tokens.info("dark wake: no claude runs in this cycle") }
+        let online = isOnline
         cycleResults = [:]
         var outstanding = visible.map(\.organizationUuid)
         phase = .fetching(outstanding)
@@ -542,7 +543,7 @@ public final class LimitsStore: ObservableObject {
                 let result = await Self.fetch(deps: deps, account: account, force: force,
                                               forceAttempt: rejected[account.organizationUuid] ?? false,
                                               signedOut: signedOut.contains(account.organizationUuid),
-                                              darkWake: darkWake)
+                                              darkWake: darkWake, online: online)
                 guard cycle == generation else { return }
                 handle(result, outstanding: &outstanding)
             }
@@ -553,7 +554,7 @@ public final class LimitsStore: ObservableObject {
                     let isSignedOut = signedOut.contains(account.organizationUuid)
                     group.addTask { [deps] in
                         await Self.fetch(deps: deps, account: account, force: force, forceAttempt: forceAttempt,
-                                         signedOut: isSignedOut, darkWake: darkWake)
+                                         signedOut: isSignedOut, darkWake: darkWake, online: online)
                     }
                 }
                 for await result in group {
@@ -665,10 +666,11 @@ public final class LimitsStore: ObservableObject {
     ///
     /// A Claude Code session holding the account may hold the keeper off, briefly: see
     /// `holderRule`. `signedOut`: the keeper's last word on this account was that its login
-    /// is dead. `darkWake`: the keeper is left out altogether (see `markAsleep`).
+    /// is dead. `darkWake`: the keeper is left out altogether (see `markAsleep`). `online`:
+    /// the network as the path monitor last saw it.
     nonisolated private static func fetch(deps: Dependencies, account: DiscoveredAccount,
                                           force: Bool, forceAttempt: Bool, signedOut: Bool,
-                                          darkWake: Bool) async -> FetchResult {
+                                          darkWake: Bool, online: Bool) async -> FetchResult {
         let now = deps.now()
         var holder: ClaudeCodeUse?
         var rule: HolderRule?
@@ -695,9 +697,12 @@ public final class LimitsStore: ObservableObject {
         // A token past its expiry is not sent (the client will not), and the row says so
         // at once rather than after the endpoint's window. Such a token is one the server
         // would refuse: when the keeper's attempt floor is what kept it from running, it
-        // gets the one forced attempt a 401 would have bought it.
+        // gets the one forced attempt a 401 would have bought it. Offline, the row says
+        // "Offline", as a request would have: that is why nothing renewed it, and the
+        // account comes back with the network.
         func expired(_ expiredAt: Date) -> FetchResult {
-            result(nil, error: Self.expiredMessage(expiredAt, holder: holder, now: at),
+            result(nil, error: online ? Self.expiredMessage(expiredAt, holder: holder, now: at)
+                                      : Self.errorText(URLError(.notConnectedToInternet)),
                    rejected: token == .skippedRateLimited)
         }
         if let expiredAt = await deps.client.expiredToken(configDir: account.configDir, now: at) {

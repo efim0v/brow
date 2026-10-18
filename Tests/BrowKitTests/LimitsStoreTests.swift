@@ -240,13 +240,13 @@ final class LimitsStoreTests: XCTestCase {
     private func makeStore(fetcher: Fetcher, creds: Creds, runner: CommandRunning = MockRunnerBK(results: []),
                            sleeper: Sleeper? = nil, captures: Captures? = nil,
                            activity: FakeActivity? = nil,
-                           displayAsleep: (@Sendable () -> Bool)? = nil) -> LimitsStore {
+                           displayAsleep: (@Sendable () -> Bool)? = nil, online: Bool = true) -> LimitsStore {
         let client = OAuthUsageClient(fetcher: fetcher, appVersion: "t", cacheSeconds: 30, backoffCap: 300,
                                       // No endpoint pacing here: these tests pin the CYCLE mechanics (one
                                       // cycle at a time, force vs cache vs backoff), not the 100 s refill.
                                       minInterval: 0, burstCapacity: 100, credentials: creds)
         let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
-                                 allowPromptFallback: { true }, now: { [clock] in clock.date })
+                                 allowPromptFallback: { true }, isOnline: { online }, now: { [clock] in clock.date })
         var deps = LimitsStore.Dependencies(directory: AccountDirectory(home: home.path, credentials: creds),
                                             keeper: keeper, client: client,
                                             snapshotStore: LimitSnapshotStore(directory: appDir),
@@ -771,6 +771,27 @@ final class LimitsStoreTests: XCTestCase {
         }
         XCTAssertEqual(runner.invocations.count, ranFirst + 2, "one forced attempt, not one per cycle")
         XCTAssertTrue(fetcher.calls.isEmpty)
+    }
+
+    /// Offline, a token that ran out reads "Offline", as any request would have said: the
+    /// network is why nothing renewed it and why there is no reading, and the account is
+    /// back as soon as the network is. Not a dead token that a session failed to renew.
+    func testAnExpiredTokenWhileOfflineReadsOffline() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(-2 * 3600)
+        creds.invalidateRefreshes = false
+        let runner = MockRunnerBK(results: [])
+        let fetcher = Fetcher()
+        let activity = FakeActivity(); activity.set(.process(pid: 77), for: a)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity, online: false)
+        store.markOnline(false)
+
+        await store.refresh(force: false)
+        XCTAssertEqual(store.rows[0].status, .error("Offline"))
+        XCTAssertEqual(store.footerError, "Offline")
+        XCTAssertEqual(store.rows[0].tokenStatus, "offline")
+        XCTAssertTrue(runner.invocations.isEmpty)
+        XCTAssertTrue(fetcher.calls.isEmpty, "still not sent")
     }
 
     /// A Mac that went to sleep still fires the poll in its dark wakes (Power Nap,

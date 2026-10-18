@@ -346,6 +346,33 @@ final class TokenKeeperTests: XCTestCase {
         XCTAssertNil(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: "", stderr: "Run /doctor in a session")))
     }
 
+    /// `claude -p` is not interactive, and there the CLI words a dead login its other way
+    /// (2.1.290–2.1.303): "Failed to authenticate: …" where a session would say "Please
+    /// run /login". A dead refresh token, the commonest dead login, reads only so.
+    func testTheCLIsNonInteractiveWordsForADeadLoginCount() {
+        for line in ["Failed to authenticate: OAuth session expired and could not be refreshed",
+                     "Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.",
+                     #"Failed to authenticate. API Error: 401 {"type":"error"}"#] {
+            XCTAssertEqual(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: line + "\n", stderr: "")), line)
+        }
+        XCTAssertNil(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: "", stderr: "Failed to authenticate through the broker: x")),
+                     "an Azure sign-in's verbose log, not a claude.ai login")
+    }
+
+    /// A dead refresh token as `-p` reports it: no `doctor` word for it, and `-p`'s is enough.
+    func testPromptsWordForADeadLoginIsTheVerdict() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(-5 * 60)
+        let runner = FakeCLI(reply: { call in
+            call == 1 ? ProcessResult(exitCode: 0, stdout: "Claude Code doctor\n", stderr: "")
+                      : ProcessResult(exitCode: 1, stdout: "Failed to authenticate: OAuth session expired and could not be refreshed\n",
+                                      stderr: "")
+        })
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { self.t0 })
+        let out = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(out, .signInRequired("-p: Failed to authenticate: OAuth session expired and could not be refreshed"))
+    }
+
     /// The circuit breaker. `-p` costs limit and restarts the 5-hour window, so an
     /// account it cannot fix must stop being charged for it: the gap doubles from the
     /// spec's 30 min floor, and after three ineffective attempts `-p` is dropped for

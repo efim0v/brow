@@ -19,7 +19,7 @@ public enum TokenRefreshOutcome: Sendable, Equatable {
     case refreshedByDoctor
     case refreshedByPrompt
     case failed(String)
-    /// The account's login is dead: the CLI said "Please run /login", or attempts in a
+    /// The account's login is dead: the CLI said so (`signInLine`), or attempts in a
     /// row stopped helping (`promptGiveUpAfter`). Nothing the keeper can run
     /// fixes that; the user has to sign in again. The verdict stands for the token it was
     /// reached on, until that token is replaced or a refresh lands, and the keeper repeats
@@ -356,13 +356,18 @@ public actor TokenKeeper {
 
     /// The line in which the CLI says the login itself is dead, from either stream and
     /// without terminal colours: "Not logged in · Please run /login", "OAuth token
-    /// revoked · Please run /login", "Login expired · Please run /login" (2.1.290–2.1.302).
+    /// revoked · Please run /login", "Login expired · Please run /login" — and, as a run
+    /// that is not interactive words them (`claude -p`), "Failed to authenticate: OAuth
+    /// session expired and could not be refreshed", "Failed to authenticate: OAuth token
+    /// revoked. …", "Failed to authenticate. API Error: …" (2.1.290–2.1.303). "Failed to
+    /// authenticate through the broker" is an Azure sign-in's log line, not one of these.
     static func signInLine(_ result: ProcessResult) -> String? {
         let colours = "\u{1B}\\[[0-9;?]*[ -/]*[@-~]"
         for line in (result.stderr + "\n" + result.stdout).split(whereSeparator: \.isNewline) {
             let text = String(line).replacingOccurrences(of: colours, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
-            if text.range(of: "please run /login", options: .caseInsensitive) != nil {
+            if text.range(of: "please run /login", options: .caseInsensitive) != nil
+                || text.range(of: "failed to authenticate[.:]", options: [.regularExpression, .caseInsensitive]) != nil {
                 return String(text.prefix(160))
             }
         }

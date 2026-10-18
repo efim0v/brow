@@ -48,8 +48,9 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   12 min ago*, and adds *— Claude Code hasn't refreshed it* while a session holds
   the account. A token Anthropic rejected reads *Anthropic rejected the token*.
   The account's sign-in button turns orange only when the login is dead: `claude
-  doctor` or `claude -p` said *Please run /login*, three attempts in a row did
-  not renew the token, or the account has no token.
+  doctor` or `claude -p` said so (*Please run /login*, or, from `claude -p`,
+  *Failed to authenticate*), three attempts in a row did not renew the token, or
+  the account has no token.
 - The usage endpoint is rate-limited server-side (measured: a small token bucket
   refilled at roughly one request per 100 s, `retry-after: 0`, and 429s that do
   not extend the window). Brow paces itself to it: background polls that arrive

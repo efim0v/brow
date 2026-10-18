@@ -1119,7 +1119,7 @@ public final class LimitsStore: ObservableObject {
     }
 
     /// Only a login that is really dead lights the sign-in button: the keeper's word for it
-    /// (`.signInRequired`: the CLI said "Please run /login", or attempts stopped helping), or
+    /// (`.signInRequired`: the CLI said the login is dead, or attempts stopped helping), or
     /// no token at all where the Keychain did answer. A 401 is not one by itself. The
     /// keeper renews most of those on the next cycle, and the button lit for them sent
     /// people to sign in again for nothing — with an idle session holding the account,

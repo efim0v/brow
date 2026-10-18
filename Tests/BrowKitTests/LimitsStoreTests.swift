@@ -892,6 +892,32 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(runner.invocations.filter { $0.args.first == "-p" }.count, 3, "-p three times, as the breaker allows")
     }
 
+    /// The same dead login with the CLI's real words: `-p` on the expired token says it
+    /// cannot authenticate, and the key lights on the first attempt after the expiry.
+    func testPromptsWordsForADeadLoginLightTheKeyAtOnce() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        creds.invalidateRefreshes = false
+        let quiet = ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        let dead = ProcessResult(exitCode: 1, stdout: "Failed to authenticate: OAuth session expired and could not be refreshed\n",
+                                 stderr: "")
+        // A minute before the expiry `-p` still has a live access token to answer with.
+        let runner = MockRunnerBK(results: [quiet, quiet, quiet, dead])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 3, seven: 3), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner)
+
+        var litAt: Int?
+        for minute in stride(from: 0, through: 60, by: 5) {
+            now = t0.addingTimeInterval(TimeInterval(minute * 60))
+            await store.refresh(force: false)
+            if store.rows[0].needsSignIn { litAt = minute; break }
+        }
+        XCTAssertEqual(litAt, 10, "the forced attempt after the expiry")
+        XCTAssertEqual(store.rows[0].tokenStatus,
+                       "sign in again: -p: Failed to authenticate: OAuth session expired and could not be refreshed")
+    }
+
     /// A 401 for a token a session holds is no longer the session's to fix: the next cycle
     /// spends the rejection's one forced `doctor` on it, and the one after does not spend
     /// another.

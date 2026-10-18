@@ -13,6 +13,8 @@
 #   dist/SHA256SUMS.txt  for both
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# nm, below, is one of the /usr/bin shims that stop working until the Xcode license is accepted.
+source Scripts/xcode-env.sh
 
 [[ "${1:-}" == "--build" ]] && Scripts/build-brow.sh
 if [[ ! -d dist/Brow.app || ! -x dist/brow ]]; then
@@ -26,6 +28,14 @@ if [[ "$VERSION" != "$PLIST_VERSION" ]]; then
     exit 1
 fi
 codesign --verify --deep --strict dist/Brow.app
+# No path of this machine in what ships: build-brow.sh strips the debug map, and no string may name
+# the source tree either (a #filePath, say). grep -a reads every byte, the symbol table's included.
+for binary in dist/Brow.app/Contents/MacOS/Brow dist/brow; do
+    if LC_ALL=C grep -a -q -F -e "$PWD/" -e "$(pwd -P)/" "$binary" || nm -ap "$binary" | grep -q ' OSO '; then
+        echo "release: $binary names paths on this machine — rebuild with Scripts/build-brow.sh" >&2
+        exit 1
+    fi
+done
 
 rm -f dist/Brow.zip dist/brow-cli.zip dist/SHA256SUMS.txt
 # --norsrc --noextattr --noqtn --noacl: no resource forks, extended attributes, quarantine

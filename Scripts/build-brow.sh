@@ -45,6 +45,10 @@ sed "s/@VERSION@/$VERSION/g" Resources/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint -s "$APP/Contents/Info.plist"
 
 cp "$BIN/brow" dist/brow
+# The linker's debug map (its N_OSO and N_SO entries) names every object file and source folder by
+# its absolute path on the machine that built it. Nothing reads it at run time and no dSYM is made
+# from these copies, so it goes before signing.
+strip -S "$APP/Contents/MacOS/Brow" dist/brow
 
 # Sign with the stable development identity when present so the macOS automation
 # consent (Apple Events -> Terminal, cmux) survives rebuilds: ad hoc signatures change

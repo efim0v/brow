@@ -13,6 +13,10 @@ struct CalendarView: View {
     /// Fed by the controller's mouse monitor — see `CalendarHoverTracker`.
     @ObservedObject var hover: CalendarHoverTracker
     var calendar: Calendar = .autoupdatingCurrent
+    /// At most this many account cards beside the grid, then "+N more": the day column
+    /// is never taller than the month, so hovering a busy day cannot grow the panel and
+    /// push its bottom row out of the outline. nil: every account (the old behaviour).
+    var maxDayCards: Int? = nil
     @State private var monthOffset = 0
     private var hovered: Date? { hover.hoveredDay }
 
@@ -78,7 +82,7 @@ struct CalendarView: View {
             if day.accounts.isEmpty {
                 Text("No resets").font(.system(size: 10)).foregroundStyle(.secondary)
             }
-            ForEach(day.accounts, id: \.accountID) { account in
+            ForEach(Array(day.accounts.prefix(maxDayCards ?? day.accounts.count)), id: \.accountID) { account in
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
                         Circle().fill(Self.color(account.colorIndex)).frame(width: 5, height: 5)
@@ -100,6 +104,11 @@ struct CalendarView: View {
                 .padding(EdgeInsets(top: 5, leading: 7, bottom: 5, trailing: 7))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.07)))
+            }
+            if let maxDayCards, day.accounts.count > maxDayCards {
+                Text("+\(day.accounts.count - maxDayCards) more on this day")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .help(day.accounts.dropFirst(maxDayCards).map(\.name).joined(separator: ", "))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

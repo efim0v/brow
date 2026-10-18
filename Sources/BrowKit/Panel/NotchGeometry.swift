@@ -75,7 +75,10 @@ public enum NotchGeometry {
     /// 14, the value boring.notch settled on against the physical bezel (its
     /// `NotchShape` defaults: top 6, bottom 14).
     public static let collapsedBottomRadius: CGFloat = 14
-    public static let expandedBottomRadius: CGFloat = 18
+    /// The open panel's continuous (squircle) corner. Larger than the strip's: a
+    /// continuous corner of radius r starts turning about 1.5 r from the corner, so 24
+    /// reads as one soft curve at the panel's size, where 18 read as a plain radius.
+    public static let expandedBottomRadius: CGFloat = 24
     /// `EarsView` insets the pill by this much on each side (there is no notch to
     /// fill), so the two ears have `pillWidth - 2 * pillPadding` between them. Taking
     /// `pillWidth / 2` per ear asked for 200 pt inside a 180 pt window and clipped
@@ -92,8 +95,12 @@ public enum NotchGeometry {
     /// signal.
     private static let degenerateReport = OneShot()
 
+    /// `expandedWidth`: the open panel's width, the flares not counted. Each screen of
+    /// the one window asks for its own (460 the glance, wider for a project), and the
+    /// outline springs between them the way it springs open.
     public static func frames(for screen: ScreenMetrics, expandedHeight: CGFloat,
-                              placement: EarsPlacement = .beside) -> NotchFrames {
+                              placement: EarsPlacement = .beside,
+                              expandedWidth: CGFloat = NotchGeometry.expandedWidth) -> NotchFrames {
         let top = screen.frame.maxY
         if let left = screen.topLeftArea, let right = screen.topRightArea {
             let notchMinX = left.maxX, notchMaxX = right.minX

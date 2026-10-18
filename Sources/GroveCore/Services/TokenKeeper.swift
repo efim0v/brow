@@ -19,6 +19,12 @@ public enum TokenRefreshOutcome: Sendable, Equatable {
     case refreshedByDoctor
     case refreshedByPrompt
     case failed(String)
+    /// The account's login is dead: the CLI said "Please run /login", or attempts in a
+    /// row stopped helping (`promptGiveUpAfter`). Nothing the keeper can run
+    /// fixes that; the user has to sign in again. The verdict stands for the token it was
+    /// reached on, until that token is replaced or a refresh lands, and the keeper repeats
+    /// it without running anything while its attempt floor holds.
+    case signInRequired(String)
 }
 
 /// Keeps an idle account's OAuth access token alive by running the REAL Claude
@@ -89,21 +95,32 @@ public actor TokenKeeper {
         /// on every cycle. Persisted with the rest for the same reason the rest is — a
         /// relaunch must not reopen the bypass.
         var forced: Bool
+        /// The CLI found this account's login dead (`.signInRequired`), about the token
+        /// that expires at `expiresAt`. Persisted with the rest, so a relaunch does not
+        /// take the sign-in key off an account that still needs it.
+        var signedOut: SignedOut?
 
-        init(at: Date, failures: Int, forced: Bool = false) {
+        struct SignedOut: Codable, Sendable, Equatable {
+            var reason: String
+            var expiresAt: Date
+        }
+
+        init(at: Date, failures: Int, forced: Bool = false, signedOut: SignedOut? = nil) {
             self.at = at
             self.failures = failures
             self.forced = forced
+            self.signedOut = signedOut
         }
 
         /// Hand-written because the synthesised decoder throws `keyNotFound` on a
-        /// `token-attempts.json` written before `forced` existed — which would discard
-        /// every account's gate on the first launch after an update.
+        /// `token-attempts.json` written before `forced` (or `signedOut`) existed — which
+        /// would discard every account's gate on the first launch after an update.
         init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             at = try container.decode(Date.self, forKey: .at)
             failures = try container.decode(Int.self, forKey: .failures)
             forced = try container.decodeIfPresent(Bool.self, forKey: .forced) ?? false
+            signedOut = try container.decodeIfPresent(SignedOut.self, forKey: .signedOut)
         }
     }
 
@@ -170,7 +187,11 @@ public actor TokenKeeper {
         guard let before = credentials.token(configDir: configDir)?.expiresAt else {
             return fail("no readable token", configDir: configDir)
         }
+        // A login the CLI found dead stays dead for the token it was found on: a new
+        // sign-in, or a session that did manage to refresh, brings a different one.
+        let signedOut = attempts[configDir]?.signedOut.flatMap { $0.expiresAt == before ? $0.reason : nil }
         if !authRejected, before.timeIntervalSince(at) > Self.threshold {
+            if let signedOut { return .signInRequired(signedOut) }
             return observedFresh(configDir: configDir)
         }
         // The spawn-rate gate. Checked AFTER the "still fresh" shortcut, so a CLI that
@@ -190,7 +211,7 @@ public actor TokenKeeper {
         let forcesThroughTheFloor = authRejected && !(attempts[configDir]?.forced ?? false)
         if !forcesThroughTheFloor, let last = attempts[configDir]?.at,
            at.timeIntervalSince(last) < Self.retryInterval(failures: failures) {
-            return .skippedRateLimited
+            return signedOut.map(TokenRefreshOutcome.signInRequired) ?? .skippedRateLimited
         }
         // Recorded BEFORE the attempt, so a crash mid-`doctor` still leaves a floor;
         // `previous` is what the could-not-attempt paths roll back to.
@@ -210,7 +231,12 @@ public actor TokenKeeper {
             switch reread(after: before, configDir: configDir) {
             case .advanced:   return succeed(.refreshedByDoctor, configDir: configDir)
             case .unreadable: return fail("token became unreadable after claude doctor", configDir: configDir, counts: true)
-            case .unchanged:  if let d = Self.detail("doctor", result) { details.append(d) }
+            case .unchanged:
+                // Not worth a `-p`: no run of the CLI can renew a login it says is dead.
+                if let line = Self.signInLine(result) {
+                    return signInRequired("doctor: \(line)", configDir: configDir, token: before)
+                }
+                if let d = Self.detail("doctor", result) { details.append(d) }
             }
         } catch let error as GroveError where Self.cliNeverRan(error) {
             // A spawn failure or a fired watchdog says nothing about the token — and a
@@ -234,7 +260,8 @@ public actor TokenKeeper {
         // Circuit breaker: `-p` costs limit and starts the 5-hour window. Three
         // ineffective rounds is enough to conclude it cannot fix this account.
         guard failures < Self.promptGiveUpAfter else {
-            return fail("sign in again".appending(Self.suffix(details)), configDir: configDir, counts: true)
+            return signInRequired("\(failures) attempts in a row did not renew the token"
+                                    .appending(Self.suffix(details)), configDir: configDir, token: before)
         }
         do {
             let prompt = Self.invocation(claude: claudePath(), args: ["-p", ".", "--model", "haiku", "--max-turns", "1"],
@@ -244,7 +271,11 @@ public actor TokenKeeper {
             switch reread(after: before, configDir: configDir) {
             case .advanced:   return succeed(.refreshedByPrompt, configDir: configDir)
             case .unreadable: return fail("token became unreadable after claude -p", configDir: configDir, counts: true)
-            case .unchanged:  if let d = Self.detail("-p", result) { details.append(d) }
+            case .unchanged:
+                if let line = Self.signInLine(result) {
+                    return signInRequired("-p: \(line)", configDir: configDir, token: before)
+                }
+                if let d = Self.detail("-p", result) { details.append(d) }
             }
         } catch {
             return fail("claude -p failed: \(error)", configDir: configDir, counts: true)
@@ -313,6 +344,21 @@ public actor TokenKeeper {
         details.isEmpty ? "" : " (\(details.joined(separator: "; ")))"
     }
 
+    /// The line in which the CLI says the login itself is dead, from either stream and
+    /// without terminal colours: "Not logged in · Please run /login", "OAuth token
+    /// revoked · Please run /login", "Login expired · Please run /login" (2.1.290–2.1.302).
+    static func signInLine(_ result: ProcessResult) -> String? {
+        let colours = "\u{1B}\\[[0-9;?]*[ -/]*[@-~]"
+        for line in (result.stderr + "\n" + result.stdout).split(whereSeparator: \.isNewline) {
+            let text = String(line).replacingOccurrences(of: colours, with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+            if text.range(of: "please run /login", options: .caseInsensitive) != nil {
+                return String(text.prefix(160))
+            }
+        }
+        return nil
+    }
+
     /// A token with more than `threshold` of life left is proof this account is
     /// healthy again — whoever moved it: a later `doctor`, Claude Code itself running
     /// in that config dir, a fresh sign-in. The breaker has to be reset HERE, because
@@ -334,9 +380,13 @@ public actor TokenKeeper {
     /// fake. A `forced` left standing cannot lock out a later genuine 401 either — by
     /// then the recorded attempt is old and the ordinary floor check lets the call
     /// through anyway.
+    ///
+    /// A dead-login verdict reaching here is about an older token (`ensureFresh` answers
+    /// with it while the token is the same), so it goes too.
     private func observedFresh(configDir: String) -> TokenRefreshOutcome {
-        if var attempt = attempts[configDir], attempt.failures != 0 {
+        if var attempt = attempts[configDir], attempt.failures != 0 || attempt.signedOut != nil {
             attempt.failures = 0
+            attempt.signedOut = nil
             attempts[configDir] = attempt
             saveState()
         }
@@ -351,10 +401,24 @@ public actor TokenKeeper {
             // This is the ONLY place `forced` is cleared — see `observedFresh` for why a
             // merely plausible `expiresAt` does not qualify.
             attempt.forced = false
+            attempt.signedOut = nil
             attempts[configDir] = attempt
             saveState()
         }
         return outcome
+    }
+
+    /// The CLI says the login is dead. Counted like any ineffective attempt, and kept with
+    /// the expiry of the token it is about, so the account goes on saying so.
+    private func signInRequired(_ reason: String, configDir: String, token expiresAt: Date) -> TokenRefreshOutcome {
+        Self.log.error("token refresh failed for \(configDir, privacy: .public): sign in again (\(reason, privacy: .public))")
+        if var attempt = attempts[configDir] {
+            attempt.failures += 1
+            attempt.signedOut = Attempt.SignedOut(reason: reason, expiresAt: expiresAt)
+            attempts[configDir] = attempt
+            saveState()
+        }
+        return .signInRequired(reason)
     }
 
     /// Nothing is swallowed: the reason goes to the unified log AND back to the
@@ -387,7 +451,8 @@ public actor TokenKeeper {
         // this attempt turns out to be, the gate is re-armed only by `couldNotAttempt`.
         couldNotAttemptAt.removeValue(forKey: configDir)
         let previous = attempts[configDir]
-        attempts[configDir] = Attempt(at: at, failures: failures, forced: forced)
+        // The verdict carries over: only what this attempt finds can change it.
+        attempts[configDir] = Attempt(at: at, failures: failures, forced: forced, signedOut: previous?.signedOut)
         saveState()
         return previous
     }

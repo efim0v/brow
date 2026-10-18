@@ -262,11 +262,88 @@ final class TokenKeeperTests: XCTestCase {
     func testNonZeroExitAndStderrReachTheFailureReason() async {
         let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(60)
         let runner = MockRunner(results: [ProcessResult(exitCode: 1, stdout: "",
-                                                        stderr: "Invalid API key · Please run /login")])
+                                                        stderr: "Error: managed settings could not be read")])
         let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "claude",
                                  allowPromptFallback: { false }, now: { self.t0 })
         let out = await keeper.ensureFresh(configDir: "/d")
-        XCTAssertEqual(out, .failed("claude doctor did not refresh the token (doctor exit 1: Invalid API key · Please run /login)"))
+        XCTAssertEqual(out, .failed("claude doctor did not refresh the token (doctor exit 1: Error: managed settings could not be read)"))
+    }
+
+    // MARK: - a dead login
+
+    /// "Please run /login" is the CLI saying the login itself is dead: nothing Brow can
+    /// run renews it, so `-p` (which spends limit and starts the 5-hour window) is not
+    /// tried, and the outcome says the user has to sign in again.
+    func testTheCLISayingPleaseRunLoginIsADeadLogin() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(60)
+        let runner = FakeCLI(reply: { _ in
+            ProcessResult(exitCode: 1, stdout: "", stderr: "Checking…\nOAuth token revoked · Please run /login\n")
+        })
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { self.t0 })
+        let out = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(out, .signInRequired("doctor: OAuth token revoked · Please run /login"))
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "no -p for a dead login")
+    }
+
+    /// The verdict stands for the token it was reached on: through the attempt floor, with
+    /// the token not due, and after a relaunch — nothing is run for it meanwhile. A new
+    /// sign-in brings a different token, and the account is an ordinary one again.
+    func testADeadLoginStandsForItsTokenAndGoesWithIt() async throws {
+        let dir = try Fixture.tempDir("keeper-signed-out").path
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(60)
+        let runner = FakeCLI(reply: { _ in ProcessResult(exitCode: 1, stdout: "Login expired · Please run /login", stderr: "") })
+        let clock = Clock(t0)
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { clock.date }, stateDirectory: dir)
+        let dead = TokenRefreshOutcome.signInRequired("doctor: Login expired · Please run /login")
+        let first = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(first, dead, "found on stdout as well")
+
+        clock.date = t0.addingTimeInterval(5 * 60)
+        let floored = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(floored, dead, "inside the floor the verdict is repeated, not \"skipped\"")
+        XCTAssertEqual(runner.invocations.count, 1)
+
+        let relaunched = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                     allowPromptFallback: { true }, now: { clock.date }, stateDirectory: dir)
+        let afterRelaunch = await relaunched.ensureFresh(configDir: "/d")
+        XCTAssertEqual(afterRelaunch, dead, "a relaunch does not forget it")
+        XCTAssertEqual(runner.invocations.count, 1)
+
+        // Signed in again: a token with a new expiry, and nothing left of the verdict.
+        clock.date = t0.addingTimeInterval(10 * 60)
+        creds.expiry = clock.date.addingTimeInterval(8 * 3600)
+        let fresh = await relaunched.ensureFresh(configDir: "/d")
+        XCTAssertEqual(fresh, .fresh)
+        let state = try XCTUnwrap(FileManager.default.contents(atPath: dir + "/token-attempts.json"))
+        let attempt = try XCTUnwrap(try JSONDecoder().decode([String: TokenKeeper.Attempt].self, from: state)["/d"])
+        XCTAssertNil(attempt.signedOut)
+        XCTAssertEqual(attempt.failures, 0)
+    }
+
+    /// A verdict is about one token; the same token seen with hours of nominal life (a
+    /// login whose refresh token died early) is no reason to forget it.
+    func testADeadLoginIsNotForgottenForTheSameTokenLookingFresh() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(5 * 3600)
+        let runner = FakeCLI(reply: { _ in ProcessResult(exitCode: 1, stdout: "", stderr: "Not logged in · Please run /login") })
+        let clock = Clock(t0)
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { clock.date })
+        let rejected = await keeper.ensureFresh(configDir: "/d", authRejected: true)
+        XCTAssertEqual(rejected, .signInRequired("doctor: Not logged in · Please run /login"))
+        clock.date = t0.addingTimeInterval(60)
+        let proactive = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(proactive, rejected, "not \"fresh\": the login behind it is dead")
+        XCTAssertEqual(runner.invocations.count, 1)
+    }
+
+    func testTheSignInLineIsTheCLIsOwnWordsWithoutColours() {
+        XCTAssertEqual(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: "",
+                                                            stderr: "\u{1B}[31mLogin expired · Please run /login\u{1B}[0m\n")),
+                       "Login expired · Please run /login")
+        XCTAssertNil(TokenKeeper.signInLine(ProcessResult(exitCode: 0, stdout: "Claude Code doctor\nRunning: native", stderr: "")))
+        XCTAssertNil(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: "", stderr: "Run /doctor in a session")))
     }
 
     /// The circuit breaker. `-p` costs limit and restarts the 5-hour window, so an
@@ -292,7 +369,8 @@ final class TokenKeeperTests: XCTestCase {
         XCTAssertEqual(runner.invocations.filter { $0.args.first == "-p" }.count, 3,
                        "-p runs three times at most, never again")
         XCTAssertEqual(runner.invocations.last?.args, ["doctor"], "doctor is free and keeps running")
-        XCTAssertEqual(fourth, .failed("sign in again"))
+        XCTAssertEqual(fourth, .signInRequired("3 attempts in a row did not renew the token"),
+                       "the keeper's word that the login is dead")
     }
 
     /// The breaker must not outlive the trouble. `succeed` runs only when THIS keeper

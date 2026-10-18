@@ -11,7 +11,7 @@ final class LimitsStoreTests: XCTestCase {
     func testTokenStatusNamesAWithheldKeychainItem() {
         let account = DiscoveredAccount(organizationUuid: "o", email: "e", tier: nil, configDir: "/d",
                                         aliasDirs: [], tokenExpiresAt: nil, keychainLocked: true)
-        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: nil, error: nil, keychain: .denied, now: Date()),
+        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: nil, keychain: .denied, now: Date()),
                        "Keychain access needed")
     }
 
@@ -393,8 +393,8 @@ final class LimitsStoreTests: XCTestCase {
         now = t0.addingTimeInterval(120)
         await store.refresh(force: true)
         XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 40, "last good value retained")
-        XCTAssertEqual(store.rows[0].status, .error("Claude sign-in expired"))
-        XCTAssertEqual(store.footerError, "Claude sign-in expired", "no account succeeded → footer shows the error")
+        XCTAssertEqual(store.rows[0].status, .error("Anthropic rejected the token"))
+        XCTAssertEqual(store.footerError, "Anthropic rejected the token", "no account succeeded → footer shows the error")
     }
 
     func testFooterErrorOnlyWhenNoAccountSucceeded() async throws {
@@ -571,8 +571,8 @@ final class LimitsStoreTests: XCTestCase {
         fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
         let store = makeStore(fetcher: fetcher, creds: creds)
         await store.refresh(force: false)
-        XCTAssertEqual(store.footerError, "Claude sign-in expired")
-        XCTAssertEqual(store.panelError, "Claude sign-in expired", "with no config error, the fetch error shows")
+        XCTAssertEqual(store.footerError, "Anthropic rejected the token")
+        XCTAssertEqual(store.panelError, "Anthropic rejected the token", "with no config error, the fetch error shows")
 
         let notFound = "`claude` not found — set the path in Settings › General"
         store.setConfigError(notFound)
@@ -600,13 +600,13 @@ final class LimitsStoreTests: XCTestCase {
         let account = DiscoveredAccount(organizationUuid: "org", email: nil, tier: nil,
                                         configDir: "/d", aliasDirs: [],
                                         tokenExpiresAt: t0.addingTimeInterval(-18 * 86400))
-        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: .skippedRateLimited, error: nil, now: t0),
+        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: .skippedRateLimited, now: t0),
                        "token refresh failed (retrying)")
-        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: nil, error: nil, now: t0),
+        XCTAssertEqual(LimitsStore.tokenStatus(account, outcome: nil, now: t0),
                        "expired 18 d ago")
         let live = DiscoveredAccount(organizationUuid: "org", email: nil, tier: nil, configDir: "/d",
                                      aliasDirs: [], tokenExpiresAt: t0.addingTimeInterval(7200))
-        XCTAssertEqual(LimitsStore.tokenStatus(live, outcome: nil, error: nil, now: t0), "fresh · 2 h")
+        XCTAssertEqual(LimitsStore.tokenStatus(live, outcome: nil, now: t0), "fresh · 2 h")
     }
 
     func testTokenKeeperRunsForExpiringAccount() async throws {
@@ -771,6 +771,62 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertTrue(fetcher.calls.isEmpty)
     }
 
+    /// The sign-in button turns orange for a login that is really dead, and only then: the
+    /// keeper's word for it, or no token at all where the Keychain answered.
+    func testTheSignInKeyLightsOnlyForADeadLogin() {
+        let live = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
+                                     tokenExpiresAt: t0.addingTimeInterval(3600))
+        XCTAssertTrue(LimitsStore.needsSignIn(live, outcome: .signInRequired("doctor: Login expired · Please run /login"),
+                                              keychain: .ok))
+        for outcome: TokenRefreshOutcome? in [nil, .fresh, .failed("claude doctor did not refresh the token"),
+                                              .skippedRateLimited, .refreshedByDoctor] {
+            XCTAssertFalse(LimitsStore.needsSignIn(live, outcome: outcome, keychain: .ok), String(describing: outcome))
+        }
+        let none = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
+                                     tokenExpiresAt: nil)
+        XCTAssertTrue(LimitsStore.needsSignIn(none, outcome: nil, keychain: .ok), "no token at all")
+        XCTAssertFalse(LimitsStore.needsSignIn(none, outcome: nil, keychain: .denied), "the Keychain's to fix, not a sign-in")
+        XCTAssertFalse(LimitsStore.needsSignIn(none, outcome: nil, keychain: .waiting))
+        let locked = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
+                                       tokenExpiresAt: nil, keychainLocked: true)
+        XCTAssertFalse(LimitsStore.needsSignIn(locked, outcome: nil, keychain: .ok), "the key on the row is for that")
+    }
+
+    /// The CLI saying "Please run /login" lights the button, keeps it lit through the
+    /// keeper's floor and past the token's expiry, and a new sign-in puts it out.
+    func testADeadLoginKeepsTheSignInKeyLitUntilANewSignIn() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        creds.invalidateRefreshes = false
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 1, stdout: "",
+                                                          stderr: "Login expired · Please run /login\n")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 3, seven: 3), 200)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner)
+
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "no -p for a login the CLI says is dead")
+        XCTAssertTrue(store.rows[0].needsSignIn)
+        XCTAssertEqual(store.rows[0].tokenStatus, "sign in again: doctor: Login expired · Please run /login")
+
+        now = t0.addingTimeInterval(30)
+        await store.refresh(force: false)
+        XCTAssertTrue(store.rows[0].needsSignIn, "the keeper's floor does not put it out")
+
+        now = t0.addingTimeInterval(180)
+        await store.refresh(force: false)
+        XCTAssertTrue(store.rows[0].needsSignIn, "nor does the token running out")
+        XCTAssertEqual(store.rows[0].status, .error("Token expired 2 min ago"))
+        XCTAssertEqual(runner.invocations.count, 1, "and nothing more runs for a dead login")
+
+        now = t0.addingTimeInterval(240)
+        creds.expiry[a] = now.addingTimeInterval(8 * 3600)                    // signed in again
+        await store.refresh(force: true)
+        XCTAssertFalse(store.rows[0].needsSignIn)
+        XCTAssertEqual(store.rows[0].status, .ok)
+        XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 8 h")
+    }
+
     /// A 401 for a token a session holds is no longer the session's to fix: the next cycle
     /// spends the rejection's one forced `doctor` on it, and the one after does not spend
     /// another.
@@ -887,10 +943,10 @@ final class LimitsStoreTests: XCTestCase {
         let due = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
                                     tokenExpiresAt: t0.addingTimeInterval(3 * 60))
         let waiting = "in use by Claude Code, waiting for it to refresh"
-        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, postponed: true, now: t0), waiting)
-        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: .refreshedByDoctor, error: nil, now: t0), "refreshing (doctor)",
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, postponed: true, now: t0), waiting)
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: .refreshedByDoctor, now: t0), "refreshing (doctor)",
                        "once the keeper has run, its answer is the line")
-        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, now: t0), "fresh · 3 min", "not held off: as before")
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, now: t0), "fresh · 3 min", "not held off: as before")
     }
 
     /// With nobody using the account, nothing changes: the keeper refreshes it.
@@ -1343,13 +1399,15 @@ final class LimitsStoreTests: XCTestCase {
         let store = makeStore(fetcher: fetcher, creds: creds, runner: runner)
 
         await store.refresh(force: false)
-        XCTAssertEqual(store.footerError, "Claude sign-in expired")
+        XCTAssertEqual(store.footerError, "Anthropic rejected the token")
         XCTAssertTrue(runner.invocations.isEmpty, "a token with 5 h of life is not refreshed on its own")
+        XCTAssertEqual(store.rows.first?.needsSignIn, false, "a 401 alone is no dead login")
 
         now = t0.addingTimeInterval(60)
         await store.refresh(force: true)
         XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "the rejection forced one attempt")
-        XCTAssertEqual(store.rows.first?.tokenStatus, "sign-in revoked")
+        XCTAssertEqual(store.rows.first?.tokenStatus, "refreshing (doctor)")
+        XCTAssertEqual(store.rows.first?.needsSignIn, false)
     }
 
     /// The first frame after a relaunch shows the last real numbers, labelled with the
@@ -1436,8 +1494,9 @@ final class LimitsStoreTests: XCTestCase {
     }
 
     func testErrorTextMapping() {
-        XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(401)), "Claude sign-in expired")
-        XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(403)), "Claude sign-in expired")
+        XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(401)), "Anthropic rejected the token")
+        XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.http(403)), "Anthropic rejected the token")
+        XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.expired(t0)), "Token expired")
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.tooManyRequests), "Rate limited — try again shortly")
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.backoff), "Rate limited — waiting to retry")
         XCTAssertEqual(LimitsStore.errorText(OAuthUsageError.noCredentials), "No Claude credentials found")

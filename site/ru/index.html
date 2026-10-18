@@ -605,7 +605,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <p>Claude&nbsp;Code хранит каждый аккаунт в&nbsp;отдельной папке конфигурации: аккаунт по&nbsp;умолчанию&nbsp;— в&nbsp;<code class="nowrap">~/.claude</code>, любой другой&nbsp;— в&nbsp;папке, на&nbsp;которую указывает <code class="nowrap">CLAUDE_CONFIG_DIR</code>. Именно так <a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">документация Anthropic</a> предлагает оставаться авторизованным сразу в&nbsp;нескольких аккаунтах, например в&nbsp;рабочем и&nbsp;личном.</p>
         <p>Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code>. В&nbsp;<span class="nowrap">Settings → Accounts</span> кнопка <strong>Sign in…</strong> создаёт следующую свободную папку, <code class="nowrap">~/.claude-accounts/account-N</code>, и&nbsp;запускает для неё <code class="nowrap">claude auth login</code> в&nbsp;Терминале, а&nbsp;<strong>Existing folder…</strong> добавляет папку, которой вы&nbsp;уже пользуетесь. После этого у&nbsp;каждого аккаунта есть кнопка, которая копирует его команду запуска, например <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>. С&nbsp;этой командой Claude&nbsp;Code стартует под нужным аккаунтом и&nbsp;открывает ссылки в&nbsp;его профиле браузера.</p>
         <p>У&nbsp;каждой папки свои учётные данные. Claude&nbsp;Code хранит их в&nbsp;связке ключей macOS под именем, привязанным к&nbsp;папке: <code>Claude Code-credentials</code> для <code class="nowrap">~/.claude</code> и&nbsp;<code>Claude Code-credentials-&lt;hash&gt;</code> для любой другой папки. Правила для ваших тарифов смотрите в&nbsp;<a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> Anthropic.</p>
-        <p>Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском).</p>
+        <p>Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском). Когда у&nbsp;одного аккаунта кончается лимит, Workspaces переносит сессию на&nbsp;другой: «<a href="/brow/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
       </div>
     </div>
   </section>
@@ -786,7 +786,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <dd>Brow находит ваши проекты, аккаунты и&nbsp;настройки Grove и&nbsp;запускает их в&nbsp;Workspaces. Сначала закройте Grove.app: пока он работает, Workspaces ждёт. <a href="https://github.com/efim0v/brow/blob/main/README.ru.md#если-вы-пользовались-grove">Что меняется</a>.</dd>
         </div>
       </dl>
-      <p class="spec-note">Пошагово&nbsp;— в&nbsp;руководстве «<a href="/grove/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском). Подробнее&nbsp;— в&nbsp;документе «<a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces в&nbsp;подробностях</a>» (на&nbsp;английском).</p>
+      <p class="spec-note">Пошагово&nbsp;— в&nbsp;руководствах «<a href="/brow/multiple-repositories/">Как запустить Claude&nbsp;Code сразу в&nbsp;нескольких репозиториях</a>» и&nbsp;«<a href="/brow/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском). Подробнее&nbsp;— в&nbsp;документе «<a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces в&nbsp;подробностях</a>» (на&nbsp;английском).</p>
     </div>
   </section>
 
@@ -905,6 +905,14 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Можно&nbsp;ли видеть лимиты нескольких аккаунтов Claude&nbsp;Code сразу?</h3>
           <p>Да. Brow читает <code class="nowrap">~/.claude</code> и&nbsp;все папки в&nbsp;<code class="nowrap">~/.claude-accounts/</code> и&nbsp;показывает лимиты всех аккаунтов рядом друг с&nbsp;другом. Claude&nbsp;Code хранит каждый аккаунт в&nbsp;своей папке конфигурации, которая задаётся через <code class="nowrap">CLAUDE_CONFIG_DIR</code>; подробнее&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-claude-accounts/">Как пользоваться несколькими аккаунтами Claude&nbsp;Code на&nbsp;одном Mac</a>» (на&nbsp;английском).</p>
+        </div>
+        <div>
+          <h3>Можно&nbsp;ли продолжить сессию Claude&nbsp;Code под другим аккаунтом?</h3>
+          <p>Да, в&nbsp;Workspaces. <strong>Resume as…</strong> продолжает её под другим аккаунтом, ничего не&nbsp;копируя, <strong>Migrate to…</strong> делает полную копию, а&nbsp;<strong>Share</strong> переносит её в&nbsp;общее хранилище, которое видят все связанные аккаунты. Brow не&nbsp;выполнит перенос, после которого в&nbsp;одну сессию писали&nbsp;бы два процесса. Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
+        </div>
+        <div>
+          <h3>Может&nbsp;ли Claude&nbsp;Code работать с&nbsp;несколькими репозиториями сразу?</h3>
+          <p>Флаг <code class="nowrap">--add-dir</code> даёт сессии доступ к&nbsp;дополнительным каталогам, на&nbsp;какой&nbsp;бы ветке ни&nbsp;стоял каждый из&nbsp;них. Рабочее пространство собирает git worktree всех репозиториев, уже на&nbsp;ветке фичи, в&nbsp;той папке, где запускается Claude&nbsp;Code, поэтому параллельные сессии не&nbsp;переключают ветки друг другу. Встроенный в&nbsp;Claude&nbsp;Code флаг <code class="nowrap">--worktree</code> работает только с&nbsp;тем репозиторием, где вы его запустили. Подробнее&nbsp;— в&nbsp;руководстве «<a href="/brow/multiple-repositories/">Как запустить Claude&nbsp;Code сразу в&nbsp;нескольких репозиториях</a>» (на&nbsp;английском).</p>
         </div>
         <div>
           <h3>Тратит&nbsp;ли Brow мои лимиты?</h3>

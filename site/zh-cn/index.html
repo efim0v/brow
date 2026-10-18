@@ -613,7 +613,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <p>Claude Code 把每个账号放在各自的配置文件夹中：默认账号用 <code class="nowrap">~/.claude</code>，其他账号可以用你通过 <code class="nowrap">CLAUDE_CONFIG_DIR</code> 指定的任意文件夹。想同时登录多个账号（例如一个工作账号、一个个人账号），<a href="https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts">Anthropic 的文档</a>给出的就是这个办法。</p>
         <p>Brow 读取 <code class="nowrap">~/.claude</code> 以及 <code class="nowrap">~/.claude-accounts/</code> 中的每个文件夹。在 <span class="nowrap">Settings → Accounts</span> 中，<strong>Sign in…</strong> 会创建下一个可用的文件夹 <code class="nowrap">~/.claude-accounts/account-N</code>，并在“终端”中为它运行 <code class="nowrap">claude auth login</code>；<strong>Existing folder…</strong>（已有文件夹）则用来添加一个你已经在用的文件夹。之后每个账号都有一个按钮，可以复制它的启动命令，例如 <code>CLAUDE_CONFIG_DIR='…' BROWSER='…' claude</code>，这样 Claude Code 就会以该账号的身份启动，并在该账号的浏览器配置文件中打开链接。</p>
         <p>每个文件夹各自保存登录信息。Claude Code 把它存放在 macOS 钥匙串中，名称与文件夹对应：<code class="nowrap">~/.claude</code> 对应 <code>Claude Code-credentials</code>，其他文件夹对应 <code>Claude Code-credentials-&lt;hash&gt;</code>。关于你所用套餐的规定，请查阅 Anthropic 的<a href="https://www.anthropic.com/legal/consumer-terms">消费者条款</a>（Consumer Terms）。</p>
-        <p>详细步骤见指南《<a href="/brow/multiple-claude-accounts/">在一台 Mac 上使用多个 Claude Code 账号</a>》<span class="nowrap">（英文）</span>。</p>
+        <p>详细步骤见指南《<a href="/brow/multiple-claude-accounts/">在一台 Mac 上使用多个 Claude Code 账号</a>》<span class="nowrap">（英文）</span>。某个账号的限额用完时，Workspaces 可以把会话挪到另一个账号上：见指南《<a href="/brow/move-session-to-another-account/">切换账号后继续同一个 Claude Code 会话</a>》<span class="nowrap">（英文）</span>。</p>
       </div>
     </div>
   </section>
@@ -794,7 +794,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <dd>Brow 会找到你在 Grove 中的项目、账号和设置，并在 Workspaces 中运行它们。请先退出 Grove.app：它运行期间，Workspaces 会等待。<a href="https://github.com/efim0v/brow/blob/main/README.zh-CN.md#从-grove-迁移">有哪些变化</a>。</dd>
         </div>
       </dl>
-      <p class="spec-note">详细步骤见指南《<a href="/grove/move-session-to-another-account/">切换账号后继续同一个 Claude Code 会话</a>》<span class="nowrap">（英文）</span>。更多内容见 <a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces 详解</a><span class="nowrap">（英文）</span>。</p>
+      <p class="spec-note">详细步骤见指南《<a href="/brow/multiple-repositories/">让 Claude Code 同时处理多个仓库</a>》和《<a href="/brow/move-session-to-another-account/">切换账号后继续同一个 Claude Code 会话</a>》<span class="nowrap">（均为英文）</span>。更多内容见 <a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces 详解</a><span class="nowrap">（英文）</span>。</p>
     </div>
   </section>
 
@@ -913,6 +913,14 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>能同时看到多个 Claude&nbsp;Code 账号的额度吗？</h3>
           <p>可以。Brow 读取 <code class="nowrap">~/.claude</code> 以及 <code class="nowrap">~/.claude-accounts/</code> 中的每个文件夹，并排显示每个账号的限额。Claude Code 把每个账号放在各自的配置文件夹中，用 <code class="nowrap">CLAUDE_CONFIG_DIR</code> 指定；详见指南《<a href="/brow/multiple-claude-accounts/">在一台 Mac 上使用多个 Claude Code 账号</a>》<span class="nowrap">（英文）</span>。</p>
+        </div>
+        <div>
+          <h3>切换账号后，能继续同一个 Claude&nbsp;Code 会话吗？</h3>
+          <p>能，用 Workspaces。<strong>Resume as…</strong> 以另一个账号继续会话，不复制任何内容；<strong>Migrate to…</strong> 把会话完整复制过去；<strong>Share</strong> 把会话移入共享存储，每个关联账号都能看到。如果某次迁移会让一个会话同时有两个写入方，Brow 会拒绝执行。详见指南《<a href="/brow/move-session-to-another-account/">切换账号后继续同一个 Claude Code 会话</a>》<span class="nowrap">（英文）</span>。</p>
+        </div>
+        <div>
+          <h3>Claude&nbsp;Code 能同时处理多个仓库吗？</h3>
+          <p><code class="nowrap">--add-dir</code> 能让会话访问更多目录，但每个检出目录停在哪个分支，会话看到的就是哪个分支。工作区则把每个仓库的 git worktree（都已在该功能的分支上）放进 Claude Code 启动的文件夹里，所以并行的会话不会互相切换分支。Claude Code 自带的 <code class="nowrap">--worktree</code> 只涉及你运行它的那一个仓库。详见指南《<a href="/brow/multiple-repositories/">让 Claude Code 同时处理多个仓库</a>》<span class="nowrap">（英文）</span>。</p>
         </div>
         <div>
           <h3>Brow 会消耗额度吗？</h3>

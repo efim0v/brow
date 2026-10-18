@@ -43,7 +43,7 @@
   "mainEntityOfPage": "https://efimov.page/brow/multiple-claude-accounts/",
   "inLanguage": "en",
   "datePublished": "2026-10-13",
-  "dateModified": "2026-10-17",
+  "dateModified": "2026-10-18",
   "image": ["https://efimov.page/brow/media/settings.webp"],
   "author": { "@type": "Person", "name": "Artem Efimov", "url": "https://github.com/efim0v" },
   "about": { "@id": "https://efimov.page/brow/#app" }
@@ -319,7 +319,7 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
           <p>Start it with that account’s folder, as above. Nothing is switched for the whole Mac: each <code>claude</code> runs as the account of the folder it started with, so two terminals can work as two accounts at the same time. To change the account a folder itself is signed in to, run <code>/login</code> in a session that uses it; the new login replaces the old one.</p>
 
           <h3>Can I continue a session under another account?</h3>
-          <p>Not with <code>CLAUDE_CONFIG_DIR</code> alone: a session’s transcript is in the folder of the account that ran it. Brow’s <a href="/brow/#workspaces">Workspaces</a>, which used to be the separate Grove app, moves sessions between accounts. <strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies its transcript, memory, file history and tasks into the other account. <strong>Share</strong> moves it into a store that every linked account can see. Step by step: <a href="/grove/move-session-to-another-account/">continue a Claude Code session on another account</a>.</p>
+          <p>Not with <code>CLAUDE_CONFIG_DIR</code> alone: a session’s transcript is in the folder of the account that ran it. Brow’s <a href="/brow/#workspaces">Workspaces</a>, which used to be the separate Grove app, moves sessions between accounts. <strong>Resume as…</strong> continues a session under another account without copying it. <strong>Migrate to…</strong> copies its transcript, memory, file history and tasks into the other account. <strong>Share</strong> moves it into a store that every linked account can see. Step by step: <a href="/brow/move-session-to-another-account/">continue a Claude Code session on another account</a>.</p>
 
           <h3>Where does each account keep its history and settings?</h3>
           <p>In its own folder. With <code>CLAUDE_CONFIG_DIR</code> set, every <code>~/.claude</code> path in Anthropic’s <a href="https://code.claude.com/docs/en/claude-directory">guide to the .claude directory</a> lives under that folder instead: transcripts in <code>projects/</code>, prompt history in <code>history.jsonl</code>, settings in <code>settings.json</code>.</p>
@@ -332,6 +332,14 @@ CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude auth login</code></pre>
 
           <h3>Is it allowed to keep several accounts?</h3>
           <p>That is for Anthropic’s terms to answer, not for this guide. Read Anthropic’s <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> and <a href="https://www.anthropic.com/legal/aup">Usage Policy</a> for your plans.</p>
+        </section>
+
+        <section id="see-also" aria-labelledby="see-also-title">
+          <h2 id="see-also-title">See also</h2>
+          <ul>
+            <li><a href="/brow/move-session-to-another-account/">Continue a Claude Code session on another account</a></li>
+            <li><a href="/brow/multiple-repositories/">Run Claude Code across multiple repositories</a></li>
+          </ul>
         </section>
       </div>
     </div>

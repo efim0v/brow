@@ -180,11 +180,20 @@ final class LimitsStoreTests: XCTestCase {
         func invalidate(configDir: String) {
             lock.withLock {
                 invalidations.append(configDir)
-                if let current = expiries[configDir] {
+                if refreshes, let current = expiries[configDir] {
                     expiries[configDir] = current.addingTimeInterval(8 * 3600)
                 }
             }
         }
+        /// Off: `invalidate` drops nothing but the cache, as the real reader's does, and
+        /// a token moves only when the test moves it (a runner's `onRun`). Needed wherever
+        /// a forced cycle, which invalidates every dir before the keeper reads, or the
+        /// client's 401 retry must not read as a refresh nobody ran.
+        var invalidateRefreshes: Bool {
+            get { lock.withLock { refreshes } }
+            set { lock.withLock { refreshes = newValue } }
+        }
+        private var refreshes = true
     }
 
     private func body(five: Int, seven: Int, scoped: Int? = nil) -> Data {
@@ -612,14 +621,16 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
     }
 
-    // MARK: - Claude Code's own sessions refresh their own token
+    // MARK: - a Claude Code session holding the account
 
-    /// A session running as the account refreshes its own token, and a `claude doctor`
-    /// landing next to that refresh leaves one of the two with a dead token: the session
-    /// then asks for `/login`. So a due refresh is left to the session, and the row says so.
-    func testADueRefreshIsLeftToARunningClaudeCodeSession() async throws {
+    /// 0.3.1 left every account with a live session to that session, however long it had
+    /// sat idle — and an idle session renews nothing: Claude Code refreshes a token only
+    /// when it sends a request inside the token's last five minutes. With sessions left
+    /// open for days no token was refreshed, and every account went red eight hours after
+    /// its last refresh. With a minute left the keeper runs, session or not.
+    func testASessionDoesNotStopARefreshInTheLastTwoMinutes() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
-        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)     // inside the 30 min threshold
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
         let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
         let fetcher = Fetcher()
         fetcher.responses["Bearer tok-\(a)"] = (body(five: 12, seven: 34), 200)
@@ -627,91 +638,104 @@ final class LimitsStoreTests: XCTestCase {
         let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
 
         await store.refresh(force: false)
-        XCTAssertTrue(runner.invocations.isEmpty, "no doctor, no -p while the session runs")
+        XCTAssertEqual(activity.asked, [a])
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "a minute left: the session has had its chance")
+        XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
+        XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 12)
+    }
+
+    /// Between the keeper's threshold and the last two minutes a session gets the first
+    /// go: one that is working renews the token itself with its next request. Nothing
+    /// runs, the token line says who Brow is leaving it to — and once two minutes are not
+    /// left, the keeper runs.
+    func testASessionGetsTheFirstGoWhileMoreThanTwoMinutesAreLeft() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3 * 60)
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 12, seven: 34), 200)
+        let activity = FakeActivity(); activity.set(.process(pid: 4242), for: a)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        await store.refresh(force: false)
+        XCTAssertTrue(runner.invocations.isEmpty, "no doctor, no -p yet")
         XCTAssertEqual(activity.asked, [a])
         XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
         XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 12, "the token still works, so the reading lands")
         XCTAssertEqual(store.rows[0].status, .ok)
+
+        // The session has not renewed it a minute and a half later: the keeper steps in.
+        now = t0.addingTimeInterval(90)
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]])
+        XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
     }
 
-    /// With nobody using the account, nothing changes: the keeper refreshes it.
-    func testAnIdleAccountIsStillRefreshed() async throws {
+    /// The usual ending of a first go: the session renews the token itself, and the
+    /// keeper has nothing left to do.
+    func testASessionThatRenewsItsTokenLeavesTheKeeperNothingToDo() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
-        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
-        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3 * 60)
+        let runner = MockRunnerBK(results: [])
         let fetcher = Fetcher()
-        fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
-        let activity = FakeActivity()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 9, seven: 9), 200)
+        let activity = FakeActivity(); activity.set(.recentPrompt(at: t0), for: a)
         let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
 
         await store.refresh(force: false)
-        XCTAssertEqual(activity.asked, [a], "asked once, before the keeper")
-        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]])
-        XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
-
-        // The session goes away and comes back: each cycle asks again.
-        now = t0.addingTimeInterval(31 * 60)
-        activity.set(.recentPrompt(at: now), for: a)
-        creds.expiry[a] = now.addingTimeInterval(120)
-        await store.refresh(force: false)
-        XCTAssertEqual(runner.invocations.count, 1, "busy again: left alone")
         XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
+
+        now = t0.addingTimeInterval(120)
+        creds.expiry[a] = now.addingTimeInterval(8 * 3600)                    // the session refreshed
+        await store.refresh(force: false)
+        XCTAssertTrue(runner.invocations.isEmpty)
+        XCTAssertEqual(store.rows[0].status, .ok)
+        XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 8 h")
     }
 
-    /// The check costs a walk of the process table, so it runs only when the keeper may
-    /// be about to run the CLI: never for a token with hours left.
-    func testNobodyIsAskedWhileTheTokenHasLifeLeft() async throws {
+    /// Twenty minutes out nothing is due, session or not: the keeper would run nothing,
+    /// so nobody is asked and the process table is not walked.
+    func testTwentyMinutesOutNothingRunsWhoeverHoldsTheAccount() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
-        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(5 * 3600)
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(20 * 60)
+        let runner = MockRunnerBK(results: [])
         let fetcher = Fetcher()
         fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
         let activity = FakeActivity(); activity.set(.process(pid: 1), for: a)
-        let store = makeStore(fetcher: fetcher, creds: creds, activity: activity)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
 
         await store.refresh(force: false)
+        XCTAssertTrue(runner.invocations.isEmpty)
         XCTAssertTrue(activity.asked.isEmpty)
-        XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 5 h", "a session in use does not change a healthy token's line")
+        XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 20 min", "a session in use does not change a healthy token's line")
     }
 
-    /// A 401/403 for a token a session holds is the session's to fix: the row does not
-    /// ask for a new sign-in, the forced `doctor` waits, and it runs once the session is
-    /// gone.
-    func testARejectedTokenThatASessionHoldsIsLeftToTheSession() async throws {
+    /// What the owner lived with: a token three hours dead, a session open on it for days.
+    /// The keeper runs, and the account comes back without a new sign-in.
+    func testATokenThatExpiredWithASessionOpenIsRefreshed() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
-        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(5 * 3600)
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(-3 * 3600)
         let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
         let fetcher = Fetcher()
-        fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 9, seven: 9), 200)
         let activity = FakeActivity(); activity.set(.process(pid: 77), for: a)
         let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
 
         await store.refresh(force: false)
-        XCTAssertEqual(activity.asked, [a], "the first 401 asks, so the row is right from the start")
-        XCTAssertEqual(store.rows[0].status, .error("Token in use by Claude Code"))
-        XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
-        XCTAssertFalse(store.rows[0].tokenStatus.contains("revoked"), "no orange sign-in button for this")
-        XCTAssertEqual(store.footerError, "Token in use by Claude Code")
-
-        now = t0.addingTimeInterval(120)
-        await store.refresh(force: false)
-        XCTAssertTrue(runner.invocations.isEmpty, "the rejection's forced doctor waits for the session")
-        XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
-
-        // The session is closed without having refreshed: now the forced attempt runs.
-        now = t0.addingTimeInterval(240)
-        activity.set(nil, for: a)
-        fetcher.responses["Bearer tok-\(a)"] = (body(five: 3, seven: 4), 200)
-        await store.refresh(force: false)
-        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "the rejection's one forced attempt")
-        XCTAssertEqual(store.rows[0].status, .ok)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]])
         XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
+        XCTAssertEqual(store.rows[0].status, .ok)
+        XCTAssertEqual(store.rows[0].snapshot?.fiveHour?.usedPercentage, 9)
+        XCTAssertNil(store.footerError)
     }
 
-    /// The usual ending: the session refreshes the token itself, the next request goes
-    /// through, and the row is back to normal without Brow having run anything.
-    func testTheRowRecoversWhenTheSessionRefreshes() async throws {
+    /// A 401 for a token a session holds is no longer the session's to fix: the next cycle
+    /// spends the rejection's one forced `doctor` on it, and the one after does not spend
+    /// another.
+    func testARejectedTokenGetsOneForcedDoctorWhoeverHoldsIt() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
-        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(-60)     // already dead
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(5 * 3600)
+        creds.invalidateRefreshes = false                  // neither the 401 retry nor doctor fixes it
         let runner = MockRunnerBK(results: [])
         let fetcher = Fetcher()
         fetcher.responses["Bearer tok-\(a)"] = (Data(), 401)
@@ -719,17 +743,87 @@ final class LimitsStoreTests: XCTestCase {
         let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
 
         await store.refresh(force: false)
-        XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
-        XCTAssertEqual(store.rows[0].status, .error("Token in use by Claude Code"))
+        XCTAssertTrue(runner.invocations.isEmpty, "five hours of nominal life: nothing runs on the 401 itself")
+
+        now = t0.addingTimeInterval(60)
+        await store.refresh(force: false)
+        XCTAssertEqual(activity.asked, [a])
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "the rejection's forced attempt, session or not")
 
         now = t0.addingTimeInterval(120)
-        creds.expiry[a] = now.addingTimeInterval(8 * 3600)                    // the session refreshed
-        fetcher.responses["Bearer tok-\(a)"] = (body(five: 9, seven: 9), 200)
         await store.refresh(force: false)
-        XCTAssertTrue(runner.invocations.isEmpty)
-        XCTAssertEqual(store.rows[0].status, .ok)
-        XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 8 h")
-        XCTAssertNil(store.footerError)
+        XCTAssertEqual(runner.invocations.count, 1, "one doctor per rejection, not one per cycle")
+    }
+
+    /// ⟳ is someone asking: it runs the keeper even while a session would still have had
+    /// the first go.
+    func testTheRefreshButtonRunsTheKeeperDespiteASession() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(3 * 60)
+        creds.invalidateRefreshes = false                  // a forced cycle invalidates every dir first
+        let renewed = t0.addingTimeInterval(8 * 3600)
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")],
+                                  onRun: { _ in creds.expiry[a] = renewed })
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 5, seven: 5), 200)
+        let activity = FakeActivity(); activity.set(.process(pid: 4242), for: a)
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        await store.refresh(force: false)
+        XCTAssertTrue(runner.invocations.isEmpty, "the poll leaves it to the session")
+        XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
+
+        now = t0.addingTimeInterval(10)
+        await store.refresh(force: true)
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]], "⟳ runs it")
+        XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
+    }
+
+    /// When a session holding the account holds the keeper off, and why the keeper runs
+    /// when it does not.
+    func testWhenASessionHoldsTheKeeperOff() {
+        func rule(_ left: TimeInterval?, force: Bool = false, rejected: Bool = false) -> LimitsStore.HolderRule {
+            LimitsStore.holderRule(expiry: left.map { t0.addingTimeInterval($0) }, force: force,
+                                   authRejected: rejected, now: t0)
+        }
+        XCTAssertEqual(rule(5 * 3600), .notDue)
+        XCTAssertEqual(rule(TokenKeeper.threshold + 1), .notDue, "outside the keeper's window nothing runs anyway")
+        XCTAssertEqual(rule(TokenKeeper.threshold), .postpone)
+        XCTAssertEqual(rule(LimitsStore.holderGrace + 1), .postpone)
+        XCTAssertEqual(rule(LimitsStore.holderGrace), .override(.expiring(LimitsStore.holderGrace)))
+        XCTAssertEqual(rule(60), .override(.expiring(60)))
+        XCTAssertEqual(rule(-3 * 3600), .override(.expired(3 * 3600)))
+        XCTAssertEqual(rule(3 * 60, force: true), .override(.asked))
+        XCTAssertEqual(rule(20 * 60, force: true), .notDue, "⟳ cannot make due a token the CLI would not refresh")
+        XCTAssertEqual(rule(5 * 3600, rejected: true), .override(.rejected))
+        XCTAssertEqual(rule(nil), .override(.expiryUnknown))
+        XCTAssertEqual(LimitsStore.holderGrace, 2 * 60)
+        XCTAssertLessThan(LimitsStore.holderGrace, TokenKeeper.threshold)
+    }
+
+    /// The persisted log carries each stretch once: a cycle that says the same thing about
+    /// the same session as the one before it says nothing.
+    func testTheHolderLogLineNamesTheSessionTheReasonAndTheAnswer() throws {
+        let override = try XCTUnwrap(LimitsStore.HolderEpisode(
+            .override(.expiring(60)), holder: .process(pid: 77), configDir: "/d",
+            expiry: t0.addingTimeInterval(60), token: .refreshedByDoctor, now: t0))
+        XCTAssertEqual(override.text, """
+            token refresh for /d run although Claude Code holds it (claude process 77): \
+            its token has 1 min left; the keeper answered refreshedByDoctor
+            """)
+        let later = try XCTUnwrap(LimitsStore.HolderEpisode(
+            .override(.expiring(30)), holder: .process(pid: 77), configDir: "/d",
+            expiry: t0.addingTimeInterval(60), token: .refreshedByDoctor, now: t0.addingTimeInterval(30)))
+        XCTAssertEqual(later.key, override.key, "the seconds left do not make a new episode")
+        let postponed = try XCTUnwrap(LimitsStore.HolderEpisode(
+            .postpone, holder: .process(pid: 77), configDir: "/d",
+            expiry: t0.addingTimeInterval(200), token: nil, now: t0))
+        XCTAssertEqual(postponed.text, """
+            token refresh for /d left to Claude Code for now (claude process 77): \
+            3 min 20 s left; Brow runs it itself from 2 min left
+            """)
+        XCTAssertNil(LimitsStore.HolderEpisode(.notDue, holder: .process(pid: 77), configDir: "/d",
+                                               expiry: t0.addingTimeInterval(3600), token: .fresh, now: t0))
     }
 
     /// The store asks whenever the keeper MAY run the CLI: a rejection, an expiry the
@@ -747,19 +841,39 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertTrue(LimitsStore.refreshMayBeDue(account(t0.addingTimeInterval(-3600)), authRejected: false, now: t0))
     }
 
-    func testTokenStatusWhileClaudeCodeHoldsTheToken() {
+    func testTokenStatusWhileASessionHasTheFirstGo() {
         let due = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
                                     tokenExpiresAt: t0.addingTimeInterval(3 * 60))
-        let healthy = DiscoveredAccount(organizationUuid: "o", email: nil, tier: nil, configDir: "/d", aliasDirs: [],
-                                        tokenExpiresAt: t0.addingTimeInterval(2 * 3600))
         let waiting = "in use by Claude Code, waiting for it to refresh"
-        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, inUse: true, now: t0), waiting)
-        XCTAssertEqual(LimitsStore.tokenStatus(healthy, outcome: nil, error: LimitsStore.inUseMessage, inUse: true, now: t0),
-                       waiting, "refused while in use")
-        XCTAssertEqual(LimitsStore.tokenStatus(healthy, outcome: nil, error: nil, inUse: true, now: t0), "fresh · 2 h")
-        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, now: t0), "fresh · 3 min", "not in use: as before")
-        XCTAssertEqual(LimitsStore.tokenStatus(healthy, outcome: nil, error: "Claude sign-in expired", now: t0),
-                       "sign-in revoked", "not in use: as before")
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, postponed: true, now: t0), waiting)
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: .refreshedByDoctor, error: nil, now: t0), "refreshing (doctor)",
+                       "once the keeper has run, its answer is the line")
+        XCTAssertEqual(LimitsStore.tokenStatus(due, outcome: nil, error: nil, now: t0), "fresh · 3 min", "not held off: as before")
+    }
+
+    /// With nobody using the account, nothing changes: the keeper refreshes it.
+    func testAnIdleAccountIsStillRefreshed() async throws {
+        let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")
+        let creds = Creds(); creds.expiry[a] = t0.addingTimeInterval(60)
+        let runner = MockRunnerBK(results: [ProcessResult(exitCode: 0, stdout: "", stderr: "")])
+        let fetcher = Fetcher()
+        fetcher.responses["Bearer tok-\(a)"] = (body(five: 1, seven: 1), 200)
+        let activity = FakeActivity()
+        let store = makeStore(fetcher: fetcher, creds: creds, runner: runner, activity: activity)
+
+        await store.refresh(force: false)
+        XCTAssertEqual(activity.asked, [a], "asked once, before the keeper")
+        XCTAssertEqual(runner.invocations.map(\.args), [["doctor"]])
+        XCTAssertEqual(store.rows[0].tokenStatus, "refreshing (doctor)")
+
+        // A session comes back, with more than two minutes left: each cycle asks again,
+        // and this one gives it the first go.
+        now = t0.addingTimeInterval(31 * 60)
+        activity.set(.recentPrompt(at: now), for: a)
+        creds.expiry[a] = now.addingTimeInterval(3 * 60)
+        await store.refresh(force: false)
+        XCTAssertEqual(runner.invocations.count, 1, "busy again: left to it for now")
+        XCTAssertEqual(store.rows[0].tokenStatus, "in use by Claude Code, waiting for it to refresh")
     }
 
     /// Spec, Error handling: an account whose token cannot be read at all reads
@@ -1467,13 +1581,21 @@ final class MockRunnerBK: CommandRunning, @unchecked Sendable {
     private let lock = NSLock()
     private var script: [ProcessResult]
     private var recorded: [(executable: String, args: [String], env: [String: String]?)] = []
-    init(results: [ProcessResult]) { self.script = results }
+    /// What the CLI does to the Keychain while it runs: called with the arguments,
+    /// before `run` returns, which is where the real CLI moves the expiry.
+    private let onRun: (@Sendable ([String]) -> Void)?
+    init(results: [ProcessResult], onRun: (@Sendable ([String]) -> Void)? = nil) {
+        self.script = results
+        self.onRun = onRun
+    }
     var invocations: [(executable: String, args: [String], env: [String: String]?)] { lock.withLock { recorded } }
     func run(_ executable: String, _ args: [String], cwd: String?, env: [String: String]?, timeout: TimeInterval) async throws -> ProcessResult {
-        lock.withLock {
+        let result = lock.withLock { () -> ProcessResult in
             recorded.append((executable, args, env))
             guard !script.isEmpty else { return ProcessResult(exitCode: 0, stdout: "", stderr: "") }
             return script.removeFirst()
         }
+        onRun?(args)
+        return result
     }
 }

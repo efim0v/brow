@@ -124,11 +124,13 @@ public final class LimitsStore: ObservableObject {
     static let waitingMessage = "Waiting for Keychain access…"
     static let deniedMessage = "Keychain access needed — press the key on the account"
     static let timedOutMessage = "Refresh timed out"
-    /// The row's error for a 401/403 while Claude Code is using the account: the token
-    /// is that session's to refresh, so this is not a sign-in to redo (no orange key).
-    nonisolated static let inUseMessage = "Token in use by Claude Code"
     /// The token slot while Brow leaves a due refresh to Claude Code.
     nonisolated static let inUseStatus = "in use by Claude Code, waiting for it to refresh"
+    /// A session holding the account holds the keeper off only while the token has more
+    /// than this left (see `holderRule`). Claude Code renews a token when it sends a
+    /// request inside the token's last five minutes, so a session that is working has
+    /// renewed it by now; one that has not is idle, and will not before the token dies.
+    nonisolated static let holderGrace: TimeInterval = 2 * 60
     /// How far ahead of `TokenKeeper.threshold` the store starts asking whether Claude
     /// Code is using an account. The store judges by the expiry its scan read, the keeper
     /// by its own read a moment later; when the Keychain is slow the scan's answer can be
@@ -217,9 +219,12 @@ public final class LimitsStore: ObservableObject {
     private var snapshots: [String: LimitSnapshot]
     private var lastError: [String: String] = [:]
     private var tokenOutcome: [String: TokenRefreshOutcome] = [:]
-    /// Accounts Claude Code was found using in the last cycle, and why. Asked only when a
-    /// refresh may be due or the server refused the token.
-    private var claudeCodeUse: [String: ClaudeCodeUse] = [:]
+    /// Accounts whose keeper the last cycle left out for a Claude Code session holding
+    /// them (`HolderRule.postpone`).
+    private var postponed: Set<String> = []
+    /// What the persisted log last said about a session holding each account, so a
+    /// stretch of cycles that agree is one line, not one every 30 s.
+    private var holderEpisodes: [String: String] = [:]
     /// The one cycle allowed to be in flight. Overlapping cycles let an older
     /// capture overwrite a newer one (dataAsOf walking backwards, a cleared
     /// footerError resurrecting) and clear the spinner while a fetch is still out.
@@ -621,52 +626,45 @@ public final class LimitsStore: ObservableObject {
     /// between the top of the cycle and this request, and the reading must be stamped
     /// with the instant it was really taken — that stamp is the panel's "Updated …".
     ///
-    /// A refresh that is due goes to the keeper only when Claude Code is NOT using the
-    /// account. A running session refreshes its own token, and the refresh token rotates
-    /// on every refresh: a `claude doctor` landing next to the session's own refresh
-    /// leaves one of the two with a dead token, and the session asks for `/login`. The
-    /// same holds after a 401/403: the session will refresh, Brow waits for it.
+    /// A Claude Code session holding the account may hold the keeper off, briefly: see
+    /// `holderRule`.
     nonisolated private static func fetch(deps: Dependencies, account: DiscoveredAccount,
                                           force: Bool, forceAttempt: Bool) async -> FetchResult {
-        var inUse: ClaudeCodeUse?
-        var asked = false
-        if refreshMayBeDue(account, authRejected: forceAttempt, now: deps.now()) {
-            inUse = claudeCodeUse(deps: deps, account: account)
-            asked = true
+        let now = deps.now()
+        var holder: ClaudeCodeUse?
+        var rule: HolderRule?
+        if refreshMayBeDue(account, authRejected: forceAttempt, now: now),
+           let use = claudeCodeUse(deps: deps, account: account) {
+            holder = use
+            rule = holderRule(expiry: account.tokenExpiresAt, force: force, authRejected: forceAttempt, now: now)
         }
-        let token: TokenRefreshOutcome?
-        if let inUse {
-            BrowLog.tokens.info("""
-                token refresh for \(account.configDir, privacy: .public) left to Claude Code \
-                (\(inUse.logText, privacy: .public))
-                """)
-            token = nil
-        } else {
-            token = await deps.keeper.ensureFresh(configDir: account.configDir, authRejected: forceAttempt)
+        let postponed = rule == .postpone
+        let token: TokenRefreshOutcome? = postponed
+            ? nil
+            : await deps.keeper.ensureFresh(configDir: account.configDir, authRejected: forceAttempt)
+        let episode = holder.flatMap { holder in
+            rule.flatMap { HolderEpisode($0, holder: holder, configDir: account.configDir,
+                                         expiry: account.tokenExpiresAt, token: token, now: now) }
         }
         let at = deps.now()
+        func result(_ snapshot: LimitSnapshot?, error: String?, rejected: Bool = false,
+                    rateLimited: Bool = false) -> FetchResult {
+            FetchResult(org: account.organizationUuid, snapshot: snapshot, error: error, token: token,
+                        rejected: rejected, rateLimited: rateLimited, postponed: postponed, episode: episode)
+        }
         // A background poll inside the endpoint's window is not sent and not an error:
         // the reading on screen is the freshest one there can be. (A forced refresh
         // goes on to the client, which throws so the store can queue it.)
         if !force, await deps.client.nextAllowedAt(configDir: account.configDir, force: false, now: at) > at {
-            return FetchResult(org: account.organizationUuid, snapshot: nil, error: nil,
-                               token: token, rejected: false, rateLimited: false, inUse: inUse)
+            return result(nil, error: nil)
         }
         do {
             let usage = try await deps.client.usage(configDir: account.configDir, now: at, force: force)
             let snap = LimitSnapshot(organizationUuid: account.organizationUuid, usage: usage, now: at)
-            return FetchResult(org: account.organizationUuid, snapshot: snap,
-                               error: snap == nil ? "No limit windows in response" : nil,
-                               token: token, rejected: false, rateLimited: false, inUse: inUse)
+            return result(snap, error: snap == nil ? "No limit windows in response" : nil)
         } catch {
-            let rejected = Self.isAuthRejection(error)
-            // The first 401 of an episode arrives before any refresh was due. If a session
-            // holds this token, the row must not ask for a new sign-in in the meantime.
-            if rejected, !asked { inUse = claudeCodeUse(deps: deps, account: account) }
-            return FetchResult(org: account.organizationUuid, snapshot: nil,
-                               error: rejected && inUse != nil ? Self.inUseMessage : Self.errorText(error),
-                               token: token, rejected: rejected,
-                               rateLimited: Self.isRateLimit(error), inUse: inUse)
+            return result(nil, error: Self.errorText(error), rejected: Self.isAuthRejection(error),
+                          rateLimited: Self.isRateLimit(error))
         }
     }
 
@@ -678,6 +676,113 @@ public final class LimitsStore: ObservableObject {
         if authRejected { return true }
         guard let expiry = account.tokenExpiresAt else { return true }
         return expiry.timeIntervalSince(now) <= TokenKeeper.threshold + inUseCheckMargin
+    }
+
+    /// What a Claude Code session holding the account means for this cycle's keeper.
+    enum HolderRule: Sendable, Equatable {
+        /// More than the keeper's threshold left: the keeper runs nothing, session or not.
+        case notDue
+        /// The session gets the first go; the keeper is left out of this cycle.
+        case postpone
+        /// The keeper runs although the session holds the account, and why.
+        case override(Override)
+    }
+
+    enum Override: Sendable, Equatable {
+        /// Anthropic refused the token: the rejection's forced attempt is due.
+        case rejected
+        /// A forced cycle: ⟳, the Mac waking, a sign-in, a Keychain grant.
+        case asked
+        /// `holderGrace` or less left; the seconds left.
+        case expiring(TimeInterval)
+        /// Past its expiry; the seconds since.
+        case expired(TimeInterval)
+        /// The scan could not read the expiry, so the keeper reads it for itself.
+        case expiryUnknown
+
+        /// The reason without its numbers: what the log's dedupe key is made of.
+        var kind: String {
+            switch self {
+            case .rejected: return "rejected"
+            case .asked: return "asked"
+            case .expiring: return "expiring"
+            case .expired: return "expired"
+            case .expiryUnknown: return "expiry unknown"
+            }
+        }
+
+        func text(left: String) -> String {
+            switch self {
+            case .rejected: return "Anthropic rejected its token"
+            case .asked: return "a refresh was asked for with \(left) left"
+            case .expiring: return "its token has \(left) left"
+            case .expired(let since): return "its token expired \(HolderEpisode.duration(since)) ago"
+            case .expiryUnknown: return "its expiry could not be read"
+            }
+        }
+    }
+
+    /// 0.3.1 left every account with a live session to that session, however long it had
+    /// sat idle, on the grounds that two refreshes at once leave one side with a dead
+    /// refresh token. Two things make that wrong. Claude Code takes a lock in the config
+    /// dir around every refresh, re-reads the token under it and keeps the newer one
+    /// (seen in 2.1.290–2.1.302), so Brow's `doctor` no longer races the session. And a
+    /// session renews its token only when it sends a request inside the token's last five
+    /// minutes: an idle one renews nothing, and sessions left open for days, or a helper
+    /// counted as one, meant no token was refreshed at all — every account went red eight
+    /// hours after its last refresh.
+    ///
+    /// What is left is courtesy: a session at work renews the token itself on its next
+    /// request, so it gets the first go while the token has more than `holderGrace` left.
+    /// After that, and after a 401, and when someone asks for a refresh, the keeper runs
+    /// whoever holds the account. A session busy at that moment may see one 401, which
+    /// Claude Code recovers from by re-reading the token.
+    nonisolated static func holderRule(expiry: Date?, force: Bool, authRejected: Bool, now: Date) -> HolderRule {
+        guard let expiry else { return .override(.expiryUnknown) }
+        let left = expiry.timeIntervalSince(now)
+        if left <= 0 { return .override(.expired(-left)) }
+        if authRejected { return .override(.rejected) }
+        if left > TokenKeeper.threshold { return .notDue }
+        if force { return .override(.asked) }
+        if left <= holderGrace { return .override(.expiring(left)) }
+        return .postpone
+    }
+
+    /// One line for the persisted log about a session holding an account. The store
+    /// writes `text` when `key` differs from the last one it wrote for that account.
+    struct HolderEpisode: Sendable, Equatable {
+        let key: String
+        let text: String
+
+        /// nil for `.notDue`: nothing to say while the keeper would run nothing anyway.
+        init?(_ rule: HolderRule, holder: ClaudeCodeUse, configDir: String, expiry: Date?,
+              token: TokenRefreshOutcome?, now: Date) {
+            let left = expiry.map { Self.duration($0.timeIntervalSince(now)) } ?? "?"
+            switch rule {
+            case .notDue:
+                return nil
+            case .postpone:
+                key = "postponed"
+                text = """
+                    token refresh for \(configDir) left to Claude Code for now (\(holder.logText)): \
+                    \(left) left; Brow runs it itself from \(Self.duration(LimitsStore.holderGrace)) left
+                    """
+            case .override(let why):
+                let outcome = token.map { String(describing: $0) } ?? "nothing"
+                key = "override \(why.kind) \(outcome)"
+                text = """
+                    token refresh for \(configDir) run although Claude Code holds it (\(holder.logText)): \
+                    \(why.text(left: left)); the keeper answered \(outcome)
+                    """
+            }
+        }
+
+        static func duration(_ seconds: TimeInterval) -> String {
+            let s = Int(abs(seconds).rounded())
+            if s < 60 { return "\(s) s" }
+            if s < 3600 { return s % 60 == 0 ? "\(s / 60) min" : "\(s / 60) min \(s % 60) s" }
+            return "\(s / 3600) h \(s % 3600 / 60) min"
+        }
     }
 
     nonisolated private static func claudeCodeUse(deps: Dependencies, account: DiscoveredAccount) -> ClaudeCodeUse? {
@@ -699,7 +804,8 @@ public final class LimitsStore: ObservableObject {
     private func apply(_ result: FetchResult) {
         cycleResults[result.org] = result
         tokenOutcome[result.org] = result.token
-        claudeCodeUse[result.org] = result.inUse
+        if result.postponed { postponed.insert(result.org) } else { postponed.remove(result.org) }
+        logHolderEpisode(result)
         // Neither a reading nor an error: the poll was held back by the endpoint's
         // window. The row keeps what it had — status, error and all.
         if result.snapshot == nil && result.error == nil { return }
@@ -713,6 +819,19 @@ public final class LimitsStore: ObservableObject {
         // 401/403 is the server's word on the token and it outranks `expiresAt`: the
         // next cycle spends one forced refresh attempt on this account.
         if result.rejected { authRejected[result.org] = true }
+    }
+
+    /// At the default level, so it is kept: when a session held the keeper off, and when
+    /// the keeper ran although a session held the account. Once per stretch of cycles
+    /// that agree, not every 30 s.
+    private func logHolderEpisode(_ result: FetchResult) {
+        guard let episode = result.episode else {
+            holderEpisodes[result.org] = nil
+            return
+        }
+        guard holderEpisodes[result.org] != episode.key else { return }
+        holderEpisodes[result.org] = episode.key
+        BrowLog.tokens.notice("\(episode.text, privacy: .public)")
     }
 
     /// The scan's answer, whenever it arrives. The Keychain verdict is read off the
@@ -826,16 +945,18 @@ public final class LimitsStore: ObservableObject {
         let org: String
         let snapshot: LimitSnapshot?
         let error: String?
-        /// nil: the keeper was not asked, because Claude Code is using the account.
+        /// nil: the keeper was not asked, because a session holding the account got the
+        /// first go (`postponed`).
         let token: TokenRefreshOutcome?
         /// The server rejected the bearer (401/403), whatever `expiresAt` claims.
         let rejected: Bool
         /// The endpoint's rate limit (a 429, or the client's own pacing) held this
         /// request back. A forced cycle re-queues itself for these — see `scheduleRetry`.
         let rateLimited: Bool
-        /// Claude Code is using the account: a due refresh was left to it, and a 401/403
-        /// is its to fix.
-        let inUse: ClaudeCodeUse?
+        /// The keeper was left out for a Claude Code session holding the account.
+        let postponed: Bool
+        /// What to log about that session, if one was asked about.
+        let episode: HolderEpisode?
     }
 
     /// How many times a forced refresh re-queues itself behind the rate limit before
@@ -930,7 +1051,7 @@ public final class LimitsStore: ObservableObject {
                           tokenStatus: Self.tokenStatus(account, outcome: tokenOutcome[account.organizationUuid],
                                                         error: lastError[account.organizationUuid],
                                                         keychain: keychainState,
-                                                        inUse: claudeCodeUse[account.organizationUuid] != nil,
+                                                        postponed: postponed.contains(account.organizationUuid),
                                                         now: now),
                           renewsAt: subscriptions[account.organizationUuid]?.nextRenewal(after: now))
     }
@@ -942,11 +1063,11 @@ public final class LimitsStore: ObservableObject {
     /// answered yet, a prompt that was refused, and an account that really has no
     /// token are three different problems.
     ///
-    /// `inUse`: the last cycle left a due refresh to Claude Code. It says so while the
-    /// token is due or refused; a token with life left reads as usual.
+    /// `postponed`: the last cycle left a due refresh to a Claude Code session holding the
+    /// account (see `holderRule`), and the slot says so until the keeper runs again.
     nonisolated static func tokenStatus(_ account: DiscoveredAccount, outcome: TokenRefreshOutcome?,
                                         error: String?, keychain: KeychainState = .ok,
-                                        inUse: Bool = false, now: Date) -> String {
+                                        postponed: Bool = false, now: Date) -> String {
         guard let exp = account.tokenExpiresAt else {
             if account.keychainLocked { return "Keychain access needed" }
             switch keychain {
@@ -955,11 +1076,7 @@ public final class LimitsStore: ObservableObject {
             case .ok:      return "no token"
             }
         }
-        // Before "sign-in revoked": a 401 for a token a session holds is that session's
-        // to fix, and the sign-in button must not light up for it.
-        if inUse, error == inUseMessage || exp.timeIntervalSince(now) <= TokenKeeper.threshold {
-            return inUseStatus
-        }
+        if postponed { return inUseStatus }
         if error == "Claude sign-in expired" { return "sign-in revoked" }
         switch outcome {
         case .refreshedByDoctor?: return "refreshing (doctor)"

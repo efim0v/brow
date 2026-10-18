@@ -91,6 +91,9 @@ public struct PetBody: Sendable, Equatable {
     /// across it.
     public var smear: Double = 1
     public var smearAngle: Double = 0
+    /// 0 ... 1: a round belly bulging the lower outline, from the meter past the brim
+    /// (`PetRigMeter.belly`): stuffed. None while curled up.
+    public var belly: Double = 0
 
     // MARK: Face, painted on a sphere
 
@@ -112,6 +115,9 @@ public struct PetBody: Sendable, Equatable {
     /// 0 ... 1 eyes squeezed shut with effort.
     public var squeeze: Double = 0
     public var eyeSize: Double = 1
+    /// 0 ... 1 each: that eye alone closes into a happy arc, a wink.
+    public var winkL: Double = 0
+    public var winkR: Double = 0
     /// Points up; tilts in radians, + raises the inner end.
     public var browLiftL: Double = 0
     public var browLiftR: Double = 0
@@ -136,6 +142,10 @@ public struct PetBody: Sendable, Equatable {
     public var armR: Double = 0
     public var footL: Double = 0
     public var footR: Double = 0
+    /// 0 ... 1 each: a little thumb standing up off the tip of that arm, a thumbs-up. Only while the
+    /// arm is up giving one.
+    public var thumbL: Double = 0
+    public var thumbR: Double = 0
 
     // MARK: Light: the hunger meter
 
@@ -149,6 +159,9 @@ public struct PetBody: Sendable, Equatable {
     public var glow: Double = 1
     /// The satisfied flare as a bite lands in the belly.
     public var flash: Double = 0
+    /// 0 ... 1: how much of the food source's colour the swallowed light carries on its way down. 0 when
+    /// the pet is stuffed, where a green or red glow at the mouth of a full creature would read as nausea.
+    public var lumpTint: Double = 1
 
     public init() {}
 }
@@ -170,6 +183,8 @@ public struct PetParticle: Sendable, Equatable {
         case bubble
         /// A dust mote drifting by, which the eyes may follow.
         case mote
+        /// A contented sigh's puff of breath: a soft little cloud.
+        case puff
     }
 
     /// Which colour of the palette it takes; `dot` is the food source's status dot (nil: grey).

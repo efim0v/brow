@@ -209,4 +209,181 @@ final class PetMoodEndsTests: XCTestCase {
         XCTAssertFalse(played.contains(.satisfied(.brim)), "the yawn, not the brim: \(played)")
         XCTAssertEqual(played.last, .idle(.stuffed), "\(played)")
     }
+
+    // MARK: - Stuffed, the look
+
+    let zones = PetStage.zones(PetStage.frames(.beside), PetStage.aggregate(left: 41))
+
+    static func stuffed(_ hunger: Double = -46) -> PetReelScript { PetReelScript([(0, .idle(.stuffed))], hunger: hunger) }
+
+    /// The gestures an idle that started at 0 plays in its first `span` seconds.
+    static func gestures(_ behaviour: PetBehaviour, span: Double, seed: UInt64 = 7) -> [PetRigMoodBeats.Gesture] {
+        PetRigMoodBeats.gestures(in: PetSegment(start: 0, behaviour: behaviour), previous: nil, at: span, lookBack: span,
+                                 seed: seed, reduceMotion: false)
+    }
+
+    static func scene(_ script: PetReelScript, at t: Double, zones: PetZones, seed: UInt64 = 7,
+                      motion: PetMotion = PetMotion()) -> PetRigPoser {
+        PetRigPoser(timeline: script.timeline, t: t, pointer: PetPointerTrack(), zone: zones.strip!, seed: seed, motion: motion,
+                    memo: PetRigMemo(), flight: nil, flightSource: nil, lookAt: nil)
+    }
+
+    /// At rest, between its gestures, stuffed is blissful and never sleepy: eyes shut in happy arcs but
+    /// when they open out of their bliss, no blink while they are shut, the brows up and easy, a wide smile.
+    func testStuffedAtRestIsBlissfulNeverSleepy() {
+        let rig = PetRig()
+        let script = Self.stuffed()
+        let gestures = Self.gestures(.idle(.stuffed), span: 610)
+        var shut = 0, open = 0
+        for n in 0..<(600 * 10) {
+            let t = 5 + Double(n) / 10
+            guard !gestures.contains(where: { $0.at - 0.25 < t && t < $0.end + 0.25 }) else { continue }
+            let p = script.pose(rig, at: t, zones: zones).pet
+            XCTAssertGreaterThanOrEqual(min(p.browLiftL, p.browLiftR), 0.3, "t = \(t)")
+            XCTAssertGreaterThanOrEqual(p.smile, 0.8, "t = \(t)")
+            XCTAssertLessThanOrEqual(abs(p.lidSlant), 0.001, "t = \(t)")
+            if p.happy >= PetCanvas.happyBand.upperBound {
+                shut += 1
+                XCTAssertGreaterThanOrEqual(min(p.lidL, p.lidR), 0.9, "t = \(t): no blink while the eyes are shut")
+            } else {
+                open += 1
+                let opening = PetRigMoodBeats.blissOpen(beat: PetRigBeat(segments: script.timeline.segments, index: 0, t: t),
+                                                        scene: Self.scene(script, at: t, zones: zones))
+                XCTAssertGreaterThan(opening.eyes, 0, "t = \(t): open only out of bliss")
+            }
+        }
+        let share = Double(open) / Double(shut + open)
+        XCTAssertEqual(share, 0.2, accuracy: 0.07, "the eyes open about a fifth of the time")
+    }
+
+    /// Rounder and wider than Full, with a belly that bulges low and feet set wider, and its light up.
+    func testStuffedIsRounderThanFull() {
+        let rig = PetRig()
+        let full = PetReelScript([(0, .idle(.full))], hunger: -20).pose(rig, at: 9, zones: zones).pet
+        let stuffed = Self.stuffed().pose(rig, at: 9, zones: zones).pet
+        func width(_ body: PetBody) -> Double {
+            let xs = PetBodyGeometry(body).outlinePoints().map { Double($0.x) }
+            return (xs.max() ?? 0) - (xs.min() ?? 0)
+        }
+        func feet(_ body: PetBody) -> Double {
+            let g = PetBodyGeometry(body)
+            return abs(Double(g.foot(1).centre.x - g.foot(-1).centre.x))
+        }
+        XCTAssertGreaterThan(width(stuffed), width(full) + 3, "rounder")
+        XCTAssertGreaterThan(feet(stuffed), feet(full) + 1, "feet set wider")
+        XCTAssertGreaterThan(stuffed.glow, full.glow)
+        XCTAssertGreaterThan(stuffed.fullness, 1.08, "the light over the brim")
+    }
+
+    /// The thumbs-up with its wink comes about every three minutes, and the thumb is there only while an arm
+    /// is up giving one: never at rest, never in any other beat.
+    func testTheThumbIsThereOnlyInAThumbsUp() {
+        let rig = PetRig()
+        let script = Self.stuffed()
+        let okays = Self.gestures(.idle(.stuffed), span: 1810).filter { $0.item == .beat(.okay) }
+        XCTAssertGreaterThanOrEqual(okays.count, 6, "about every three minutes over half an hour: \(okays.count)")
+        XCTAssertLessThanOrEqual(okays.count, 15)
+        var winked = false
+        for n in 0..<(1800 * 10) {
+            let t = 5 + Double(n) / 10
+            let p = script.pose(rig, at: t, zones: zones).pet
+            let inside = okays.contains { $0.at < t && t < $0.end }
+            if p.thumbL > 0 || p.thumbR > 0 { XCTAssertTrue(inside, "t = \(t): a thumb outside a thumbs-up") }
+            if p.thumbR > 0.9, p.winkR > 0.9 { winked = true }
+            XCTAssertEqual(p.thumbL, 0, "beside, the thumb is on the side away from the readout")
+        }
+        XCTAssertTrue(winked)
+    }
+
+    /// The belly is the meter's: none above −26, 0.59 where the pet becomes stuffed, full from −42, and it
+    /// rounds out as the meal that makes it stuffed lands. Curled up asleep it is gone: the loaf keeps its
+    /// shape.
+    func testTheBellyFollowsTheMeterAndNotTheLoaf() {
+        XCTAssertEqual(PetRigMeter.belly(-26), 0)
+        XCTAssertEqual(PetRigMeter.belly(-30), 0.156, accuracy: 0.001)
+        XCTAssertEqual(PetRigMeter.belly(-35), 0.593, accuracy: 0.001)
+        XCTAssertEqual(PetRigMeter.belly(-42), 1)
+        XCTAssertEqual(PetRigMeter.belly(-50), 1)
+        let rig = PetRig()
+        let asleep = PetReelScript([(0, .idle(.stuffed)), (1, .fallAsleep), (1 + PetTuning.Behaviour.fallAsleep, .asleep)],
+                                   hunger: -50)
+        XCTAssertEqual(asleep.pose(rig, at: 9, zones: zones).pet.belly, 0, "asleep at the limit, the loaf as ever")
+        let meal = PetMeal(size: .full, chews: 3, feast: false, points: 6, reduceMotion: false, mood: .full)
+        var script = PetReelScript([(0, .idle(.full)), (2, .eat(meal)), (2 + meal.duration, .satisfied(.brim))], hunger: -10)
+        script.meter(2 + meal.swallowStart, -46)
+        XCTAssertLessThan(script.pose(rig, at: 2 + meal.swallowStart, zones: zones).pet.belly, 0.01)
+        XCTAssertGreaterThan(script.pose(rig, at: 2 + meal.duration + 0.5, zones: zones).pet.belly, 0.8)
+    }
+
+    /// Eating stuffed keeps the meal's beats to the frame, leans for the food rather than leaping, and the
+    /// swallowed light carries no tint of the number's dot.
+    func testEatingStuffedKeepsTheBeatsAndLeansLazily() {
+        let rig = PetRig()
+        func script(_ mood: PetMood, _ hunger: Double, after: Double) -> PetReelScript {
+            let meal = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: mood)
+            var s = PetReelScript([(0, .idle(mood)), (10, .eat(meal)), (10 + meal.duration, .satisfied(.meal))], hunger: hunger)
+            s.meter(10 + meal.swallowStart, after)
+            return s
+        }
+        let m = PetRigActions.timing(PetReelScript.meal(.full, chews: 3))
+        let plain = script(.content, 30, after: 12), lazy = script(.stuffed, -40, after: -50)
+        func pose(_ s: PetReelScript, _ e: Double) -> PetBody { s.pose(rig, at: 10 + e, zones: zones).pet }
+        let anchor = Double(zones.strip!.anchor.x)
+        for s in [plain, lazy] {
+            XCTAssertGreaterThan(pose(s, m.snap - 1.0 / 60).mouthOpen, 0.6, "the mouth wide before the snap")
+            XCTAssertLessThan(pose(s, m.snap + 2.0 / 60).mouthOpen, 0.1, "shut on the bite")
+            XCTAssertEqual(pose(s, m.chewStart + 0.1).x, anchor, accuracy: 1.6, "back on its seat for the chews")
+            XCTAssertGreaterThanOrEqual(pose(s, m.swallowStart + 0.15).lump, 0, "the swallow on time")
+        }
+        let peak = m.anticipation + m.lunge * 0.6
+        XCTAssertLessThan(pose(lazy, peak).lift, pose(plain, peak).lift - 0.5, "stuffed hardly leaves the ground")
+        XCTAssertGreaterThan(pose(lazy, m.snap).x, pose(plain, m.snap).x + 1.5, "and reaches less far")
+        XCTAssertEqual(pose(lazy, m.swallowStart + 0.15).lumpTint, 0, "no green at a stuffed mouth")
+        XCTAssertEqual(pose(plain, m.swallowStart + 0.15).lumpTint, 1)
+        // The meal that makes it stuffed is untinted too.
+        let into = script(.full, -20, after: -40)
+        XCTAssertEqual(pose(into, m.swallowStart + 0.15).lumpTint, 0)
+    }
+
+    /// One gesture at a time: over an hour of stuffed idle no two gestures overlap, and every beat comes.
+    func testStuffedGesturesNeverOverlap() {
+        for seed: UInt64 in [7, 1_311_768_467_294_899_695] {
+            let all = Self.gestures(.idle(.stuffed), span: 3600, seed: seed)
+            for (a, b) in zip(all, all.dropFirst()) { XCTAssertLessThanOrEqual(a.end, b.at, "seed \(seed): \(a) and \(b)") }
+            for beat: PetRigMoodBeats.Beat in [.pat, .sigh, .roomForMore, .okay, .hiccup] {
+                XCTAssertTrue(all.contains { $0.item == .beat(beat) }, "seed \(seed): \(beat) within the hour")
+            }
+        }
+    }
+
+    /// Out of stuffed by time, the eyes open on their own quick clock while the rest settles over 2 s: never
+    /// two eye drawings at once for more than two frames at 30 fps.
+    func testStuffedSettlesIntoFullWithoutADoubleEye() {
+        XCTAssertEqual(PetRigActions.blendIn(.idle(.full), after: .idle(.stuffed)), 2.0)
+        let script = PetReelScript([(0, .idle(.stuffed)), (20, .idle(.full))], hunger: -30)
+        let rig = PetRig()
+        var run = 0, longest = 0
+        for n in 0..<(4 * 30) {
+            let happy = script.pose(rig, at: 19.5 + Double(n) / 30, zones: zones).pet.happy
+            run = happy > PetCanvas.happyBand.lowerBound && happy < PetCanvas.happyBand.upperBound ? run + 1 : 0
+            longest = max(longest, run)
+        }
+        XCTAssertLessThanOrEqual(longest, 2)
+    }
+
+    /// The same instant of a stuffed timeline with a meal, the brim and the beats is one frame whatever was
+    /// posed before.
+    func testStuffedFramesAreTheSameWhateverWasPosedBefore() {
+        let more = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed)
+        var script = PetReelScript([(0, .idle(.stuffed)), (300, .eat(more)), (300 + more.duration, .satisfied(.brim)),
+                                    (303 + more.duration, .idle(.stuffed))], hunger: -40)
+        script.meter(300 + more.swallowStart, -50)
+        let times = stride(from: 280.0, to: 330.0, by: 0.37).map { $0 }
+        let forward = PetRig()
+        let sequential = times.map { script.pose(forward, at: $0, zones: zones) }
+        let backward = PetRig()
+        for (t, frame) in zip(times, sequential).reversed() {
+            XCTAssertEqual(script.pose(backward, at: t, zones: zones), frame, "t = \(t)")
+        }
+    }
 }

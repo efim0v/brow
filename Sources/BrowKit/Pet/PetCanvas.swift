@@ -303,11 +303,14 @@ public struct PetCanvas: View {
             let r = 3.0 * s
             let o = PetCurve.ramp(p.lump, 0, 0.12) * (1 - PetCurve.ramp(p.lump, 0.85, 1))
             let tint = dotColor(look.foodDot)
-            inside.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r * 0.85, width: 2 * r, height: 1.7 * r)),
-                        with: .radialGradient(Gradient(stops: [.init(color: tint.opacity(0.38 * o), location: 0),
-                                                               .init(color: tint.opacity(0.2 * o), location: 0.45),
-                                                               .init(color: tint.opacity(0), location: 1)]),
-                                              center: c, startRadius: 0, endRadius: r))
+            let tinted = o * PetEase.clamp01(p.lumpTint)
+            if tinted > 0.001 {
+                inside.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r * 0.85, width: 2 * r, height: 1.7 * r)),
+                            with: .radialGradient(Gradient(stops: [.init(color: tint.opacity(0.38 * tinted), location: 0),
+                                                                   .init(color: tint.opacity(0.2 * tinted), location: 0.45),
+                                                                   .init(color: tint.opacity(0), location: 1)]),
+                                                  center: c, startRadius: 0, endRadius: r))
+            }
             var hot = inside
             hot.blendMode = .plusLighter
             let core = 1.1 * s
@@ -378,15 +381,21 @@ public struct PetCanvas: View {
             let c = CGPoint(x: f.p.x + p.lookX * 0.5 * s, y: f.p.y - p.lookY * 0.45 * s)
             let w = 3.3 * s * p.eyeSize * g.featureScaleX * max(0.25, f.fx)
             let h = 4.5 * s * p.eyeSize * g.featureScaleY
-            let lid = PetEase.clamp01(side < 0 ? p.lidL : p.lidR)
+            // A wink closes one eye alone into the happy arc: it holds open the lid the arc is drawn for.
+            let wink = PetEase.clamp01(side < 0 ? p.winkL : p.winkR)
+            let lid = max(PetEase.clamp01(side < 0 ? p.lidL : p.lidR), wink)
             // Each feature fades as it turns away round the dome.
             var e = ctx
             e.opacity *= PetCurve.ramp(f.fx, 0.04, 0.32)
             guard e.opacity > 0.001 else { continue }
-            drawEye(centre: c, w: w, h: h, lid: lid, slant: p.lidSlant, happy: PetEase.clamp01(p.happy),
+            drawEye(centre: c, w: w, h: h, lid: lid, slant: p.lidSlant, happy: max(PetEase.clamp01(p.happy), wink),
                     squeeze: PetEase.clamp01(p.squeeze), side: side, tilt: p.tilt, s: s, pal, in: &e)
         }
     }
+
+    /// Between these values of `happy` the bean eye and the happy arc cross-fade: the rig takes `happy`
+    /// across it in a frame or two, never holding it there.
+    static let happyBand: ClosedRange<Double> = 0.5...0.72
 
     static func drawEye(centre c: CGPoint, w: Double, h: Double, lid: Double, slant: Double, happy: Double, squeeze: Double,
                         side: Double, tilt: Double, s: Double, _ pal: PetPalette.Colors, in ctx: inout GraphicsContext) {
@@ -396,7 +405,7 @@ public struct PetCanvas: View {
         // is drawn, at lid 0.2: the cross-fade happens where the two drawings coincide.
         let wSqueeze = PetCurve.ramp(squeeze, 0.35, 0.6)
         let wClosed = (1 - wSqueeze) * (1 - PetCurve.ramp(lid, 0.1, 0.24))
-        let wHappy = (1 - wSqueeze) * (1 - wClosed) * PetCurve.ramp(happy, 0.5, 0.72)
+        let wHappy = (1 - wSqueeze) * (1 - wClosed) * PetCurve.ramp(happy, happyBand.lowerBound, happyBand.upperBound)
         let wBean = max(0, 1 - wSqueeze - wClosed - wHappy)
 
         var e = ctx
@@ -609,9 +618,28 @@ public struct PetCanvas: View {
             l.fill(arm, with: .linearGradient(Gradient(colors: [pal.lightMid.color(), pal.limb.color(), pal.limbDark.color()]),
                                               startPoint: CGPoint(x: 0, y: -a.thickness / 2), endPoint: CGPoint(x: 0, y: a.thickness / 2)))
             // A soft dark edge, so an arm reads against the bright body when it crosses it.
-            l.stroke(arm, with: .color(pal.shade.color(opacity: 0.42)), lineWidth: 0.55 * s)
+            l.stroke(arm, with: .color(pal.shade.color(opacity: 0.42)), lineWidth: limbEdge * s)
+            if let thumb = g.thumb(side) { drawThumb(thumb, s: s, pal, in: &ctx) }
         }
     }
+
+    /// A thumbs-up's thumb: a capsule standing up off the end of a raised nub, the way a nub would make
+    /// the gesture, in the arm's own gradient and with its soft edge. It grows in with the gesture.
+    static func drawThumb(_ t: (centre: CGPoint, width: Double, height: Double, angle: Double, amount: Double), s: Double,
+                          _ pal: PetPalette.Colors, in ctx: inout GraphicsContext) {
+        var l = ctx
+        l.opacity *= PetCurve.ramp(t.amount, 0, 0.35)
+        l.translateBy(x: t.centre.x, y: t.centre.y)
+        l.rotate(by: .radians(t.angle))
+        let shape = Path(roundedRect: CGRect(x: -t.width / 2, y: -t.height / 2, width: t.width, height: t.height),
+                         cornerRadius: t.width / 2)
+        l.fill(shape, with: .linearGradient(Gradient(colors: [pal.lightMid.color(), pal.limb.color(), pal.limbDark.color()]),
+                                            startPoint: CGPoint(x: -t.width / 2, y: 0), endPoint: CGPoint(x: t.width / 2, y: 0)))
+        l.stroke(shape, with: .color(pal.shade.color(opacity: 0.42)), lineWidth: limbEdge * s)
+    }
+
+    /// The width of the soft dark edge stroked round an arm and a thumb, at scale 1.
+    static let limbEdge = 0.55
 
     // MARK: - Particles and the food
 
@@ -706,6 +734,19 @@ public struct PetCanvas: View {
                 c.fill(Path(ellipseIn: CGRect(x: q.position.x - 2 * r, y: q.position.y - 2 * r, width: 4 * r, height: 4 * r)),
                        with: .radialGradient(Gradient(colors: [color.opacity(o), color.opacity(0.3 * o), color.opacity(0)]),
                                              center: q.position, startRadius: 0, endRadius: 2 * r))
+            case .puff:
+                // Three soft lobes of breath, a little cloud: gradients only.
+                c.blendMode = .plusLighter
+                let r = q.size
+                for (dx, dy, k) in [(-0.55, 0.18, 0.72), (0.52, 0.22, 0.66), (0.0, -0.22, 0.86)] {
+                    let centre = CGPoint(x: q.position.x + dx * r, y: q.position.y + dy * r)
+                    let rr = r * k
+                    c.fill(Path(ellipseIn: CGRect(x: centre.x - rr, y: centre.y - rr, width: 2 * rr, height: 2 * rr)),
+                           with: .radialGradient(Gradient(stops: [.init(color: color.opacity(0.8 * o), location: 0),
+                                                                  .init(color: color.opacity(0.55 * o), location: 0.45),
+                                                                  .init(color: color.opacity(0), location: 1)]),
+                                                 center: centre, startRadius: 0, endRadius: rr))
+                }
             }
         }
     }

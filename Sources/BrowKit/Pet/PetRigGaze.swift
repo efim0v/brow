@@ -81,6 +81,22 @@ enum PetRigGaze {
         // across the screen.
         watch(&p, beat: beat, scene: scene)
         hideAndPeek(&p, beat: beat, scene: scene)
+        // A thumbs-up looks straight out of the screen at whoever is there, wherever the pointer is.
+        let viewer = PetRigMoodBeats.viewer(beat: beat, scene: scene)
+        if viewer > 0.001 {
+            p.lookX = PetCurve.mix(p.lookX, 0, viewer)
+            p.lookY = PetCurve.mix(p.lookY, 0.1, viewer)
+            p.turn = PetCurve.mix(p.turn, 0, viewer)
+            p.nod = PetCurve.mix(p.nod, p.nod + 0.06, viewer)
+        }
+        // Eyes shut in bliss do not roll under their lids: a glance turns the head, and the arcs stay where
+        // they are, over the smile, rather than sliding down onto it.
+        if posture.bliss > 0.001 {
+            let band = PetCanvas.happyBand
+            let shut = PetCurve.ramp(p.happy, band.lowerBound, band.upperBound) * posture.bliss
+            p.lookX *= 1 - shut
+            p.lookY *= 1 - shut
+        }
         if let target = scene.lookAt {
             lookToward(&p, target, weight: 1, scene: scene)
         }

@@ -34,6 +34,7 @@ enum PetRigParticles {
             i -= 1
         }
         if let start = PetRigIdle.rumbleStart(beat: beat, scene: scene) { rumble(at: start, body: body, scene: scene, into: &out) }
+        PetRigMoodBeats.particles(body: body, beat: beat, scene: scene, into: &out)
         if let r = PetRigIdle.rare(beat: beat, scene: scene), r.kind == .mote || r.kind == .pounce {
             let tau = scene.t - r.at
             let m = r.kind == .mote ? PetRigIdle.mote(at: tau, seed: scene.seed, k: r.k, scene: scene)
@@ -92,7 +93,7 @@ enum PetRigParticles {
         case .eat(let meal):
             guard current || tau < PetRigActions.timing(meal).end + 0.6 else { return }
             food(meal, start: seg.start, body: body, current: current, scene: scene, into: &out)
-        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful):
+        case .satisfied(.meal), .satisfied(.grateful):
             for (k, at) in [0.12, 0.38, 0.62].enumerated() where (end ?? .infinity) > seg.start + at {
                 sparkle(at: seg.start + at, origin: CGPoint(x: crown.x + [-6, 5, -1][k] * s, y: crown.y + 2 * s),
                         seed: seed, k: k, size: 2.0 * s, scene: scene, into: &out)
@@ -103,6 +104,13 @@ enum PetRigParticles {
                         seed: seed, k: k, size: 1.5 * s, scene: scene, into: &out)
             }
             bubble(at: seg.start + 1.4, body: body, scene: scene, into: &out)
+            if current, PetRigActions.stuffedAfter(seg.start, scene: scene) {
+                thumbSparkle(at: seg.start + 2.62, body: body, side: PetRigMoodBeats.thumbSide(scene), scene: scene, into: &out)
+                puff(at: seg.start + 3.4, scene: scene, into: &out)
+            }
+        case .satisfied(.brim):
+            if current { thumbSparkle(at: seg.start + 1.77, body: body, side: PetRigMoodBeats.thumbSide(scene), scene: scene, into: &out) }
+            puff(at: seg.start + 2.55, scene: scene, into: &out)
         case .celebrate(let kind):
             let times: [Double] = kind == .goodWeek ? [0.5, 0.8, 1.1, 1.6, 1.8] : [0.5, 0.62, 0.75, 1.3, 1.45, 1.6]
             for (k, at) in times.enumerated() {
@@ -425,18 +433,20 @@ enum PetRigParticles {
                                          angle: -0.18 + 0.12 * sin(2 * .pi * 0.5 * tau), tint: .zzz))
     }
 
-    /// The feast's hiccup: a bubble slips out of the corner of the mouth, floats off past the body, and pops.
+    /// A hiccup: a bubble slips out of the corner of the mouth, floats off past the body, and pops. It leaves
+    /// sideways first and rises once it is past the cheek, so it never crosses an eye.
     static func bubble(at t0: Double, body: PetBody, scene: PetRigPoser, into out: inout Extras) {
         let tau = scene.t - t0
         guard tau >= 0, tau < 0.5 else { return }
         let s = scene.s
-        let m = mouthGuess(scene)
+        let anchor = scene.zone.anchor
         // Away from the readout, so it never drifts toward a number.
         let side = -scene.foodSide
         let popAt = 0.34
         func path(_ u: Double) -> CGPoint {
-            CGPoint(x: Double(m.x) + side * (2.5 + 30 * PetEase.outQuad(u / popAt) * popAt) * s,
-                    y: Double(m.y) - (1 + 16 * u) * s)
+            let k = PetCurve.clamp(u / popAt, 0, 1)
+            return CGPoint(x: Double(anchor.x) + side * (3 + 12 * PetEase.outQuad(k)) * s,
+                           y: Double(anchor.y) - (7.5 + 7.5 * k * k) * s)
         }
         if tau < popAt {
             out.particles.append(PetParticle(kind: .bubble, position: path(tau),
@@ -469,6 +479,34 @@ enum PetRigParticles {
                                                  angle: side > 0 ? 0 : .pi, tint: .rumble))
             }
         }
+    }
+
+    /// The thumbs-up's sparkle: a star that twinkles off the tip of the raised thumb on `side`, stopping under
+    /// the zone's top.
+    static func thumbSparkle(at t0: Double, body: PetBody, side: Double, scene: PetRigPoser, into out: inout Extras) {
+        guard scene.t >= t0, scene.t < t0 + 0.8 else { return }
+        let s = scene.s
+        let a = PetBodyGeometry(body).arm(side)
+        let tip = CGPoint(x: a.centre.x + cos(a.angle) * a.length * 0.5, y: a.centre.y + sin(a.angle) * a.length * 0.5)
+        sparkle(at: t0, origin: CGPoint(x: Double(tip.x) + side * 1.6 * s, y: Double(tip.y) - 2.4 * s), seed: scene.seed, k: 11,
+                size: 2.3 * s, scene: scene, into: &out)
+    }
+
+    /// A contented sigh's puff of breath: out past the cheek away from the readout and up 4 pt, swelling as
+    /// it fades. It never crosses the face, where a spot of light could read as a tear. In place under
+    /// Reduce Motion.
+    static func puff(at t0: Double, scene: PetRigPoser, into out: inout Extras) {
+        let tau = scene.t - t0, life = 1.3
+        guard tau >= 0, tau < life else { return }
+        let s = scene.s, u = tau / life
+        let side = -scene.foodSide
+        let anchor = scene.zone.anchor
+        let still = scene.motion.reduceMotion
+        let x = Double(anchor.x) + side * (12.5 + (still ? 0 : 4.5 * PetEase.outCubic(u))) * s
+        let y = Double(anchor.y) - (9.0 + (still ? 0 : 4.0 * PetEase.outQuad(u))) * s
+        let size = (0.9 + 1.4 * PetEase.outCubic(u)) * s
+        let o = 0.85 * PetCurve.ramp(tau, 0, 0.15) * (1 - PetCurve.ramp(u, 0.4, 1))
+        out.particles.append(PetParticle(kind: .puff, position: CGPoint(x: x, y: y), size: size, opacity: o, tint: .bubble))
     }
 
     /// The mote the pounce goes for, floating up just out of reach.

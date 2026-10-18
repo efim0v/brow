@@ -123,6 +123,9 @@ struct PetBodyGeometry {
         let cheekY = local(u: 0, v: faceV - 0.26).y
         let mouthY = local(u: 0, v: faceV - 0.36).y
         let bellyY = feet + height * 0.22
+        // A round belly bulges lowest a third of the way up: the gumdrop sits like a full sack on its feet
+        // rather than growing all over.
+        let bulgeY = feet + height * 0.3
         let p = body
         for i in 0..<samples {
             let phi = 2 * Double.pi * Double(i) / Double(samples)
@@ -137,6 +140,10 @@ struct PetBodyGeometry {
                 let amount = p.cheekPuff * (1.7 + 0.9 * p.cheekBias * side) * s
                 let g = exp(-pow((y - cheekY) / (0.21 * height), 2))
                 x += side * amount * g * edge
+            }
+            if p.belly > 0.001 {
+                let g = exp(-pow((y - bulgeY) / (0.30 * height), 2))
+                x += side * 2.3 * s * p.belly * g * (0.3 + 0.7 * edge)
             }
             if p.lump >= 0 && p.lump <= 1 {
                 let yl = PetCurve.mix(mouthY, bellyY, PetEase.inQuad(p.lump))
@@ -212,34 +219,57 @@ struct PetBodyGeometry {
     func foot(_ side: Double) -> (centre: CGPoint, width: Double, height: Double) {
         let p = body
         let lift = side < 0 ? p.footL : p.footR
-        let cx = 6.8 * s * p.girth * sin(side * 0.75 + p.spin) * (1 - 0.15 * PetEase.clamp01(p.curl))
+        // A round belly sets the feet wider apart.
+        let cx = 6.8 * s * p.girth * (1 + 0.16 * p.belly) * sin(side * 0.75 + p.spin) * (1 - 0.15 * PetEase.clamp01(p.curl))
         let cy = 1.45 * s + lift
         let c = scene(cx, cy)
         return (c, 5.6 * s, 3.0 * s * (1 - 0.6 * PetEase.clamp01(p.curl)))
     }
 
+    /// A thumbs-up's thumb on the arm on `side`: a capsule `width` × `height` standing up off the end of the
+    /// nub, leaning a hair toward the face, grown in with `amount`. nil while there is none.
+    func thumb(_ side: Double) -> (centre: CGPoint, width: Double, height: Double, angle: Double, amount: Double)? {
+        let amount = PetEase.clamp01(side < 0 ? body.thumbL : body.thumbR)
+        guard amount > 0.01 else { return nil }
+        let a = arm(side)
+        let tip = CGPoint(x: a.centre.x + cos(a.angle) * a.length * 0.36, y: a.centre.y + sin(a.angle) * a.length * 0.36)
+        let width = 0.58 * a.thickness * (0.6 + 0.4 * amount), height = 1.25 * a.thickness * amount
+        let inward = a.centre.x > tip.x ? 1.0 : -1.0
+        let centre = CGPoint(x: tip.x + inward * 0.1 * a.thickness, y: tip.y - 0.3 * a.thickness - height / 2)
+        return (centre, width, height, -0.18 * inward, amount)
+    }
+
     // MARK: - The box
 
     /// The box of everything the body draws (outline, arms, feet), without the glow or particles. The
-    /// zone clamp keeps it inside the zone; the hit test and the zone tests read it. It is a little larger
-    /// than the sample points: the smoothed curve bows past them, the arms' edge is stroked, and the edge of
-    /// any shape is anti-aliased.
+    /// zone clamp keeps it inside the zone; the hit test and the zone tests read it. It is measured on the
+    /// points the drawn outline goes through, so a bulge between them (a round belly, full cheeks) is not
+    /// missed; the arms and the thumb count their soft stroked edge; and it is a little larger still, for
+    /// the smoothed curve bowing past its points and the anti-aliased edge of any shape.
     func box() -> CGRect {
         var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
         @inline(__always) func add(_ x: Double, _ y: Double) {
             minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
         }
-        for q in outlinePoints(samples: 32) { add(q.x, q.y) }
+        for q in outlinePoints() { add(q.x, q.y) }
+        // Half the arms' stroke lies outside them (`PetCanvas.limbEdge`).
+        let edge = PetCanvas.limbEdge / 2 * s
         for side in [-1.0, 1.0] {
             let a = arm(side)
             let c = cos(a.angle), sn = sin(a.angle)
-            let ex = abs(c) * a.length / 2 + abs(sn) * a.thickness / 2
-            let ey = abs(sn) * a.length / 2 + abs(c) * a.thickness / 2
+            let ex = abs(c) * a.length / 2 + abs(sn) * a.thickness / 2 + edge
+            let ey = abs(sn) * a.length / 2 + abs(c) * a.thickness / 2 + edge
             add(a.centre.x - ex, a.centre.y - ey)
             add(a.centre.x + ex, a.centre.y + ey)
             let f = foot(side)
             add(f.centre.x - f.width / 2, f.centre.y - f.height / 2)
             add(f.centre.x + f.width / 2, f.centre.y + f.height / 2)
+            if let t = thumb(side) {
+                let ex = abs(cos(t.angle)) * t.width / 2 + abs(sin(t.angle)) * t.height / 2 + edge
+                let ey = abs(sin(t.angle)) * t.width / 2 + abs(cos(t.angle)) * t.height / 2 + edge
+                add(t.centre.x - ex, t.centre.y - ey)
+                add(t.centre.x + ex, t.centre.y + ey)
+            }
         }
         let margin = 0.45 * s
         return CGRect(x: minX - margin, y: minY - margin, width: maxX - minX + 2 * margin, height: maxY - minY + 2 * margin)

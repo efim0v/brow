@@ -473,16 +473,34 @@ private extension PetDen {
 /// free. Measured on the crown, the eyes, the arm tips and the brows, beside at scale 1. Blinks are
 /// exempt (a lid moves no point here).
 final class PetSpeedTests: XCTestCase {
+    /// The fast windows of the idle's leaps in `segment` between `from` and `to`: the pounce, the thumbs-up's
+    /// rise, the hiccup's hop. The layer draws them in the fast class, so the idle's speed rule skips them.
+    static func leaps(_ segment: PetSegment, previous: PetSegment?, from: Double, to: Double, seed: UInt64,
+                      cues: [PetCue] = []) -> [Range<Double>] {
+        var out: [Range<Double>] = []
+        var at = from
+        while let leap = PetRigIdle.fastWindow(after: at, segment: segment, previous: previous, seed: seed, reduceMotion: false),
+              leap.lowerBound < to {
+            out.append(leap)
+            at = leap.upperBound
+        }
+        return out
+    }
+
     func testPeakSpeedsKeepToTheirFrameClass() {
         let zones = PetStage.zones(PetStage.frames(.beside), PetStage.aggregate(left: 41))
         var failures: [String] = []
-        for behaviour in PetZoneSweepTests.behaviours {
-            let script = PetZoneSweepTests.script(for: behaviour)
+        for (name, behaviour, script) in PetZoneSweepTests.cases {
             let rig = PetRig()
             let length = behaviour.duration ?? 12
             var worst: [PetFrameClass: (Double, Double)] = [:]
+            // The idle's leaps, which the layer draws in the fast class (`PetRigIdle.fastWindow`).
+            let segments = script.timeline.segments
+            let leaps = Self.leaps(segments[segments.count - 1], previous: segments.count > 1 ? segments[segments.count - 2] : nil,
+                                   from: 5, to: 5 + length, seed: 7)
             var t = 5.0
             while t < 5 + length {
+                if leaps.contains(where: { $0.contains(t) || $0.contains(t + 1.0 / 30) }) { t += 1.0 / 240; continue }
                 let frameClass = behaviour.frameClass(elapsed: t - 5)
                 let rate: Double
                 switch frameClass {
@@ -505,7 +523,7 @@ final class PetSpeedTests: XCTestCase {
             for (frameClass, (step, at)) in worst {
                 let limit = frameClass == .action ? PetTuning.Speed.actionPerFrame : PetTuning.Speed.ambientPerFrame
                 if step > limit {
-                    failures.append(String(format: "%@ (%@): %.2f pt a frame at %.3f s", "\(behaviour)", "\(frameClass)", step, at))
+                    failures.append(String(format: "%@ (%@): %.2f pt a frame at %.3f s", name, "\(frameClass)", step, at))
                 }
             }
         }
@@ -523,9 +541,10 @@ final class PetSpeedTests: XCTestCase {
         let length: Double = full ? 1800 : 600
         let seeds: [UInt64] = [7, 1_311_768_467_294_899_695]
         let moods: [(PetBehaviour, Double)] = [(.idle(.full), -20), (.idle(.content), 22), (.idle(.peckish), 50),
-                                               (.idle(.hungry), 85), (.eager, 30)]
-        // Full, content and peckish keep the same schedule of habits; hungry and eager have their own.
-        let distinct: [PetBehaviour] = [.idle(.content), .idle(.hungry), .eager]
+                                               (.idle(.hungry), 85), (.eager, 30), (.idle(.stuffed), -46)]
+        // Full, content and peckish keep the same schedule of habits; hungry, eager and the ends of the meter
+        // have their own.
+        let distinct: [PetBehaviour] = [.idle(.content), .idle(.hungry), .eager, .idle(.stuffed)]
         var cases: [(UInt64, PetBehaviour, Double)] = []
         for seed in seeds {
             for (behaviour, hunger) in moods where full || behaviour == .idle(.content) || seed == 7 && distinct.contains(behaviour) {
@@ -547,14 +566,9 @@ final class PetSpeedTests: XCTestCase {
             let script = behaviour == .eager
                 ? PetReelScript([(0, .idle(.content)), (4.5, .perk(.prompt)), (5, .eager)], hunger: hunger)
                 : PetReelScript([(0, behaviour)], hunger: hunger)
-            let segment = script.timeline.segments[script.timeline.segments.count - 1]
-            var leaps: [Range<Double>] = []
-            var from = 10.0
-            while let leap = PetRigIdle.fastWindow(after: from, segment: segment, seed: seed, reduceMotion: false),
-                  leap.lowerBound < 10 + length {
-                leaps.append(leap)
-                from = leap.upperBound
-            }
+            let segments = script.timeline.segments
+            let leaps = Self.leaps(segments[segments.count - 1], previous: segments.count > 1 ? segments[segments.count - 2] : nil,
+                                   from: 10, to: 10 + length, seed: seed)
             let rig = PetRig()
             func points(_ t: Double) -> [CGPoint] {
                 PetRigTests.keyPoints(script.pose(rig, at: t, zones: zones, seed: seed).pet)

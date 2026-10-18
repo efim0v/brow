@@ -39,11 +39,14 @@ public actor OAuthProfileClient {
         self.credentials = credentials
     }
 
-    public func profile(configDir: String) async throws -> OAuthProfile {
-        guard let token = credentials.accessToken(configDir: configDir) else { throw OAuthUsageError.noCredentials }
+    public func profile(configDir: String, now: Date = Date()) async throws -> OAuthProfile {
+        guard let token = credentials.token(configDir: configDir) else { throw OAuthUsageError.noCredentials }
+        // As with the usage endpoint: a token past its own expiry is not sent, the
+        // endpoint can only refuse it.
+        if let expiresAt = token.expiresAt, expiresAt <= now { throw OAuthUsageError.expired(expiresAt) }
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/profile")!)
         request.timeoutInterval = 30
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token.value)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
         let (data, status) = try await fetcher.fetch(request)

@@ -631,7 +631,7 @@ public final class LimitsStore: ObservableObject {
             if let known = subscriptions[id], now.timeIntervalSince(known.fetchedAt) < Self.subscriptionRefresh { continue }
             if let failed = subscriptionFailedAt[id], now.timeIntervalSince(failed) < Self.subscriptionRetry { continue }
             do {
-                let profile = try await client.profile(configDir: account.configDir)
+                let profile = try await client.profile(configDir: account.configDir, now: now)
                 guard cycle == generation else { return }
                 subscriptions[id] = SubscriptionInfo(organizationUuid: id, profile: profile, fetchedAt: deps.now())
                 subscriptionFailedAt[id] = nil

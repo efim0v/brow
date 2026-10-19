@@ -257,29 +257,49 @@ enum PetRigMoodBeats {
     /// How far the eyes are open out of their bliss at `t`, and the gentler part of it the brows and the
     /// smile follow. A gesture owns the eyes: an opening that would start while one plays is left out, and
     /// one that a gesture shutting the eyes starts during shuts there. A gesture that opens them (the
-    /// thumbs-up, room for more, the hiccup, a mote) takes them as they are.
+    /// thumbs-up, room for more, the hiccup, a mote) takes them as they are, and one that opens them as they
+    /// shut keeps them open for itself: shut and opened again at once they would stop half way, showing two
+    /// drawings at once.
     static func blissOpen(beat: PetRigBeat, scene: PetRigPoser) -> (eyes: Double, face: Double) {
         guard let i = beat.index, case .stuffed? = extreme(beat.behaviour) else { return (0, 0) }
         let segments = scene.timeline.segments
         let segment = segments[i], previous = i > 0 ? segments[i - 1] : nil
         let seed = scene.seed, k = PetPosture.eyeClock
         var eyes = 0.0, face = 0.0
-        for (n, at) in blissOpens.recent(at: scene.t, lookBack: 2.8 + 2 * k + 0.5, seed: seed) where at > segment.start + 1.5 {
+        for (n, at) in blissOpens.recent(at: scene.t, lookBack: 2.8 + 4 * k + 0.5, seed: seed) where at > segment.start + 1.5 {
             let hold = blissHold(n, seed: seed)
-            // The gestures due from the opening to its end, decided as they come.
-            let due = gestures(in: segment, previous: previous, at: at + hold, lookBack: hold + longest, seed: seed,
+            // The gestures due from the opening to the end of its shutting, decided as they come.
+            let due = gestures(in: segment, previous: previous, at: at + hold + k, lookBack: hold + k + longest, seed: seed,
                                reduceMotion: scene.motion.reduceMotion, cues: scene.timeline.cues)
             if due.contains(where: { $0.at <= at && $0.end > at }) { continue }
             let cut = due.first {
                 $0.at > at && $0.at < at + hold && shutsTheEyes($0.item, behaviour: segment.behaviour, seed: seed)
             }?.at
-            let close = cut.map { $0 - at } ?? hold
+            var close = cut.map { $0 - at } ?? hold
+            if cut == nil, let opens = due.lazy.compactMap({ g in opensTheEyes(g.item, seed: seed).map { g.at + $0 } })
+                .first(where: { $0 > at + hold - 1e-9 && $0 <= at + hold + k }) {
+                close = opens - at + k
+            }
             let tau = scene.t - at
             eyes = max(eyes, self.eyes(tau, open: 0, close: close))
             face = max(face, PetCurve.envelope(tau, 0, 0.35, close, close + 0.45))
         }
         return (eyes, face)
     }
+
+    /// When a gesture that opens the eyes on its own opens them, as a time into it: the thumbs-up, room for
+    /// more and a mote at once, the hiccup at its hop. nil for the others.
+    static func opensTheEyes(_ item: Gesture.Item, seed: UInt64) -> Double? {
+        switch item {
+        case .beat(.okay), .beat(.roomForMore): return 0
+        case .beat(.hiccup): return hiccupEyes
+        case .rare(let k): return PetRigIdle.rareKind(k, seed: seed) == .mote ? 0 : nil
+        default: return nil
+        }
+    }
+
+    /// The hiccup pops the eyes open at its hop, this far into it.
+    static let hiccupEyes = 0.27
 
     /// The gestures that shut eyes opened out of bliss: the pat, the sigh, a squish, a scratch.
     static func shutsTheEyes(_ item: Gesture.Item, behaviour: PetBehaviour, seed: UInt64) -> Bool {
@@ -413,7 +433,7 @@ enum PetRigMoodBeats {
         case .hiccup:
             // A hiccup: a little hop, the eyes pop open, a bubble (`particles`), a sheepish blush, then back
             // to bliss.
-            p.happy = PetCurve.mix(p.happy, 0, eyes(tau, open: 0.27, close: 0.95))
+            p.happy = PetCurve.mix(p.happy, 0, eyes(tau, open: hiccupEyes, close: 0.95))
             let pop = PetCurve.envelope(tau, 0.28, 0.33, 0.55, 0.8)
             p.eyeSize += 0.14 * pop
             p.browLiftL += 0.7 * pop

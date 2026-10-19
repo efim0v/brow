@@ -759,7 +759,7 @@ enum PetRigActions {
                 + PetCurve.envelope(e, twirl.takeoff - 0.08, twirl.takeoff + 0.06, twirl.land - 0.04, twirl.land + 0.24)
             p.armL += 0.9 * up; p.armR += 1.0 * up
             p.spin += 2 * .pi * PetEase.inOutSine((e - twirl.takeoff) / twirl.air)
-            p.happy = max(p.happy, 0.9 * PetCurve.envelope(e, 0.5, 0.7, 2.0, 2.35))
+            p.happy = max(p.happy, 0.9 * PetRigMoodBeats.eyes(e, open: 0.5, close: 2.1))
             p.smile += 0.3 * PetCurve.envelope(e, 0.3, 0.5, 2.0, 2.3)
             p.footL -= 0.6 * min(1, up); p.footR -= 0.6 * min(1, up)
         case .celebrate(.goodWeek):
@@ -768,10 +768,10 @@ enum PetRigActions {
                 let hit = PetCurve.envelope(e, c - 0.14, c, c + 0.02, c + 0.16, up: PetEase.inOutSine, down: PetEase.inOutSine)
                 if i % 2 == 0 { p.armL -= 1.3 * hit } else { p.armR -= 1.3 * hit }
             }
-            p.happy = max(p.happy, 0.8 * PetCurve.envelope(e, 0.15, 0.35, 1.3, 1.55))
+            p.happy = max(p.happy, 0.8 * PetRigMoodBeats.eyes(e, open: 0.15, close: 1.35))
             let up = PetCurve.envelope(e, 1.6, 1.9, 2.15, 2.45)
             p.armL += 0.9 * up; p.armR += 0.9 * up
-            p.happy = max(p.happy, 0.9 * PetCurve.envelope(e, 2.1, 2.3, 2.55, 2.8))
+            p.happy = max(p.happy, 0.9 * PetRigMoodBeats.eyes(e, open: 2.1, close: 2.55))
         case .freshWindow:
             p.turn += 0.4 * dir * PetCurve.envelope(e, 0, 0.12, 0.3, 0.5)
             p.lookX += 0.8 * dir * PetCurve.envelope(e, 0, 0.08, 0.3, 0.45)
@@ -977,7 +977,8 @@ enum PetRigActions {
         p.browLiftL += 0.3 * PetCurve.envelope(e, 0.05, 0.15, 0.3, 0.45)
         p.chew = max(p.chew, 0.5 * PetCurve.envelope(e, 0.34, 0.37, 0.42, 0.48))
         p.chewPhase = 2 * .pi * (e - 0.34) / 0.12
-        p.happy = max(p.happy, 0.6 * PetCurve.envelope(e, 0.3, 0.38, 0.5, 0.6))
+        // A happy squint, all the way to the arcs: held part way, the eye would show two drawings.
+        p.happy = max(p.happy, 0.8 * PetCurve.envelope(e, 0.3, 0.38, 0.5, 0.6))
     }
 
     // MARK: Sleep

@@ -233,12 +233,15 @@ enum PetRigIdle {
         // across the screen: Reduce Motion keeps it.
         PetRigMoodBeats.bliss(&body, posture: posture, beat: beat, scene: scene)
 
-        // Blinks. Eyes shut in a happy arc have nothing to blink.
+        // Blinks. Eyes shut in a happy arc have nothing to blink. Half shut, a lid with a slant reads as a
+        // side-eye: the slant goes with the lid, so the frames in the middle of a blink are level.
         if profile.blinks {
             let open = blinkOpen(at: t, seed: seed) { PetRigMoodBeats.holdsTheBlink(at: $0, beat: beat, scene: scene) }
             let depth = 1 - PetCurve.ramp(body.happy, PetCanvas.happyBand.lowerBound, PetCanvas.happyBand.upperBound)
-            body.lidL *= 1 - (1 - open) * depth
-            body.lidR *= 1 - (1 - open) * depth
+            let lid = 1 - (1 - open) * depth
+            body.lidL *= lid
+            body.lidR *= lid
+            body.lidSlant *= lid * lid
         }
         if case .drowsy = beat.behaviour {
             // Drowsy: slow, heavy blinks every 3 to 5 s, and a yawn at once and every 40 s.
@@ -329,8 +332,9 @@ enum PetRigIdle {
                 p.browLiftL += 0.9 * PetCurve.envelope(tau, 0, 0.1, 0.12, 0.26)
                 p.browLiftR += 0.85 * PetCurve.envelope(tau, 0.01, 0.11, 0.13, 0.27)
             case .squish:
+                // The squint goes all the way to the happy arcs: held part way, the eye shows two drawings.
                 p.squash -= 0.04 * PetCurve.envelope(tau, 0, 0.16, 0.2, 0.44)
-                p.happy = max(p.happy, 0.7 * PetCurve.envelope(tau, 0.04, 0.16, 0.5, 0.7))
+                p.happy = max(p.happy, 0.8 * PetCurve.envelope(tau, 0.04, 0.16, 0.5, 0.7))
                 p.smile += 0.3 * PetCurve.envelope(tau, 0.04, 0.16, 0.5, 0.7)
             case .sigh:
                 p.squash += 0.03 * PetCurve.envelope(tau, 0, 0.35, 0.36, 1.0, up: PetEase.inOutSine, down: PetEase.inOutSine)
@@ -454,7 +458,8 @@ enum PetRigIdle {
             let up = PetCurve.envelope(tau, 0, 0.65, 1.15, 1.8)
             p.armR += 1.5 * up + 0.12 * sin(2 * .pi * 3.5 * tau) * PetCurve.envelope(tau, 0.55, 0.7, 1.05, 1.2)
             p.tilt += 0.05 * up
-            p.happy = max(p.happy, 0.8 * up)
+            // A happy squint while it rubs, shut and opened on the eyes' own quick clock.
+            p.happy = max(p.happy, 0.8 * PetRigMoodBeats.eyes(tau, open: 0.35, close: 1.2))
             p.smile += 0.2 * up
         case .mote:
             // A dust mote drifts past: the eyes follow it (the particle is `PetRigParticles.mote`). Stuffed,

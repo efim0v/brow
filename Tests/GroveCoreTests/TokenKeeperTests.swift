@@ -351,12 +351,31 @@ final class TokenKeeperTests: XCTestCase {
     /// run /login". A dead refresh token, the commonest dead login, reads only so.
     func testTheCLIsNonInteractiveWordsForADeadLoginCount() {
         for line in ["Failed to authenticate: OAuth session expired and could not be refreshed",
-                     "Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.",
-                     #"Failed to authenticate. API Error: 401 {"type":"error"}"#] {
+                     "Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator."] {
             XCTAssertEqual(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: line + "\n", stderr: "")), line)
         }
         XCTAssertNil(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: "", stderr: "Failed to authenticate through the broker: x")),
                      "an Azure sign-in's verbose log, not a claude.ai login")
+        XCTAssertNil(TokenKeeper.signInLine(ProcessResult(exitCode: 1, stdout: #"Failed to authenticate. API Error: 401 {"type":"error"}"# + "\n",
+                                                          stderr: "")),
+                     "the catch-all for a refused request, which a refresh that merely failed also ends in")
+    }
+
+    /// The token endpoint down for a while: `doctor` cannot renew the token, nor can `-p`,
+    /// whose request with the expired token is refused, and it says so with its catch-all
+    /// for a refused request. That is a failed attempt, not a dead login: the account
+    /// comes back with the endpoint, and nobody is sent to sign in again for it.
+    func testARefusedRequestAfterAFailedRefreshIsNoDeadLogin() async {
+        let creds = MovableCreds(); creds.expiry = t0.addingTimeInterval(-5 * 60)
+        let runner = FakeCLI(reply: { call in
+            call == 1 ? ProcessResult(exitCode: 0, stdout: "Claude Code doctor\n", stderr: "")
+                      : ProcessResult(exitCode: 1, stdout: #"Failed to authenticate. API Error: 401 {"type":"error"}"# + "\n",
+                                      stderr: "")
+        })
+        let keeper = TokenKeeper(runner: runner, credentials: creds, claudePath: "/x/claude",
+                                 allowPromptFallback: { true }, now: { self.t0 })
+        let out = await keeper.ensureFresh(configDir: "/d")
+        XCTAssertEqual(out, .failed("neither claude doctor nor claude -p refreshed the token (-p exit 1)"))
     }
 
     /// A dead refresh token as `-p` reports it: no `doctor` word for it, and `-p`'s is enough.

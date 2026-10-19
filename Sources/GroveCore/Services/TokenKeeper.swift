@@ -359,15 +359,23 @@ public actor TokenKeeper {
     /// revoked · Please run /login", "Login expired · Please run /login" — and, as a run
     /// that is not interactive words them (`claude -p`), "Failed to authenticate: OAuth
     /// session expired and could not be refreshed", "Failed to authenticate: OAuth token
-    /// revoked. …", "Failed to authenticate. API Error: …" (2.1.290–2.1.303). "Failed to
-    /// authenticate through the broker" is an Azure sign-in's log line, not one of these.
+    /// revoked. …" (2.1.290–2.1.303). "Failed to authenticate through the broker" is an
+    /// Azure sign-in's log line, not one of these.
+    ///
+    /// Not "Failed to authenticate. API Error: …", with a full stop: that is how `-p`
+    /// reports any 401/403 still standing after its own one forced refresh, and that
+    /// refresh also fails when the token endpoint errors or does not answer, or another
+    /// process is in the middle of a refresh. Taken for a dead login, it would light the
+    /// sign-in key on every account whose token ran out while Anthropic's token endpoint
+    /// was down. A refresh token the CLI found dead reads "OAuth session expired …", and
+    /// the CLI clears it from the Keychain, which the next scan sees as no token.
     static func signInLine(_ result: ProcessResult) -> String? {
         let colours = "\u{1B}\\[[0-9;?]*[ -/]*[@-~]"
         for line in (result.stderr + "\n" + result.stdout).split(whereSeparator: \.isNewline) {
             let text = String(line).replacingOccurrences(of: colours, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
             if text.range(of: "please run /login", options: .caseInsensitive) != nil
-                || text.range(of: "failed to authenticate[.:]", options: [.regularExpression, .caseInsensitive]) != nil {
+                || text.range(of: "failed to authenticate:", options: .caseInsensitive) != nil {
                 return String(text.prefix(160))
             }
         }

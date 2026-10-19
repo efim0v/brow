@@ -210,7 +210,7 @@ final class AppStateHostTests: XCTestCase {
                                   projects: [shop, notes])
         func row(_ id: String, _ title: String, _ project: ProjectConfig) -> ProjectSessionRow {
             ProjectSessionRow(sessionId: id, title: title, cwd: project.path, location: project.name,
-                              accountName: "me@example.com", lastActivity: Date(), status: .closed, cmuxWorkspaceId: nil)
+                              accountName: "me@example.com", lastActivity: Date(), state: .closed, cmuxWorkspaceId: nil)
         }
         state.recentSessionsByProject = [
             shop.id: [row("a", "Fix the checkout webhook", shop), row("b", "Release notes", shop)],

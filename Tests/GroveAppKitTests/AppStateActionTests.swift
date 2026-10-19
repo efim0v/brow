@@ -528,33 +528,62 @@ final class AppStateActionTests: XCTestCase {
         return (canonicalDir, ownerProjects, target)
     }
 
-    /// #25: a session still open in a plain `claude` (no --resume) is in the
-    /// process table with its folder but no session id, and the file records are
-    /// often missing. Resume as… must still refuse, the way Share does: linking
-    /// would move the transcript out from under the running claude.
-    func testResumeSessionBlockedWhenFreshClaudeIsLiveInTheSessionFolder() async throws {
+    /// #25: a session still open in a plain `claude` (no --resume, no record of its own)
+    /// is found by the host's look at the processes, and joined to the transcript it
+    /// writes. Resume as… must refuse, the way Share does: linking would move the
+    /// transcript out from under the running claude.
+    func testResumeSessionBlockedWhenAPlainClaudeRunsTheSession() async throws {
         let cwd = "/ws/feat-x"
         let id = "sess-fresh"
         let fixture = try saveResumeAsFixture("fresh", cwd: cwd, sessionId: id)
+        let ownerDir = fixture.ownerProjects.deletingLastPathComponent().deletingLastPathComponent().path
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
         state.folders.canonicalDir = fixture.canonicalDir.path
-        // How the table lists a fresh claude: cwd only, no session id, no account.
-        state.allLiveProcessesOverride = [LiveProcess(pid: 4242, sessionId: "", cwd: cwd,
-                                                      status: "idle", accountName: "")]
+        // How the host lists a plain claude: its folder and account, no session id.
+        let started = Date().addingTimeInterval(-60)
+        state.runningClaude = { [RunningClaude(pid: 4242, cwd: cwd, configDir: ownerDir, startedAt: started)] }
         let session = ClaudeSession(id: id, cwd: cwd, title: nil,
                                     lastActivity: Date(), accountName: "owner", gitBranch: nil)
 
         await state.resumeSession(session, as: fixture.target)
 
         let error = try XCTUnwrap(state.actionError)
-        XCTAssertTrue(error.lowercased().contains("live"), "got: \(error)")
+        XCTAssertTrue(error.lowercased().contains("live") && error.contains("owner"), "got: \(error)")
         XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty,
-                      "a claude running in the session's folder blocks the launch")
+                      "a claude running the session blocks the launch")
         XCTAssertNil(try? FileManager.default.destinationOfSymbolicLink(atPath: fixture.ownerProjects.path),
                      "the owner's folder must not be linked away while a claude writes in it")
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: fixture.ownerProjects.appendingPathComponent("\(id).jsonl").path))
+    }
+
+    /// The banner's false alarm: a plain claude in the same folder running ANOTHER session
+    /// (the transcript written since it started) does not make this one live. Resume as…
+    /// goes ahead.
+    func testAPlainClaudeRunningAnotherSessionInTheFolderBlocksNothing() async throws {
+        let cwd = "/ws/feat-x"
+        let id = "sess-older"
+        let fixture = try saveResumeAsFixture("other", cwd: cwd, sessionId: id)
+        let ownerDir = fixture.ownerProjects.deletingLastPathComponent().deletingLastPathComponent().path
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-3_600)],
+                                              ofItemAtPath: fixture.ownerProjects.appendingPathComponent("\(id).jsonl").path)
+        try "transcript".write(to: fixture.ownerProjects.appendingPathComponent("sess-current.jsonl"),
+                               atomically: true, encoding: .utf8)
+        let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
+        let state = makeState(runner: runner)
+        state.folders.canonicalDir = fixture.canonicalDir.path
+        let started = Date().addingTimeInterval(-60)
+        state.runningClaude = { [RunningClaude(pid: 4247, cwd: cwd, configDir: ownerDir, startedAt: started)] }
+        let session = ClaudeSession(id: id, cwd: cwd, title: nil,
+                                    lastActivity: Date().addingTimeInterval(-3_600), accountName: "owner", gitBranch: nil)
+
+        await state.resumeSession(session, as: fixture.target)
+
+        XCTAssertNil(state.actionError, "no “live under …” for a session nothing runs")
+        let args = try XCTUnwrap(runner.calls(startingWith: "new-workspace").first).args
+        let commandIndex = try XCTUnwrap(args.firstIndex(of: "--command"))
+        XCTAssertTrue(args[commandIndex + 1].contains("--resume '\(id)'"))
     }
 
     /// The other side of #25: with nothing running in the session's folder or
@@ -603,16 +632,17 @@ final class AppStateActionTests: XCTestCase {
     }
 
     /// The relaunch sheet's account switch is the other way into the same move, so
-    /// a claude running in the session's folder blocks it too (#25).
-    func testConfirmLaunchAccountSwitchBlockedWhenClaudeIsLiveInTheSessionFolder() async throws {
+    /// a claude running the session blocks it too (#25).
+    func testConfirmLaunchAccountSwitchBlockedWhenClaudeRunsTheSession() async throws {
         let cwd = "/ws/feat-x"
         let id = "sess-sheet"
         let fixture = try saveResumeAsFixture("sheet", cwd: cwd, sessionId: id)
         let runner = ScriptedRunner(responses: ["ping": .ok("PONG")])
         let state = makeState(runner: runner)
         state.folders.canonicalDir = fixture.canonicalDir.path
-        state.allLiveProcessesOverride = [LiveProcess(pid: 4246, sessionId: "", cwd: cwd,
-                                                      status: "idle", accountName: "")]
+        // The claude running it, as the live sessions list it once joined to its transcript.
+        state.allLiveProcessesOverride = [LiveProcess(pid: 4246, sessionId: id, cwd: cwd,
+                                                      status: "", accountName: "owner")]
 
         await state.confirmLaunch(LaunchRequest(sessionId: id, cwd: cwd, title: "feat-x",
                                                 account: fixture.target.name, originAccount: "owner"))

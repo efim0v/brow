@@ -66,7 +66,7 @@ final class ProjectsSection: NotchSection {
             SessionMenu.primary(SessionRef(row: row), state: state)
             return true
         case .openWithOptions:
-            guard state.route == .projects, let row = state.focusedSessionRow, row.status == .closed else { return false }
+            guard state.route == .projects, let row = state.focusedSessionRow, row.state == .closed else { return false }
             state.beginResume(row)
             return true
         case .delete, .tab:
@@ -212,8 +212,8 @@ struct ProjectsFooterStatus: View {
             return "\(found) \(found == 1 ? "match" : "matches") for “\(state.searchQuery)”"
         }
         var parts: [String] = []
-        let running = state.recentSessionsByProject.values.flatMap { $0 }.filter { $0.status == .running }.count
-        if running > 0 { parts.append("\(running) running") }
+        let running = state.recentSessionsByProject.values.flatMap { $0 }.filter { $0.state == .working }.count
+        if running > 0 { parts.append("\(running) working") }
         if state.isScanning {
             parts.append("scanning…")
         } else if let scanned = state.lastRefreshAt {

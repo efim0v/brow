@@ -53,7 +53,7 @@ struct ProjectsTab: View {
                             .font(.system(size: 11)).foregroundStyle(.tertiary)
                     }
                     Spacer(minLength: 8)
-                    let running = all.filter { $0.status == .running }.count
+                    let running = all.filter { $0.state == .working }.count
                     if running > 0 {
                         Text("\(running) running").font(.system(size: 11, weight: .semibold)).foregroundStyle(accent)
                     }
@@ -71,7 +71,7 @@ struct ProjectsTab: View {
                     .padding(.horizontal, 2)
             }
             ForEach(rows) { row in
-                SessionLineRow(state: state, ref: SessionRef(row: row), status: row.status,
+                SessionLineRow(state: state, ref: SessionRef(row: row), status: row.state,
                                place: row.location, focused: state.keyboardFocus == row.id)
             }
         }
@@ -145,7 +145,7 @@ struct ProjectsEmptyState: View {
 struct SessionLineRow: View {
     @ObservedObject var state: AppState
     let ref: SessionRef
-    let status: ProjectSessionRow.Status
+    let status: SessionState
     /// The workspace, worktree or folder the session runs in.
     let place: String
     var focused = false
@@ -204,7 +204,7 @@ struct SessionLineRow: View {
 
     private var meta: some View {
         HStack(spacing: 5) {
-            Text(statusWord).foregroundStyle(status == .running ? accent : Color.white.opacity(0.62))
+            Text(statusWord).foregroundStyle(status == .working ? accent : status.needsYou ? SessionColors.needsYou : Color.white.opacity(0.62))
             Text("·").foregroundStyle(.tertiary)
             Text(place).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             Text("·").foregroundStyle(.tertiary)
@@ -214,13 +214,7 @@ struct SessionLineRow: View {
         .lineLimit(1)
     }
 
-    private var statusWord: String {
-        switch status {
-        case .running: return "running"
-        case .waiting: return "waiting"
-        case .closed: return "closed"
-        }
-    }
+    private var statusWord: String { status.word.lowercased() }
 }
 
 /// A session row's surface: white 5.5 % with a 7 % edge, continuous corners; the keyboard's
@@ -253,28 +247,59 @@ struct AccountTag: View {
     }
 }
 
-/// The state of a session at a glance: a working arc in the accent, a ring with a dot for
-/// one waiting on the user, a dashed ring for one that is closed. Never colour alone: the
-/// row says the word too.
+/// The state of a session at a glance, by shape before colour: a working arc in the
+/// accent (still under Reduce Motion, turning once every 1.6 s otherwise), a yellow disc
+/// with "!" for a permission to give or "?" for a question, a white ring with a dot when
+/// the turn is the user's, a grey dashed ring when it is closed. The row says the word too.
 struct SessionStatusGlyph: View {
-    let status: ProjectSessionRow.Status
+    let status: SessionState
+    var size: CGFloat = 12
     @Environment(\.groveAccent) private var accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isSnapshotRender) private var isSnapshotRender
 
     var body: some View {
         ZStack {
             switch status {
-            case .running:
-                Circle().trim(from: 0, to: 0.75)
-                    .stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            case .waiting:
-                Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5)
-                Circle().fill(.white.opacity(0.9)).frame(width: 4, height: 4)
+            case .working:
+                Circle().stroke(Color.white.opacity(0.14), lineWidth: 1.6)
+                if reduceMotion || isSnapshotRender {
+                    arc
+                } else {
+                    TimelineView(.animation) { context in
+                        let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
+                        arc.rotationEffect(.degrees(turn * 360))
+                    }
+                }
+            case .needsPermission, .asksYou:
+                Circle().fill(SessionColors.needsYou)
+                Image(systemName: status == .needsPermission ? "exclamationmark" : "questionmark")
+                    .font(.system(size: size * 0.55, weight: .heavy))
+                    .foregroundStyle(SessionColors.ink)
+            case .yourTurn:
+                Circle().strokeBorder(Color.white.opacity(0.86), lineWidth: 1.5)
+                Circle().fill(Color.white.opacity(0.86)).frame(width: size * 0.32, height: size * 0.32)
             case .closed:
-                Circle().strokeBorder(.white.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
+                Circle().strokeBorder(Color.white.opacity(0.36), style: StrokeStyle(lineWidth: 1.3, dash: [2, 2]))
             }
         }
-        .frame(width: 14, height: 14)
+        .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
+
+    /// Three quarters of a circle, from the top.
+    private var arc: some View {
+        Circle().trim(from: 0, to: 0.75)
+            .stroke(accent, style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+    }
+}
+
+/// The two colours a session's state is drawn in besides the accent: yellow, which means
+/// one thing only — the session needs the user — and the ink drawn on it.
+enum SessionColors {
+    /// #FFD05C
+    static let needsYou = Color(.sRGB, red: 0xFF / 255, green: 0xD0 / 255, blue: 0x5C / 255)
+    /// #2A2218
+    static let ink = Color(.sRGB, red: 0x2A / 255, green: 0x22 / 255, blue: 0x18 / 255)
 }

@@ -143,20 +143,20 @@ struct WorkspacesScreen: View {
     }
 
     private func projectFolderRows(snapshot: ProjectSnapshot)
-        -> [(ref: SessionRef, status: ProjectSessionRow.Status, place: String)] {
+        -> [(ref: SessionRef, status: SessionState, place: String)] {
         guard let id = state.selectedProjectID else { return [] }
         let inSnapshot = Set((snapshot.workspaces.flatMap(\.sessions) + snapshot.loose.flatMap(\.sessions))
-            .map { SessionRow.rowID(cwd: $0.cwd, session: $0.id) })
+            .map { $0.cwd + "\u{0}" + $0.id })
         let indexed = Dictionary((state.recentSessionsByProject[id] ?? []).map { ($0.sessionId, $0) },
                                  uniquingKeysWith: { first, _ in first })
         let needle = state.searchNeedle
         var seen = Set<String>()
         return (state.externalSessionsByProject[id] ?? []).compactMap { session in
-            let key = SessionRow.rowID(cwd: session.cwd, session: session.id)
+            let key = session.cwd + "\u{0}" + session.id
             guard !inSnapshot.contains(key), seen.insert(key).inserted else { return nil }
             let row = indexed[session.id]
-            let status = row?.status ?? .closed
-            let ref = SessionRef(session: session, isLive: status != .closed, cmuxWorkspaceId: row?.cmuxWorkspaceId)
+            let status = row?.state ?? .closed
+            let ref = SessionRef(session: session, isLive: status.isLive, cmuxWorkspaceId: row?.cmuxWorkspaceId)
             guard needle.isEmpty || ref.title.lowercased().contains(needle) else { return nil }
             let place = session.gitBranch.flatMap { $0.isEmpty ? nil : $0 } ?? (session.cwd as NSString).lastPathComponent
             return (ref, status, place)
@@ -373,7 +373,7 @@ struct WorkspacesScreen: View {
             ForEach(loose.sessions, id: \.id) { session in
                 let live = loose.liveProcesses.liveProcess(forSessionId: session.id, cwd: session.cwd)
                 SessionLineRow(state: state, ref: SessionRef(session: session, isLive: live != nil),
-                               status: live.map { SessionLiveStatus(rawStatus: $0.status) == .busy ? .running : .waiting } ?? .closed,
+                               status: SessionState.of(live, turn: session.preview?.turn),
                                place: loose.entry.branch ?? (loose.entry.path as NSString).lastPathComponent)
             }
         }

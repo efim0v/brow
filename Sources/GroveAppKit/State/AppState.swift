@@ -176,16 +176,13 @@ public final class AppState: ObservableObject {
     public internal(set) var folders: WorkspacesFolders
 
     /// Test seam: the pid-liveness predicate used by the concurrency guard. nil
-    /// means the real check (pid alive AND its command mentions "claude"). Tests
+    /// means the real check (the pid runs and started when its record says). Tests
     /// set { _ in true } so a fixture sessions/<pid>.json counts as live.
     internal var liveProcessValidatorOverride: ((Int32) -> Bool)?
 
-    /// Test seam: injects a fixed live-process list into adoptSession's liveness
-    /// guard, bypassing both file-record reads AND the process-table scan. Required
-    /// for testing the table-only live path (cwd=="", sessionId set) without a real
-    /// process. Resume as… (sessionLiveUnderOtherAccount) uses it for its id-or-cwd
-    /// check too; its account attribution still reads the file records. nil means
-    /// the real allLiveProcesses call.
+    /// Test seam: injects a fixed live-process list into the guards of Share and Resume
+    /// as… (`adoptSession`, `sessionLiveUnderOtherAccount`), bypassing the records and
+    /// the host's processes. nil means the real `allLiveProcesses` call.
     internal var allLiveProcessesOverride: [LiveProcess]?
 
     /// Whether the engine installs the status-line wrapper into an account's
@@ -527,6 +524,15 @@ public final class AppState: ObservableObject {
     /// or what it detected). nil, or a closure answering nil, leaves it to the engine's
     /// own guesses (`ClaudeService.claudeExecutable()`).
     public var claudePath: (() -> String?)?
+
+    /// The host's look at the Claude Code processes that run, from the kernel (Brow's
+    /// `ProcessTable`): the sessions that keep no record of their own, and the folders
+    /// offered as projects. nil — a window of its own, a test — leaves the sessions' own
+    /// records to say what runs, and suggests nothing. The engine never reads another
+    /// process itself.
+    public var runningClaude: (@Sendable () -> [RunningClaude])? {
+        didSet { claude.runningProcesses = runningClaude }
+    }
 
     static func locateBrowserRouter() -> String? {
         let candidates = [NSWorkspace.shared.urlForApplication(withBundleIdentifier: "dev.artemefimov.brow")?.path,
@@ -873,7 +879,7 @@ extension AppState {
     public func openSession(_ row: ProjectSessionRow) async {
         // CLOSED → open the launch sheet (target / account / model / effort) so the
         // user confirms HOW to resume before a new process is spawned.
-        guard row.status != .closed else {
+        guard row.state != .closed else {
             beginResume(row)
             return
         }
@@ -897,8 +903,9 @@ extension AppState {
         // 3) Apple's Terminal.app, by matching the process's controlling tty.
         let claude = self.claude
         let sessionId = row.sessionId
+        let accounts = config.accounts
         let focused = await Task.detached(priority: .userInitiated) { () -> Bool in
-            guard let tty = claude.ttyForSession(sessionId) else { return false }
+            guard let tty = claude.ttyForSession(sessionId, accounts: accounts) else { return false }
             return TerminalFocus.focusTerminalApp(tty: tty)
         }.value
         if !focused {
@@ -946,12 +953,6 @@ extension AppState {
     /// Presents the launch sheet for a fresh ("New Claude") session in `cwd`.
     public func beginNew(cwd: String, title: String, account: AccountConfig) {
         seedLaunch(sessionId: nil, cwd: cwd, title: title, account: account.name)
-    }
-
-    /// Opens the per-session config/relaunch sheet for a Claude-tab row (closed →
-    /// resume with new model / effort / account / skip-permissions).
-    public func beginConfigure(_ row: SessionRow) {
-        seedLaunch(sessionId: row.sessionId, cwd: row.cwd, title: row.title, account: row.accountName)
     }
 
     /// Opens the per-session config/relaunch sheet for a Workspaces-tab session.
@@ -1324,16 +1325,9 @@ extension AppState {
         // writes from the live claude process go to an unlinked inode (data loss).
         // ClaudeService.isSessionLive checks BOTH sessionId (table-only --resume path,
         // cwd=="") AND cwd (fresh sessions) so neither liveness signal is missed.
-        let live: [LiveProcess]
-        if let override = allLiveProcessesOverride {
-            live = override
-        } else {
-            let service = liveProcessValidatorOverride
-                .map { ClaudeService().withProcessValidator($0) } ?? ClaudeService()
-            live = service.allLiveProcesses(accounts: config.accounts)
-        }
+        let live = allLiveProcessesOverride ?? liveService.allLiveProcesses(accounts: config.accounts)
         let mangled = ClaudeService.mangle(cwd)
-        if ClaudeService.isSessionLive(among: live, cwd: cwd, sessionId: sessionId) {
+        if ClaudeService.isSessionLive(among: live, sessionId: sessionId) {
             actionError = "This session is running — close it, then Share."
             return
         }
@@ -1347,31 +1341,24 @@ extension AppState {
     }
 
     /// The name of an account (other than `launchAccount`) under which the session
-    /// (`sessionId`, or a fresh claude in `cwd`) has a live process, or nil. Used to
-    /// BLOCK a cross-account launch that would have two processes writing one
-    /// transcript (the one real corruption case).
+    /// `sessionId` runs now, or nil. Used to BLOCK a cross-account launch that would have
+    /// two processes writing one transcript (the one real corruption case). Every live
+    /// process is joined to the one session it runs (`ClaudeService.allLiveProcesses`), so
+    /// a plain `claude` in the same folder running another session is no conflict.
     private func sessionLiveUnderOtherAccount(_ sessionId: String, cwd: String,
                                               launchAccount: AccountConfig) -> String? {
-        let service = liveProcessValidatorOverride
-            .map { ClaudeService().withProcessValidator($0) } ?? ClaudeService()
-        // File records attribute an account — prefer the precise name.
-        for account in config.accounts where account.name != launchAccount.name {
-            if service.liveProcesses(account: account).contains(where: { $0.sessionId == sessionId }) {
-                return displayName(for: account)
-            }
+        let live = allLiveProcessesOverride ?? liveService.allLiveProcesses(accounts: config.accounts)
+        guard let running = live.first(where: { !sessionId.isEmpty && $0.sessionId == sessionId }),
+              running.accountName != launchAccount.name else { return nil }
+        guard let owner = config.accounts.first(where: { $0.name == running.accountName }) else {
+            return "a running session"
         }
-        // The session may be live via the process TABLE (which the often-empty file
-        // records miss, and which can't attribute an account): by id when it was
-        // resumed, by cwd when it's a fresh `claude` (no --resume), which the table
-        // lists with its folder but no session id. Same id-or-cwd check as Share
-        // (adoptSession). If it's running anywhere and NOT under the launch account's
-        // own records, still refuse — a second `--resume` would have two processes
-        // writing one transcript, and linking would move it from under the running one.
-        let live = allLiveProcessesOverride ?? service.allLiveProcesses(accounts: config.accounts)
-        let liveAnywhere = ClaudeService.isSessionLive(among: live, cwd: cwd, sessionId: sessionId)
-        let liveUnderLaunch = service.liveProcesses(account: launchAccount).contains { $0.sessionId == sessionId }
-        if liveAnywhere && !liveUnderLaunch { return "a running session" }
-        return nil
+        return displayName(for: owner)
+    }
+
+    /// The engine's reader of live sessions, or a copy whose liveness check a test chose.
+    private var liveService: ClaudeService {
+        liveProcessValidatorOverride.map { claude.withProcessValidator($0) } ?? claude
     }
 
     /// Resumes `session` under `account`. Same-account: links nothing, just

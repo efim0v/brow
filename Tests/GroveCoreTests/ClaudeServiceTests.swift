@@ -358,7 +358,7 @@ final class ClaudeServiceTests: XCTestCase {
         XCTAssertEqual(service.liveProcesses(account: account), [])
     }
 
-    // MARK: - process-table session detection (sessions/<pid>.json fallback)
+    // MARK: - a session id on the command line
 
     func testResumeSessionIdParsesUuidFromCommandLine() {
         XCTAssertEqual(
@@ -368,94 +368,6 @@ final class ClaudeServiceTests: XCTestCase {
         XCTAssertEqual(
             ClaudeService.sessionId(in: "/Users/x/.local/bin/claude --resume 2c07347f-f9bc-4d2c-afcf-1c295d20dd32 --dangerously-skip-permissions"),
             "2c07347f-f9bc-4d2c-afcf-1c295d20dd32")
-    }
-
-    func testParsePidCpuCommandSplitsThreeFields() {
-        let r = ClaudeService.parsePidCpuCommand("  44679  18.6 claude --resume 41f451c9-1658-4981-9465-a4dbb252ff11")
-        XCTAssertEqual(r?.pid, 44679)
-        XCTAssertEqual(r?.cpu ?? 0, 18.6, accuracy: 1e-9)
-        XCTAssertEqual(r?.cpu ?? 0 >= ClaudeService.busyCPUThreshold, true)   // → running
-        XCTAssertEqual(r?.command, "claude --resume 41f451c9-1658-4981-9465-a4dbb252ff11")
-        // an idle process stays below the threshold → waiting
-        XCTAssertEqual(ClaudeService.parsePidCpuCommand("44785   0.0 claude --resume x")?.cpu ?? 1, 0)
-        XCTAssertNil(ClaudeService.parsePidCpuCommand("garbage"))
-    }
-
-    func testSubtreeCPUSumsBusyChildrenEvenWhenParentIdle() {
-        // Parent claude (pid 100) is BLOCKED waiting on subagents → near-0 own %CPU,
-        // but its two child subagents (200, 300) and a grandchild (400) are busy.
-        // Aggregating the subtree must read the GROUP as busy.
-        let tree: [Int32: (ppid: Int32, cpu: Double)] = [
-            100: (ppid: 1, cpu: 0.2),     // the parent — idle on its own
-            200: (ppid: 100, cpu: 7.0),   // subagent
-            300: (ppid: 100, cpu: 6.0),   // subagent
-            400: (ppid: 200, cpu: 5.0),   // a grandchild of the parent
-            999: (ppid: 1, cpu: 50.0),    // an unrelated busy process — must NOT count
-        ]
-        let total = ClaudeService.subtreeCPU(of: 100, in: tree)
-        XCTAssertEqual(total, 0.2 + 7.0 + 6.0 + 5.0, accuracy: 1e-9)
-        XCTAssertGreaterThanOrEqual(total, ClaudeService.busyCPUThreshold)  // → busy → running
-        // The parent's OWN %CPU alone would be misread as idle/waiting.
-        XCTAssertLessThan(tree[100]!.cpu, ClaudeService.busyCPUThreshold)
-        // A pid absent from the tree contributes nothing.
-        XCTAssertEqual(ClaudeService.subtreeCPU(of: 42, in: tree), 0, accuracy: 1e-9)
-    }
-
-    func testSubtreeCPUIsCycleGuarded() {
-        // A malformed ppid loop (100→200→100) must not spin; each pid counts once.
-        let tree: [Int32: (ppid: Int32, cpu: Double)] = [
-            100: (ppid: 200, cpu: 3.0),
-            200: (ppid: 100, cpu: 4.0),
-        ]
-        XCTAssertEqual(ClaudeService.subtreeCPU(of: 100, in: tree), 7.0, accuracy: 1e-9)
-    }
-
-    func testParseProcessTreeBuildsPidPpidCpuMap() {
-        let listing = """
-          100     1  0.2
-          200   100  7.5
-        garbage line
-          300   100  6,0
-        """
-        let map = ClaudeService.parseProcessTree(listing)
-        XCTAssertEqual(map[100]?.ppid, 1)
-        XCTAssertEqual(map[100]?.cpu ?? -1, 0.2, accuracy: 1e-9)
-        XCTAssertEqual(map[200]?.ppid, 100)
-        XCTAssertEqual(map[200]?.cpu ?? -1, 7.5, accuracy: 1e-9)
-        // "6,0" is a comma decimal (a non-C locale) → not parseable → row skipped.
-        XCTAssertNil(map[300])
-        XCTAssertEqual(map.count, 2)
-    }
-
-    func testMergeLiveFileRecordWinsAndKeepsFreshSessions() {
-        let file = [LiveProcess(pid: 1, sessionId: "A", cwd: "", status: "busy", accountName: "x"),
-                    LiveProcess(pid: 2, sessionId: "B", cwd: "", status: "waiting", accountName: "x")]
-        let table = [LiveProcess(pid: 9, sessionId: "A", cwd: "", status: "idle", accountName: ""),   // dup of A
-                     LiveProcess(pid: 3, sessionId: "C", cwd: "", status: "idle", accountName: ""),     // new resumed
-                     LiveProcess(pid: 4, sessionId: "", cwd: "/ws/fresh", status: "busy", accountName: "")] // fresh
-        let merged = ClaudeService.mergeLive(fileRecords: file, table: table)
-        let byId = Dictionary(merged.filter { !$0.sessionId.isEmpty }.map { ($0.sessionId, $0.status) },
-                              uniquingKeysWith: { a, _ in a })
-        XCTAssertEqual(byId["A"], "busy")          // file record wins over the table's idle
-        XCTAssertEqual(byId["B"], "waiting")
-        XCTAssertEqual(byId["C"], "idle")          // resumed-only session recovered from the table
-        XCTAssertEqual(merged.filter { $0.sessionId.isEmpty }.count, 1)   // the fresh one is kept
-        XCTAssertEqual(merged.filter { $0.sessionId == "A" }.count, 1)    // exactly one A
-    }
-
-    func testMergeLiveDropsFreshTableDuplicateOfSamePid() {
-        // A bare `claude` that has written its statusline record surfaces TWICE: once
-        // as a file record (real id) and once as a fresh empty-id table row for the
-        // SAME pid. The fresh duplicate must be dropped so the one process isn't
-        // counted twice; an unrelated fresh process (different pid) is still kept.
-        let file = [LiveProcess(pid: 7, sessionId: "A", cwd: "/ws/a", status: "busy", accountName: "x")]
-        let table = [LiveProcess(pid: 7, sessionId: "", cwd: "/ws/a", status: "idle", accountName: ""),  // same pid → drop
-                     LiveProcess(pid: 8, sessionId: "", cwd: "/ws/b", status: "busy", accountName: "")]  // distinct → keep
-        let merged = ClaudeService.mergeLive(fileRecords: file, table: table)
-        XCTAssertEqual(merged.count, 2)
-        XCTAssertEqual(merged.filter { $0.pid == 7 }.count, 1)            // pid 7 appears once
-        XCTAssertEqual(merged.first { $0.pid == 7 }?.sessionId, "A")      // the file record, not the fresh dup
-        XCTAssertEqual(merged.filter { $0.sessionId.isEmpty }.count, 1)   // only the distinct fresh one remains
     }
 
     func testResumeSessionIdAcceptsEqualsForm() {
@@ -486,14 +398,6 @@ final class ClaudeServiceTests: XCTestCase {
         XCTAssertNil(ClaudeService.sessionId(in: "claude --session-id not-a-uuid"))
     }
 
-    func testIsBareClaudeCommandExcludesSessionIdProcess() {
-        // Defense-in-depth: a `claude --session-id <uuid>` process HAS an id, so it is
-        // NOT a bare/fresh CLI. It must never be classified bare (which would carry only
-        // its cwd and re-introduce the cross-session cwd mis-join).
-        XCTAssertFalse(ClaudeService.isBareClaudeCommand(
-            "/Users/x/.local/bin/claude --session-id 5561b7f2-1f5d-4ad9-8d73-25341dfaa5e5 --dangerously-skip-permissions"))
-    }
-
     /// A host's claude wins over the engine's guesses; an empty one is no choice at all.
     func testLaunchCommandUsesTheClaudeItIsGiven() {
         let account = AccountConfig(name: "w", configDir: "/tmp/w-launch")
@@ -512,43 +416,17 @@ final class ClaudeServiceTests: XCTestCase {
         XCTAssertFalse(cmd.contains("--resume"))
     }
 
-    func testLiveProcessJoinsByIdOrCanonicalCwd() throws {
-        // A REAL temp dir so both path spellings resolve: NSTemporaryDirectory is
-        // /var/folders/… (a symlink); resolvingSymlinksInPath gives the /private/var/…
-        // realpath. canonicalPath must collapse the two — a non-existent path wouldn't
-        // resolve, so the dir must actually exist.
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("grove-live-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let varSpelling = dir.path                                 // /var/folders/… (exists)
-        try XCTSkipUnless(varSpelling.hasPrefix("/var/"), "needs a /var-symlinked temp dir")
-        let realSpelling = "/private" + varSpelling                // /private/var/folders/… (same dir, realpath form)
-        XCTAssertNotEqual(varSpelling, realSpelling)               // the two spellings differ as strings
-        XCTAssertEqual(canonicalPath(varSpelling), canonicalPath(realSpelling))   // …but canonicalize to one
-
+    /// One process runs one session: the join is by id, and a process whose session
+    /// could not be told stands for none of the sessions in its folder.
+    func testLiveProcessJoinsByIdOnly() {
         let live = [
             LiveProcess(pid: 1, sessionId: "S1", cwd: "/ws/a", status: "busy", accountName: "x"),
-            // Fresh, empty-id process whose cwd is stored as the realpath spelling.
-            LiveProcess(pid: 2, sessionId: "", cwd: realSpelling, status: "idle", accountName: ""),
+            LiveProcess(pid: 2, sessionId: "", cwd: "/ws/b", status: "idle", accountName: ""),
         ]
-        // by id (cwd irrelevant)
         XCTAssertEqual(live.liveProcess(forSessionId: "S1", cwd: "/anything")?.pid, 1)
-        // by fresh cwd, across the /var ↔ /private/var symlink spelling
-        XCTAssertEqual(live.liveProcess(forSessionId: "S2", cwd: varSpelling)?.pid, 2)
-        // no id and no cwd match → nil (reads as closed/resumable, correctly)
-        XCTAssertNil(live.liveProcess(forSessionId: "S2", cwd: "/ws/elsewhere"))
-        // a real-id process must NOT be cwd-matched: session at /ws/a (where pid 1
-        // lives) finds no FRESH process there → nil, not pid 1.
-        XCTAssertNil(live.liveProcess(forSessionId: "S3", cwd: "/ws/a"))
-    }
-
-    func testIsBareClaudeCommandDetectsFreshCliOnly() {
-        XCTAssertTrue(ClaudeService.isBareClaudeCommand("claude --model claude-opus-4-8"))
-        XCTAssertTrue(ClaudeService.isBareClaudeCommand("/Users/x/.local/bin/claude"))
-        XCTAssertFalse(ClaudeService.isBareClaudeCommand("claude --resume 41f451c9-1658-4981-9465-a4dbb252ff11"))
-        XCTAssertFalse(ClaudeService.isBareClaudeCommand("/bin/zsh /tmp/cmux-agent-resume/claude-2d6.zsh"))  // basename zsh
-        XCTAssertFalse(ClaudeService.isBareClaudeCommand("node /x/cli.js"))
+        XCTAssertNil(live.liveProcess(forSessionId: "S2", cwd: "/ws/b"), "no session of its own: not S2's")
+        XCTAssertNil(live.liveProcess(forSessionId: "S3", cwd: "/ws/a"), "S1's process is not S3's")
+        XCTAssertNil(live.liveProcess(forSessionId: "", cwd: "/ws/b"))
     }
 
     func testResumeSessionIdRejectsNonResumeAndWrappers() {

@@ -235,7 +235,7 @@ struct WorkspaceRowCard: View {
                                ref: SessionRef(sessionId: session.id, cwd: session.cwd, accountName: session.accountName,
                                                title: displayTitle(session), isLive: live != nil,
                                                lastActivity: session.lastActivity),
-                               status: live.map { SessionLiveStatus(rawStatus: $0.status) == .busy ? .running : .waiting } ?? .closed,
+                               status: SessionState.of(live, turn: session.preview?.turn),
                                place: session.gitBranch.flatMap { $0.isEmpty ? nil : $0 } ?? workspace.name)
             }
         }

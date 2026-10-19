@@ -292,18 +292,18 @@ final class OneWindowRenderTests: XCTestCase {
         let shop = config.projects[0].path
         let root = "/Users/demo/Workspaces/acme.shop"
         func row(_ id: String, _ title: String, _ cwd: String, _ account: String, _ ago: TimeInterval,
-                 _ status: ProjectSessionRow.Status, at place: String? = nil) -> ProjectSessionRow {
+                 _ status: SessionState, at place: String? = nil) -> ProjectSessionRow {
             ProjectSessionRow(sessionId: id, title: title, cwd: cwd, location: place ?? (cwd as NSString).lastPathComponent,
-                              accountName: account, lastActivity: now.addingTimeInterval(-ago), status: status,
+                              accountName: account, lastActivity: now.addingTimeInterval(-ago), state: status,
                               cmuxWorkspaceId: status == .closed ? nil : "ws-" + id)
         }
         state.recentSessionsByProject = [
-            shopID: [row("s-shop-1", "Retry failed webhook deliveries with backoff", root + "/media-pipeline", team, 120, .running),
-                     row("s-shop-2", "Make the address step validate inline", root + "/media-upload", work, 4 * 60, .waiting),
+            shopID: [row("s-shop-1", "Retry failed webhook deliveries with backoff", root + "/media-pipeline", team, 120, .working),
+                     row("s-shop-2", "Make the address step validate inline", root + "/media-upload", work, 4 * 60, .yourTurn),
                      row("s-shop-3", "Update the README for the new seed script", shop, personal, 18 * 60, .closed,
                          at: "acme-shop")],
             notes.id: [row("s-notes-1", "Resolve offline sync conflicts without losing edits", DemoAccounts.notesPath,
-                           personal, 3600, .waiting)],
+                           personal, 3600, .yourTurn)],
         ]
         func session(_ id: String, _ title: String, _ cwd: String, _ account: String, _ ago: TimeInterval,
                      branch: String? = nil) -> ClaudeSession {

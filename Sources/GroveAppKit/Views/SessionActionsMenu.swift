@@ -30,12 +30,7 @@ public struct SessionRef: Equatable, Sendable {
 
     public init(row: ProjectSessionRow) {
         self.init(sessionId: row.sessionId, cwd: row.cwd, accountName: row.accountName, title: row.title,
-                  isLive: row.status != .closed, cmuxWorkspaceId: row.cmuxWorkspaceId, lastActivity: row.lastActivity)
-    }
-
-    public init(row: SessionRow) {
-        self.init(sessionId: row.sessionId, cwd: row.cwd, accountName: row.accountName, title: row.title,
-                  isLive: row.liveStatus != nil, cmuxWorkspaceId: row.cmuxWorkspaceId, lastActivity: row.lastActivity)
+                  isLive: row.isLive, cmuxWorkspaceId: row.cmuxWorkspaceId, lastActivity: row.lastActivity)
     }
 
     public init(session: ClaudeSession, isLive: Bool, cmuxWorkspaceId: String? = nil) {
@@ -149,7 +144,7 @@ public enum SessionMenu {
             let row = ProjectSessionRow(sessionId: ref.sessionId, title: ref.title, cwd: ref.cwd,
                                         location: (ref.cwd as NSString).lastPathComponent,
                                         accountName: ref.accountName, lastActivity: ref.lastActivity,
-                                        status: .running, cmuxWorkspaceId: ref.cmuxWorkspaceId)
+                                        state: .working, cmuxWorkspaceId: ref.cmuxWorkspaceId)
             Task { await state.openSession(row) }
         } else {
             let account = state.config.accounts.first { $0.name == ref.accountName }

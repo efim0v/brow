@@ -72,11 +72,32 @@ public enum SessionRegistry {
                                 isLive: (RegisteredSession) -> Bool = SessionRegistry.isLive) -> [RegisteredSession] {
         let dir = (configDir as NSString).expandingTildeInPath + "/sessions"
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
-        return names.filter { $0.hasSuffix(".json") }.compactMap { name in
+        return names.filter(isRecordName).compactMap { name in
             guard let data = FileManager.default.contents(atPath: dir + "/" + name),
                   let record = parse(data, configDir: configDir), isLive(record) else { return nil }
             return record
         }.sorted { $0.pid < $1.pid }
+    }
+
+    /// `<pid>.json` and nothing else: the folder also holds each session's inbox key
+    /// (`<pid>.<hash>.key`), which is never opened.
+    static func isRecordName(_ name: String) -> Bool {
+        guard name.hasSuffix(".json") else { return false }
+        let stem = name.dropLast(".json".count)
+        return !stem.isEmpty && stem.allSatisfy { ("0"..."9").contains($0) }
+    }
+
+    /// The controlling terminal of `pid` (`/dev/ttys025`), from the kernel; nil when it has
+    /// none (a session in an editor, a background job) or the pid is gone.
+    public static func terminal(of pid: Int32) -> String? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        // NODEV (all bits set): no controlling terminal.
+        guard info.e_tdev != UInt32.max, let name = devname(dev_t(bitPattern: info.e_tdev), S_IFCHR) else { return nil }
+        let tty = String(cString: name)
+        guard !tty.isEmpty, tty != "??" else { return nil }
+        return "/dev/" + tty
     }
 
     /// One record. `startedAt` and `statusUpdatedAt` are milliseconds since 1970 in the
@@ -112,6 +133,14 @@ public enum SessionRegistry {
         guard let recorded = record.procStart?.trimmingCharacters(in: .whitespaces), !recorded.isEmpty else { return true }
         guard let started = startTime(of: record.pid) else { return false }
         return recorded == started
+    }
+
+    /// When `pid` started, from the kernel; nil when it is gone.
+    public static func startDate(of pid: Int32) -> Date? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
     }
 
     /// When `pid` started, as `LC_ALL=C TZ=UTC ps -o lstart= -p <pid>` prints it

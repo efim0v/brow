@@ -236,17 +236,17 @@ enum DemoFixture {
                 ProjectSessionRow(sessionId: "s-co-1", title: "Checkout: address step validation",
                                   cwd: workspacesRoot + "/checkout-redesign", location: "checkout-redesign",
                                   accountName: work, lastActivity: now.addingTimeInterval(-240),
-                                  status: .running, cmuxWorkspaceId: "ws-201"),
+                                  state: .working, cmuxWorkspaceId: "ws-201"),
                 ProjectSessionRow(sessionId: "s-pw-1", title: "Retry failed webhook deliveries",
                                   cwd: workspacesRoot + "/fix-payment-webhooks", location: "fix-payment-webhooks",
                                   accountName: team, lastActivity: now.addingTimeInterval(-660),
-                                  status: .waiting, cmuxWorkspaceId: nil),
+                                  state: .yourTurn, cmuxWorkspaceId: nil),
             ],
             notesID: [
                 ProjectSessionRow(sessionId: "s-fn-1", title: "Offline sync conflict resolution",
                                   cwd: "/Users/demo/Workspaces/field-notes/offline-sync", location: "offline-sync",
                                   accountName: personal, lastActivity: now.addingTimeInterval(-5_400),
-                                  status: .waiting, cmuxWorkspaceId: nil),
+                                  state: .yourTurn, cmuxWorkspaceId: nil),
             ],
         ]
         return state

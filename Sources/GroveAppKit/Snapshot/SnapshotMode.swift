@@ -161,11 +161,11 @@ public enum SnapshotMode {
             ProjectSessionRow(sessionId: "s-mp-1", title: "media pipeline retries",
                               cwd: wsRoot + "/media-pipeline", location: "media-pipeline",
                               accountName: "default", lastActivity: now.addingTimeInterval(-900),
-                              status: .running, cmuxWorkspaceId: "ws-101"),
+                              state: .working, cmuxWorkspaceId: "ws-101"),
             ProjectSessionRow(sessionId: "s-mu-1", title: "upload endpoint",
                               cwd: wsRoot + "/media-upload", location: "media-upload",
                               accountName: "work", lastActivity: now.addingTimeInterval(-120),
-                              status: .waiting, cmuxWorkspaceId: nil),
+                              state: .yourTurn, cmuxWorkspaceId: nil),
         ]]
         return state
     }

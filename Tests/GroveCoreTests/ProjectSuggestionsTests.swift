@@ -42,10 +42,14 @@ final class ProjectSuggestionsTests: XCTestCase {
         ProjectSuggestions.canonical(home.appendingPathComponent(relative).path)
     }
 
-    private func suggest(_ cwds: [String], covered: [String] = [], dismissed: Set<String> = []) -> [ProjectSuggestion] {
-        let live = cwds.enumerated().map { ProjectSuggestions.Live(pid: Int32(100 + $0.offset), cwd: home.appendingPathComponent($0.element).path) }
-        return ProjectSuggestions.suggest(live: live, covered: covered.map(path), dismissed: Set(dismissed.map(path)),
-                                          home: home.path, temporaryRoots: [])
+    private func suggest(_ cwds: [String], covered: [String] = [], dismissed: Set<String> = [],
+                         automated: Set<Int32> = [], configDirs: [String?] = []) -> [ProjectSuggestion] {
+        let running = cwds.enumerated().map { index, cwd in
+            RunningClaude(pid: Int32(100 + index), cwd: home.appendingPathComponent(cwd).path,
+                          configDir: index < configDirs.count ? configDirs[index] : nil)
+        }
+        return ProjectSuggestions.suggest(running: running, automated: automated, covered: covered.map(path),
+                                          dismissed: Set(dismissed.map(path)), home: home.path, temporaryRoots: [])
     }
 
     func testEachSessionPointsAtTheRepositoryItWorksIn() {
@@ -78,6 +82,17 @@ final class ProjectSuggestionsTests: XCTestCase {
         XCTAssertEqual(suggest(["Code/fleet/api"], dismissed: ["Code/fleet/api"]).map(\.path), [], "turned down once is enough")
     }
 
+    /// An SDK's runs and background jobs are not someone working in a folder; a row names
+    /// the accounts its sessions run as, the busiest first.
+    func testAutomatedRunsAreLeftOutAndAccountsNamed() {
+        let found = suggest(["Code/harbor", "Code/harbor/Sources", "Code/fleet", "Code/harbor"],
+                            automated: [102], configDirs: ["/demo/.claude-accounts/work", nil, "/demo/.claude-accounts/team",
+                                                           "/demo/.claude-accounts/work"])
+        XCTAssertEqual(found.map(\.path), [path("Code/harbor")], "fleet's only session is automated")
+        XCTAssertEqual(found.first?.pids, [100, 101, 103])
+        XCTAssertEqual(found.first?.configDirs, ["/demo/.claude-accounts/work", ProjectSuggestions.canonical(home.path) + "/.claude"])
+    }
+
     func testNoiseIsNeverAProject() {
         let h = "/Users/demo"
         for noise in ["/", h, h + "/Library/Caches/x", h + "/.claude/projects", h + "/.cmux/worktrees/a", "/tmp/x",
@@ -87,5 +102,19 @@ final class ProjectSuggestionsTests: XCTestCase {
         for real in [h + "/Code/harbor", "/Volumes/Disk/Code/harbor", h + "/Desktop/thing"] {
             XCTAssertFalse(ProjectSuggestions.isNoise(real, home: h), real)
         }
+    }
+}
+
+/// The folders the user turned down, kept in Grove's config.
+final class DismissedSuggestionsConfigTests: XCTestCase {
+    func testTheyRoundTripAndAreAbsentWhileThereAreNone() throws {
+        var config = GroveConfig.defaultConfig
+        let plain = String(decoding: try JSONEncoder().encode(config), as: UTF8.self)
+        XCTAssertFalse(plain.contains("dismissedSuggestions"), "a config Grove reads stays as Grove wrote it")
+        config.dismissedSuggestions = ["/Users/demo/Code/scratch"]
+        let decoded = try JSONDecoder().decode(GroveConfig.self, from: JSONEncoder().encode(config))
+        XCTAssertEqual(decoded.dismissedSuggestions, ["/Users/demo/Code/scratch"])
+        let old = #"{"version":1,"workspacesRootTemplate":"~/Workspaces/{project}","projects":[],"accounts":[]}"#
+        XCTAssertEqual(try JSONDecoder().decode(GroveConfig.self, from: Data(old.utf8)).dismissedSuggestions, [])
     }
 }

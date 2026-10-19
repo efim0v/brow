@@ -41,7 +41,7 @@ final class ClaudeCodeFoldersTests: XCTestCase {
         return text
     }
 
-    private func standIn(in dir: URL) throws -> Process {
+    private func standIn(in dir: URL, configDir: String? = nil) throws -> Process {
         let runner = try XCTUnwrap(ProcessTable.executablePath(of: getpid()))
         let bin = lab.appendingPathComponent("bin")
         let link = bin.appendingPathComponent("claude")
@@ -51,6 +51,7 @@ final class ClaudeCodeFoldersTests: XCTestCase {
         }
         var env = ProcessInfo.processInfo.environment
         env[ClaudeCodeStandIn.sleepVariable] = "30"
+        env["CLAUDE_CONFIG_DIR"] = configDir
         let process = Process()
         process.executableURL = link
         process.arguments = ["-XCTest", "BrowKitTests.ClaudeCodeStandIn/testStandInForAClaudeCodeSession",
@@ -67,7 +68,7 @@ final class ClaudeCodeFoldersTests: XCTestCase {
 
     /// The look, kept to this test's stand-ins: any other process has no path here, so
     /// only its kernel name is seen, and that never passes `candidate`.
-    private func folders() throws -> [ProjectSuggestions.Live] {
+    private func folders() throws -> [RunningClaude] {
         let runner = try XCTUnwrap(ProcessTable.executablePath(of: getpid()))
         let mine = self.mine
         return ProcessTable.claudeCodeFolders(excludingChildrenOf: -1, candidate: { $0 == runner },
@@ -98,13 +99,31 @@ final class ClaudeCodeFoldersTests: XCTestCase {
         XCTAssertEqual(found.count, 4)
         XCTAssertTrue(real(lab).hasPrefix("/private/"), "and /var is /private/var to the kernel")
 
-        let suggestions = ProjectSuggestions.suggest(live: found, covered: [], home: lab.path, temporaryRoots: [])
+        let suggestions = ProjectSuggestions.suggest(running: found, covered: [], home: lab.path, temporaryRoots: [])
         XCTAssertEqual(suggestions.map(\.path), [real(harbor), real(lab.appendingPathComponent("Code/fleet"))])
         XCTAssertEqual(suggestions.first?.pids.sorted(),
                        [inSources, viaLink, inWorktree].map(\.processIdentifier).sorted())
-        XCTAssertEqual(ProjectSuggestions.suggest(live: found, covered: [harbor.path], home: lab.path, temporaryRoots: [])
+        XCTAssertEqual(ProjectSuggestions.suggest(running: found, covered: [harbor.path], home: lab.path, temporaryRoots: [])
             .map(\.path), [real(lab.appendingPathComponent("Code/fleet"))])
         _ = inFleet
+    }
+
+    /// What a session runs as and when it started, from the kernel: the account a
+    /// suggestion names, the moment a transcript is matched against.
+    func testEachSessionsAccountAndStart() throws {
+        let repo = try makeRepo("Code/harbor")
+        let work = try standIn(in: repo, configDir: lab.path + "/.claude-accounts/work/")
+        let relative = try standIn(in: repo, configDir: ".claude-accounts/b")
+        let plain = try standIn(in: repo)
+        Thread.sleep(forTimeInterval: 0.3)
+        let byPid = Dictionary(uniqueKeysWithValues: try folders().map { ($0.pid, $0) })
+        XCTAssertEqual(byPid[work.processIdentifier]?.configDir, lab.path + "/.claude-accounts/work", "no trailing slash")
+        XCTAssertEqual(byPid[relative.processIdentifier]?.configDir,
+                       ProjectSuggestions.canonical(repo.path) + "/.claude-accounts/b", "relative to its folder")
+        XCTAssertNil(byPid[plain.processIdentifier]?.configDir, "unset: ~/.claude")
+        let started = try XCTUnwrap(byPid[plain.processIdentifier]?.startedAt)
+        XCTAssertLessThan(abs(started.timeIntervalSinceNow), 30)
+        XCTAssertNil(byPid[plain.processIdentifier]?.sessionId)
     }
 
     func testHeadlessRunsAreNotSessions() {
@@ -184,7 +203,7 @@ final class ClaudeCodeFoldersTests: XCTestCase {
         let args = median(200) { for pid in pids { _ = ProcessTable.arguments(of: pid) } } / Double(pids.count)
         let paths = median(50) { for process in ProcessTable.userProcesses() { _ = ProcessTable.executablePath(of: process.pid) } }
         let suggest = median(200) {
-            _ = ProjectSuggestions.suggest(live: pids.map { ProjectSuggestions.Live(pid: $0, cwd: repo.path) },
+            _ = ProjectSuggestions.suggest(running: pids.map { RunningClaude(pid: $0, cwd: repo.path) },
                                            covered: [], home: lab.path, temporaryRoots: [])
         }
         print(String(format: "look: %d processes walked in %.3f ms; proc_pidpath for all of them %.3f ms; whole look with %d stand-ins %.3f ms; per stand-in: cwd %.4f ms, arguments %.4f ms; suggest for 8 sessions %.3f ms",

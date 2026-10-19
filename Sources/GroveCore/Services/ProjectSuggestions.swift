@@ -15,49 +15,53 @@ public struct ProjectSuggestion: Sendable, Equatable, Identifiable {
     /// The live sessions behind it, by pid, and the folders they run in.
     public let pids: [Int32]
     public let cwds: [String]
+    /// The config folders they run as (`~/.claude` spelled out for one with no
+    /// `CLAUDE_CONFIG_DIR`), each once, the busiest first: the accounts a row names.
+    public let configDirs: [String]
 
-    public init(path: String, pids: [Int32], cwds: [String]) {
+    public init(path: String, pids: [Int32], cwds: [String], configDirs: [String] = []) {
         self.path = path
         self.name = (path as NSString).lastPathComponent
         self.pids = pids
         self.cwds = cwds
+        self.configDirs = configDirs
     }
 }
 
 public enum ProjectSuggestions {
-    /// One running session: its pid and working directory.
-    public struct Live: Sendable, Equatable {
-        public let pid: Int32
-        public let cwd: String
-        public init(pid: Int32, cwd: String) {
-            self.pid = pid
-            self.cwd = cwd
-        }
-    }
-
-    /// The folders `live` sessions run in that are not under any of `covered` (the
+    /// The folders the `running` sessions work in that are not under any of `covered` (the
     /// projects' folders and their workspaces folders), not the home folder or a system,
-    /// temporary or hidden one, and not `dismissed`. One suggestion per folder, the
-    /// folder with the most sessions first.
-    public static func suggest(live: [Live], covered: [String], dismissed: Set<String> = [],
-                               home: String = NSHomeDirectory(),
+    /// temporary or hidden one, and not `dismissed`; leaving out the `automated` pids (an
+    /// SDK's runs, background jobs: what their records say). One suggestion per folder, the
+    /// folder with the most sessions first. Paths are compared real (`realpath`) on both
+    /// sides, as the kernel reports a process's folder.
+    public static func suggest(running: [RunningClaude], automated: Set<Int32> = [], covered: [String],
+                               dismissed: Set<String> = [], home: String = NSHomeDirectory(),
                                temporaryRoots: [String] = ProjectSuggestions.temporaryRoots) -> [ProjectSuggestion] {
         let home = canonical(home)
         let roots = covered.filter { !$0.isEmpty }.map(canonical)
         let dismissed = Set(dismissed.map(canonical))
         func isCovered(_ path: String) -> Bool { roots.contains { path == $0 || path.hasPrefix($0 + "/") } }
 
-        var byFolder: [String: (pids: [Int32], cwds: [String])] = [:]
-        for session in live where !session.cwd.isEmpty {
+        var byFolder: [String: (pids: [Int32], cwds: [String], dirs: [String])] = [:]
+        for session in running where !session.cwd.isEmpty && !automated.contains(session.pid) {
             let cwd = canonical(session.cwd)
             guard !isCovered(cwd), let folder = folder(for: cwd, home: home),
                   !isCovered(folder), !dismissed.contains(folder),
                   !isNoise(folder, home: home, temporaryRoots: temporaryRoots) else { continue }
-            byFolder[folder, default: ([], [])].pids.append(session.pid)
-            if byFolder[folder]?.cwds.contains(cwd) == false { byFolder[folder]?.cwds.append(cwd) }
+            var entry = byFolder[folder] ?? ([], [], [])
+            entry.pids.append(session.pid)
+            if !entry.cwds.contains(cwd) { entry.cwds.append(cwd) }
+            entry.dirs.append(session.configDir ?? (home + "/.claude"))
+            byFolder[folder] = entry
         }
-        return byFolder.map { ProjectSuggestion(path: $0.key, pids: $0.value.pids.sorted(), cwds: $0.value.cwds.sorted()) }
-            .sorted { ($0.pids.count, $1.name) > ($1.pids.count, $0.name) }
+        return byFolder.map { folder, entry in
+            // Each account once, the one most sessions run as first.
+            let counts = Dictionary(entry.dirs.map { ($0, 1) }, uniquingKeysWith: +)
+            let dirs = counts.keys.sorted { (counts[$0]!, $1) > (counts[$1]!, $0) }
+            return ProjectSuggestion(path: folder, pids: entry.pids.sorted(), cwds: entry.cwds.sorted(), configDirs: dirs)
+        }
+        .sorted { ($0.pids.count, $1.name) > ($1.pids.count, $0.name) }
     }
 
     /// The folder a session at `cwd` works on: the nearest repository above it (a linked

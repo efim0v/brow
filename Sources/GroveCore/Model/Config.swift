@@ -227,23 +227,28 @@ public struct GroveConfig: Codable, Sendable, Equatable {
     public var projects: [ProjectConfig]
     public var accounts: [AccountConfig]
     public var transcriptMirror: TranscriptMirrorSettings
+    /// Folders the user said are not projects ("not now" on a suggestion): never offered
+    /// again. Real paths. Back-compat: absent from old JSON decodes to [].
+    public var dismissedSuggestions: [String]
 
     public init(
         version: Int,
         workspacesRootTemplate: String,
         projects: [ProjectConfig],
         accounts: [AccountConfig],
-        transcriptMirror: TranscriptMirrorSettings = TranscriptMirrorSettings()
+        transcriptMirror: TranscriptMirrorSettings = TranscriptMirrorSettings(),
+        dismissedSuggestions: [String] = []
     ) {
         self.version = version
         self.workspacesRootTemplate = workspacesRootTemplate
         self.projects = projects
         self.accounts = accounts
         self.transcriptMirror = transcriptMirror
+        self.dismissedSuggestions = dismissedSuggestions
     }
 
     enum CodingKeys: String, CodingKey {
-        case version, workspacesRootTemplate, projects, accounts, transcriptMirror
+        case version, workspacesRootTemplate, projects, accounts, transcriptMirror, dismissedSuggestions
     }
 
     public init(from decoder: Decoder) throws {
@@ -253,6 +258,19 @@ public struct GroveConfig: Codable, Sendable, Equatable {
         projects = try c.decode([ProjectConfig].self, forKey: .projects)
         accounts = try c.decode([AccountConfig].self, forKey: .accounts)
         transcriptMirror = try c.decodeIfPresent(TranscriptMirrorSettings.self, forKey: .transcriptMirror) ?? TranscriptMirrorSettings()
+        dismissedSuggestions = try c.decodeIfPresent([String].self, forKey: .dismissedSuggestions) ?? []
+    }
+
+    /// The same config, without `dismissedSuggestions` written out while there are none: a
+    /// config Grove.app reads back stays as it wrote it.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(version, forKey: .version)
+        try c.encode(workspacesRootTemplate, forKey: .workspacesRootTemplate)
+        try c.encode(projects, forKey: .projects)
+        try c.encode(accounts, forKey: .accounts)
+        try c.encode(transcriptMirror, forKey: .transcriptMirror)
+        if !dismissedSuggestions.isEmpty { try c.encode(dismissedSuggestions, forKey: .dismissedSuggestions) }
     }
 
     /// What a missing config file starts as. The transcript safety net is OFF here: a

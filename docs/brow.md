@@ -13,9 +13,11 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   last five, so an earlier `doctor` would change nothing. If that ever stops
   working, the `claude -p` fallback (Settings → Accounts, **on by default**)
   spends a little limit and starts the account's 5-hour window. It is never used
-  after a 401/403, after a `doctor` that timed out — neither is evidence the
-  token itself can be fixed — or when `claude doctor` says the login is dead,
-  and it is dropped for good after three ineffective rounds. A `doctor` or `-p`
+  after a 401/403 for a token that had not yet expired, after a `doctor` that
+  timed out — neither is evidence the token itself can be fixed — or when `claude
+  doctor` says the login is dead, and it is dropped for good after three
+  ineffective rounds. A token past its expiry is not sent, so nothing refused it:
+  it gets `doctor` and then `-p` like a token that is due. A `doctor` or `-p`
   that runs past its time limit gets five seconds after SIGTERM before it is
   killed: on its way out Claude Code waits up to two seconds for a refresh in
   flight to be saved. Nothing is run while the Mac is in a dark wake (between

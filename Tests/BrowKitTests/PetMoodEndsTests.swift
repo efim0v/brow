@@ -367,6 +367,25 @@ final class PetMoodEndsTests: XCTestCase {
         XCTAssertEqual(tips(pat.end + 0.1)[1].x, rest[1].x, accuracy: 0.6, "and back")
     }
 
+    /// A nibble on a full belly ends with the lick and a pat that shows: the near nub comes across the belly
+    /// and is back at rest as the lick ends, so the idle after it starts where the pat left off.
+    func testANibbleOnAFullBellyPatsItWhereItShows() {
+        let rig = PetRig()
+        let nibble = PetMeal(size: .nibble, chews: 1, feast: false, points: 0.6, reduceMotion: false, mood: .stuffed)
+        let lick = 2 + nibble.duration
+        var script = PetReelScript([(0, .idle(.stuffed)), (2, .eat(nibble)), (lick, .satisfied(.lick)),
+                                    (lick + 0.6, .idle(.stuffed))], hunger: -44)
+        script.meter(2 + nibble.swallowStart, -47.6)
+        func nearTip(_ t: Double) -> Double {
+            let a = PetBodyGeometry(script.pose(rig, at: t, zones: zones).pet).arm(-1)
+            return Double(a.centre.x) + cos(a.angle) * a.length / 2
+        }
+        let rest = nearTip(lick + 0.02)
+        XCTAssertGreaterThan(nearTip(lick + 0.32) - rest, 3, "the near nub across the belly")
+        XCTAssertEqual(PetRigActions.nibblePat.offset(0.6), 0, accuracy: 1e-9, "back as the lick ends")
+        XCTAssertEqual(nearTip(lick + 0.62), nearTip(lick + 0.58), accuracy: 0.5, "no jump into the idle")
+    }
+
     /// The belly is the meter's: none above −26, 0.59 where the pet becomes stuffed, full from −42, and it
     /// rounds out as the meal that makes it stuffed lands. Curled up asleep it is gone: the loaf keeps its
     /// shape.

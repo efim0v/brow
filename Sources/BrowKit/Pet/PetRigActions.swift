@@ -738,9 +738,10 @@ enum PetRigActions {
                     p.happy = max(p.happy, PetCurve.envelope(e, 0.36, 0.42, 0.5, 0.6))
                     p.blush += 0.25 * PetCurve.envelope(e, 0.3, 0.4, 0.5, 0.6)
                 } else if moodAfter(m.meal, start: m.start, scene: scene) == .stuffed {
-                    // A nibble on a full belly: one pat with the near nub.
-                    let hit = PetCurve.envelope(e, 0.22, 0.38, 0.4, 0.58, up: PetEase.inOutSine, down: PetEase.inOutSine)
-                    if dir < 0 { p.armL -= 0.6 * hit } else { p.armR -= 0.6 * hit }
+                    // A nibble on a full belly: the near nub comes across it for one pat, and is back by the
+                    // end of the lick.
+                    let pat = nibblePat.offset(e)
+                    if dir < 0 { p.armL += pat } else { p.armR += pat }
                 }
             }
         case .boop(let giggle):
@@ -919,6 +920,9 @@ enum PetRigActions {
             p.mouthOpen *= 1 - PetCurve.ramp(e, m.snap - 0.012, m.snap + 0.012)
         }
     }
+
+    /// A nibble's pat on a full belly, inside the lick's 0.6 s, at the satisfactions' 60 fps.
+    static let nibblePat = PetRigMoodBeats.BellyPat(arrive: 0.04, settle: 0.2, taps: [0.4], leave: 0.4, tapTime: 0.08)
 
     /// The brim's pat-pat, drawn at the satisfactions' 60 fps: the nubs come across the belly from the meal at
     /// once, pat it twice and are back at rest by 1.1 s, before the thumbs-up.

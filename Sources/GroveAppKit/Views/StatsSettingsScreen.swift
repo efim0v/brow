@@ -18,6 +18,8 @@ import GroveCore
 /// ImageRenderer) for a fully-expanded flat list, the same trick the other screens use.
 struct StatsSettingsScreen: View {
     @ObservedObject var state: AppState
+    @Environment(\.groveAccent) private var accent
+    @Environment(\.groveHost) private var host
     let projectID: UUID
     @Environment(\.isSnapshotRender) private var isSnapshotRender
 
@@ -98,11 +100,8 @@ struct StatsSettingsScreen: View {
         .padding(12)
         .glassCard()
 
-        if isSnapshotRender {
-            card.padding(8).frame(maxHeight: .infinity, alignment: .top)
-        } else {
-            ScrollView { card.padding(8) }
-        }
+        FadingScrollView { card.padding(host.isNotch ? EdgeInsets(top: 2, leading: 0, bottom: 10, trailing: 0)
+                                                      : EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)) }
     }
 
     // MARK: - Live (nested DisclosureGroup) rendering
@@ -170,7 +169,7 @@ struct StatsSettingsScreen: View {
                 HStack(spacing: 5) {
                     Image(systemName: "folder.fill")
                         .font(.caption2)
-                        .foregroundStyle(isExcluded ? Color.secondary : cardAccent)
+                        .foregroundStyle(isExcluded ? Color.secondary : accent)
                     Text(name)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(isExcluded ? Color.secondary : Color.primary)
@@ -196,7 +195,7 @@ struct StatsSettingsScreen: View {
             Color.clear.frame(width: 16, height: 1)
             Circle()
                 .fill(isExcluded ? Palette.neutral
-                      : (isDataProse ? Palette.neutral : Palette.primary))
+                      : (isDataProse ? Palette.neutral : accent))
                 .frame(width: 6, height: 6)
             Text(name)
                 .font(.caption)
@@ -207,7 +206,7 @@ struct StatsSettingsScreen: View {
             if let language {
                 Text(language)
                     .font(.caption2)
-                    .foregroundStyle(isDataProse ? Palette.neutral : Palette.primary.opacity(0.85))
+                    .foregroundStyle(isDataProse ? Palette.neutral : accent.opacity(0.85))
                     .lineLimit(1)
             }
             Text(groupedThousands(lines))

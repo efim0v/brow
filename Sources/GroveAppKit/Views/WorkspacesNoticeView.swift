@@ -3,9 +3,9 @@
 
 import SwiftUI
 
-/// What the Workspaces panel shows INSTEAD of the projects when the engine is not
-/// running: an introduction while Workspaces is off, or the reason it is paused. The
-/// host writes the words and the actions; the panel only lays them out. No engine
+/// What Projects shows INSTEAD of the projects while the engine waits: the reason it
+/// is paused (Grove.app, or another copy of Brow). The host writes the words and the
+/// actions; the screen only lays them out. No engine
 /// state is read or refreshed behind a notice.
 public struct WorkspacesNotice {
     public struct Action {
@@ -32,10 +32,12 @@ public struct WorkspacesNotice {
     }
 }
 
-/// The notice, laid out at the projects screen's width on the panel's glass.
+/// The notice, laid out across the room it is given: the Projects section, while it
+/// replaces the projects.
 public struct WorkspacesNoticeView: View {
     let notice: WorkspacesNotice
     @Environment(\.isSnapshotRender) private var isSnapshotRender
+    @Environment(\.groveAccent) private var accent
 
     public init(notice: WorkspacesNotice) { self.notice = notice }
 
@@ -43,12 +45,12 @@ public struct WorkspacesNoticeView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: notice.symbol)
-                    .font(.title2)
-                    .foregroundStyle(Palette.primary)
-                Text(notice.title).font(.title3.weight(.semibold))
+                    .font(.system(size: 18))
+                    .foregroundStyle(accent)
+                Text(notice.title).font(.system(size: 15, weight: .semibold))
             }
             Text(notice.message)
-                .font(.callout)
+                .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
@@ -57,28 +59,28 @@ public struct WorkspacesNoticeView: View {
             }
             .padding(.top, 2)
         }
-        .padding(18)
-        .frame(width: 420, alignment: .leading)
-        .tint(Palette.primary)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tint(accent)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.055))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: DesignRadius.panel, style: .continuous)
-                .strokeBorder(.white.opacity(0.10))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(.white.opacity(0.07))
         )
     }
 
-    @ViewBuilder
+    /// A capsule: the primary in the accent with ink on it, the other quiet. Pure SwiftUI,
+    /// so it draws the same offscreen.
     private func button(_ action: WorkspacesNotice.Action, prominent: Bool) -> some View {
-        if isSnapshotRender {
-            // A real Button is AppKit-backed and draws as a placeholder offscreen.
+        Button { action.perform() } label: {
             Text(action.title)
-                .font(.callout.weight(prominent ? .semibold : .regular))
-                .padding(.horizontal, 12).padding(.vertical, 5)
-                .background(prominent ? AnyShapeStyle(Palette.primary) : AnyShapeStyle(.white.opacity(0.10)),
-                            in: Capsule())
-        } else if prominent {
-            Button(action.title) { action.perform() }.buttonStyle(.borderedProminent)
-        } else {
-            Button(action.title) { action.perform() }
+                .font(.system(size: 12.5, weight: prominent ? .semibold : .medium))
+                .foregroundStyle(prominent ? Color(red: 0x2A / 255, green: 0x22 / 255, blue: 0x18 / 255) : .white)
+                .padding(.horizontal, 14).frame(height: 26)
+                .background(Capsule().fill(prominent ? AnyShapeStyle(accent) : AnyShapeStyle(.white.opacity(0.10))))
         }
+        .buttonStyle(.plain)
     }
 }

@@ -20,6 +20,8 @@ import GroveCore
 /// edge-to-edge bars fallback (same landmine the rest of the app handles).
 struct CodeStatsScreen: View {
     @ObservedObject var state: AppState
+    @Environment(\.groveAccent) private var accent
+    @Environment(\.groveHost) private var host
     @Environment(\.isSnapshotRender) private var isSnapshotRender
 
     /// The window the Totals card + per-repo blocks recompute their deltas over.
@@ -192,16 +194,12 @@ struct CodeStatsScreen: View {
                       scannedAt: cacheScannedAt)
             languageCard(stats: scopedStats)
         }
-        .padding(8)
-        // ScrollView content isn't rendered offscreen — a plain VStack in snapshots,
-        // same trick GraphScreen.graphBody uses.
-        if isSnapshotRender {
-            cards
-        } else {
-            // Only the OUTER vertical scroll collapses the search; the inner
-            // horizontal chart scroll has its own axis and is left untouched.
-            ScrollView { cards.collapsesSearchOnScroll() }
-        }
+        .padding(host.isNotch ? EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
+                              : EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+        // Only the OUTER vertical scroll collapses the search; the inner horizontal chart
+        // scroll has its own axis and is left untouched. Offscreen, FadingScrollView draws the
+        // cards clipped to the room, as the ScrollView shows them.
+        FadingScrollView { cards.collapsesSearchOnScroll() }
     }
 
     // MARK: - Shared controls strip (scopes EVERY block below)
@@ -412,8 +410,8 @@ struct CodeStatsScreen: View {
                             .tracking(0.6)
                             .foregroundStyle(.secondary)
                         HStack(spacing: 12) {
-                            metric("Code", stats.code, Palette.primary)
-                            metric("Comment", stats.comment, Palette.primary.opacity(0.5))
+                            metric("Code", stats.code, accent)
+                            metric("Comment", stats.comment, accent.opacity(0.5))
                             metric("Blank", stats.blank, Palette.neutral)
                         }
                     }
@@ -446,7 +444,7 @@ struct CodeStatsScreen: View {
                         .background {
                             if selected {
                                 RoundedRectangle(cornerRadius: DesignRadius.field - 2, style: .continuous)
-                                    .fill(Palette.primary.opacity(0.85))
+                                    .fill(accent.opacity(0.85))
                             }
                         }
                 }
@@ -463,7 +461,7 @@ struct CodeStatsScreen: View {
     /// Map a delta direction to the brand tint: growth blue / decline pink / neutral gray.
     private func triangleColor(_ direction: DeltaTriangle.Direction) -> Color {
         switch direction {
-        case .up: return Palette.primary
+        case .up: return accent
         case .down: return Palette.negative
         case .flat: return Palette.neutral
         }
@@ -555,7 +553,7 @@ struct CodeStatsScreen: View {
                             if selected {
                                 RoundedRectangle(cornerRadius: DesignRadius.field - 2,
                                                  style: .continuous)
-                                    .fill(Palette.primary.opacity(0.85))
+                                    .fill(accent.opacity(0.85))
                             }
                         }
                 }
@@ -592,7 +590,7 @@ struct CodeStatsScreen: View {
             return Palette.neutral.opacity(0.55)
         }
         let rank = codeRank ?? 0
-        return Palette.primary.opacity(max(0.35, 1.0 - Double(rank) * 0.12))
+        return accent.opacity(max(0.35, 1.0 - Double(rank) * 0.12))
     }
 
     private func languageBarRow(_ bar: LanguageBar, color: Color) -> some View {
@@ -727,7 +725,7 @@ struct CodeStatsScreen: View {
                           systemImage: "shippingbox")
                 VStack(spacing: 6) {
                     ForEach(cards) { card in
-                        repoBlock(card, color: colors[card.repoName] ?? Palette.primary)
+                        repoBlock(card, color: colors[card.repoName] ?? accent)
                     }
                 }
             }
@@ -782,7 +780,7 @@ struct CodeStatsScreen: View {
                             if selected {
                                 RoundedRectangle(cornerRadius: DesignRadius.field - 2,
                                                  style: .continuous)
-                                    .fill(Palette.primary.opacity(0.85))
+                                    .fill(accent.opacity(0.85))
                             }
                         }
                 }
@@ -810,7 +808,7 @@ struct CodeStatsScreen: View {
         let names = repos.map(\.repoName).sorted()
         var map: [String: Color] = [:]
         for (i, name) in names.enumerated() {
-            map[name] = repoColor(index: i, count: names.count)
+            map[name] = repoColor(index: i, count: names.count, single: accent)
         }
         return map
     }
@@ -948,7 +946,7 @@ struct CodeStatsScreen: View {
         return VStack(alignment: .leading, spacing: 6) {
             Text(focused.map(stackedDayReadout) ?? "No code yet")
                 .font(.caption.weight(.semibold)).monospacedDigit()
-                .foregroundStyle(Palette.primary)
+                .foregroundStyle(accent)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Rectangle().fill(.white.opacity(0.08)).frame(height: 1)
             LazyVGrid(columns: cols, alignment: .leading, spacing: 5) {
@@ -956,7 +954,7 @@ struct CodeStatsScreen: View {
                     let value = linesByRepo[repo.repoName] ?? 0
                     HStack(spacing: 5) {
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill((colors[repo.repoName] ?? Palette.primary).opacity(value > 0 ? 1 : 0.4))
+                            .fill((colors[repo.repoName] ?? accent).opacity(value > 0 ? 1 : 0.4))
                             .frame(width: 8, height: 8)
                         Text(repo.repoName)
                             .font(.caption2).foregroundStyle(.secondary)
@@ -1088,7 +1086,7 @@ struct CodeStatsScreen: View {
     /// bar stands out. Hover takes precedence over tap (matching the readout).
     private func segmentFill(_ seg: StackedSegment, on bar: StackedDayBar,
                              colors: [String: Color]) -> Color {
-        let base = colors[seg.repoName] ?? Palette.primary
+        let base = colors[seg.repoName] ?? accent
         let focus = hoveredDay ?? selectedDay
         guard let focus else { return base }
         return focus == bar.date ? base : base.opacity(0.45)
@@ -1142,7 +1140,7 @@ struct CodeStatsScreen: View {
                     VStack(spacing: 0) {
                         ForEach(Array(bar.segments.enumerated().reversed()), id: \.offset) { _, seg in
                             Rectangle()
-                                .fill(colors[seg.repoName] ?? Palette.primary)
+                                .fill(colors[seg.repoName] ?? accent)
                                 .frame(width: barWidth,
                                        height: stackedSegmentHeight(lines: seg.lines,
                                                                     peak: topTick, height: h))

@@ -34,6 +34,12 @@ Workspaces, which is the panel's Projects side, is in
   still counts after an update has deleted the binary it was started from. It
   also reads the modification time of `history.jsonl`. It reads no file's
   contents and nothing from the Keychain for this, and starts no process.
+  With Workspaces on, Projects also reads each Claude Code process's working
+  folder (where the session runs, and the folders it suggests as projects) and
+  the end of each session's transcript (the last 64 KB, for its preview), and
+  the Agents tab reads the transcripts, team mailboxes and session records it
+  draws — never a session's socket or the inbox keys beside the records.
+  [Workspaces](workspaces.md#what-runs-and-who-talks-to-whom) has the details.
 - The usage endpoint is rate-limited server-side (measured: a small token bucket
   refilled at roughly one request per 100 s, `retry-after: 0`, and 429s that do
   not extend the window). Brow paces itself to it: background polls that arrive
@@ -46,8 +52,8 @@ Workspaces, which is the panel's Projects side, is in
   open that account's browser profile. The launch command also sits in each
   account's Settings card.
 - The open panel is one window for everything: while Workspaces is on, a switch at
-  its top goes between **Limits** and **Projects** (⌘1, ⌘2), and the outline never
-  moves between them. It is as tall as the limits laid out — the pet's row, the
+  its top goes between **Limits**, **Projects** and **Agents** (⌘1, ⌘2, ⌘3), and the
+  outline never moves between them. It is as tall as the limits laid out — the pet's row, the
   Overall line, every account and the month — at least 480 pt with Projects, and
   never taller than the screen above the Dock: past that the accounts and the month
   scroll under the Overall line, which stays. The month always takes six weeks, and

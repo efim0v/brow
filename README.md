@@ -85,10 +85,11 @@ In the notch:
 - **Add an account in one click.** Brow creates the account folder and opens Anthropic's own sign-in flow.
 - **Tokens kept fresh.** Idle accounts are refreshed in the background, so the numbers do not go stale. An account a Claude Code session is using is left to that session, which refreshes its own token.
 
-In Workspaces, the **Projects** side of the same panel (the switch at its top; with Workspaces off the panel is the limits alone):
+In Workspaces, the **Projects** and **Agents** sides of the same panel (the switch at its top; with Workspaces off the panel is the limits alone):
 
 - **A workspace per feature.** One folder holding a git worktree of each repository you pick, all on one branch from your template. Shared files such as `CLAUDE.md` are seeded, each repository can run a post-create hook, and a workspace can fork from another one.
 - **Sessions across accounts.** Every session has a menu: **Resume as** continues it under another account without copying, **Copy to account** copies it in full, even into an account that is in use, and **Share with all accounts** makes it visible to every linked account. The accounts are the notch's own, in its order and under the names you gave them in Settings → Accounts, each with its limits.
+- **What each session said last, and who talks to whom.** Projects shows every session by its state and its last exchange, what needs you first, and suggests the folders where Claude Code runs; **Agents** draws your sessions, subagents and agent teams messaging each other, live.
 - **Graph and statistics.** The commit graph of each repository, and lines of code across the project over time.
 - **The `brow` command-line tool**, with `scan`, `workspaces`, `sessions`, `create`, `graph` and `doctor`, each with `--json`.
 
@@ -124,6 +125,8 @@ Workspaces, only once you turn it on (or Brow finds Grove's settings):
 - **It runs git in your repositories**: `git worktree add` and a branch per repository when you create a workspace, and the post-create hooks you configured. It never deletes a worktree or a branch on its own.
 - **It drives cmux**: through cmux's socket, with the password from `~/.config/cmux/cmux.json` when cmux asks for one, and through AppleScript, which macOS asks you to allow once.
 - **`--dangerously-skip-permissions` only when you ask**, per project or per launch.
+- **It reads which folders Claude Code runs in, and how each session's conversation ends.** When the panel opens, and every few seconds while the Projects list is in view, Brow reads the session records Claude Code keeps in each account's `sessions/` folder and looks at the running `claude` processes: their command line, their working folder, and from their environment only `CLAUDE_CONFIG_DIR`. That gives each session its state, and the folders Claude runs in that are no project yet are offered as suggestions. For the previews it reads the last 64 KB of a session's transcript: your newest prompt and Claude's newest line. Settings → Workspaces → **Show message previews** turns them off. None of it is written anywhere or sent anywhere.
+- **The Agents tab reads what Claude Code writes when agents message each other**, only while the panel is open and for half a minute after it closes: the transcripts written in the last half hour, the agent-team mailboxes under each account's `teams/`, and the session records. Of a message it keeps the first line, in memory, for an hour at most. It never connects to a session's socket, never opens the inbox keys beside the records, and never joins a conversation.
 
 [Uninstall](#uninstall) shows how to reverse all of it.
 

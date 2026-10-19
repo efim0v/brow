@@ -28,6 +28,13 @@ adds a 0.4.0 render of the clipped panel to the before/after picture):
 
     ONE_WINDOW_RENDERS_DIR=/tmp/one-window Scripts/test-in-empty-home.sh --filter OneWindowRenderTests
 
+The sessions as previews, the suggestions, the account chips and the Agents tab — live,
+in flight, busy, quiet, empty, a session picked, Reduce Motion and Increase Contrast —
+are rendered the same way by `OneWindowSessionsRenderTests`, from made-up projects and
+sessions and `AgentsSnapshot`'s made-up agents; the host's reader reads nothing:
+
+    ONE_WINDOW_RENDERS_DIR=/tmp/one-window Scripts/test-in-empty-home.sh --filter OneWindowSessionsRenderTests
+
 Offscreen, `FadingScrollView` draws its content clipped to the room it is given, scrolled
 by `renderScrollOffset` (never past the end), with its fades and indicator: ImageRenderer
 draws no `ScrollView`. Views with AppKit-backed controls check `isSnapshotRender` (set with

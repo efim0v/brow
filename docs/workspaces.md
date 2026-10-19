@@ -2,7 +2,7 @@
 
 Workspaces is the part of Brow for **running parallel Claude Code sessions on a product split across several repositories**. Until Brow 0.4 it was a separate app, [Grove](https://github.com/efim0v/grove); it is now part of Brow, with its history.
 
-It is the **Projects** side of the notch panel: while Workspaces is on, a switch at the top of the panel goes between **Limits** and **Projects**, in the same black under the notch. Brow's item in the menu bar (the notch with two dots), **Show Projects** in Brow's menu and opening Brow again open the panel on Projects, pinned. The limits tell you which account has room; Projects is where the work happens and where it moves to another account.
+It is the **Projects** and **Agents** sides of the notch panel: while Workspaces is on, a switch at the top of the panel goes between **Limits**, **Projects** and **Agents**, in the same black under the notch. Brow's item in the menu bar (the notch with two dots), **Show Projects** in Brow's menu and opening Brow again open the panel on Projects, pinned. The limits tell you which account has room; Projects is where the work happens and where it moves to another account.
 
 <p align="center">
   <img alt="Brow's item in the menu bar: the notch with two dots" src="screenshots/brow-menu-bar-item.png" width="320" />
@@ -11,6 +11,7 @@ It is the **Projects** side of the notch panel: while Workspaces is on, a switch
 - [Turning it on](#turning-it-on)
 - [The problem](#the-problem)
 - [Workspaces](#workspaces-1)
+- [What runs and who talks to whom](#what-runs-and-who-talks-to-whom)
 - [Moving a session between accounts](#moving-a-session-between-accounts)
 - [Graph and statistics](#graph-and-statistics)
 - [The command-line tool](#the-command-line-tool)
@@ -70,6 +71,18 @@ A project is the directory that holds your repositories. Its own settings — de
   <img alt="Projects and their recent sessions" src="screenshots/workspaces-projects.png" width="360" />
   <img alt="A project's own settings" src="screenshots/workspaces-project-settings.png" width="420" />
 </p>
+
+## What runs and who talks to whom
+
+**Projects** shows each session by the end of its conversation: its state — *Needs permission* or *Asks you* in yellow when it waits on you, *Working*, *Your turn*, *Closed* — where it runs and as which account, your newest prompt and Claude's newest line (*Wants to run* and the command, while it waits on a permission). What needs you comes first, then what works, then what waits; a project shows up to three sessions and "N more", and projects with nothing running take one line each. Nothing moves while the list is in view: a state changes in place, and the list is sorted again the next time the panel opens. The yellow number on the Projects switch counts the sessions that need you, whichever side is in front; on Limits, an account's "N live" chip opens Projects narrowed to that account.
+
+Folders where Claude Code runs that are no project yet are suggested at the top, with **Add**, or ✕ for "not now", which is remembered. **Other folders** lists the sessions outside every project by the folder around them, each folder with **Add as project**. The search finds sessions by their prompts, replies, titles and folders, closed ones included.
+
+How Brow knows: Claude Code keeps a small record for each running session in `<account>/sessions/<pid>.json`, its state included, and Brow asks the kernel whether that process still runs. For a session without a record it looks at the running `claude` processes — their command line, their working folder, and from their environment only `CLAUDE_CONFIG_DIR` — and gives each process one session, its newest in that folder. The previews come from the last 64 KB of each transcript, read again only when the file has changed. Settings → Workspaces → **Show message previews** shows titles instead, for sharing your screen.
+
+**Agents** draws who talks to whom among the Claude Code agents on this Mac: sessions on a row, joined by arcs when they message each other, and each session's subagents and agent-team members in a short tree under it. A message is a small light that runs from the sender to the receiver; the pair stays warm and cools to grey over ten minutes. A message waiting for your approval waits at the receiver, yellow. Under the picture, RECENT lists the last ten minutes. Click a session to keep its links lit, see its messages and go to it. With Reduce Motion on, nothing travels: the edge that carried a message glows instead. A session on another Mac that one here talks to shows with a globe and a dashed outline.
+
+It reads only what Claude Code already writes, and only while the panel is open and for half a minute after: the transcripts written in the last half hour, then what is added to them; the agent-team mailboxes under `<account>/teams/`; and the session records. Of a message it keeps the first line, in memory, for an hour at most. It never connects to a session's socket, never opens the inbox keys Claude Code keeps beside the records, and never joins a conversation.
 
 ## Moving a session between accounts
 

@@ -55,7 +55,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
             let world = try makeWorld()
             let notch = try makeNotch(world, tab: .projects)
             try RenderKit.write(RenderKit.scene([AnyView(panel(notch).environment(\.renderHoveredSession, "s-checkout"))], dark: dark,
-                                                caption: "Projects: a suggested folder, what needs you first, then what works and what waits; quiet projects one line each"),
+                                                caption: "Projects: a suggested folder, then each project's sessions — what needs you first, then what works; quiet projects one line each"),
                                 to: file("b-02-projects-live-\(dark ? "dark" : "light").png"))
         }
 
@@ -100,7 +100,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
             let projects = try makeNotch(filtered, tab: .projects)
             try RenderKit.write(RenderKit.scene([RenderKit.labelled("Limits: “N live” after each account", panel(limits)),
                                                  RenderKit.labelled("its chip: Projects, Work only", panel(projects))],
-                                                caption: "“2 live” on Work opens Projects narrowed to Work's sessions; ✕ on the chip shows every account"),
+                                                caption: "“3 live” on Work opens Projects narrowed to Work's sessions; ✕ on the chip shows every account"),
                                 to: file("b-06-filtered-by-account.png"))
         }
 
@@ -330,6 +330,14 @@ final class OneWindowSessionsRenderTests: XCTestCase {
                 row("s-readme", "README: seed script", shop, "main", "default", 18 * 60, .yourTurn,
                     preview("update the README for the new seed script",
                             reply: "Done — Local setup now covers seeding, and the old make target is gone.")),
+                // The snapshot fixture's two workspaces' sessions, as its project screen shows them.
+                row("s-mu-1", "Multipart upload endpoint", root + "/media-upload", "media-upload", "work", 120, .asksYou,
+                    preview("accept multipart on /media and stream it to disk",
+                            question: "Keep the 25 MB limit, or raise it for video?")),
+                row("s-mp-1", "Implement media pipeline", root + "/media-pipeline", "media-pipeline", "default", 900,
+                    .working,
+                    preview("wire the upload progress events into the pipeline",
+                            tool: ("Bash", "swift test --filter Pipeline"))),
                 row("s-search", "Verify webhook signatures", root + "/fix-payment-webhooks", "fix-payment-webhooks", "team",
                     2 * 86_400, .closed,
                     preview("verify the webhook signature before parsing the body",

@@ -136,6 +136,14 @@ public struct AgentSpawn: Sendable, Equatable {
     public let at: Date?
     /// What it was started for, in a line.
     public let description: String?
+
+    public init(parent: String, child: String, kind: AgentNode.Kind, at: Date?, description: String?) {
+        self.parent = parent
+        self.child = child
+        self.kind = kind
+        self.at = at
+        self.description = description
+    }
 }
 
 /// Who talks to whom, as read: the nodes, the messages joined from both ends, newest
@@ -152,14 +160,18 @@ public struct AgentGraph: Sendable, Equatable {
     }
 }
 
-/// The reader. Not thread-safe: one queue drives it (the observer's).
-public final class AgentCommsReader {
+/// The reader. Not thread-safe: one serial queue drives it (the observer's), which is what
+/// makes it safe to hand to that queue (`@unchecked Sendable`).
+public final class AgentCommsReader: @unchecked Sendable {
     /// Of a message, this much is kept.
     public static let maxText = 140
     /// What a cold start reads of each transcript: its end only.
     public static let coldTail = 512 << 10
 
     public private(set) var accounts: [AgentAccount]
+    /// Whether a recorded session's process still runs (and is the one that wrote it):
+    /// the kernel's word, asked as the picture is made. Tests of made-up records say yes.
+    public var isLive: (RegisteredSession) -> Bool = SessionRegistry.isLive
     /// Every file this reader opened, in order — tests check an inbox key is never among
     /// them. Kept only when `recordsReads` is on.
     var readsLog: [String] = []
@@ -181,6 +193,7 @@ public final class AgentCommsReader {
         let kind: String?
         let socket: String?
         let live: LiveProcess
+        let registered: RegisteredSession
     }
 
     struct SessionKey: Hashable { let account: String; let session: String }
@@ -198,6 +211,8 @@ public final class AgentCommsReader {
     struct TeamConfig {
         let leadSessionId: String?
         let members: [String]
+        /// The config folder the team is in (an account can have several).
+        let configDir: String
     }
 
     private var records: [String: [Record]] = [:]
@@ -221,7 +236,8 @@ public final class AgentCommsReader {
         teamOfSession = [:]
         for account in accounts {
             let recs = readRegistry(account)
-            records[account.name] = recs
+            // An account read from several folders: their records together.
+            records[account.name, default: []] += recs
             for record in recs {
                 byPid[account.name, default: [:]][record.pid] = record.sessionId
                 if let socket = record.socket { bySocket[socket] = SessionKey(account: account.name, session: record.sessionId) }
@@ -241,7 +257,8 @@ public final class AgentCommsReader {
                   let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
             let socket = (object["messagingSocketPath"] as? String).flatMap { $0.isEmpty ? nil : Self.canonicalSocket($0) }
             return Record(pid: record.pid, sessionId: record.sessionId, cwd: record.cwd, name: record.name,
-                          kind: record.kind, socket: socket, live: LiveProcess(record: record, accountName: account.name))
+                          kind: record.kind, socket: socket, live: LiveProcess(record: record, accountName: account.name),
+                          registered: record)
         }
     }
 
@@ -252,7 +269,8 @@ public final class AgentCommsReader {
                   let config = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { continue }
             let lead = config["leadSessionId"] as? String
             let members = (config["members"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
-            teams[TeamKey(account: account.name, team: team)] = TeamConfig(leadSessionId: lead, members: members)
+            teams[TeamKey(account: account.name, team: team)] = TeamConfig(leadSessionId: lead, members: members,
+                                                                          configDir: account.configDir)
             if let lead { teamOfSession[SessionKey(account: account.name, session: lead)] = team }
         }
     }
@@ -656,9 +674,8 @@ public final class AgentCommsReader {
     /// recipient has read it.
     public func readMailboxes() {
         var next: [InboxEntryKey: RawMessage] = [:]
-        for (key, _) in teams {
-            guard let account = accounts.first(where: { $0.name == key.account }) else { continue }
-            let dir = account.configDir + "/teams/" + key.team + "/inboxes"
+        for (key, team) in teams {
+            let dir = team.configDir + "/teams/" + key.team + "/inboxes"
             for file in ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted() where file.hasSuffix(".json") {
                 guard let data = read(dir + "/" + file),
                       let entries = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { continue }
@@ -711,8 +728,11 @@ public final class AgentCommsReader {
         for account in accounts {
             for record in records[account.name] ?? [] {
                 let id = Self.sessionNode(account.name, record.sessionId)
+                // A record whose process has gone (a crash leaves it behind) still names the
+                // session; it no longer runs.
                 nodes[id] = AgentNode(id: id, name: record.name ?? record.cwd.map { ($0 as NSString).lastPathComponent } ?? String(record.sessionId.prefix(8)),
-                                      kind: .session, account: account.name, live: record.live, cwd: record.cwd)
+                                      kind: .session, account: account.name,
+                                      live: isLive(record.registered) ? record.live : nil, cwd: record.cwd)
             }
         }
         var spawnPrompts: [String: String] = [:]

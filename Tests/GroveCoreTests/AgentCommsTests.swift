@@ -25,6 +25,7 @@ final class AgentCommsTests: XCTestCase {
 
     private func reader() -> AgentCommsReader {
         let reader = AgentCommsReader(accounts: [AgentAccount(name: "work", configDir: cfg)])
+        reader.isLive = { _ in true }   // the made-up records' pids run nothing
         reader.loadStatic()
         reader.readRecent(since: Date().addingTimeInterval(-30 * 60))
         return reader
@@ -84,6 +85,15 @@ final class AgentCommsTests: XCTestCase {
                        "startedAt in milliseconds")
         XCTAssertEqual(graph.nodes[harbor]?.live?.status, "", "no status yet")
         XCTAssertEqual(graph.nodes[harbor]?.live?.kind, "bg")
+    }
+
+    /// A record whose process is gone still names its session; the session no longer runs.
+    func testARecordWhoseProcessIsGoneOnlyNames() {
+        let reader = reader()
+        reader.isLive = SessionRegistry.isLive   // the kernel's word: pid 41001 is not that process
+        let graph = reader.graph()
+        XCTAssertEqual(graph.nodes[atlas]?.name, "atlas")
+        XCTAssertNil(graph.nodes[atlas]?.live)
     }
 
     /// The inbox key beside the records is never opened, whatever the reader does.

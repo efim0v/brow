@@ -1,6 +1,7 @@
 # The notch: behaviour in detail
 
-How the notch half of Brow works. Workspaces, the menu-bar half, is in
+How the notch half of Brow works: the limits, and the panel they open into.
+Workspaces, which is the panel's Projects side, is in
 [`workspaces.md`](workspaces.md); how the two fit together, in
 [`architecture.md`](architecture.md).
 
@@ -44,12 +45,23 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   Claude Code as that account (`CLAUDE_CONFIG_DIR='…' claude`), sign in again, and
   open that account's browser profile. The launch command also sits in each
   account's Settings card.
-- The button with stacked squares in the panel's footer opens Workspaces: the
-  notch closes and stays closed until the pointer has left it, and the Workspaces
-  panel opens under its menu-bar item (or at the screen's top-right corner when
-  macOS hides the item behind the notch). While Workspaces is off it opens an
-  introduction, from which a project can be added.
-- The share button in the panel's footer copies "my week": a picture (1200 × 630,
+- The open panel is one window for everything: while Workspaces is on, a switch at
+  its top goes between **Limits** and **Projects** (⌘1, ⌘2), and the outline never
+  moves between them. It is as tall as the limits laid out — the pet's row, the
+  Overall line, every account and the month — at least 480 pt with Projects, and
+  never taller than the screen above the Dock: past that the accounts and the month
+  scroll under the Overall line, which stays. The month always takes six weeks, and
+  the day beside it shows three accounts at most, then "+N more on this day", so
+  nothing hovered can make it taller. The bottom corners are Apple's continuous
+  corners, 24 pt on the panel and 14 pt on the strip.
+- Hovered, the panel opens and closes with the pointer, on the section it was last
+  closed on if that was less than 15 minutes ago. Any click inside pins it: it then
+  takes the keyboard without making Brow the active app, ignores the pointer
+  leaving, and closes on Esc, a click outside, the pin, or when a session it opened
+  takes over. After any close it stays shut until the pointer has left it once.
+- The footer is the same on every section: what the section's numbers are and how
+  fresh, the pin, ⟳, and ⚙ with Settings and **Quit Brow**.
+- The share button in the footer on Limits copies "my week": a picture (1200 × 630,
   or 1080 × 1080 per Settings → General → Usage image) of the visible accounts'
   limits and when they reset: up to four accounts, with any more counted. A
   reading more than 3 min old is grey, as in the panel, and carries its age.

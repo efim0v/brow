@@ -2,13 +2,13 @@
 
 ## How to render
 
-    swift run BrowApp --snapshot /tmp/brow-snap     # prints "snapshot: 11 files", exits
+    swift run BrowApp --snapshot /tmp/brow-snap     # prints "snapshot: 9 files", exits
 
-The Workspaces panel's screens, without starting the app: no notch, no menu-bar item,
-no engine. Eleven scenes, each at its route's adaptive panel size @2x, defined in
-`Sources/GroveAppKit/Snapshot/SnapshotMode.swift` (`SnapshotScene`):
+Workspaces' screens as a window of their own draws them, without starting the app: no
+notch, no menu-bar item, no engine. Nine scenes, each at its route's adaptive size @2x,
+defined in `Sources/GroveAppKit/Snapshot/SnapshotMode.swift` (`SnapshotScene`):
 projects, root-workspaces, workspaces-expanded, create-sheet, graph, stats,
-sessions, accounts, settings (a project's settings), stats-settings, error-banner
+settings (a project's settings), stats-settings, error-banner
 (the RootView actionError strip over the projects route).
 The state comes from `SnapshotMode.fixtureState()` — fully synthetic
 (no git, no disk scanning, no real config, and every folder it could write sits in a
@@ -20,6 +20,18 @@ The notch, the Settings window and the README's pictures are rendered by the two
 so the notch's and Workspaces' pictures agree:
 
     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
+
+The one window — the notch panel with Limits and Projects, the screens Workspaces pushes
+in it, its menus, notices and corners — is rendered for review by `OneWindowRenderTests`,
+through the real `NotchPanelController` at the frames it computes (`ONE_WINDOW_BEFORE_PNG`
+adds a 0.4.0 render of the clipped panel to the before/after picture):
+
+    ONE_WINDOW_RENDERS_DIR=/tmp/one-window Scripts/test-in-empty-home.sh --filter OneWindowRenderTests
+
+Offscreen, `FadingScrollView` draws its content clipped to the room it is given, scrolled
+by `renderScrollOffset` (never past the end), with its fades and indicator: ImageRenderer
+draws no `ScrollView`. Views with AppKit-backed controls check `isSnapshotRender` (set with
+`.snapshotRender()`) and draw lookalikes.
 
 They draw the pet at rest. Its own renders go to a folder outside the repository:
 `PetFinalRenderTests` films and stills it through Brow's real views (the strip in

@@ -2,7 +2,7 @@
 
 Workspaces is the part of Brow for **running parallel Claude Code sessions on a product split across several repositories**. Until Brow 0.4 it was a separate app, [Grove](https://github.com/efim0v/grove); it is now part of Brow, with its history.
 
-It opens from Brow's item in the menu bar (the notch with two dots) and from the button with stacked squares in the notch panel. The notch tells you which account has room; Workspaces is where the work happens and where it moves to another account.
+It is the **Projects** side of the notch panel: while Workspaces is on, a switch at the top of the panel goes between **Limits** and **Projects**, in the same black under the notch. Brow's item in the menu bar (the notch with two dots), **Show Projects** in Brow's menu and opening Brow again open the panel on Projects, pinned. The limits tell you which account has room; Projects is where the work happens and where it moves to another account.
 
 <p align="center">
   <img alt="Brow's item in the menu bar: the notch with two dots" src="screenshots/brow-menu-bar-item.png" width="320" />
@@ -23,11 +23,10 @@ It opens from Brow's item in the menu bar (the notch with two dots) and from the
 Workspaces is off until you use it. While it is off nothing of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper, which records each session under `<account>/grove/usage/`, until you turn capture off for that account in Settings → Accounts. To offer that switch, Settings reads Grove's `config.json` when there is one; turning capture off puts your own command back in the account's `settings.json` and records the change in Grove's config. Workspaces touches no other Claude Code file while it is off.
 
 - **Coming from Grove?** Brow finds Grove's `~/Library/Application Support/Grove/config.json` and turns Workspaces on by itself, with your projects, accounts and settings. While `Grove.app` is still running, Workspaces waits and offers **Quit Grove**: two copies of the engine would write the same files. Once Grove has quit you can delete it; take it out of **System Settings → General → Login Items** if you had added it there, and turn on **Launch at login** in Brow's Settings → General instead. Brow's notch then reads every account, Workspaces' included, which Grove never did, and Claude Code's clean-up removes the old transcripts Grove kept putting back: [Coming from Grove](../README.md#coming-from-grove) says what that means and how to keep them.
-- **New to it?** Open **Settings → Workspaces** and turn it on, or press the stacked-squares button in the notch panel and choose **Add project…**.
+- **New to it?** Open **Settings → Workspaces** and turn it on. Projects then appears in the notch panel; **Add a folder…** there, or **+** beside its search, adds a project.
 
 <p align="center">
   <img alt="While Grove.app runs, Workspaces waits and offers Quit Grove" src="screenshots/workspaces-paused.png" width="420" />
-  <img alt="Before Workspaces is on, the button in the notch panel opens its introduction" src="screenshots/workspaces-introduction.png" width="420" />
 </p>
 
 Turning it on changes nothing in your Claude Code accounts by itself. Two things that do are separate choices:
@@ -36,7 +35,7 @@ Turning it on changes nothing in your Claude Code accounts by itself. Two things
 - **The transcript safety net**, in Settings → Workspaces. It starts off for a new setup; a Grove setup keeps the setting it had.
 
 <p align="center">
-  <img alt="Settings › Workspaces: the projects, where workspaces are made, the transcript safety net with each account's retention, and the panel's material" src="screenshots/brow-settings-workspaces.png" width="560" />
+  <img alt="Settings › Workspaces: the projects, where workspaces are made, and the transcript safety net with each account's retention" src="screenshots/brow-settings-workspaces.png" width="560" />
 </p>
 
 ## The problem
@@ -65,7 +64,7 @@ Creating one takes a name and a click: Brow runs `git worktree add` in each repo
   <img alt="The new workspace form" src="screenshots/workspaces-new.png" width="420" />
 </p>
 
-A project is the directory that holds your repositories. Its own settings — default account, model and effort, branch template, base branches, seed files, hooks, `--dangerously-skip-permissions` — are in the panel, under the gear next to the project. The settings that are not any one project's — the projects list, where workspaces are made, the safety net, the panel's material — are in Settings → Workspaces.
+A project is the directory that holds your repositories. Its own settings — default account, model and effort, branch template, base branches, seed files, hooks, `--dangerously-skip-permissions` — are in the notch panel, under the gear next to the project. The settings that are not any one project's — the projects list, where workspaces are made, the safety net — are in Settings → Workspaces.
 
 <p align="center">
   <img alt="Projects and their recent sessions" src="screenshots/workspaces-projects.png" width="360" />
@@ -76,20 +75,21 @@ A project is the directory that holds your repositories. Its own settings — de
 
 A project does not have to stay on the account it started on: when one account runs out of limit, continue the same session on another. Every account picker shows that account's 5-hour and weekly use as the notch last read it, so the account with room is the one you pick. Workspaces calls each account what the notch does — the name you gave it in Settings → Accounts, else its email — and writes its plan the same way. Where Workspaces has two accounts that the notch shows as one, such as two folders of one organisation, the second keeps its own name, the one Settings → Accounts lists it under, so the two can be told apart.
 
-- **Resume as…** continues a session under a different account without copying anything.
-- **Migrate to…** makes a full copy of a session in another account — transcript, memory, file history, tasks — and works even while that account is in use.
-- **Share** moves a session into the shared store so every linked account can see it.
+Each session's menu (the ••• on its row, or a right-click) has every way to move it:
+
+- **Resume as** continues a session under a different account without copying anything.
+- **Copy to account** makes a full copy of a session in another account — transcript, memory, file history, tasks — and works even while that account is in use.
+- **Share with all accounts** moves a session into the shared store so every linked account can see it.
+- **Resume with options…** picks the account, the model, the effort and where it opens; **Copy session ID**, **Show transcript in Finder** and **Delete transcript…** are there too. Delete asks in the row before it deletes anything.
+
+The accounts in every menu and picker are the notch's own: the accounts Settings → Accounts shows, in its order, under its names, and none it hides.
 
 <p align="center">
-  <img alt="A project's sessions across accounts" src="screenshots/workspaces-sessions.png" width="420" />
-  <img alt="The launch sheet: each account with its 5-hour and weekly use" src="screenshots/workspaces-launch-sheet.png" width="340" />
+  <img alt="A project's sessions, each with Go or Resume and its menu" src="screenshots/workspaces-sessions.png" width="420" />
+  <img alt="New session: each account with its 5-hour and weekly use" src="screenshots/workspaces-launch-sheet.png" width="340" />
 </p>
 
 Each project has a default account, and every launch can pick its own account, model and effort. The model pickers offer Claude Code's aliases (`opus`, `sonnet`, `haiku`, always the newest of each), pinned versions, and **Other…** for any id.
-
-<p align="center">
-  <img alt="Accounts: each account's sessions, workspaces and limits" src="screenshots/workspaces-accounts.png" width="390" />
-</p>
 
 ## Graph and statistics
 
@@ -118,7 +118,7 @@ Workspaces are for a product split across repositories:
 - **One branch across all of them.** A workspace holds a worktree of each repository you pick, all on the same branch, under one directory. Claude Code starts there and sees the whole product.
 - **Your branch names and start points.** Branches follow your template, `feat/{name}` by default. Each repository can start from its own base branch, and a workspace can fork from another workspace's branches.
 - **Set up on creation.** Shared files you choose, such as `CLAUDE.md`, are linked or copied into each new workspace, and each repository can run its own post-create hook.
-- **Sessions across accounts.** Every Claude account Brow knows is listed with its sessions, and **Resume as…**, **Migrate to…** and **Share** move them between accounts.
+- **Sessions across accounts.** Every session's menu moves it to another account: **Resume as**, **Copy to account** and **Share with all accounts**.
 
 ## How accounts share sessions
 
@@ -155,15 +155,15 @@ flowchart LR
 
 **The transcript safety net (hard links).** When it is on, Brow keeps a hard link to every transcript under `~/.claude/grove/transcripts/`, so a transcript deleted by accident can be put back. Nothing comes back by itself: Settings → Workspaces lists each transcript that vanished, newest first, with where the session ran, and **Restore** puts it back.
 
-It keeps nothing past Claude Code's own retention, [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays). Brow reads it from your organization's managed settings and server-managed settings, from the account's `settings.json`, and from the project settings (`.claude/settings.json` and `.claude/settings.local.json`, up to the repository root) of every folder the account's sessions ran in, because a session's clean-up deletes old transcripts in all of the account's projects; it takes the shortest. A workspace shared between accounts is held to the shortest period of every account that shares it. A transcript is offered back only while it is more than a day younger than that, and if a settings file cannot be read, nothing is offered at all. The one period Brow cannot read is one passed to `claude` with `--settings`, which is why it never restores on its own. Settings → Workspaces lists each account's period. **Purge** on the Sessions screen deletes a transcript for good.
+It keeps nothing past Claude Code's own retention, [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays). Brow reads it from your organization's managed settings and server-managed settings, from the account's `settings.json`, and from the project settings (`.claude/settings.json` and `.claude/settings.local.json`, up to the repository root) of every folder the account's sessions ran in, because a session's clean-up deletes old transcripts in all of the account's projects; it takes the shortest. A workspace shared between accounts is held to the shortest period of every account that shares it. A transcript is offered back only while it is more than a day younger than that, and if a settings file cannot be read, nothing is offered at all. The one period Brow cannot read is one passed to `claude` with `--settings`, which is why it never restores on its own. Settings → Workspaces lists each account's period. **Delete transcript…** in a session's menu deletes a transcript for good.
 
-**Migration (copy).** **Migrate to…** copies a session's data from one account directory into another.
+**Copying (migration).** **Copy to account** copies a session's data from one account directory into another.
 
 The engine's other files, and the contracts between its parts, are in [`architecture.md`](architecture.md).
 
 ## cmux or Terminal.app
 
-Workspaces is built around [cmux](https://cmux.dev): it opens each session in a cmux workspace of its own and takes you to a running session in one click. Terminal.app works too, through the launch sheet, which opens for **New Claude** on a workspace, for the gear on a closed session, and when you click a closed session on the Projects screen. Set **Open in** to **Terminal** there; the sheet starts on cmux each time, and it also picks the account, model and effort. Every other button that starts or resumes a session (**Resume**, **Resume as…** and the rest) opens it in cmux. Brow can bring a session running in Terminal.app to the front when you click it on the Projects screen, but it can't launch into or switch to other terminals. A workspace is an ordinary directory, though, so you can start Claude Code in it from any terminal yourself.
+Workspaces is built around [cmux](https://cmux.dev): it opens each session in a cmux workspace of its own and takes you to a running session in one click. Terminal.app works too, through the launch form, which opens for **New session** on a workspace and for **Resume with options…** in a closed session's menu (⌘↩). Set **Open in** to **Terminal** there; the form starts on cmux each time, and it also picks the account, model and effort. Every other button that starts or resumes a session (**Resume**, **Resume as…** and the rest) opens it in cmux. Brow can bring a session running in Terminal.app to the front when you click it on the Projects screen, but it can't launch into or switch to other terminals. A workspace is an ordinary directory, though, so you can start Claude Code in it from any terminal yourself.
 
 The first time Brow drives cmux through AppleScript, macOS asks once for permission to control cmux. If cmux reports as unavailable while it is running, see [troubleshooting](troubleshooting.md).
 

@@ -14,7 +14,7 @@ Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 Brow has two surfaces ([What it does](README.md#what-it-does)):
 
 - **the notch**: the 5-hour and weekly limits of every Claude Code account on the Mac, one-click sign-in for each, and the pet that eats what they use;
-- **Workspaces**, in the menu bar: workspaces of git worktrees across several repositories, the Claude Code sessions in them, and moving sessions between accounts — with the commit graph, the code statistics and the `brow` command-line tool.
+- **Workspaces**, the Projects side of the same notch panel: workspaces of git worktrees across several repositories, the Claude Code sessions in them, and moving sessions between accounts — with the commit graph, the code statistics and the `brow` command-line tool.
 
 Fixes and improvements to either are welcome, and so are fixes for a Mac or display that Brow draws wrongly on. Problems with Claude Code itself belong in [anthropics/claude-code](https://github.com/anthropics/claude-code/issues), and problems with cmux in [manaflow-ai/cmux](https://github.com/manaflow-ai/cmux/issues). If Brow reports cmux as unavailable while cmux is running, read [`docs/troubleshooting.md`](docs/troubleshooting.md) first.
 
@@ -50,7 +50,7 @@ Scripts/build-brow.sh                         # release build -> dist/Brow.app a
 
 To run what you built:
 
-- **A build you run is Brow for real.** It reads and writes the same `~/Library/Application Support/Brow` and, with Workspaces on, `~/Library/Application Support/Grove` as an installed copy. Workspaces runs in one copy at a time (the second waits for the first, see [troubleshooting](docs/troubleshooting.md#workspaces-says-it-is-open-in-another-brow)), but the notch runs in both, so quit the installed one first (⌘Q with its Settings window in front, or **Quit Brow** in the Workspaces panel).
+- **A build you run is Brow for real.** It reads and writes the same `~/Library/Application Support/Brow` and, with Workspaces on, `~/Library/Application Support/Grove` as an installed copy. Workspaces runs in one copy at a time (the second waits for the first, see [troubleshooting](docs/troubleshooting.md#workspaces-says-it-is-open-in-another-brow)), but the notch runs in both, so quit the installed one first (**Quit Brow** in the ⚙ menu of its notch panel, or ⌘Q with its Settings window in front).
 - `Scripts/dev-run.sh` builds and runs the debug binary under its own identifier, `dev.artemefimov.brow.dev`, so rebuilds cannot disturb the installed app's menu-bar slot or permissions.
 - Both build scripts sign ad hoc unless `BROW_SIGN_IDENTITY` names a code-signing identity of yours, such as `Apple Development: Name (TEAMID)`. With an ad hoc signature macOS forgets Brow's Keychain and Automation permissions on every rebuild.
 - `swift run BrowApp --snapshot /tmp/brow-snap` renders the Workspaces screens to PNG from made-up data and exits without starting the app; see [`docs/snapshot-testing.md`](docs/snapshot-testing.md). `swift run brow --help` and `swift run brow doctor` run the command-line tool.
@@ -78,7 +78,7 @@ To run what you built:
 - Every `.swift`, `.sh` and `.py` file starts with the licence header (`Scripts/check-headers.sh` checks it).
 - Comments say why. Many lines carry a note about the bug they fixed; keep yours in that spirit, and keep a comment until what it explains is gone.
 - Log through `BrowLog` or `GroveLog`. Never log a token or anything read from a Keychain item.
-- `GroveAppKit` never imports `BrowKit`: what the Workspaces panel needs from the app comes in through closures and protocols such as `AccountLimitsProviding`.
+- `GroveAppKit` never imports `BrowKit`: what Workspaces' screens need from the app comes in through closures, environment values (`groveHost`, `groveAccent`) and protocols such as `AccountLimitsProviding`.
 - UI changes: re-render the affected screens and look at them. If a change alters a screen the README shows, regenerate its screenshots.
 - Commit subjects follow the history: a type, an optional scope, and a lower-case summary of what changes for the user, such as `fix(brow): reset times in the bars carry the date, not the weekday` or `fix(core): the transcript mirror keeps only what Claude Code keeps`.
 

@@ -12,7 +12,7 @@ Website: [efimov.page/brow](https://efimov.page/brow/)
 A macOS app for people who run [Claude Code](https://claude.com/claude-code) on several accounts at once. It does two things:
 
 - **The notch shows the usage and rate limits of every account**: the 5-hour limit, the weekly limit, and when each resets. One click signs you in to an account in a browser profile that belongs to that account alone.
-- **Workspaces, in the menu bar, runs parallel Claude Code sessions on a product split across several repositories**: one folder of git worktrees per feature, all on one branch, and a session moves to the account that still has room.
+- **Workspaces, in the same notch panel, runs parallel Claude Code sessions on a product split across several repositories**: one folder of git worktrees per feature, all on one branch, and a session moves to the account that still has room.
 
 The notch is for looking, Workspaces is for working. Brow works with a single account too: it picks up `~/.claude` by itself and shows that account's limits, and Workspaces stays off until you use it.
 
@@ -66,7 +66,7 @@ Workspaces gives each feature of a multi-repo product its own folder, with a git
 
 <p align="center">
   <img alt="Workspaces: the workspaces of a multi-repo project" src="docs/screenshots/workspaces-project.png" width="420" />
-  <img alt="Workspaces: sessions across accounts, each with its limits" src="docs/screenshots/workspaces-sessions.png" width="420" />
+  <img alt="Workspaces: a project's sessions, each with Go or Resume and a menu that moves it to another account" src="docs/screenshots/workspaces-sessions.png" width="420" />
 </p>
 
 All demos and screenshots show made-up demo data.
@@ -85,10 +85,10 @@ In the notch:
 - **Add an account in one click.** Brow creates the account folder and opens Anthropic's own sign-in flow.
 - **Tokens kept fresh.** Idle accounts are refreshed in the background, so the numbers do not go stale. An account a Claude Code session is using is left to that session, which refreshes its own token.
 
-In Workspaces:
+In Workspaces, the **Projects** side of the same panel (the switch at its top; with Workspaces off the panel is the limits alone):
 
 - **A workspace per feature.** One folder holding a git worktree of each repository you pick, all on one branch from your template. Shared files such as `CLAUDE.md` are seeded, each repository can run a post-create hook, and a workspace can fork from another one.
-- **Sessions across accounts.** **Resume as…** continues a session under another account without copying, **Migrate to…** copies it in full, even into an account that is in use, and **Share** makes it visible to every linked account. Every account picker shows that account's limits, under the name you gave it in Settings → Accounts.
+- **Sessions across accounts.** Every session has a menu: **Resume as** continues it under another account without copying, **Copy to account** copies it in full, even into an account that is in use, and **Share with all accounts** makes it visible to every linked account. The accounts are the notch's own, in its order and under the names you gave them in Settings → Accounts, each with its limits.
 - **Graph and statistics.** The commit graph of each repository, and lines of code across the project over time.
 - **The `brow` command-line tool**, with `scan`, `workspaces`, `sessions`, `create`, `graph` and `doctor`, each with `--json`.
 
@@ -156,7 +156,7 @@ The `brow` tool from `brow-cli.zip` carries the same flag when you download it i
 
 If macOS withholds an account's Keychain item from Brow, that account shows an orange key and Settings → Accounts lists its token as *Keychain access needed*: press the key, or **Grant Keychain access** there, and choose **Always Allow**. Because the build is signed ad hoc, the key can come back after you update to a newer build.
 
-Brow has no Dock icon: it lives in the notch, and its settings open from the ⚙ in the panel. Turn on **Launch at login** in Settings → General to start it when you log in. To start using Workspaces, open **Settings → Workspaces**, or press the stacked-squares button in the notch panel and choose **Add project…**.
+Brow has no Dock icon: it lives in the notch, and its settings and Quit open from the ⚙ at the bottom of the panel. Turn on **Launch at login** in Settings → General to start it when you log in. To start using Workspaces, open **Settings → Workspaces** and add a project; the panel then has **Projects** beside **Limits**.
 
 ## Coming from Grove
 
@@ -165,7 +165,7 @@ Grove's Workspaces engine is part of Brow from 0.4.0, merged with its history; t
 - **Your setup comes along untouched.** Brow finds `~/Library/Application Support/Grove/config.json` and turns Workspaces on with your projects, accounts, captured status lines and safety-net settings. Nothing moves: the status-line wrappers stay in `Grove/bin`, where every captured account's `settings.json` points.
 - **The notch reads every account, Workspaces' too.** Grove never read the Keychain or called Anthropic; the notch does, for every account it finds, the ones Workspaces knows included. It reads each account's sign-in from the Keychain (an account whose item macOS withholds shows an orange key: press it and choose **Always Allow**), asks Anthropic's usage endpoint for its limits, and keeps idle accounts' tokens fresh with `claude doctor`. If that fails, it falls back to a one-turn `claude -p` request, which spends a little of that account's limit and starts its 5-hour window; Settings → Accounts → **Allow `claude -p` fallback** turns that off. [What Brow does on your machine](#what-brow-does-on-your-machine) has the rest.
 - **Quit Grove.app first.** While it runs, Workspaces waits and offers **Quit Grove**, so the two never write the same files. Then delete `Grove.app` (or `brew uninstall --cask grove`), and if you had added it to Login Items, remove it there and turn on **Launch at login** in Brow instead.
-- **Where things went.** The tree in the menu bar is now Brow's mark, the notch with two dots. The panel's settings screen moved to **Settings → Workspaces**; adding, sharing and capturing accounts moved to **Settings → Accounts**, where adding an account is Brow's one-click **Sign in…**. Per-project settings stay in the panel.
+- **Where things went.** Grove's panel is the **Projects** side of the notch panel, and the tree in the menu bar is now Brow's mark, the notch with two dots, which opens it. The panel's settings screen moved to **Settings → Workspaces**; adding, sharing and capturing accounts moved to **Settings → Accounts**, where adding an account is Brow's one-click **Sign in…**. Per-project settings stay with the project. The project's **Claude** tab is gone: what it did is on each session's own menu.
 - **The command-line tool is `brow`.** `brow-cli.zip` installs `brow` with `grove` as a second name, so your scripts keep working unchanged. If you installed Grove's tool with Homebrew, run `brew uninstall grove-cli` before `brew install efim0v/tap/brow-cli`: both install a `grove`.
 - **The transcript safety net no longer puts transcripts back by itself.** It used to restore any transcript under 90 days old on its own, including ones Claude Code's own clean-up had removed. Now it keeps nothing past Claude Code's retention, and Settings → Workspaces lists the transcripts that vanished, with **Restore**. So the transcripts older than `cleanupPeriodDays` (30 days unless you set it) that Grove kept putting back go at Claude Code's next clean-up, and the safety net drops its copies of them. To keep older sessions, raise `cleanupPeriodDays` in each account's `settings.json` before you switch.
 
@@ -197,7 +197,7 @@ It draws only while the screen is on and you are at the Mac: 30 frames a second 
 
 ### I don't see Brow's item in the menu bar.
 
-On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside it. Workspaces still opens from the stacked-squares button in the notch panel, from **Show Workspaces** in Brow's menu, and when you open Brow again from Finder or Spotlight. Settings → General → **Show Workspaces in the menu bar** turns the item off altogether.
+On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside it. Projects is still in the notch panel itself, and **Show Projects** in Brow's menu and opening Brow again from Finder or Spotlight open the panel on it, pinned. Settings → General → **Show Workspaces in the menu bar** turns the item off altogether.
 
 ### Why not Claude Code's built-in worktrees?
 
@@ -212,7 +212,7 @@ On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside 
    ```
 
    For each file it lists, open the script that file's `statusLine.command` names: its `GROVE_ORIG` line holds the command you had before. Put that command back, or delete the `statusLine` key if `GROVE_ORIG` is empty.
-2. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with ⌘Q while its Settings window is in front, or with **Quit Brow** in the Workspaces panel.
+2. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with **Quit Brow** in the ⚙ menu at the bottom of the notch panel, or with ⌘Q while its Settings window is in front.
 3. Delete the app: `brew uninstall --cask efim0v/tap/brow` and `brew uninstall efim0v/tap/brow-cli`, or move `Brow.app` and the `brow` tool to the Trash.
 4. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings, the pet's state and per-account browser profiles (cookies and saved passwords included), Workspaces' folder (its config, the wrapper scripts, code statistics and the request-pacing file), and what macOS stored for Brow's network requests:
 
@@ -247,7 +247,7 @@ The app is signed ad hoc by default. macOS then forgets the Keychain and Automat
 | Path | What it is |
 |---|---|
 | `Sources/GroveCore` | Accounts, credentials, usage and token refresh; git, worktrees, cmux, Claude Code sessions, the shared store, the transcript safety net, migration, code statistics |
-| `Sources/GroveAppKit` | The Workspaces panel and its state |
+| `Sources/GroveAppKit` | Workspaces' screens and their state |
 | `Sources/BrowKit` | The notch, the limits, the pet, Settings, and Brow's side of Workspaces |
 | `Sources/BrowApp` | Entry point |
 | `Sources/brow-cli` | The `brow` command-line tool |

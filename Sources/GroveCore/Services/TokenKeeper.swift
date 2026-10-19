@@ -77,11 +77,14 @@ public actor TokenKeeper {
     public static let doctorTimeout: TimeInterval = 90
     public static let promptTimeout: TimeInterval = 120
     /// What `doctor` and `-p` get between SIGTERM and SIGKILL when they run past their
-    /// timeout. On its way out Claude Code waits up to 2 s for a token refresh in flight
-    /// to land and be saved (read out of 2.1.290–2.1.302), and the refresh token rotates
-    /// with every refresh: a SIGKILL inside that wait, as the runner's default half
-    /// second allowed, could throw away the one refresh token that still works.
-    public static let killGrace: TimeInterval = 5
+    /// timeout. Claude Code's shutdown on SIGTERM cleans up first (up to 2 s), runs the
+    /// SessionEnd hooks (1.5 s unless configured otherwise), and only then waits up to
+    /// 2 s for a token refresh in flight to land and be saved. It gives itself 6.5 s for
+    /// all of that, and 2 s more while a refresh is in flight (read out of
+    /// 2.1.290–2.1.303). The refresh token rotates with every refresh: a SIGKILL inside
+    /// that wait could throw away the one refresh token that still works. Five seconds,
+    /// as it was, could land in the last of it; nine outlast the CLI's own deadline.
+    public static let killGrace: TimeInterval = 9
 
     private static let log = Logger(subsystem: "dev.artemefimov.brow", category: "TokenKeeper")
 

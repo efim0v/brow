@@ -114,13 +114,13 @@ public final class LimitsStore: ObservableObject {
     /// the real worst case has four more terms in it:
     ///
     ///     keychainPatience                                  5
-    ///     doctor  (timeout + SIGTERM→SIGKILL + drain)      90 + 5 + 2
-    ///     -p      (timeout + SIGTERM→SIGKILL + drain)     120 + 5 + 2
+    ///     doctor  (timeout + SIGTERM→SIGKILL + drain)      90 + 9 + 2
+    ///     -p      (timeout + SIGTERM→SIGKILL + drain)     120 + 9 + 2
     ///     usage   (request timeout, ×2 — the client retries once on 401/403)  2 × 15
     ///     ------------------------------------------------------------------------
-    ///                                                                        259
+    ///                                                                        267
     ///
-    /// 280 leaves 21 s of scheduling slack on top. The CLI's 5 s between SIGTERM and
+    /// 280 leaves 13 s of scheduling slack on top. The CLI's 9 s between SIGTERM and
     /// SIGKILL is `TokenKeeper.killGrace`. `testTheCycleWatchdogOutlastsEveryDeadlineInsideIt`
     /// recomputes this sum from the constants themselves, so no later timeout change can
     /// quietly reintroduce the gap.

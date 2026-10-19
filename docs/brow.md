@@ -18,10 +18,11 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   doctor` says the login is dead, and it is dropped for good after three
   ineffective rounds. A token past its expiry is not sent, so nothing refused it:
   it gets `doctor` and then `-p` like a token that is due. A `doctor` or `-p`
-  that runs past its time limit gets five seconds after SIGTERM before it is
-  killed: on its way out Claude Code waits up to two seconds for a refresh in
-  flight to be saved. Nothing is run while the Mac is in a dark wake (between
-  going to sleep and waking up, with the display asleep).
+  that runs past its time limit gets nine seconds after SIGTERM before it is
+  killed: on its way out Claude Code cleans up, runs its SessionEnd hooks and
+  only then waits up to two seconds for a refresh in flight to be saved, within
+  a deadline of its own of 8½ seconds. Nothing is run while the Mac is in a dark
+  wake (between going to sleep and waking up, with the display asleep).
 - A Claude Code session open in an account gets the first go at renewing its
   token: a session at work renews it with its next request in the token's last
   five minutes. While the token has more than two minutes left, Brow waits, and

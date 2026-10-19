@@ -826,7 +826,12 @@ final class TokenKeeperTests: XCTestCase {
                                  allowPromptFallback: { true }, now: { self.t0 })
         _ = await keeper.ensureFresh(configDir: "/d")
         XCTAssertEqual(runner.timeouts, [90, 120])
-        XCTAssertEqual(runner.killGraces, [5, 5],
-                       "both get 5 s after SIGTERM: the CLI waits up to 2 s on exit for a refresh in flight")
+        XCTAssertEqual(runner.killGraces, [TokenKeeper.killGrace, TokenKeeper.killGrace],
+                       "both get the keeper's grace after SIGTERM, not the runner's half second")
+        // Claude Code's own deadline for its shutdown: 5 s past the SessionEnd hooks' 1.5 s,
+        // and 2 s more while it waits for a refresh in flight (2.1.290–2.1.303). Its wait
+        // for that refresh comes last, so a SIGKILL before the deadline can land in it.
+        XCTAssertGreaterThan(TokenKeeper.killGrace, max(5, 1.5 + 5) + 2,
+                             "SIGKILL only once the CLI's own shutdown deadline has passed")
     }
 }

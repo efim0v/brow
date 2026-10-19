@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Brow no longer takes the `grep`, `find` and `rg` that Claude Code runs from its own binary for sessions. One left behind in an old `tail -F | grep` kept its account "in use" for days.
 - Brow no longer sends a token past its expiry to Anthropic. The panel says *Token expired 12 min ago*, adding *— Claude Code hasn't refreshed it* while a session holds the account, instead of *Rate limited*.
 - The sign-in button turns orange only when the login is really dead: when `claude doctor` or `claude -p` says so (*Please run /login*, or *Failed to authenticate* from `claude -p`), when three attempts in a row did not renew the token, or when the account has no token. A token Anthropic rejected reads *Anthropic rejected the token* while Brow tries to refresh it.
-- When `claude doctor` or `claude -p` runs past its time limit, it gets five seconds to exit before Brow kills it, not half a second. Claude Code waits up to two seconds on its way out for a token refresh in flight to be saved, and a kill in that wait could lose the renewed token.
+- When `claude doctor` or `claude -p` runs past its time limit, it gets nine seconds to exit before Brow kills it, not half a second. On its way out Claude Code cleans up, runs its SessionEnd hooks and only then waits up to two seconds for a token refresh in flight to be saved, and a kill in that wait could lose the renewed token.
 - No `claude` runs while the Mac is in a dark wake (Power Nap and the like): nobody is there, and the Mac can go back to sleep in the middle of a refresh.
 
 ## [0.4.0] - 2026-10-18

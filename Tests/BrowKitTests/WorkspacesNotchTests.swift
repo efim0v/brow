@@ -7,7 +7,8 @@ import GroveCore
 @testable import BrowKit
 
 /// Workspaces in the notch panel: the Projects section is there exactly while Workspaces is
-/// wanted, every way in opens the panel pinned on it, and a hand-off closes it. The notch is a stand-in that records what it is asked; no window,
+/// wanted, every way in opens the panel pinned on it, a hand-off closes it, and the pickers
+/// list Brow's accounts. The notch is a stand-in that records what it is asked; no window,
 /// no menu-bar item and no folder picker ever appears.
 @MainActor
 final class WorkspacesNotchTests: XCTestCase {
@@ -21,10 +22,13 @@ final class WorkspacesNotchTests: XCTestCase {
     }
 
     /// The made-up accounts as the notch shows them, Workspaces' menu-bar item off.
-    private func makeStore(count: Int = 3, enabled: Bool? = nil) throws -> LimitsStore {
+    private func makeStore(count: Int = 3, hidden: [String] = [], enabled: Bool? = nil) throws -> LimitsStore {
         try MadeUpLimits.store(count: count, now: now, appDir: appDir) { settings in
             settings.workspaces.enabled = enabled
             settings.workspaces.showInMenuBar = false
+            for account in MadeUpLimits.all where hidden.contains(account.name) {
+                settings.accounts[account.organization]?.hidden = true
+            }
         }
     }
 
@@ -158,6 +162,55 @@ final class WorkspacesNotchTests: XCTestCase {
         state.blocksBack = false
         XCTAssertTrue(section.escape())
         XCTAssertEqual(state.route, .projects)
+    }
+
+    // MARK: - Brow's accounts
+
+    /// Every picker lists Brow's visible accounts in Brow's order, by Brow's names, each in its
+    /// calendar colour; Brow's accounts Grove did not know are adopted, named by their email.
+    func testThePickersListBrowsAccounts() throws {
+        let store = try makeStore(count: 4, hidden: ["Work"])
+        let host = makeHost(store, notch: FakeNotch())
+        host.start()
+        let state = try XCTUnwrap(host.state)
+        let visible = store.rows.map(\.name)
+        XCTAssertFalse(visible.contains("Work"), "fixture check: Work is hidden in Brow")
+        XCTAssertEqual(state.accounts.map(\.name), visible)
+        XCTAssertEqual(state.accounts.map(\.dot), store.rows.indices.map { Optional(NotchTheme.account($0)) })
+        XCTAssertEqual(state.accounts.map(\.config.name), store.rows.map { $0.account.email ?? "" },
+                       "adopted under the name Grove gives accounts: the email")
+        XCTAssertFalse(state.accounts.contains { $0.name == "Work" }, "hidden in Brow, offered nowhere")
+    }
+
+    /// An account only Grove's config knows stays in it, for its old sessions, but no picker
+    /// offers it.
+    func testAnAccountOnlyGroveKnowsIsNeverOffered() throws {
+        try ConfigStore(url: folders.configFile).save(GroveConfig(
+            version: 1, workspacesRootTemplate: "~/Workspaces/{project}", projects: [],
+            accounts: [AccountConfig(name: "old@example.com", configDir: "/Volumes/ext/claude-old")]))
+        let host = makeHost(try makeStore(count: 2), notch: FakeNotch())
+        host.start()
+        let state = try XCTUnwrap(host.state)
+        XCTAssertTrue(state.config.accounts.contains { $0.name == "old@example.com" })
+        XCTAssertFalse(state.accounts.contains { $0.config.name == "old@example.com" })
+        XCTAssertEqual(state.accounts.count, 2)
+    }
+
+    /// A session launched here runs as the account it says, whatever the shell exports: the
+    /// default account by removing `CLAUDE_CONFIG_DIR`, any other by setting it.
+    func testLaunchesStartWithBrowsEnvironment() throws {
+        let host = makeHost(try makeStore(), notch: FakeNotch())
+        host.start()
+        let state = try XCTUnwrap(host.state)
+        let launch = try XCTUnwrap(state.launchEnvironment)
+        let home = NSHomeDirectory()
+        XCTAssertTrue(launch(home + "/.claude").hasPrefix("env -u CLAUDE_CONFIG_DIR"))
+        XCTAssertTrue(launch(home + "/.claude-accounts/work").hasPrefix("CLAUDE_CONFIG_DIR='\(home)/.claude-accounts/work'"))
+        let command = ClaudeService.launchCommand(account: AccountConfig(name: "me", configDir: "~/.claude"),
+                                                  claude: "/opt/homebrew/bin/claude",
+                                                  environment: launch(home + "/.claude"))
+        XCTAssertTrue(command.hasPrefix("env -u CLAUDE_CONFIG_DIR"), command)
+        XCTAssertFalse(command.contains("CLAUDE_CONFIG_DIR="), command)
     }
 }
 

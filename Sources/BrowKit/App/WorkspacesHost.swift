@@ -66,6 +66,8 @@ public final class WorkspacesHost: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     /// Keeps the notch's scan in step with the folders Workspaces knows.
     private var accountsWatch: AnyCancellable?
+    /// Keeps the pickers on the notch's accounts.
+    private var storeWatch: AnyCancellable?
     /// Brings the panel back for an error that follows a hand-off.
     private var errorWatch: AnyCancellable?
     /// When the panel last handed the user off: an error the engine reports right after
@@ -126,6 +128,7 @@ public final class WorkspacesHost: ObservableObject {
         cancellables.removeAll()
         engine?.stopEngine()
         engine = nil
+        storeWatch = nil
         errorWatch = nil
         statusItem.hide()
         notch?.sections.unregister(.projects)
@@ -177,6 +180,7 @@ public final class WorkspacesHost: ObservableObject {
             engine = nil
             state = nil
             accountsWatch = nil
+            storeWatch = nil
             errorWatch = nil
             store.runtimeExtraDirs = []
             pendingProjects = []
@@ -192,6 +196,7 @@ public final class WorkspacesHost: ObservableObject {
                 engine = nil
                 state = nil
                 accountsWatch = nil
+                storeWatch = nil
                 errorWatch = nil
             }
             let engine = ensureEngine()
@@ -355,9 +360,14 @@ public final class WorkspacesHost: ObservableObject {
         // The pickers show each account's limits, from the notch's own readings.
         state.limitsProvider = store
         // Sessions launch with Brow's own router and Brow's Path to claude, like every
-        // sign-in Brow starts.
+        // sign-in Brow starts, and as the account they say: `env -u CLAUDE_CONFIG_DIR` for
+        // the default one, whatever the shell they run in exports.
         state.browserRouter = AddAccountFlow.browserHelperPath ?? state.browserRouter
         state.claudePath = { [weak store = self.store] in store.flatMap { $0.settings.claudePath ?? $0.claudeDetected } }
+        // Outside the app bundle (a development build) the router is the installed Brow's.
+        state.launchEnvironment = { [weak state] dir in
+            AddAccountFlow.environmentPrefix(dir: dir, browser: state?.browserRouter)
+        }
         state.openSettings = { [weak self] link in
             self?.notch?.dismiss(.settings)
             self?.openSettings?(link)
@@ -368,7 +378,9 @@ public final class WorkspacesHost: ObservableObject {
             self?.notch?.dismiss(.handOff)
         }
         state.addFolder = { [weak self] in self?.addFolder() }
+        state.hostAccounts = hostAccounts()
         self.state = state
+        watchStore(state)
         // An error right after a hand-off — cmux would not start, say — brings the panel
         // back, where the error is shown with its fix.
         errorWatch = state.$actionError
@@ -390,6 +402,33 @@ public final class WorkspacesHost: ObservableObject {
         }
         self.engine = engine
         return engine
+    }
+
+    // MARK: - Brow's accounts in the pickers
+
+    /// The notch's visible accounts, in its order, with its names, plans and colours.
+    func hostAccounts() -> [HostAccount] {
+        store.rows.enumerated().map { index, row in
+            HostAccount(name: row.name, plan: row.account.tier.map(PanelText.tierLabel), email: row.account.email,
+                        configDirs: [row.account.configDir] + row.account.aliasDirs,
+                        dot: NotchTheme.account(index))
+        }
+    }
+
+    /// Keeps the pickers on the notch's accounts: a renamed, hidden, added or reordered
+    /// account shows in them at once, and an account Grove does not know yet is adopted.
+    private func watchStore(_ state: AppState) {
+        storeWatch = store.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak state] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let state else { return }
+                    let accounts = self.hostAccounts()
+                    guard accounts != state.hostAccounts else { return }
+                    state.hostAccounts = accounts
+                    if self.activation == .on { state.adoptHostAccounts() }
+                }
+            }
     }
 
     // MARK: - What the user can do
@@ -429,6 +468,7 @@ public final class WorkspacesHost: ObservableObject {
         self.activation = activation
         self.dormantAccounts = dormant
         isPreview = true
+        state?.hostAccounts = hostAccounts()
         syncSection()
     }
 

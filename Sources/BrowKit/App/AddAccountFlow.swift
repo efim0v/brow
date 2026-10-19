@@ -62,8 +62,13 @@ public final class AddAccountFlow: ObservableObject {
     /// the variable being ABSENT (`isDefaultClaudeDir`), so its prefix removes it —
     /// the terminal the line is pasted into may well have another account exported.
     public static func environmentPrefix(dir: String, home: String = NSHomeDirectory()) -> String {
+        environmentPrefix(dir: dir, home: home, browser: browserHelperPath)
+    }
+
+    /// The same with `browser` as the router `BROWSER=` names (nil: none).
+    public static func environmentPrefix(dir: String, home: String = NSHomeDirectory(), browser: String?) -> String {
         var prefix = isDefaultClaudeDir(dir, home: home) ? "env -u CLAUDE_CONFIG_DIR" : "CLAUDE_CONFIG_DIR=\(shellQuote(dir))"
-        if let helper = browserHelperPath { prefix += " BROWSER=\(shellQuote(helper))" }
+        if let browser, !browser.isEmpty { prefix += " BROWSER=\(shellQuote(browser))" }
         return prefix
     }
 

@@ -34,6 +34,7 @@ public final class WorkspacesEngine {
         guard !isEngineRunning else { return }
         isEngineRunning = true
         state.discoverAccountDirs()
+        state.adoptHostAccounts()
         state.reconcileMonitoring()
         Task { @MainActor [state] in
             await state.refreshUsage(now: Date())

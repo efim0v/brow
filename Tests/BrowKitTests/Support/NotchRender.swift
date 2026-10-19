@@ -17,9 +17,9 @@ struct NotchRender {
     let controller: NotchPanelController
     let pet: PetController
 
-    /// Open on `tab`.
+    /// Open on `tab`; `host` registers Projects, as Workspaces does while it is on.
     static func open(store: LimitsStore, clock: PanelClock, tab: NotchTab = .limits, screen: ScreenMetrics,
-                     pinned: Bool = false, keys: Bool = false) throws -> NotchRender {
+                     host: WorkspacesHost? = nil, pinned: Bool = false, keys: Bool = false) throws -> NotchRender {
         let petDir = try Fixture.tempDir("notch-render-pet")
         let pet = PetController(store: store, petStore: PetStore(directory: petDir.path), senses: false,
                                 defaults: UserDefaults(suiteName: "brow-notch-render-\(UUID().uuidString)")!)
@@ -28,6 +28,7 @@ struct NotchRender {
         controller.drivesWindow = false
         controller.screen = { screen }
         controller.now = { clock.now }
+        host?.notch = controller
         controller.show()
         controller.openPinned(on: tab)
         if !pinned { controller.unpin() }

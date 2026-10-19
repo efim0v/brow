@@ -14,14 +14,19 @@ public struct ScreenMetrics: Sendable, Equatable {
     /// on the 14" the notch is 32 pt where the menu bar is 33, and that one point is
     /// what made the collapsed strip stand proud of the notch.
     public let notchHeight: CGFloat
+    /// `NSScreen.visibleFrame`: the screen without the menu bar and the Dock. nil: the
+    /// whole frame (a test, or an OS that reports none). The open panel stops above its
+    /// bottom edge, so the Dock never covers the panel's footer.
+    public let visibleFrame: CGRect?
 
     public init(frame: CGRect, topLeftArea: CGRect?, topRightArea: CGRect?,
-                menuBarHeight: CGFloat, notchHeight: CGFloat = 0) {
+                menuBarHeight: CGFloat, notchHeight: CGFloat = 0, visibleFrame: CGRect? = nil) {
         self.frame = frame
         self.topLeftArea = topLeftArea
         self.topRightArea = topRightArea
         self.menuBarHeight = menuBarHeight
         self.notchHeight = notchHeight
+        self.visibleFrame = visibleFrame
     }
 }
 
@@ -151,6 +156,30 @@ public enum NotchGeometry {
         return NotchFrames(collapsed: collapsed, expanded: expanded, hasNotch: false,
                            earWidth: (pillWidth - 2 * pillPadding) / 2,
                            placement: .beside, notchHeight: 0, contentTopInset: contentGap, flare: 0)
+    }
+
+    // MARK: - The open panel's height
+
+    /// How far above the visible frame's bottom edge (the Dock, or the screen's edge) the
+    /// open panel stops.
+    public static let bottomMargin: CGFloat = 12
+    /// The open panel is at least this tall while it has sections (Workspaces is on): the
+    /// Projects section needs room even when Limits shows one account and no calendar.
+    public static let sectionsFloor: CGFloat = 480
+
+    /// The tallest the open panel may be on `screen`: from the screen's top edge down to
+    /// `bottomMargin` above the visible frame's bottom edge.
+    public static func heightCap(for screen: ScreenMetrics) -> CGFloat {
+        let bottom = (screen.visibleFrame ?? screen.frame).minY
+        return max(120, screen.frame.maxY - bottom - bottomMargin)
+    }
+
+    /// The open panel's height: the Limits section's own laid-out height, at least `floor`
+    /// (nil: none) and at most what the screen has (`heightCap`). Every section shares it,
+    /// so switching sections never moves the outline.
+    public static func panelHeight(natural: CGFloat, floor: CGFloat?, screen: ScreenMetrics) -> CGFloat {
+        let cap = heightCap(for: screen)
+        return min(max(natural.rounded(.up), floor ?? 0), cap)
     }
 
     private static func clamp(_ rect: CGRect, in bounds: CGRect) -> CGRect {

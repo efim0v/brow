@@ -231,11 +231,14 @@ enum PetRigActions {
         return moodAfter(m.meal, start: m.start, scene: scene) == .stuffed
     }
 
-    /// The mood it rests in around `start`: that of the last open behaviour before it.
+    /// The mood it rests in around `start`: that of the last open behaviour before it, or, when a meal came
+    /// after that one, the mood the meal left it in. A boop during the satisfaction after a meal that made it
+    /// stuffed is a stuffed pet's, and one after a famished pet's meal no longer a famished one's.
     static func restingMood(before start: Double, scene: PetRigPoser) -> PetMood? {
         for seg in scene.timeline.segments.reversed() where seg.start < start - 1e-9 {
             switch seg.behaviour {
             case .idle(let m), .settled(let m), .unsureIdle(let m): return m
+            case .eat(let meal): return moodAfter(meal, start: seg.start, scene: scene)
             default: if start - seg.start > 30 { return nil }
             }
         }

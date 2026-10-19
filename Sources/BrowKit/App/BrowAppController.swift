@@ -139,8 +139,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         self.pet = pet
         self.panel = NotchPanelController(store: store, clock: clock, pet: pet,
                                           onExpandedChange: { [weak self] in self?.triggers.setExpanded($0) },
-                                          onSettings: { [weak self] in self?.showSettings() },
-                                          onWorkspaces: { [weak self] in self?.workspaces?.togglePanel() })
+                                          onSettings: { [weak self] in self?.showSettings() })
         // Unless Settings › General has it off: then nothing at the top of the screen.
         if settings.showNotch { self.panel.show() }
         BrowLog.panel.info("panel \(settings.showNotch ? "shown" : "off", privacy: .public)")

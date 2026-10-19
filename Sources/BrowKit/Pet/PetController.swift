@@ -214,11 +214,14 @@ public final class PetController {
     /// `NotchPanelController.render()`: the frames and readouts the strip and the panel are drawn with.
     /// A new placement, display or `showEars` is a relayout: the pet fades out at the old place and in
     /// at the new one. A change of readout width is not: the zone follows the digits.
-    public func layout(frames: NotchFrames, aggregate: LimitsAggregate, showEars: Bool) {
-        let new = Layout(frames: frames, aggregate: aggregate, showEars: showEars)
+    /// `panelStage`: where the open panel's header row puts the pet's stage (its top-left corner, window
+    /// coordinates); nil where `PanelView` has it.
+    public func layout(frames: NotchFrames, aggregate: LimitsAggregate, showEars: Bool, panelStage: CGPoint? = nil) {
+        let new = Layout(frames: frames, aggregate: aggregate, showEars: showEars, panelStage: panelStage)
         let old = layout
         layout = new
-        let zones = PetLayout.zones(frames: frames, aggregate: aggregate, showEars: showEars, fiveHour: fiveHourFrame)
+        let zones = PetLayout.zones(frames: frames, aggregate: aggregate, showEars: showEars, fiveHour: fiveHourFrame,
+                                    panelStage: panelStage)
         let now = clock()
         if let old, let oldZones = layer.zones, old.key != new.key {
             appendDock(PetDockChange(t: now.mono, kind: .relayout(from: oldZones)), at: now.mono)
@@ -237,7 +240,10 @@ public final class PetController {
     func fiveHourFrame(changed rect: CGRect) {
         guard rect != fiveHourFrame, rect.width > 0 else { return }
         fiveHourFrame = rect
-        if let layout { self.layout(frames: layout.frames, aggregate: layout.aggregate, showEars: layout.showEars) }
+        if let layout {
+            self.layout(frames: layout.frames, aggregate: layout.aggregate, showEars: layout.showEars,
+                        panelStage: layout.panelStage)
+        }
     }
 
     /// `NotchPanelController.mouseMoved`, the pointer in window coordinates. The rig follows the track;
@@ -665,6 +671,7 @@ extension PetController {
         var frames: NotchFrames
         var aggregate: LimitsAggregate
         var showEars: Bool
+        var panelStage: CGPoint?
 
         var key: [CGFloat] {
             let notch = frames.notch ?? .zero

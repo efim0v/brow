@@ -3,13 +3,13 @@
 
 import Foundation
 
-/// After the notch panel's Workspaces button: the notch stays shut until the pointer
-/// has left, once, the area the expanded panel covers.
+/// After every close of the open panel — Esc, a click outside, Settings, a hand-off to a
+/// session — the notch stays shut until the pointer has left, once, the area the expanded
+/// panel covers.
 ///
-/// The Workspaces panel opens under the menu bar, right where the expanded notch hangs,
-/// and the notch's window sits in a layer above it. Without the latch the pointer, still
-/// resting where the button was, would open the notch again on top of the panel it had
-/// just asked for.
+/// The pointer is usually still resting where the panel was: without the latch it would
+/// open the panel again the moment it closed, over the terminal it just handed the user
+/// to, or the Settings window it just opened.
 struct NotchHoverLatch: Equatable {
     private(set) var isEngaged = false
 

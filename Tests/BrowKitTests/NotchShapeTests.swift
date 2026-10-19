@@ -103,4 +103,25 @@ final class NotchShapeTests: XCTestCase {
         XCTAssertEqual(bounds.minX, 100, accuracy: 0.001)
         XCTAssertEqual(bounds.minY, 50, accuracy: 0.001)
     }
+
+    /// On a display without a notch the outline is the pill's rounded rectangle collapsed,
+    /// and opens into a panel square at the top — it hangs from the screen's edge — with
+    /// continuous 24 pt corners at the bottom.
+    @MainActor
+    func testWithoutANotchThePillOpensIntoSquareTopAndContinuousBottomCorners() {
+        let frames = NotchGeometry.frames(for: MadeUpLimits.externalScreen, expandedHeight: 400)
+        XCTAssertFalse(frames.hasNotch)
+        let panel = CGRect(origin: .zero, size: frames.expanded.size)
+        let open = NotchRootView.outline(frames: frames, progress: 1).path(in: panel)
+        XCTAssertTrue(open.contains(CGPoint(x: 0.5, y: 0.5)), "square at the top")
+        XCTAssertTrue(open.contains(CGPoint(x: panel.maxX - 0.5, y: 0.5)))
+        XCTAssertFalse(open.contains(CGPoint(x: 2, y: panel.maxY - 2)), "rounded at the bottom")
+        XCTAssertTrue(open.contains(CGPoint(x: 24, y: panel.maxY - 0.5)), "where the 24 pt corner has ended")
+
+        let pill = CGRect(origin: .zero, size: frames.collapsed.size)
+        let closed = NotchRootView.outline(frames: frames, progress: 0).path(in: pill)
+        XCTAssertFalse(closed.contains(CGPoint(x: 1, y: 1)), "the pill is round at the top too")
+        XCTAssertFalse(closed.contains(CGPoint(x: 1, y: pill.maxY - 1)))
+        XCTAssertTrue(closed.contains(CGPoint(x: pill.midX, y: pill.midY)))
+    }
 }

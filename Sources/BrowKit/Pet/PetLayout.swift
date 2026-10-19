@@ -18,23 +18,30 @@ public enum PetLayout {
     /// `panelTop` is `PanelView`'s top padding (`max(contentTopInset, 14)`), `fiveHour` the frame of the
     /// panel's Overall "5h" figure in window coordinates (nil until reported), `dot` the 5-hour status
     /// dot's severity (nil: grey).
+    /// `panelLeft`: the stage's left edge, `PanelView`'s 14 pt padding (`NotchShellLayout.side`) unless the
+    /// panel lays its header out elsewhere (the notch insets it from the black, not from the frame).
     public static func zones(frames: NotchFrames, leftWidth: PetReadoutWidth, rightWidth: PetReadoutWidth,
                              rightInitial: Bool, showEars: Bool, panelTop: CGFloat, fiveHour: CGRect?,
-                             dot: Severity?) -> PetZones {
+                             dot: Severity?, panelLeft: CGFloat = NotchShellLayout.side) -> PetZones {
         let strip = showEars ? stripZone(frames: frames, left: leftWidth, right: rightWidth,
                                          rightInitial: rightInitial, dot: dot) : nil
-        return PetZones(strip: strip, panel: panelZone(frames: frames, panelTop: panelTop, fiveHour: fiveHour, dot: dot),
+        return PetZones(strip: strip,
+                        panel: panelZone(frames: frames, panelTop: panelTop, panelLeft: panelLeft, fiveHour: fiveHour, dot: dot),
                         notch: frames.notch.map { window($0, in: frames) })
     }
 
     /// The same from what `NotchPanelController.render()` has at hand: the aggregate behind the readouts.
-    public static func zones(frames: NotchFrames, aggregate: LimitsAggregate, showEars: Bool, fiveHour: CGRect?) -> PetZones {
+    /// `panelStage`: the header stage's top-left corner, window coordinates; nil where `PanelView`
+    /// draws it (its padding, under the notch's clearance).
+    public static func zones(frames: NotchFrames, aggregate: LimitsAggregate, showEars: Bool, fiveHour: CGRect?,
+                             panelStage: CGPoint? = nil) -> PetZones {
         zones(frames: frames,
               leftWidth: readoutWidth(aggregate.leftEar, hasData: aggregate.hasData),
               rightWidth: readoutWidth(aggregate.rightEar, hasData: aggregate.hasData),
               rightInitial: aggregate.hasData && aggregate.rightEar.modelInitial != nil,
-              showEars: showEars, panelTop: max(frames.contentTopInset, PanelView.padding), fiveHour: fiveHour,
-              dot: dotSeverity(aggregate.leftEar, hasData: aggregate.hasData))
+              showEars: showEars, panelTop: panelStage?.y ?? max(frames.contentTopInset, PanelView.padding),
+              fiveHour: fiveHour, dot: dotSeverity(aggregate.leftEar, hasData: aggregate.hasData),
+              panelLeft: panelStage?.x ?? PanelView.padding)
     }
 
     /// The width class of what `EarsView` prints for a readout (`PanelText.earsText`).
@@ -119,11 +126,12 @@ public enum PetLayout {
                        foodSource: CGPoint(x: leftTextMinX + leftText / 2, y: strip.midY), foodDot: dot)
     }
 
-    /// The panel header's stage: x 14 to 78, the row's top to its bottom, and the black above it up to
-    /// the particle ceiling.
-    static func panelZone(frames: NotchFrames, panelTop: CGFloat, fiveHour: CGRect?, dot: Severity?) -> PetZone {
+    /// The panel header's stage: 64 pt from `panelLeft` (14 in `PanelView`), the row's top to its
+    /// bottom, and the black above it up to the particle ceiling.
+    static func panelZone(frames: NotchFrames, panelTop: CGFloat, panelLeft: CGFloat = NotchShellLayout.side,
+                          fiveHour: CGRect?, dot: Severity?) -> PetZone {
         typealias P = PetTuning.Panel
-        let stage = CGRect(x: PanelView.padding, y: panelTop, width: P.stageWidth, height: P.stageHeight)
+        let stage = CGRect(x: panelLeft, y: panelTop, width: P.stageWidth, height: P.stageHeight)
         let bounds = CGRect(x: stage.minX, y: P.particleCeiling, width: stage.width, height: stage.maxY - P.particleCeiling)
         let source = fiveHour.map { CGPoint(x: $0.midX, y: $0.midY) }
             ?? CGPoint(x: frames.expanded.width - 120, y: stage.maxY + 18)

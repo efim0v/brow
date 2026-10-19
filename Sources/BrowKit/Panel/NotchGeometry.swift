@@ -100,9 +100,8 @@ public enum NotchGeometry {
     /// signal.
     private static let degenerateReport = OneShot()
 
-    /// `expandedWidth`: the open panel's width, the flares not counted. Each screen of
-    /// the one window asks for its own (460 the glance, wider for a project), and the
-    /// outline springs between them the way it springs open.
+    /// `expandedWidth`: the open panel's width, the flares not counted. 460 on every
+    /// section of the panel: switching sections or pushing a screen never moves the outline.
     public static func frames(for screen: ScreenMetrics, expandedHeight: CGFloat,
                               placement: EarsPlacement = .beside,
                               expandedWidth: CGFloat = NotchGeometry.expandedWidth) -> NotchFrames {

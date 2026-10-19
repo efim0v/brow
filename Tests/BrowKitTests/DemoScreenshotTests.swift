@@ -23,8 +23,8 @@ import GroveCore
 /// review only: outside an app bundle General says the browser router is missing and
 /// About shows a generic icon, neither of which the app does.
 ///
-/// The notch and the panel are the real `EarsView` / `PanelView` through ImageRenderer;
-/// the strip of "desktop" behind them is a stand-in. The pet is the real layer posed from a
+/// The notch and the panel are the real `EarsView` and `NotchPanelController`'s own outline
+/// (`NotchRender`) through ImageRenderer; the strip of "desktop" behind them is a stand-in. The pet is the real layer posed from a
 /// scripted state at a fixed instant (`demoPet`), so the images are reproducible. Settings is
 /// the real `SettingsView` in an offscreen window (its `TabView`/`Form` are AppKit-backed
 /// and do not survive ImageRenderer), one image per tab, with Workspaces hosted on a fixture
@@ -250,26 +250,15 @@ final class DemoScreenshotTests: XCTestCase {
         }
 
         // (2) + (3) Expanded: without the calendar, then the default panel with it, the pet in
-        // its header. The footer carries the Workspaces button, as it does in the app.
-        let frames = NotchGeometry.frames(for: screen, expandedHeight: 200, placement: .beside)
-        let words = PetPanelModel()
-        words.header = PetText.Header(word: "Content", detail: "Ate 3 % · 2 min ago", moment: nil)
-        words.meter = 22
-        func panel() -> some View {
-            ZStack(alignment: .topLeading) {
-                PanelView(store: store, clock: clock, topInset: frames.contentTopInset, flare: frames.flare,
-                          pet: words, onSettings: {}, onRefresh: {}, onWorkspaces: {})
-                    .frame(width: frames.expanded.width)
-                PetLayerView(layer: Self.demoPet(frames: frames, aggregate: store.aggregate, expanded: true),
-                             size: CGSize(width: frames.expanded.width, height: 200), expanded: true)
-            }
-            .fixedSize(horizontal: false, vertical: true)
-        }
+        // its header. Drawn as the app clips it: the controller's own outline at the height it
+        // measures, so a footer the panel cut off would be cut off here too.
         store.settings.showCalendar = false
-        try renderOnDesktop(panel(), canvas: CGSize(width: 640, height: 0),
+        let plain = try NotchRender.open(store: store, clock: clock, screen: screen)
+        try renderOnDesktop(plain.view(), canvas: CGSize(width: 640, height: 0),
                             to: out.appendingPathComponent("brow-panel.png"))
         store.settings.showCalendar = true
-        try renderOnDesktop(panel(), canvas: CGSize(width: 640, height: 0),
+        let withCalendar = try NotchRender.open(store: store, clock: clock, screen: screen)
+        try renderOnDesktop(withCalendar.view(), canvas: CGSize(width: 640, height: 0),
                             to: out.appendingPathComponent("brow-panel-reset-calendar.png"))
 
         // (4) The Workspaces item in the menu bar: Brow's mark, as a template image tinted

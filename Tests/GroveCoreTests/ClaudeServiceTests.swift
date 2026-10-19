@@ -169,24 +169,25 @@ final class ClaudeServiceTests: XCTestCase {
         XCTAssertEqual(service.sessions(for: cwd, account: account), [])
     }
 
-    func testSessionsTitleFallsBackToFirstExternalUserMessagePrefix80() throws {
+    /// A session nobody named has no title: its newest prompt, from its preview, is what
+    /// a row shows. A tool result is not that prompt.
+    func testASessionWithoutANameHasItsNewestPromptInstead() throws {
         let cwd = "/work/demo_app"
         let dir = try makeProjectsDir(for: cwd)
         let id = "0a1b2c3d-0005-4000-8000-000000000005"
         let longMessage = String(repeating: "abcdefghij", count: 10) // 100 chars
         let lines = [
             #"{"type":"summary","summary":"Old context","leafUuid":"7f3c9d2e-2222-4222-8333-444455556666"}"#,
-            // Internal user record (tool result, no "userType":"external") comes FIRST:
-            // it supplies sessionId/gitBranch but must NOT supply the fallback title.
-            #"{"parentUuid":null,"isSidechain":false,"cwd":"/work/demo_app","sessionId":"\#(id)","gitBranch":"feat/long","type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"ok"}]},"uuid":"\#(id)-u0","timestamp":"2026-06-10T11:00:00.000Z"}"#,
-            #"{"parentUuid":"\#(id)-u0","isSidechain":false,"userType":"external","cwd":"/work/demo_app","sessionId":"\#(id)","gitBranch":"feat/long","type":"user","message":{"role":"user","content":"\#(longMessage)"},"uuid":"\#(id)-u1","timestamp":"2026-06-10T11:00:10.000Z"}"#,
+            #"{"parentUuid":null,"isSidechain":false,"userType":"external","cwd":"/work/demo_app","sessionId":"\#(id)","gitBranch":"feat/long","type":"user","message":{"role":"user","content":"\#(longMessage)"},"uuid":"\#(id)-u1","timestamp":"2026-06-10T11:00:10.000Z"}"#,
+            #"{"parentUuid":"\#(id)-u1","isSidechain":false,"userType":"external","cwd":"/work/demo_app","sessionId":"\#(id)","gitBranch":"feat/long","type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"ok"}]},"uuid":"\#(id)-u2","timestamp":"2026-06-10T11:00:20.000Z"}"#,
         ]
         try writeJSONL(lines, to: dir, name: "\(id).jsonl")
 
         let session = try XCTUnwrap(service.sessions(for: cwd, account: account).first)
-        XCTAssertEqual(session.title, String(repeating: "abcdefghij", count: 8)) // first 80 chars
-        XCTAssertEqual(session.title?.count, 80)
+        XCTAssertNil(session.title)
+        XCTAssertEqual(session.preview?.prompt, longMessage)
         XCTAssertEqual(session.gitBranch, "feat/long")
+        XCTAssertNotNil(session.transcriptPath)
     }
 
     func testSessionsSortedNewestFirstByMtime() throws {
@@ -248,40 +249,40 @@ final class ClaudeServiceTests: XCTestCase {
                        "cache must be invalidated when mtime changes — new title should be returned")
     }
 
-    /// Cache-hit: after a file is rewritten with new content but the SAME mtime is restored,
-    /// sessions() must return the previously-cached (old) result, proving the cache is consulted.
-    func testCacheHitWhenMtimeIsUnchanged() throws {
+    /// Cache-hit: a transcript nothing changed is not read again — its end, nor its head.
+    func testAnUnchangedTranscriptIsNotReadAgain() throws {
         let cwd = "/work/cache_test_hit"
         let dir = try makeProjectsDir(for: cwd)
         let id = "0a1b2c3d-0009-4000-8000-000000000009"
-        let fileName = "\(id).jsonl"
-        let fixedMtime = Date(timeIntervalSince1970: 1_700_000_000)
+        try writeJSONL(transcriptLines(cwd: cwd, sessionId: id, branch: "feat/cache-hit",
+                                       userText: "original message", aiTitle: "Cached Title"),
+                       to: dir, name: "\(id).jsonl")
 
-        // Initial write — prime the cache with the original title.
-        let url = try writeJSONL(
-            transcriptLines(cwd: cwd, sessionId: id, branch: "feat/cache-hit",
-                            userText: "original message", aiTitle: "Cached Title"),
-            to: dir, name: fileName)
-        try FileManager.default.setAttributes(
-            [.modificationDate: fixedMtime],
-            ofItemAtPath: url.path)
+        XCTAssertEqual(service.sessions(for: cwd, account: account).first?.title, "Cached Title")
+        let reads = service.transcriptTailReads
+        XCTAssertEqual(service.sessions(for: cwd, account: account).first?.title, "Cached Title")
+        XCTAssertEqual(service.transcriptTailReads, reads, "nothing changed: nothing read")
 
-        let firstResult = service.sessions(for: cwd, account: account)
-        XCTAssertEqual(firstResult.first?.title, "Cached Title", "pre-condition: first parse gives cached title")
+        // Appended to (a new size), it is read again.
+        let handle = try FileHandle(forWritingTo: dir.appendingPathComponent("\(id).jsonl"))
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(#"{"type":"ai-title","aiTitle":"Renamed","sessionId":"x"}"#.utf8 + [0x0A]))
+        try handle.close()
+        XCTAssertEqual(service.sessions(for: cwd, account: account).first?.title, "Renamed")
+        XCTAssertEqual(service.transcriptTailReads, reads + 1)
+    }
 
-        // Overwrite with different content, but restore the EXACT same mtime.
-        // The cache key (path + mtime) is unchanged, so cachedParse must return the stored result.
-        try writeJSONL(
-            transcriptLines(cwd: cwd, sessionId: id, branch: "feat/cache-hit",
-                            userText: "rewritten message", aiTitle: "Stale Title Should Not Appear"),
-            to: dir, name: fileName)
-        try FileManager.default.setAttributes(
-            [.modificationDate: fixedMtime],
-            ofItemAtPath: url.path)
-
-        let secondResult = service.sessions(for: cwd, account: account)
-        XCTAssertEqual(secondResult.first?.title, "Cached Title",
-                       "cache must be hit when mtime is unchanged — stale on-disk content must be ignored")
+    /// A session's transcript is found by its id: in its folder's place, or anywhere in
+    /// `projects/` when it has moved on.
+    func testASessionIsFoundByItsId() throws {
+        let cwd = "/work/find_me"
+        let dir = try makeProjectsDir(for: cwd)
+        let id = "0a1b2c3d-0010-4000-8000-000000000010"
+        try writeJSONL(transcriptLines(cwd: cwd, sessionId: id, branch: "main", userText: "hello", aiTitle: "Found"),
+                       to: dir, name: "\(id).jsonl")
+        XCTAssertEqual(service.session(id: id, cwd: cwd, accounts: [account])?.title, "Found")
+        XCTAssertEqual(service.session(id: id, cwd: "/work/elsewhere", accounts: [account])?.title, "Found")
+        XCTAssertNil(service.session(id: "missing", cwd: cwd, accounts: [account]))
     }
 
     // MARK: - liveProcesses

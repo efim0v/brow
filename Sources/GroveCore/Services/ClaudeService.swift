@@ -38,11 +38,13 @@ public struct ClaudeSession: Sendable, Equatable {
     /// How the transcript ends — the newest prompt, Claude's newest line, the turn — read
     /// from its last 64 KiB (`TranscriptTail`); nil when nothing there says.
     public let preview: SessionPreview?
+    /// The transcript the session was read from; nil for a session made up in memory.
+    public let transcriptPath: String?
 
     public init(id: String, cwd: String, title: String?, lastActivity: Date,
                 accountName: String, gitBranch: String?,
                 createdAt: Date? = nil, turnCount: Int = 0, model: String? = nil,
-                preview: SessionPreview? = nil) {
+                preview: SessionPreview? = nil, transcriptPath: String? = nil) {
         self.id = id
         self.cwd = cwd
         self.title = title
@@ -53,6 +55,7 @@ public struct ClaudeSession: Sendable, Equatable {
         self.turnCount = turnCount
         self.model = model
         self.preview = preview
+        self.transcriptPath = transcriptPath
     }
 }
 
@@ -133,32 +136,26 @@ public extension ClaudeService {
     }
 }
 
-/// Reads Claude Code account identity, session transcripts and (Task 9) live processes
-/// from a `CLAUDE_CONFIG_DIR`. A class (not a struct) so it can keep an mtime-keyed
-/// parse cache: a jsonl file is re-parsed only when its modification date changes.
+/// Reads Claude Code account identity, session transcripts and live sessions from a
+/// `CLAUDE_CONFIG_DIR`. A class (not a struct) so it can keep its caches: a transcript's
+/// preview is read from its end again only when the file changed (its inode, size or
+/// modification date), and its folder (its first record's `cwd`) never twice.
 ///
-/// `@unchecked Sendable`: `sessionCache` is guarded by `cacheLock` and `processValidator`
-/// is set once at construction, so one instance can be kept on AppState (so the parse
-/// cache survives across scans — item 2 perf) and used from the background scan.
+/// `@unchecked Sendable`: the caches and the closures are guarded by `cacheLock`, so one
+/// instance can be kept on AppState (so the caches survive across scans) and used from the
+/// background scan.
 public final class ClaudeService: @unchecked Sendable {
-    private struct ParsedSession {
-        let id: String
-        let cwd: String
-        let title: String?
-        let gitBranch: String?
-        /// First record's `timestamp` — the session's TRUE creation moment. It
-        /// survives resumes: a resumed transcript replays the original messages
-        /// with their original timestamps, so the first line still dates day one.
-        let createdAt: Date?
-        /// Count of human prompts (external `user` records) — how developed the
-        /// session is, for the "N turns" meta.
-        let turnCount: Int
-        /// Last model seen on a message record — the model to resume under.
-        let model: String?
+    /// A transcript as a cache knows it: changed when any of these did.
+    struct TranscriptStamp: Equatable {
+        let inode: UInt64
+        let size: Int64
+        let mtime: Date
     }
 
     private let cacheLock = NSLock()
-    private var sessionCache: [String: (mtime: Date, parsed: ParsedSession?)] = [:]
+    private var previewCache: [String: (stamp: TranscriptStamp, preview: SessionPreview?)] = [:]
+    /// How many transcripts' ends were read: tests see the cache at work.
+    private var tailReads = 0
 
     public init() {}
 
@@ -219,6 +216,58 @@ public final class ClaudeService: @unchecked Sendable {
 
     // MARK: - Sessions
 
+    /// The file at `path` as a cache knows it; nil for anything but a regular file.
+    static func stamp(_ path: String) -> TranscriptStamp? {
+        var info = stat()
+        guard stat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let mtime = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
+                         + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
+        return TranscriptStamp(inode: UInt64(info.st_ino), size: Int64(info.st_size), mtime: mtime)
+    }
+
+    /// How the transcript at `path` ends (`TranscriptTail`), read again only when the file
+    /// changed since the last read; nil when its end says nothing.
+    public func preview(ofTranscriptAt path: String) -> SessionPreview? {
+        guard let stamp = Self.stamp(path) else { return nil }
+        return preview(path: path, stamp: stamp)
+    }
+
+    private func preview(path: String, stamp: TranscriptStamp) -> SessionPreview? {
+        if let cached = cacheLock.withLock({ previewCache[path] }), cached.stamp == stamp { return cached.preview }
+        let preview = TranscriptTail.preview(path: path)
+        cacheLock.withLock {
+            previewCache[path] = (stamp, preview)
+            tailReads += 1
+        }
+        return preview
+    }
+
+    /// Test observability: how many transcript ends were read.
+    var transcriptTailReads: Int { cacheLock.withLock { tailReads } }
+
+    /// The session in the transcript at `path`, under `account`: its id is the file's name
+    /// (what `--resume` takes), its folder its first record's `cwd` (read from its head, once),
+    /// its name, branch and model those of its end (`preview`). nil for a transcript with no
+    /// `cwd` yet. Never the whole file.
+    func session(at path: String, stamp: TranscriptStamp, account: String) -> ClaudeSession? {
+        guard path.hasSuffix(".jsonl"), let cwd = TranscriptCwds.cwd(ofTranscriptAt: path) else { return nil }
+        let id = String((path as NSString).lastPathComponent.dropLast(".jsonl".count))
+        let preview = preview(path: path, stamp: stamp)
+        return ClaudeSession(id: id, cwd: cwd, title: preview?.title, lastActivity: stamp.mtime,
+                             accountName: account, gitBranch: preview?.gitBranch, model: preview?.model,
+                             preview: preview, transcriptPath: path)
+    }
+
+    /// The transcripts directly in `dir` (subdirectories — a session's subagents, its tool
+    /// results — skipped), with their stamps.
+    private static func transcripts(in dir: String) -> [(path: String, stamp: TranscriptStamp)] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).compactMap { name in
+            guard name.hasSuffix(".jsonl") else { return nil }
+            let path = dir + "/" + name
+            return stamp(path).map { (path, $0) }
+        }
+    }
+
     /// Sessions of `account` whose transcript belongs to `cwd`:
     /// `<configDir>/projects/<mangle(cwd)>/*.jsonl`, regular files only (subdirectories
     /// skipped), verified by the first record carrying a "cwd" key (mangling is lossy).
@@ -227,89 +276,70 @@ public final class ClaudeService: @unchecked Sendable {
         if !account.aliasDirs.isEmpty {
             return Self.dedupe(account.dirVariants.flatMap { sessions(for: cwd, account: $0) })
         }
-        let fm = FileManager.default
         let dir = expandTilde(account.configDir) + "/projects/" + ClaudeService.mangle(cwd)
-        guard let names = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
-        var result: [ClaudeSession] = []
-        for name in names where name.hasSuffix(".jsonl") {
-            let path = dir + "/" + name
-            var isDirectory: ObjCBool = false
-            guard fm.fileExists(atPath: path, isDirectory: &isDirectory),
-                  !isDirectory.boolValue else { continue }
-            guard
-                let attributes = try? fm.attributesOfItem(atPath: path),
-                let mtime = attributes[.modificationDate] as? Date
-            else { continue }
-            guard let parsed = cachedParse(path: path, mtime: mtime),
-                  parsed.cwd == cwd else { continue }
-            result.append(ClaudeSession(
-                id: parsed.id,
-                cwd: parsed.cwd,
-                title: parsed.title,
-                lastActivity: mtime,
-                accountName: account.name,
-                gitBranch: parsed.gitBranch,
-                createdAt: parsed.createdAt,
-                turnCount: parsed.turnCount,
-                model: parsed.model
-            ))
-        }
-        return result.sorted { $0.lastActivity > $1.lastActivity }
+        return Self.transcripts(in: dir)
+            .compactMap { session(at: $0.path, stamp: $0.stamp, account: account.name) }
+            .filter { $0.cwd == cwd }
+            .sorted { $0.lastActivity > $1.lastActivity }
     }
 
     /// Recent sessions whose real cwd is under any of `roots` (expanded absolute
     /// paths), across all `accounts`, newest first by file mtime, capped at
-    /// `limit`. Deliberately CHEAP (item 2): it lists transcript files, prefilters
-    /// directories by the mangled-root prefix, and parses only a bounded buffer of
-    /// the newest candidates to confirm the real cwd + read the title — never the
-    /// whole transcript corpus, and no git/cmux. Powers the Projects tab's
-    /// per-project session previews without a full workspace scan.
+    /// `limit`. Deliberately CHEAP: it lists transcript files, prefilters
+    /// directories by the mangled-root prefix, and reads only the head (the cwd) and
+    /// the end (the preview) of a bounded buffer of the newest candidates — never a
+    /// whole transcript, and no git/cmux.
     public func recentSessions(underRoots roots: [String], accounts: [AccountConfig],
                                limit: Int) -> [ClaudeSession] {
+        sessionListing(underRoots: roots, accounts: accounts, limit: limit).sessions
+    }
+
+    /// `recentSessions`, with how many sessions there are under the roots in all: what a
+    /// list says is left ("5 more sessions"). The count is of the transcripts whose folder
+    /// is really under a root.
+    public func sessionListing(underRoots roots: [String], accounts: [AccountConfig],
+                               limit: Int) -> (sessions: [ClaudeSession], total: Int) {
         let accounts = accounts.flatMap(\.dirVariants)
-        guard limit > 0, !roots.isEmpty else { return [] }
+        guard limit > 0, !roots.isEmpty else { return ([], 0) }
         let fm = FileManager.default
         let canonRoots = roots.map { canonicalPath($0) }
         let mangledPrefixes = Set(roots.map { ClaudeService.mangle($0) }
             + canonRoots.map { ClaudeService.mangle($0) })
 
-        struct Candidate { let path: String; let mtime: Date; let account: String }
+        struct Candidate { let path: String; let stamp: TranscriptStamp; let account: String }
         var candidates: [Candidate] = []
         for account in accounts {
             let projectsDir = expandTilde(account.configDir) + "/projects"
             guard let dirs = try? fm.contentsOfDirectory(atPath: projectsDir) else { continue }
             for dir in dirs where mangledPrefixes.contains(where: { dir.hasPrefix($0) }) {
-                let dirPath = projectsDir + "/" + dir
-                guard let names = try? fm.contentsOfDirectory(atPath: dirPath) else { continue }
-                for name in names where name.hasSuffix(".jsonl") {
-                    let path = dirPath + "/" + name
-                    var isDir: ObjCBool = false
-                    guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue,
-                          let attrs = try? fm.attributesOfItem(atPath: path),
-                          let mtime = attrs[.modificationDate] as? Date else { continue }
-                    candidates.append(Candidate(path: path, mtime: mtime, account: account.name))
+                for transcript in Self.transcripts(in: projectsDir + "/" + dir) {
+                    candidates.append(Candidate(path: transcript.path, stamp: transcript.stamp, account: account.name))
                 }
             }
         }
-        candidates.sort { $0.mtime > $1.mtime }
+        candidates.sort { $0.stamp.mtime > $1.stamp.mtime }
 
+        func underRoot(_ cwd: String) -> Bool {
+            let canon = canonicalPath(cwd)
+            return canonRoots.contains { canon == $0 || canon.hasPrefix($0 + "/") }
+        }
         var rows: [ClaudeSession] = []
         var seen = Set<String>()
-        let budget = limit * 4 + 8   // bounded: only the newest candidates get parsed
-        for cand in candidates.prefix(budget) {
-            guard let parsed = cachedParse(path: cand.path, mtime: cand.mtime) else { continue }
-            let canonCwd = canonicalPath(parsed.cwd)
-            let underRoot = canonRoots.contains { canonCwd == $0 || canonCwd.hasPrefix($0 + "/") }
-            guard underRoot else { continue }   // mangled-prefix false positive -> drop
-            guard seen.insert(parsed.cwd + "\u{0}" + parsed.id).inserted else { continue }
-            rows.append(ClaudeSession(id: parsed.id, cwd: parsed.cwd, title: parsed.title,
-                                      lastActivity: cand.mtime, accountName: cand.account,
-                                      gitBranch: parsed.gitBranch,
-                                      createdAt: parsed.createdAt, turnCount: parsed.turnCount,
-                                      model: parsed.model))
-            if rows.count >= limit { break }
+        var total = 0
+        var counted = Set<String>()
+        let budget = limit * 4 + 8   // bounded: only the newest candidates get their end read
+        for (index, cand) in candidates.enumerated() {
+            // The head alone (cached for good) says whether a candidate counts.
+            guard let cwd = TranscriptCwds.cwd(ofTranscriptAt: cand.path), underRoot(cwd) else { continue }
+            let id = (cand.path as NSString).lastPathComponent
+            guard counted.insert(cwd + "\u{0}" + id).inserted else { continue }
+            total += 1
+            guard rows.count < limit, index < budget,
+                  let session = session(at: cand.path, stamp: cand.stamp, account: cand.account),
+                  seen.insert(session.cwd + "\u{0}" + session.id).inserted else { continue }
+            rows.append(session)
         }
-        return rows
+        return (rows, total)
     }
 
     /// All recent sessions across ALL accounts with NO project/root filter — the
@@ -322,7 +352,7 @@ public final class ClaudeService: @unchecked Sendable {
     ///     are considered (bounds the scan to the recent window).
     ///   - Still sorts newest-first, deduplicates by (cwd, sessionId), and caps at
     ///     `limit` exactly like the sibling method.
-    ///   - Uses the same `cachedParse` mtime cache to bound parse work.
+    ///   - Reads the same head and end, through the same caches.
     ///
     /// The injected `now` keeps the method pure/deterministic — no `Date()` inside.
     public func allRecentSessions(accounts: [AccountConfig], limit: Int,
@@ -332,128 +362,48 @@ public final class ClaudeService: @unchecked Sendable {
         let fm = FileManager.default
         let cutoff = now.addingTimeInterval(-Double(sinceDays) * 86400)
 
-        struct Candidate { let path: String; let mtime: Date; let account: String }
+        struct Candidate { let path: String; let stamp: TranscriptStamp; let account: String }
         var candidates: [Candidate] = []
         for account in accounts {
             let projectsDir = expandTilde(account.configDir) + "/projects"
             guard let dirs = try? fm.contentsOfDirectory(atPath: projectsDir) else { continue }
             for dir in dirs {
-                let dirPath = projectsDir + "/" + dir
-                guard let names = try? fm.contentsOfDirectory(atPath: dirPath) else { continue }
-                for name in names where name.hasSuffix(".jsonl") {
-                    let path = dirPath + "/" + name
-                    var isDir: ObjCBool = false
-                    guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue,
-                          let attrs = try? fm.attributesOfItem(atPath: path),
-                          let mtime = attrs[.modificationDate] as? Date else { continue }
-                    // Recency cap: skip transcripts older than the cutoff.
-                    guard mtime >= cutoff else { continue }
-                    candidates.append(Candidate(path: path, mtime: mtime, account: account.name))
+                // Recency cap: skip transcripts older than the cutoff.
+                for transcript in Self.transcripts(in: projectsDir + "/" + dir) where transcript.stamp.mtime >= cutoff {
+                    candidates.append(Candidate(path: transcript.path, stamp: transcript.stamp, account: account.name))
                 }
             }
         }
-        candidates.sort { $0.mtime > $1.mtime }
+        candidates.sort { $0.stamp.mtime > $1.stamp.mtime }
 
         var rows: [ClaudeSession] = []
         var seen = Set<String>()
         let budget = limit * 4 + 8
         for cand in candidates.prefix(budget) {
-            guard let parsed = cachedParse(path: cand.path, mtime: cand.mtime) else { continue }
-            guard seen.insert(parsed.cwd + "\u{0}" + parsed.id).inserted else { continue }
-            rows.append(ClaudeSession(id: parsed.id, cwd: parsed.cwd, title: parsed.title,
-                                      lastActivity: cand.mtime, accountName: cand.account,
-                                      gitBranch: parsed.gitBranch,
-                                      createdAt: parsed.createdAt, turnCount: parsed.turnCount,
-                                      model: parsed.model))
+            guard let session = session(at: cand.path, stamp: cand.stamp, account: cand.account),
+                  seen.insert(session.cwd + "\u{0}" + session.id).inserted else { continue }
+            rows.append(session)
             if rows.count >= limit { break }
         }
         return rows
     }
 
-    private func cachedParse(path: String, mtime: Date) -> ParsedSession? {
-        cacheLock.lock()
-        if let entry = sessionCache[path], entry.mtime == mtime {
-            let parsed = entry.parsed
-            cacheLock.unlock()
-            return parsed
-        }
-        cacheLock.unlock()
-        let parsed = ClaudeService.parseSessionFile(path: path)
-        cacheLock.lock()
-        sessionCache[path] = (mtime: mtime, parsed: parsed)
-        cacheLock.unlock()
-        return parsed
-    }
-
-    private static func parseSessionFile(path: String) -> ParsedSession? {
-        guard
-            let data = FileManager.default.contents(atPath: path),
-            let text = String(data: data, encoding: .utf8)
-        else { return nil }
-
-        var fileCwd: String?
-        var sessionId: String?
-        var gitBranch: String?
-        var sawFirstUserRecord = false
-        var aiTitle: String?
-        var fallbackTitle: String?
-        var createdAt: Date?        // first record carrying a timestamp
-        var turnCount = 0           // external user prompts
-        var model: String?          // last message.model seen
-
-        for line in text.split(whereSeparator: \.isNewline) {
-            guard
-                let object = (try? JSONSerialization.jsonObject(with: Data(line.utf8)))
-                    as? [String: Any]
-            else { continue }                       // unparseable line: skip, keep going
-            if fileCwd == nil, let recordCwd = object["cwd"] as? String {
-                fileCwd = recordCwd                 // first record carrying "cwd" wins
-            }
-            // First timestamp wins → creation moment. Cheap: same loop already runs.
-            if createdAt == nil, let ts = object["timestamp"] as? String {
-                createdAt = gitISODate(ts)
-            }
-            // Last model wins → the model the session was last driven with.
-            if let message = object["message"] as? [String: Any],
-               let m = message["model"] as? String, !m.isEmpty {
-                model = m
-            }
-            let type = object["type"] as? String
-            if type == "user" {
-                if sessionId == nil { sessionId = object["sessionId"] as? String }
-                if !sawFirstUserRecord {
-                    sawFirstUserRecord = true
-                    gitBranch = object["gitBranch"] as? String
+    /// The transcript of `sessionId` under any of `accounts`: in its folder's place first
+    /// (`cwd`), then in every folder of `projects/` — a session that moved into a worktree
+    /// keeps writing where it started. nil when none holds it.
+    public func session(id sessionId: String, cwd: String?, accounts: [AccountConfig]) -> ClaudeSession? {
+        let name = sessionId + ".jsonl"
+        for account in accounts.flatMap(\.dirVariants) {
+            let projects = expandTilde(account.configDir) + "/projects"
+            var folders = cwd.map { [ClaudeService.mangle($0), ClaudeService.mangle(canonicalPath($0))] } ?? []
+            folders += (try? FileManager.default.contentsOfDirectory(atPath: projects)) ?? []
+            var tried = Set<String>()
+            for folder in folders where tried.insert(folder).inserted {
+                let path = projects + "/" + folder + "/" + name
+                if let stamp = Self.stamp(path), let session = session(at: path, stamp: stamp, account: account.name) {
+                    return session
                 }
-                if (object["userType"] as? String) == "external" {
-                    turnCount += 1                  // one human prompt
-                    if fallbackTitle == nil,
-                       let message = object["message"] as? [String: Any],
-                       let textContent = extractText(message["content"]),
-                       !textContent.isEmpty {
-                        fallbackTitle = String(textContent.prefix(80))
-                    }
-                }
-            } else if type == "ai-title" {
-                if let title = object["aiTitle"] as? String { aiTitle = title }  // LAST one wins
             }
-        }
-
-        guard let id = sessionId, let cwd = fileCwd else { return nil }
-        return ParsedSession(id: id, cwd: cwd, title: aiTitle ?? fallbackTitle, gitBranch: gitBranch,
-                             createdAt: createdAt, turnCount: turnCount, model: model)
-    }
-
-    /// User message content is either a plain string or an array of content blocks;
-    /// only "text" blocks contribute to the fallback title.
-    private static func extractText(_ content: Any?) -> String? {
-        if let string = content as? String { return string }
-        if let blocks = content as? [[String: Any]] {
-            let texts = blocks.compactMap { block -> String? in
-                guard (block["type"] as? String) == "text" else { return nil }
-                return block["text"] as? String
-            }
-            if !texts.isEmpty { return texts.joined(separator: " ") }
         }
         return nil
     }

@@ -70,7 +70,12 @@ public final class AppState: ObservableObject {
     /// loop never runs while they are not (or in a headless render/test) — which would
     /// otherwise spin forever parsing real transcripts (the notch keeps its sections in
     /// the tree while it is closed, so their .task is not cancelled by the close).
-    @Published public var isPanelOpen: Bool = false
+    @Published public var isPanelOpen: Bool = false {
+        didSet {
+            guard isPanelOpen != oldValue else { return }
+            if isPanelOpen { sessionWatch.start() } else { sessionWatch.stop() }
+        }
+    }
     @Published public var isScanning: Bool = false
     @Published public var actionError: String?
     @Published public var graphRepoPath: String?
@@ -124,7 +129,7 @@ public final class AppState: ObservableObject {
     /// Persistent service instance. Its mtime parse-cache MUST survive across
     /// scans/refreshes — a fresh `ClaudeService()` per tick re-parsed every transcript
     /// from scratch on the 15s loop (item 2 perf bug).
-    private let claude = ClaudeService()
+    let claude = ClaudeService()
 
     /// Git-as-source-of-truth code-stats service (per-repo, honors .gitignore via git's
     /// own engine, excludes worktrees). Stateless value type; the per-project/per-repo
@@ -234,6 +239,38 @@ public final class AppState: ObservableObject {
     /// The session whose row asks "Delete this transcript?" in place of its buttons; nil for
     /// none. One at a time, and Esc answers Cancel.
     @Published public var confirmingDelete: String?
+
+    // MARK: Sessions, live
+
+    /// Every session that runs now, under any account, one per process (`ClaudeService.
+    /// allLiveProcesses`): what the states, the "needs you" count and the "N live" chips
+    /// read. Filled by the session index and, while the Projects list is in view, by the
+    /// live layer (`SessionWatch`).
+    @Published public internal(set) var liveSessions: [LiveProcess] = []
+    /// How many sessions each project has in all, closed included: what "N more sessions"
+    /// counts from.
+    @Published public internal(set) var sessionCountByProject: [UUID: Int] = [:]
+    /// The sessions outside every project, by the folder they ran in (the repository
+    /// around it when there is one): the Other folders screen.
+    @Published public internal(set) var otherFolders: [OtherFolder] = []
+    /// Folders Claude Code runs in now that no project shows, to offer as projects
+    /// (`ProjectSuggestions`); from the host's look at the processes (`runningClaude`).
+    @Published public internal(set) var suggestions: [ProjectSuggestion] = []
+    /// The Projects list narrowed to one account (its name in Grove's config): what an
+    /// account's "N live" chip on Limits opens. nil: every account.
+    @Published public var accountFilter: String?
+    /// Whether rows show the newest prompt and Claude's newest line, or only the session's
+    /// title — for screen sharing. The host's setting (Settings › Workspaces).
+    @Published public var showsMessagePreviews = true
+    /// The order the Projects list showed when it came into view, kept while it is in view:
+    /// rows never move under the pointer. States update in place; the list sorts again the
+    /// next time it opens.
+    @Published public internal(set) var frozenOrder: ProjectsOrder?
+    /// Watches the sessions while the Projects list is in view.
+    lazy var sessionWatch = SessionWatch(state: self)
+    /// The folders that are never a project because they are temporary: the system's.
+    /// Tests make their own temporary folders count.
+    var suggestionTemporaryRoots = AppState.defaultTemporaryRoots
 
     /// What the host last read for `account`, by its config folders.
     public func limits(for account: AccountConfig) -> AccountLimits? {
@@ -559,7 +596,7 @@ public final class AppState: ObservableObject {
 // MARK: - Services & scanning
 
 extension AppState {
-    private func cmux() -> CmuxService {
+    func cmux() -> CmuxService {
         cmuxOverride ?? CmuxService()
     }
 
@@ -599,79 +636,6 @@ extension AppState {
         await sessions
         await reconcileTranscripts()
         lastRefreshAt = Date()
-    }
-
-    /// Cheap per-project recent-session previews for the Projects tab (item 4).
-    /// Independent of the heavy git scan: it only reads recent transcripts + live
-    /// processes + the cmux hook map, all OFF the main actor. This is what makes
-    /// the primary flow (open → pick a session → go to its terminal) instant.
-    ///
-    /// Also populates `externalSessionsByProject` and `otherSessions` (Phase 2 /
-    /// Task 2): a disk-wide scan of ALL recent sessions attributed to projects by
-    /// cwd prefix. The recency cap reuses `config.transcriptMirror.maxDays` (90 by
-    /// default). allRecentSessions + attribution both run inside the detached task;
-    /// the finished dictionaries are assigned back on the main actor.
-    public func refreshSessionIndex() async {
-        let accounts = config.accounts
-        let claude = self.claude
-        let cmuxMap = cmux().claudeSessionWorkspaceMap(hookFile: cmuxHookFile)
-        let jobs: [(id: UUID, roots: [String])] = config.projects.map { p in
-            let wsRoot = expandTilde(p.workspacesRoot
-                ?? config.workspacesRootTemplate.replacingOccurrences(of: "{project}", with: p.name))
-            return (id: p.id, roots: [expandTilde(p.path), wsRoot].filter { !$0.isEmpty })
-        }
-        let sinceDays = config.transcriptMirror.maxDays
-        let now = Date()
-
-        // Precompute canonical roots for every project ONCE on the main actor
-        // (reads config.projects; each root is a single resolvingSymlinksInPath syscall).
-        // The per-session attribution loop below needs these but runs off-main — we
-        // pass a value snapshot so the closure never touches main-actor state. (I1 fix)
-        let projectRoots: [(id: UUID, roots: [String])] = config.projects.map { p in
-            let roots = [expandTilde(p.path), expandTilde(p.workspacesRoot ?? "")]
-                .filter { !$0.isEmpty }
-                .map { canonicalPath($0) }
-            return (id: p.id, roots: roots)
-        }
-
-        let (sessionRows, byProject, unmatched) = await Task.detached(priority: .utility) {
-            () -> ([UUID: [ProjectSessionRow]], [UUID: [ClaudeSession]], [ClaudeSession]) in
-            // Single source of truth (file records ∪ process table) — same data the
-            // project scan / Claude tab use, so no tab can disagree on liveness.
-            let live = claude.allLiveProcesses(accounts: accounts)
-            var out: [UUID: [ProjectSessionRow]] = [:]
-            for job in jobs {
-                let sessions = claude.recentSessions(underRoots: job.roots, accounts: accounts,
-                                                     limit: AppState.sessionsPerProject)
-                out[job.id] = buildProjectSessionRows(sessions: sessions, live: live, cmuxMap: cmuxMap)
-            }
-            // Disk-wide scan for attribution indices (Phase 2 / Task 2).
-            // 500 is a GLOBAL budget across all projects (newest-first over the
-            // ~90d transcriptMirror.maxDays window), so on a very active machine a
-            // rarely-used project's recent sessions can fall below the cut.
-            let all = claude.allRecentSessions(accounts: accounts, limit: 500,
-                                               sinceDays: sinceDays, now: now)
-
-            // Attribute sessions to projects off the main actor using the precomputed
-            // canonical roots snapshot — avoids resolvingSymlinksInPath syscalls (up to
-            // 500 sessions × N projects) on the main thread. (I1 fix)
-            var sessionsByProject: [UUID: [ClaudeSession]] = [:]
-            var otherSessions: [ClaudeSession] = []
-            for session in all {
-                let sessionCanon = canonicalPath(session.cwd)
-                if let match = projectRoots.first(where: { proj in
-                    proj.roots.contains { sessionCanon == $0 || sessionCanon.hasPrefix($0 + "/") }
-                }) {
-                    sessionsByProject[match.id, default: []].append(session)
-                } else {
-                    otherSessions.append(session)
-                }
-            }
-            return (out, sessionsByProject, otherSessions)
-        }.value
-        recentSessionsByProject = sessionRows
-        externalSessionsByProject = byProject
-        otherSessions = unmatched
     }
 
     /// Refreshes branchesByRepo for `repos`, concurrently (one git call per
@@ -1357,7 +1321,7 @@ extension AppState {
     }
 
     /// The engine's reader of live sessions, or a copy whose liveness check a test chose.
-    private var liveService: ClaudeService {
+    var liveService: ClaudeService {
         liveProcessValidatorOverride.map { claude.withProcessValidator($0) } ?? claude
     }
 

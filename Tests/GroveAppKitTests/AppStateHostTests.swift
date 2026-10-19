@@ -208,13 +208,16 @@ final class AppStateHostTests: XCTestCase {
         let notes = ProjectConfig(name: "field-notes", path: dir("field-notes"))
         let state = try makeState(accounts: [AccountConfig(name: "me@example.com", configDir: dir("personal"))],
                                   projects: [shop, notes])
-        func row(_ id: String, _ title: String, _ project: ProjectConfig) -> ProjectSessionRow {
+        func row(_ id: String, _ title: String, _ project: ProjectConfig, _ state: SessionState,
+                 ago: TimeInterval) -> ProjectSessionRow {
             ProjectSessionRow(sessionId: id, title: title, cwd: project.path, location: project.name,
-                              accountName: "me@example.com", lastActivity: Date(), state: .closed, cmuxWorkspaceId: nil)
+                              accountName: "me@example.com", lastActivity: Date().addingTimeInterval(-ago), state: state,
+                              cmuxWorkspaceId: nil)
         }
         state.recentSessionsByProject = [
-            shop.id: [row("a", "Fix the checkout webhook", shop), row("b", "Release notes", shop)],
-            notes.id: [row("c", "Index the archive", notes)],
+            shop.id: [row("a", "Fix the checkout webhook", shop, .working, ago: 10),
+                      row("b", "Release notes", shop, .yourTurn, ago: 60)],
+            notes.id: [row("c", "Index the archive", notes, .yourTurn, ago: 120)],
         ]
         return (state, shop, notes)
     }
@@ -239,15 +242,15 @@ final class AppStateHostTests: XCTestCase {
     /// The search narrows the projects and their sessions; a project found by its own name keeps
     /// all of its sessions.
     func testTheSearchNarrowsTheList() throws {
-        let (state, shop, notes) = try listState()
+        let (state, _, _) = try listState()
         state.searchQuery = "webhook"
-        XCTAssertEqual(state.listedProjects.map(\.name), ["acme-shop"])
-        XCTAssertEqual(state.listedSessions(of: shop).map(\.sessionId), ["a"])
+        XCTAssertEqual(state.projectsList.live.map(\.project.name), ["acme-shop"])
+        XCTAssertEqual(state.listedSessionOrder.map(\.sessionId), ["a"])
         state.searchQuery = "field"
-        XCTAssertEqual(state.listedProjects.map(\.name), ["field-notes"])
-        XCTAssertEqual(state.listedSessions(of: notes).map(\.sessionId), ["c"])
+        XCTAssertEqual(state.projectsList.live.map(\.project.name), ["field-notes"])
+        XCTAssertEqual(state.listedSessionOrder.map(\.sessionId), ["c"])
         state.searchQuery = "  "
-        XCTAssertEqual(state.listedProjects.count, 2, "blank is no search")
+        XCTAssertEqual(state.projectsList.live.count, 2, "blank is no search")
     }
 
     // MARK: - The notch's host

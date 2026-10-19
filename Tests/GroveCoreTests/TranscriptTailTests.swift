@@ -34,6 +34,7 @@ final class TranscriptTailTests: XCTestCase {
         XCTAssertEqual(p.reply, "Fixed The bar now waits for the server's reply. UploadTask retries twice.")
         XCTAssertEqual(p.title, "Retry uploads on flaky networks")
         XCTAssertEqual(p.turn, .answered)
+        XCTAssertTrue(p.replyIsCurrent)
         XCTAssertEqual(p.at, Date(timeIntervalSince1970: 1_792_000_090), "the newest message, not the turn's end")
     }
 
@@ -62,6 +63,7 @@ final class TranscriptTailTests: XCTestCase {
         XCTAssertEqual(pending.tool, "Bash")
         XCTAssertEqual(pending.prompt, "Run the tests")
         XCTAssertNil(pending.reply)
+        XCTAssertFalse(pending.replyIsCurrent, "no text for the newest prompt yet")
 
         var result = tool
         result.toolResult(bytes: 200, at: 2)

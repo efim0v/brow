@@ -28,13 +28,16 @@ public struct ProjectSessionRow: Sendable, Equatable, Identifiable {
     /// How its transcript ends: the newest prompt, Claude's newest line, what it waits on.
     public let preview: SessionPreview?
     public let gitBranch: String?
+    /// The transcript it was read from: what the live layer looks at for a newer preview.
+    public let transcriptPath: String?
 
     public var canGo: Bool { cmuxWorkspaceId != nil }
     public var isLive: Bool { state.isLive }
 
     public init(sessionId: String, title: String, cwd: String, location: String,
                 accountName: String, lastActivity: Date, state: SessionState,
-                cmuxWorkspaceId: String?, preview: SessionPreview? = nil, gitBranch: String? = nil) {
+                cmuxWorkspaceId: String?, preview: SessionPreview? = nil, gitBranch: String? = nil,
+                transcriptPath: String? = nil) {
         self.sessionId = sessionId
         self.title = title
         self.cwd = cwd
@@ -45,13 +48,14 @@ public struct ProjectSessionRow: Sendable, Equatable, Identifiable {
         self.cmuxWorkspaceId = cmuxWorkspaceId
         self.preview = preview
         self.gitBranch = gitBranch
+        self.transcriptPath = transcriptPath
     }
 
     /// The same row in another state: the live layer updates rows in place.
     public func with(state: SessionState, preview: SessionPreview?, lastActivity: Date) -> ProjectSessionRow {
         ProjectSessionRow(sessionId: sessionId, title: title, cwd: cwd, location: location, accountName: accountName,
                           lastActivity: lastActivity, state: state, cmuxWorkspaceId: cmuxWorkspaceId,
-                          preview: preview, gitBranch: gitBranch)
+                          preview: preview, gitBranch: preview?.gitBranch ?? gitBranch, transcriptPath: transcriptPath)
     }
 }
 
@@ -68,7 +72,7 @@ public func buildProjectSessionRows(sessions: [ClaudeSession], live: [LiveProces
         let process = live.liveProcess(forSessionId: s.id, cwd: s.cwd)
         let title = s.title.flatMap { $0.isEmpty ? nil : $0 }
             ?? s.preview?.title ?? s.preview?.prompt ?? String(s.id.prefix(8))
-        let branch = s.gitBranch
+        let branch = s.preview?.gitBranch ?? s.gitBranch
         return ProjectSessionRow(
             sessionId: s.id,
             title: title,
@@ -79,7 +83,8 @@ public func buildProjectSessionRows(sessions: [ClaudeSession], live: [LiveProces
             state: SessionState.of(process, turn: s.preview?.turn),
             cmuxWorkspaceId: cmuxMap[s.id],
             preview: s.preview,
-            gitBranch: branch)
+            gitBranch: branch,
+            transcriptPath: s.transcriptPath)
     }
 }
 

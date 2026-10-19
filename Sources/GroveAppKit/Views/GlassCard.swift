@@ -18,6 +18,20 @@ extension EnvironmentValues {
     }
 }
 
+private struct RenderContrastKey: EnvironmentKey {
+    static let defaultValue: ColorSchemeContrast? = nil
+}
+
+extension EnvironmentValues {
+    /// Offscreen renders: the contrast to draw with in place of the system's, which a render
+    /// cannot set (Increase Contrast is the Mac's own setting). nil — always, in the app —
+    /// follows the system.
+    public var renderContrast: ColorSchemeContrast? {
+        get { self[RenderContrastKey.self] }
+        set { self[RenderContrastKey.self] = newValue }
+    }
+}
+
 extension View {
     /// Draws this view for an offscreen render (see `isSnapshotRender`). For tests and
     /// render tools only; the app never sets it.
@@ -35,7 +49,9 @@ extension View {
 /// shape so nested ConcentricRectangle elements resolve concentric radii against it.
 public struct GlassCard: ViewModifier {
     @Environment(\.groveHost) private var host
-    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorSchemeContrast) private var systemContrast
+    @Environment(\.renderContrast) private var renderContrast
+    private var contrast: ColorSchemeContrast { renderContrast ?? systemContrast }
 
     public init() {}
 

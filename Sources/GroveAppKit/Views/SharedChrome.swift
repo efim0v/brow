@@ -26,12 +26,14 @@ func shortModelName(_ id: String) -> String {
 /// capitals, a little tracking, in the quietest white.
 struct SectionCaption: View {
     let title: String
+    @Environment(\.colorSchemeContrast) private var systemContrast
+    @Environment(\.renderContrast) private var renderContrast
 
     var body: some View {
         Text(title)
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.6)
-            .foregroundStyle(.white.opacity(0.36))
+            .foregroundStyle(.white.opacity((renderContrast ?? systemContrast) == .increased ? 0.6 : 0.36))
             .accessibilityAddTraits(.isHeader)
     }
 }

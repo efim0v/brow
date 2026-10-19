@@ -4,8 +4,10 @@
 import SwiftUI
 import GroveCore
 
-/// The sessions whose folder is no project's (route .otherSessions), newest first, each
-/// with Resume and its own menu: resume as another account, share, copy, delete.
+/// Other folders (route .otherSessions): the folders Claude Code runs in that no project
+/// shows, then the sessions outside every project by the folder they ran in — the
+/// repository around it when there is one — each folder with "Add as project", each
+/// session a preview with Resume and its own menu.
 struct OtherSessionsScreen: View {
     @ObservedObject var state: AppState
 
@@ -14,18 +16,29 @@ struct OtherSessionsScreen: View {
     }
 
     var body: some View {
+        let folders = state.listedOtherFolders()
+        let suggestions = state.searchNeedle.isEmpty ? state.listedSuggestions : []
         VStack(alignment: .leading, spacing: 0) {
-            ScopeHeader(title: "Other sessions", subtitle: "\(state.otherSessions.count) outside your projects",
-                        onBack: { state.goBack() })
-            let sessions = listed
-            if sessions.isEmpty {
+            ScopeHeader(title: "Other folders", subtitle: subtitle(folders), onBack: { state.goBack() })
+            if folders.isEmpty && suggestions.isEmpty {
                 emptyState
             } else {
                 FadingScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(sessions, id: \.id) { session in
-                            SessionLineRow(state: state, ref: SessionRef(session: session, isLive: false),
-                                           status: .closed, place: (session.cwd as NSString).lastPathComponent)
+                    VStack(alignment: .leading, spacing: 16) {
+                        if !suggestions.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                SectionCaption(title: "CLAUDE IS RUNNING IN").padding(.horizontal, 2)
+                                ForEach(suggestions) { SuggestionRow(state: state, suggestion: $0) }
+                            }
+                        }
+                        ForEach(folders) { folder in
+                            VStack(alignment: .leading, spacing: 6) {
+                                OtherFolderHeader(state: state, folder: folder)
+                                ForEach(folder.sessions, id: \.id) { session in
+                                    SessionPreviewCard(state: state, session: session, place: nil,
+                                                       highlight: state.searchNeedle)
+                                }
+                            }
                         }
                     }
                     .padding(.bottom, 10)
@@ -34,21 +47,17 @@ struct OtherSessionsScreen: View {
         }
     }
 
-    /// The sessions, the search applied.
-    private var listed: [ClaudeSession] {
-        let needle = state.searchNeedle
-        guard !needle.isEmpty else { return state.otherSessions }
-        return state.otherSessions.filter {
-            ($0.title ?? "").lowercased().contains(needle) || $0.cwd.lowercased().contains(needle)
-        }
+    private func subtitle(_ folders: [OtherFolder]) -> String {
+        let sessions = folders.reduce(0) { $0 + $1.sessions.count }
+        return "\(sessions) session\(sessions == 1 ? "" : "s") in \(folders.count) folder\(folders.count == 1 ? "" : "s") outside your projects"
     }
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "tray")
+            Image(systemName: "folder")
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("No other sessions")
+            Text("No other folders")
                 .font(.system(size: 14, weight: .semibold))
             Text("Sessions in a project's folders are listed under the project.")
                 .font(.system(size: 12))

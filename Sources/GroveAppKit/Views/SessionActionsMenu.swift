@@ -34,8 +34,9 @@ public struct SessionRef: Equatable, Sendable {
     }
 
     public init(session: ClaudeSession, isLive: Bool, cmuxWorkspaceId: String? = nil) {
+        let title = session.title ?? session.preview?.title ?? session.preview?.prompt ?? String(session.id.prefix(8))
         self.init(sessionId: session.id, cwd: session.cwd, accountName: session.accountName,
-                  title: session.title ?? String(session.id.prefix(8)), isLive: isLive,
+                  title: title, isLive: isLive,
                   cmuxWorkspaceId: cmuxWorkspaceId, lastActivity: session.lastActivity)
     }
 

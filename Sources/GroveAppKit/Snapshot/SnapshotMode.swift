@@ -220,6 +220,15 @@ public enum SnapshotMode {
         return ["default": [defaultSnap] + hist, "work": [workSnap]]
     }
 
+    /// How a fixture session's conversation ends: a reply, a pending tool call, or a question.
+    static func fixturePreview(_ prompt: String, reply: String? = nil, tool: (name: String, input: String)? = nil,
+                               question: String? = nil) -> SessionPreview {
+        let turn: SessionPreview.Turn = tool != nil || question != nil ? .tool : .answered
+        return SessionPreview(prompt: prompt, reply: reply, tool: question != nil ? "AskUserQuestion" : tool?.name,
+                              title: nil, turn: turn, at: nil, pendingInput: tool?.input, question: question,
+                              replyIsCurrent: reply != nil)
+    }
+
     /// Ages are relative to `now` (real clock at render time) because the
     /// views compute badges against Date() — fixed dates would drift.
     ///
@@ -273,7 +282,9 @@ public enum SnapshotMode {
                               title: "Implement media pipeline",
                               lastActivity: now.addingTimeInterval(-900),
                               accountName: "default",
-                              gitBranch: "feat/media-pipeline"),
+                              gitBranch: "feat/media-pipeline",
+                              preview: fixturePreview("wire the upload progress events into the pipeline",
+                                                      tool: ("Bash", "swift test --filter Pipeline"))),
             ],
             liveProcesses: [
                 LiveProcess(pid: 4242, sessionId: "s-mp-1", cwd: mpUmbrella,
@@ -322,12 +333,16 @@ public enum SnapshotMode {
                               title: "Multipart upload endpoint",
                               lastActivity: now.addingTimeInterval(-120),
                               accountName: "work",
-                              gitBranch: "feat/media-upload"),
+                              gitBranch: "feat/media-upload",
+                              preview: fixturePreview("accept multipart on /media and stream it to disk",
+                                                      question: "Keep the 25 MB limit, or raise it for video?")),
                 ClaudeSession(id: "s-mu-2", cwd: muUmbrella,
                               title: "Client retry UX",
                               lastActivity: day(1),
                               accountName: "default",
-                              gitBranch: "feat/media-upload"),
+                              gitBranch: "feat/media-upload",
+                              preview: fixturePreview("show a retry button when an upload fails",
+                                                      reply: "The retry button shows under a failed upload; 4 tests.")),
             ],
             liveProcesses: [
                 LiveProcess(pid: 4343, sessionId: "s-mu-1", cwd: muUmbrella,
@@ -361,12 +376,16 @@ public enum SnapshotMode {
                               title: "Folder sharing follow-ups",
                               lastActivity: day(20),
                               accountName: "default",
-                              gitBranch: "feat/folders-followup"),
+                              gitBranch: "feat/folders-followup",
+                              preview: fixturePreview("let a shared folder be renamed by its owner only",
+                                                      reply: "Only the owner sees Rename now; the others get a tooltip.")),
                 ClaudeSession(id: "s-ff-2", cwd: ffUmbrella,
                               title: "Migration dry-run",
                               lastActivity: day(21),
                               accountName: "work",
-                              gitBranch: "feat/folders-followup"),
+                              gitBranch: "feat/folders-followup",
+                              preview: fixturePreview("dry-run the folder migration on a copy of staging",
+                                                      reply: "Dry run done: 1,204 folders, 3 with duplicate names.")),
             ],
             liveProcesses: [],
             cmuxWorkspaces: []
@@ -407,7 +426,9 @@ public enum SnapshotMode {
                               title: "Group chats",
                               lastActivity: day(9),
                               accountName: "default",
-                              gitBranch: "feature/group-chats"),
+                              gitBranch: "feature/group-chats",
+                              preview: fixturePreview("add read receipts to group chats",
+                                                      reply: "Read receipts show under the last message each member saw.")),
             ],
             liveProcesses: [],
             cmuxWorkspaces: []

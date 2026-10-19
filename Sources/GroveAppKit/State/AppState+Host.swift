@@ -173,40 +173,22 @@ extension AppState {
 
     // MARK: - The Projects list, and the keyboard on it
 
-    /// How many sessions a project shows on the Projects list, and how many the session index
-    /// reads for it.
-    nonisolated public static let sessionsPerProject = 3
-
     /// The search, as the lists compare it: trimmed, lowercased; empty when there is none.
     var searchNeedle: String {
         searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    /// The projects the list shows, in its order: every one, or those the search finds by
-    /// name or by one of their sessions.
-    public var listedProjects: [ProjectConfig] {
-        let needle = searchNeedle
-        guard !needle.isEmpty else { return config.projects }
-        return config.projects.filter { project in
-            project.name.lowercased().contains(needle) || !listedSessions(of: project).isEmpty
-        }
-    }
-
-    /// A project's sessions as the list shows them: the newest, at most
-    /// `sessionsPerProject`; with a search, the ones it finds (all of them when the project's
-    /// own name matches).
-    public func listedSessions(of project: ProjectConfig) -> [ProjectSessionRow] {
-        let rows = recentSessionsByProject[project.id] ?? []
-        let needle = searchNeedle
-        let found = needle.isEmpty || project.name.lowercased().contains(needle)
-            ? rows
-            : rows.filter { $0.title.lowercased().contains(needle) || $0.location.lowercased().contains(needle) }
-        return Array(found.prefix(Self.sessionsPerProject))
-    }
-
-    /// Every session the list shows, top to bottom: what ↑ and ↓ walk.
+    /// Every session card the list shows, top to bottom: what ↑ and ↓ walk.
     public var listedSessionOrder: [ProjectSessionRow] {
-        listedProjects.flatMap(listedSessions(of:))
+        projectsList.live.flatMap(\.shown)
+    }
+
+    /// What ↑ and ↓ walk, top to bottom, by the ids the focus takes: the suggestions the
+    /// list shows (`suggestion:<path>`), then every session card.
+    var keyboardTargets: [String] {
+        let suggestions = searchNeedle.isEmpty
+            ? listedSuggestions.prefix(SuggestedSectionLimit.shown).map { "suggestion:" + $0.path } : []
+        return suggestions + listedSessionOrder.map(\.id)
     }
 
     /// The session the keyboard is on, while it is still listed.
@@ -215,15 +197,27 @@ extension AppState {
         return listedSessionOrder.first { $0.id == keyboardFocus }
     }
 
-    /// ↑ (−1) or ↓ (+1): the focus ring moves through the listed sessions; the first press
-    /// puts it on the first (↓) or last (↑).
+    /// The suggestion the keyboard is on: ↩ adds it, ⌫ turns it down.
+    public var focusedSuggestion: ProjectSuggestion? {
+        guard let keyboardFocus, keyboardFocus.hasPrefix("suggestion:") else { return nil }
+        let path = String(keyboardFocus.dropFirst("suggestion:".count))
+        return listedSuggestions.first { $0.path == path }
+    }
+
+    /// ↑ (−1) or ↓ (+1): the focus ring moves through the suggestions and the session
+    /// cards; the first press puts it on the first (↓) or last (↑).
     public func moveKeyboardFocus(by delta: Int) {
-        let order = listedSessionOrder
+        let order = keyboardTargets
         guard !order.isEmpty else { keyboardFocus = nil; return }
-        guard let current = keyboardFocus, let index = order.firstIndex(where: { $0.id == current }) else {
-            keyboardFocus = (delta < 0 ? order.last : order.first)?.id
+        guard let current = keyboardFocus, let index = order.firstIndex(of: current) else {
+            keyboardFocus = delta < 0 ? order.last : order.first
             return
         }
-        keyboardFocus = order[min(max(index + delta, 0), order.count - 1)].id
+        keyboardFocus = order[min(max(index + delta, 0), order.count - 1)]
     }
+}
+
+/// How many suggestions the list shows before "+N more folders".
+enum SuggestedSectionLimit {
+    static let shown = 2
 }

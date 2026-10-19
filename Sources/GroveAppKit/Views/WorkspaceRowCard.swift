@@ -230,13 +230,13 @@ struct WorkspaceRowCard: View {
     private var sessionRows: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(workspace.sessions, id: \.id) { session in
-                let live = liveProcess(for: session)
-                SessionLineRow(state: state,
-                               ref: SessionRef(sessionId: session.id, cwd: session.cwd, accountName: session.accountName,
-                                               title: displayTitle(session), isLive: live != nil,
-                                               lastActivity: session.lastActivity),
-                               status: SessionState.of(live, turn: session.preview?.turn),
-                               place: session.gitBranch.flatMap { $0.isEmpty ? nil : $0 } ?? workspace.name)
+                // In the workspace's own card its place goes without saying; a branch other
+                // than the workspace's is said.
+                let branch = session.preview?.gitBranch ?? session.gitBranch
+                SessionPreviewCard(state: state, session: session,
+                                   place: branch.flatMap { $0.isEmpty || workspace.repos.contains { $0.entry.branch == branch } ? nil : $0 },
+                                   cmuxWorkspaceId: workspace.cmuxWorkspaces.first?.id, density: .full,
+                                   highlight: state.searchNeedle)
             }
         }
     }
@@ -250,18 +250,8 @@ struct WorkspaceRowCard: View {
         }
     }
 
-    /// Sessions whose first message is the cmux/local-command caveat get a junk
-    /// title — fall back to a short id so the table stays readable.
-    private func displayTitle(_ session: ClaudeSession) -> String {
-        guard let title = session.title, !title.isEmpty,
-              !title.hasPrefix("<"), !title.hasPrefix("Caveat:")
-        else { return "session \(session.id.prefix(6))" }
-        return title
-    }
-
     private func liveProcess(for session: ClaudeSession) -> LiveProcess? {
-        // id OR fresh-cwd join, so a bare `claude` running at this session's
-        // directory shows as live (not "closed") — matches every other surface.
+        // By id: one process runs one session, the same join every screen uses.
         workspace.liveProcesses.liveProcess(forSessionId: session.id, cwd: session.cwd)
     }
 

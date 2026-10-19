@@ -56,10 +56,13 @@ public struct SessionPreview: Sendable, Equatable {
     /// The git branch and the model of the newest message.
     public let gitBranch: String?
     public let model: String?
+    /// `reply` came after `prompt`: Claude has answered the newest prompt (or is answering
+    /// it). False while the newest prompt has no text from Claude yet.
+    public let replyIsCurrent: Bool
 
     public init(prompt: String?, reply: String?, tool: String?, title: String?, turn: Turn, at: Date?,
                 pendingInput: String? = nil, question: String? = nil, sender: Sender = .you,
-                gitBranch: String? = nil, model: String? = nil) {
+                gitBranch: String? = nil, model: String? = nil, replyIsCurrent: Bool = true) {
         self.prompt = prompt
         self.reply = reply
         self.tool = tool
@@ -71,6 +74,7 @@ public struct SessionPreview: Sendable, Equatable {
         self.sender = sender
         self.gitBranch = gitBranch
         self.model = model
+        self.replyIsCurrent = replyIsCurrent
     }
 }
 
@@ -127,6 +131,7 @@ public enum TranscriptTail {
         var prompt: (text: String, sender: SessionPreview.Sender)?
         var promptRecord: String?          // `last-prompt`, for a window with no prompt in it
         var reply: String?
+        var replyIsCurrent = false
         var customTitle: String?
         var titleRecordSeen = false        // the newest `custom-title` decides, even an empty one
         var aiTitle: String?
@@ -173,7 +178,10 @@ public enum TranscriptTail {
                 }
                 if model == nil, let name = entry.model { model = name }
                 if prompt == nil, let text = entry.prompt { prompt = (text, entry.sender) }
-                if reply == nil, let text = entry.reply { reply = text }
+                if reply == nil, let text = entry.reply {
+                    reply = text
+                    replyIsCurrent = prompt == nil
+                }
             default:
                 break
             }
@@ -188,7 +196,7 @@ public enum TranscriptTail {
         return (SessionPreview(prompt: prompt?.text ?? promptRecord, reply: reply, tool: pending?.name, title: title,
                                turn: turn ?? .unknown, at: at, pendingInput: pending?.input,
                                question: pending?.question, sender: prompt?.sender ?? .you,
-                               gitBranch: gitBranch, model: model), found)
+                               gitBranch: gitBranch, model: model, replyIsCurrent: replyIsCurrent), found)
     }
 
     /// Calls `body` with each complete line, the last one first, until it returns false.

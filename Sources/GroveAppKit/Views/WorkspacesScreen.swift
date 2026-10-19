@@ -134,8 +134,8 @@ struct WorkspacesScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 SectionCaption(title: "PROJECT FOLDER")
                 ForEach(rows, id: \.ref.sessionId) { row in
-                    SessionLineRow(state: state, ref: row.ref, status: row.status, place: row.place,
-                                   focused: false)
+                    SessionPreviewCard(state: state, ref: row.ref, sessionState: row.status, preview: row.preview,
+                                       place: row.place, density: .full, highlight: state.searchNeedle)
                 }
             }
             .padding(.bottom, 14)
@@ -143,7 +143,7 @@ struct WorkspacesScreen: View {
     }
 
     private func projectFolderRows(snapshot: ProjectSnapshot)
-        -> [(ref: SessionRef, status: SessionState, place: String)] {
+        -> [(ref: SessionRef, status: SessionState, preview: SessionPreview?, place: String)] {
         guard let id = state.selectedProjectID else { return [] }
         let inSnapshot = Set((snapshot.workspaces.flatMap(\.sessions) + snapshot.loose.flatMap(\.sessions))
             .map { $0.cwd + "\u{0}" + $0.id })
@@ -155,11 +155,12 @@ struct WorkspacesScreen: View {
             let key = session.cwd + "\u{0}" + session.id
             guard !inSnapshot.contains(key), seen.insert(key).inserted else { return nil }
             let row = indexed[session.id]
-            let status = row?.state ?? .closed
+            let status = row?.state ?? state.state(of: session)
             let ref = SessionRef(session: session, isLive: status.isLive, cmuxWorkspaceId: row?.cmuxWorkspaceId)
-            guard needle.isEmpty || ref.title.lowercased().contains(needle) else { return nil }
-            let place = session.gitBranch.flatMap { $0.isEmpty ? nil : $0 } ?? (session.cwd as NSString).lastPathComponent
-            return (ref, status, place)
+            guard needle.isEmpty || AppState.matches(session, needle: needle) else { return nil }
+            let branch = session.preview?.gitBranch ?? session.gitBranch
+            let place = branch.flatMap { $0.isEmpty ? nil : $0 } ?? (session.cwd as NSString).lastPathComponent
+            return (ref, status, row?.preview ?? session.preview, place)
         }
     }
 
@@ -371,10 +372,10 @@ struct WorkspacesScreen: View {
             // Resume / go-to routing as workspace cards (goToSession picks the
             // hook-mapped cmux workspace first, --resume relaunch as fallback).
             ForEach(loose.sessions, id: \.id) { session in
-                let live = loose.liveProcesses.liveProcess(forSessionId: session.id, cwd: session.cwd)
-                SessionLineRow(state: state, ref: SessionRef(session: session, isLive: live != nil),
-                               status: SessionState.of(live, turn: session.preview?.turn),
-                               place: loose.entry.branch ?? (loose.entry.path as NSString).lastPathComponent)
+                SessionPreviewCard(state: state, session: session,
+                                   place: loose.entry.branch ?? (loose.entry.path as NSString).lastPathComponent,
+                                   highlight: state.searchNeedle)
+                    .font(.body)
             }
         }
         .font(.caption)

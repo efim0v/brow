@@ -162,6 +162,17 @@ final class PetControllerTests: XCTestCase {
         XCTAssertEqual(s.pet.layer.timeline, s.pet.brain.timeline)
     }
 
+    /// The pointer asks the senses for a fresh presence check once the pet may have settled: by the idle the
+    /// last check found plus the time since it, since the brain settles the pet on its own clock and a check
+    /// can be five seconds old.
+    func testThePointerAsksForPresenceOnceThePetMayHaveSettled() {
+        let check = PetPresence(inputIdle: 118)
+        XCTAssertFalse(PetController.mayHaveSettled(check, heardAt: 1000, now: 1001.5))
+        XCTAssertTrue(PetController.mayHaveSettled(check, heardAt: 1000, now: 1002), "settled since 1002")
+        XCTAssertTrue(PetController.mayHaveSettled(PetPresence(inputIdle: 700), heardAt: 1000, now: 1000), "dozing")
+        XCTAssertFalse(PetController.mayHaveSettled(PetPresence(), heardAt: nil, now: 1000))
+    }
+
     /// The idle's pounce winds up and leaps faster than ambient motion may move at 30 fps: the timer is set
     /// for the start of its fast window, the layer draws it at the fast rate, and at the window's end it
     /// is back to 30.

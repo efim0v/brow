@@ -199,6 +199,9 @@ enum PetRigGaze {
             case .glowPulse:
                 // Booped hibernating: the glow pulses once (0.6 s).
                 p.glow += 0.35 * PetCurve.bump(tau, 0, PetTuning.Boop.glowPulse)
+            case .greet:
+                // A gesture of its own (`PetRigMoodBeats`).
+                continue
             }
         }
     }

@@ -143,6 +143,10 @@ public struct PetBrain: Sendable {
     var quietUntil: TimeInterval?
     /// A boop waiting for a short action to end; true when it is the giggle.
     var queuedBoop: Bool?
+    /// The panel is open, and when a greeting is due in it; the last greeting, for its rate.
+    var panelOpen = false
+    var greetDue: TimeInterval?
+    var lastGreet: TimeInterval?
     /// Peeks so far, the index of the next peek's gap.
     var peeks = 0
 
@@ -357,7 +361,24 @@ extension PetBrain {
             guard let next = decide(at: t) else { break }
             commit(next, at: t)
         }
+        greet(at: t)
         refreshMeter(at: t)
+    }
+
+    /// The greeting the panel's opening made due, at its instant: a cue for the rig when the pet rests at an
+    /// end of the meter, Reduce Motion is off and no greeting came in the last `Greet.every`. The rig plays
+    /// it as a thumbs-up or a please, and lets it go if the mood has changed by then.
+    mutating func greet(at t: PetTime) {
+        guard let due = greetDue, t.mono >= due - 1e-9 else { return }
+        greetDue = nil
+        guard panelOpen, showPet, !motion.reduceMotion,
+              lastGreet.map({ t.mono - $0 >= PetTuning.Greet.every - 1e-9 }) ?? true else { return }
+        switch current?.behaviour {
+        case .idle(.stuffed)?, .idle(.famished)?: break
+        default: return
+        }
+        lastGreet = t.mono
+        cue(.greet, at: t)
     }
 
     /// Hunger since `clock` at the rate held since then, stopping where the person went away by
@@ -397,6 +418,7 @@ extension PetBrain {
         }
         if let eagerUntil { times.append(eagerUntil) }
         if let queuedPrompt { times.append(queuedPrompt + PetTuning.Eager.afterPrompt) }
+        if let greetDue { times.append(greetDue) }
         let wall = Date(timeIntervalSince1970: clock + offset)
         if let close = food.nextClose(after: wall) { times.append(mono(close)) }
         if let accounts, !accounts.isEmpty {
@@ -597,6 +619,9 @@ extension PetBrain {
             pointer(at: distance, time: t)
         case .boop:
             boop(at: t)
+        case .panel(let open):
+            panelOpen = open
+            greetDue = open ? t.mono + PetTuning.Greet.after : nil
         case .tick:
             break
         case .debugHunger(let value):

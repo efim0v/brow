@@ -140,15 +140,23 @@ enum PetRigMoodBeats {
 
     /// The gestures that play at an end of the meter in the open behaviour `segment`, of those started in
     /// the `lookBack` seconds up to `t`, in start order. One at a time: a gesture that would start while
-    /// another was due to play is left out whole. The rule looks only at the gestures due just before each
-    /// one, so the choice is the same whichever instant asks.
+    /// another was due to play is left out whole, but for a greeting, which waits up to `Greet.wait` for the
+    /// one playing to end. The rule looks only at the gestures due just before each one, so the choice is
+    /// the same whichever instant asks. A beat under way when the mood changes plays on into the next open
+    /// behaviour (`carries`).
     static func gestures(in segment: PetSegment, previous: PetSegment?, at t: Double, lookBack: Double = longest,
-                         seed: UInt64, reduceMotion: Bool) -> [Gesture] {
-        guard let mood = extreme(segment.behaviour), !reduceMotion else { return [] }
-        let profile = PetRigIdle.profile(segment.behaviour, reduceMotion: reduceMotion)
+                         seed: UInt64, reduceMotion: Bool, cues: [PetCue] = []) -> [Gesture] {
+        guard !reduceMotion else { return [] }
         // Everything that could still overlap the first of them.
-        let from = t - lookBack - longest
+        let from = t - lookBack - longest - PetTuning.Greet.wait
         var due: [Gesture] = []
+        if let previous, carries(from: previous, to: segment) {
+            due += gestures(in: previous, previous: nil, at: segment.start, lookBack: longest + PetTuning.Greet.wait, seed: seed,
+                            reduceMotion: reduceMotion, cues: cues)
+                .filter { if case .beat = $0.item { return $0.end > segment.start && $0.end > from }; return false }
+        }
+        guard let mood = extreme(segment.behaviour) else { return due.filter { $0.at > t - lookBack } }
+        let profile = PetRigIdle.profile(segment.behaviour, reduceMotion: reduceMotion)
         if profile.small {
             for (k, at) in PetRigIdle.smalls.recent(at: t, lookBack: t - from, seed: seed) where at > segment.start + 1 {
                 let kind = PetRigIdle.smallKind(k, seed: seed, behaviour: segment.behaviour)
@@ -172,6 +180,16 @@ enum PetRigMoodBeats {
         for at in grumbleTimes(in: segment, previous: previous, from: from, to: t, seed: seed) {
             due.append(Gesture(item: .beat(.grumble), at: at, length: length(.grumble)))
         }
+        // Greetings: someone opened the panel. Each waits for whatever was due before it to end.
+        if case .idle = segment.behaviour {
+            let greeting: Beat = mood == .stuffed ? .okay : .please
+            for cue in cues where cue.kind == .greet && cue.t >= segment.start && cue.t > from && cue.t <= t {
+                var at = cue.t
+                while let busy = due.filter({ $0.at < at && $0.end > at }).map(\.end).max() { at = busy + 0.1 }
+                guard at - cue.t <= PetTuning.Greet.wait, at <= t else { continue }
+                due.append(Gesture(item: .beat(greeting), at: at, length: length(greeting)))
+            }
+        }
         due.sort { $0.at < $1.at }
         var kept: [Gesture] = []
         for (i, g) in due.enumerated() where g.at > t - lookBack {
@@ -181,11 +199,21 @@ enum PetRigMoodBeats {
         return kept
     }
 
+    /// Whether the beats under way in `previous` play on into `segment`: a change of mood, or of presence,
+    /// between two open behaviours does not cut a pat or a thumbs-up short.
+    static func carries(from previous: PetSegment, to segment: PetSegment) -> Bool {
+        guard extreme(previous.behaviour) != nil else { return false }
+        switch segment.behaviour {
+        case .idle, .settled: return true
+        default: return false
+        }
+    }
+
     static func gestures(beat: PetRigBeat, scene: PetRigPoser, lookBack: Double = longest) -> [Gesture] {
         guard let i = beat.index else { return [] }
         let segments = scene.timeline.segments
         return gestures(in: segments[i], previous: i > 0 ? segments[i - 1] : nil, at: scene.t, lookBack: lookBack,
-                        seed: scene.seed, reduceMotion: scene.motion.reduceMotion)
+                        seed: scene.seed, reduceMotion: scene.motion.reduceMotion, cues: scene.timeline.cues)
     }
 
     /// The gestures playing at the instant.
@@ -240,7 +268,7 @@ enum PetRigMoodBeats {
             let hold = blissHold(n, seed: seed)
             // The gestures due from the opening to its end, decided as they come.
             let due = gestures(in: segment, previous: previous, at: at + hold, lookBack: hold + longest, seed: seed,
-                               reduceMotion: scene.motion.reduceMotion)
+                               reduceMotion: scene.motion.reduceMotion, cues: scene.timeline.cues)
             if due.contains(where: { $0.at <= at && $0.end > at }) { continue }
             let cut = due.first {
                 $0.at > at && $0.at < at + hold && shutsTheEyes($0.item, behaviour: segment.behaviour, seed: seed)
@@ -510,10 +538,11 @@ enum PetRigMoodBeats {
     /// them wide (or winking) from a little before they start to their end, and the blink is left out whole.
     /// Decided from the gestures due by then, so a blink is kept or left out the same at every instant.
     static func holdsTheBlink(at start: Double, beat: PetRigBeat, scene: PetRigPoser) -> Bool {
-        guard let i = beat.index, extreme(beat.behaviour) != nil else { return false }
+        guard let i = beat.index else { return false }
         let segments = scene.timeline.segments
+        guard extreme(beat.behaviour) != nil || (i > 0 && carries(from: segments[i - 1], to: segments[i])) else { return false }
         let due = gestures(in: segments[i], previous: i > 0 ? segments[i - 1] : nil, at: start + 0.4, lookBack: longest + 0.8,
-                           seed: scene.seed, reduceMotion: scene.motion.reduceMotion)
+                           seed: scene.seed, reduceMotion: scene.motion.reduceMotion, cues: scene.timeline.cues)
         return due.contains { g in
             guard case .beat(let b) = g.item, b == .okay || b == .please || b == .grumble else { return false }
             return start > g.at - 0.4 && start < g.end

@@ -65,6 +65,9 @@ public enum PetEvent: Sendable, Equatable {
     case pointer(distance: Double)
     /// A click on the pet in the panel, or VoiceOver's "Pet" action.
     case boop
+    /// The panel opened (`true`) or closed, at the instant its outline starts to spring: at either end of
+    /// the meter the pet greets whoever opened it.
+    case panel(open: Bool)
     /// The instant `PetBrain.nextDeadline(after:)` asked for has come.
     case tick
     /// Script-only: sets H, so a test can make the pet hungry without hours of script.
@@ -408,6 +411,9 @@ public struct PetCue: Sendable, Hashable {
         case sleepyEye
         /// A boop while hibernating: the glow pulses once, 0.6 s.
         case glowPulse
+        /// The panel opened at an end of the meter: a thumbs-up stuffed, please famished, once the hop into
+        /// the header has landed.
+        case greet
     }
 
     public var t: TimeInterval

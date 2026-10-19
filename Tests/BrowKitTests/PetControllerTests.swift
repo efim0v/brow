@@ -23,13 +23,14 @@ final class PetControllerTests: XCTestCase {
     /// A pet that has had its intro, beside the 14" notch, started at `mono` on the monotonic clock.
     private func setup(_ accounts: [PetAppFixture.Account] = [.init()], scan: Bool = true, introDone: Bool = true,
                        placement: EarsPlacement = .beside, start: Bool = true, mono: TimeInterval = 10_000,
-                       edit: (inout BrowSettings) -> Void = { _ in }) async throws -> Setup {
+                       hunger: Double? = nil, edit: (inout BrowSettings) -> Void = { _ in }) async throws -> Setup {
         let (store, dir) = try await PetAppFixture.store(accounts, now: t0, edit: edit, scan: scan)
         let petStore = PetStore(directory: dir.appendingPathComponent("pet").path)
         if introDone {
             var save = PetSave(seed: 7, bornAt: t0.addingTimeInterval(-86_400))
             save.introDone = true
             save.savedAt = t0.addingTimeInterval(-60)
+            if let hunger { save.hunger = hunger }
             try petStore.save(save)
         }
         let clock = PetTestClock(PetTime(wall: t0, mono: mono))
@@ -180,6 +181,36 @@ final class PetControllerTests: XCTestCase {
         XCTAssertEqual(s.pet.layer.rate, .native, "the wind-up and the leap")
         XCTAssertEqual(try XCTUnwrap(s.pet.timerDue), pounce + fast.upperBound, accuracy: 1e-9)
         s.clock.advance(pounce + fast.upperBound + 0.002 - s.clock.now.mono)
+        s.pet.timerFired()
+        XCTAssertEqual(s.pet.layer.rate, .fps(30))
+    }
+
+    /// Opening the panel on a stuffed pet: the brain hears it, cues the greeting once the hop has landed,
+    /// and the thumbs-up's rise is drawn fast past the hop's own frames, the timer waking at both ends.
+    func testAGreetingsRiseIsDrawnFast() async throws {
+        let s = try await setup(mono: 10_000, hunger: -46)
+        XCTAssertEqual(s.pet.brain.timeline.segments.last?.behaviour, .idle(.stuffed))
+        s.clock.advance(20)
+        let opened = s.clock.now.mono
+        s.pet.dockChanged(expanded: true)
+        XCTAssertEqual(try XCTUnwrap(s.pet.timerDue), opened + PetTuning.Greet.after, accuracy: 1e-9)
+        s.clock.advance(PetTuning.Greet.after + 0.002)
+        s.pet.timerFired()
+        let cue = try XCTUnwrap(s.pet.brain.timeline.cues.last { $0.kind == .greet })
+        XCTAssertEqual(cue.t, opened + PetTuning.Greet.after, accuracy: 1e-9)
+        XCTAssertEqual(s.pet.layer.timeline, s.pet.brain.timeline)
+        let segments = s.pet.brain.timeline.segments
+        let played = PetRigMoodBeats.gestures(in: segments[segments.count - 1], previous: segments.count > 1 ? segments[segments.count - 2] : nil,
+                                              at: cue.t + 3, lookBack: 3.5, seed: 7, reduceMotion: false,
+                                              cues: s.pet.brain.timeline.cues)
+        let okay = try XCTUnwrap(played.first { $0.item == .beat(.okay) && $0.at >= cue.t })
+        let fast = try XCTUnwrap(PetRigMoodBeats.fast(.okay))
+        // Past the hop's own fast frames, the rise keeps them.
+        s.clock.advance(PetController.dockFrames + 0.05 - (s.clock.now.mono - opened))
+        s.pet.timerFired()
+        XCTAssertEqual(s.pet.layer.rate, .native, "the thumbs-up's rise")
+        XCTAssertEqual(try XCTUnwrap(s.pet.timerDue), okay.at + fast.upperBound, accuracy: 1e-9)
+        s.clock.advance(okay.at + fast.upperBound + 0.002 - s.clock.now.mono)
         s.pet.timerFired()
         XCTAssertEqual(s.pet.layer.rate, .fps(30))
     }

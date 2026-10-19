@@ -382,8 +382,24 @@ enum PetRigIdle {
     /// pounce's, or at an end of the meter the thumbs-up's rise and the hiccup's hop. The controller
     /// raises the frame rate for exactly this long. nil where no rare idle plays, or none leaps in the next
     /// hour and a half.
-    static func fastWindow(after t: Double, segment: PetSegment, previous: PetSegment? = nil, seed: UInt64,
-                           reduceMotion: Bool) -> Range<Double>? {
+    static func fastWindow(after t: Double, segment: PetSegment, previous: PetSegment? = nil, cues: [PetCue] = [],
+                           seed: UInt64, reduceMotion: Bool) -> Range<Double>? {
+        // The leaps the gestures playing around `t` hold: a greeting, or one carried over from the mood before.
+        let longest = PetRigMoodBeats.longest
+        let near = PetRigMoodBeats.gestures(in: segment, previous: previous, at: t + longest, lookBack: 2 * longest + 2,
+                                            seed: seed, reduceMotion: reduceMotion, cues: cues)
+            .compactMap { g -> Range<Double>? in
+                guard case .beat(let b) = g.item, let fast = PetRigMoodBeats.fast(b) else { return nil }
+                return (g.at + fast.lowerBound)..<(g.at + fast.upperBound)
+            }
+            .filter { $0.upperBound > t }
+        let next = rareFastWindow(after: t, segment: segment, previous: previous, seed: seed, reduceMotion: reduceMotion)
+        return (near + [next].compactMap { $0 }).min { $0.lowerBound < $1.lowerBound }
+    }
+
+    /// The fast window of the rare idle playing in `segment` at `t`, or of the next one to come.
+    static func rareFastWindow(after t: Double, segment: PetSegment, previous: PetSegment?, seed: UInt64,
+                               reduceMotion: Bool) -> Range<Double>? {
         guard profile(segment.behaviour, reduceMotion: reduceMotion).rare else { return nil }
         let mood = PetRigMoodBeats.extreme(segment.behaviour)
         let first = Int(floor((max(t, segment.start) - 3) / rares.period)) - 1

@@ -1116,6 +1116,15 @@ enum PetRigActions {
         let r = root(prev.behaviour, elapsed: length, room: room)
         cut.x += r.dx; cut.lift += r.lift; cut.squash += r.squash
         act(prev.behaviour, &cut, e: length, room: room, scene: scene)
+        // A beat at an end of the meter under way when an action cuts the idle fades with it rather than
+        // vanish; between two open behaviours it plays on instead (`PetRigMoodBeats.carries`).
+        if let i = beat.index, i > 0, PetRigMoodBeats.extreme(prev.behaviour) != nil,
+           !PetRigMoodBeats.carries(from: prev, to: scene.timeline.segments[i]) {
+            let atCut = PetRigPoser(timeline: scene.timeline, t: beat.start, pointer: scene.pointer, zone: scene.zone,
+                                    seed: scene.seed, motion: scene.motion, memo: scene.memo, flight: nil, flightSource: nil,
+                                    lookAt: nil)
+            PetRigMoodBeats.apply(&cut, beat: PetRigBeat(segments: scene.timeline.segments, index: i - 1, t: beat.start), scene: atCut)
+        }
         let k = 1 - PetEase.smooth(beat.elapsed / 0.2)
         for key in fadeChannels { p[keyPath: key] += (cut[keyPath: key] - base[keyPath: key]) * k }
     }
@@ -1123,7 +1132,7 @@ enum PetRigActions {
     static let fadeChannels: [WritableKeyPath<PetBody, Double>] = [
         \.x, \.lift, \.squash, \.lean, \.tilt, \.nod, \.turn, \.cheekPuff, \.mouthOpen, \.mouthWide, \.smile, \.squeeze,
         \.eyeSize, \.browLiftL, \.browLiftR, \.browTiltL, \.browTiltR, \.armL, \.armR, \.chew, \.tongue, \.happy, \.flash,
-        \.glow,
+        \.glow, \.thumbL, \.thumbR, \.winkL, \.winkR, \.shine,
     ]
 
     /// A feast leaves the belly round, easing back over 20 minutes.

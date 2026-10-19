@@ -562,6 +562,112 @@ final class PetMoodEndsTests: XCTestCase {
         XCTAssertLessThan(more.lookX, -0.2, "on the number")
     }
 
+    // MARK: - The greeting
+
+    /// The greetings the brain cued, by time.
+    private func greetings(_ pet: PetHarness) -> [Double] {
+        pet.brain.timeline.cues.filter { $0.kind == .greet }.map(\.t)
+    }
+
+    /// Opening the panel at an end of the meter cues a greeting 0.6 s later, once the hop has landed; at
+    /// most one every 3 minutes, never under Reduce Motion, never when the panel closed first.
+    func testThePanelOpeningCuesAGreetingAtEitherEnd() {
+        for hunger in [-46.0, 96] {
+            var pet = PetHarness(hunger: hunger)
+            pet.start()
+            pet.send(.panel(open: true), at: 30)
+            pet.run(to: 32)
+            XCTAssertEqual(greetings(pet), [30.6], "at \(hunger)")
+            // Again within three minutes: none.
+            pet.send(.panel(open: false), at: 40)
+            pet.send(.panel(open: true), at: 100)
+            pet.run(to: 102)
+            XCTAssertEqual(greetings(pet), [30.6])
+            // After three minutes: one.
+            pet.send(.panel(open: false), at: 150)
+            pet.send(.panel(open: true), at: 220)
+            pet.run(to: 222)
+            XCTAssertEqual(greetings(pet), [30.6, 220.6])
+        }
+    }
+
+    /// Only an idle at an end of the meter greets: not content, not eating, not under Reduce Motion, not
+    /// when the panel closed again before the hop landed.
+    func testOnlyAnIdleAtAnEndGreets() {
+        var content = PetHarness(hunger: 20)
+        content.start()
+        content.send(.panel(open: true), at: 30)
+        content.run(to: 32)
+        XCTAssertTrue(greetings(content).isEmpty)
+
+        var reduced = PetHarness(hunger: -46)
+        reduced.start()
+        reduced.send(.motion(PetMotion(reduceMotion: true, reduceTransparency: false, increaseContrast: false)), at: 1)
+        reduced.send(.panel(open: true), at: 30)
+        reduced.run(to: 32)
+        XCTAssertTrue(greetings(reduced).isEmpty)
+
+        var closed = PetHarness(hunger: -46)
+        closed.start()
+        closed.send(.panel(open: true), at: 30)
+        closed.send(.panel(open: false), at: 30.3)
+        closed.run(to: 32)
+        XCTAssertTrue(greetings(closed).isEmpty)
+
+        var eating = PetHarness(hunger: 96)
+        eating.accounts[0].five = 10
+        eating.start()
+        eating.accounts[0].five = 13
+        eating.refresh(at: 30)
+        eating.send(.panel(open: true), at: 30.1)
+        eating.run(to: 34)
+        XCTAssertTrue(greetings(eating).isEmpty, "a meal is under way at 30.7")
+    }
+
+    /// The rig plays a greeting as the mood's own gesture, waiting at most 1.5 s for one already playing
+    /// to end, or letting it go; two gestures never overlap.
+    func testAGreetingWaitsAtMostASecondAndAHalf() throws {
+        let all = Self.gestures(.idle(.stuffed), span: 900)
+        let pat = try XCTUnwrap(all.first { $0.item == .beat(.pat) && $0.at > 20 })
+        let okay = try XCTUnwrap(all.first { $0.item == .beat(.okay) && $0.at > 20 })
+        let segment = PetSegment(start: 0, behaviour: .idle(.stuffed))
+        func played(cue: Double) -> [PetRigMoodBeats.Gesture] {
+            PetRigMoodBeats.gestures(in: segment, previous: nil, at: cue + 10, lookBack: 12, seed: 7, reduceMotion: false,
+                                     cues: [PetCue(t: cue, kind: .greet)])
+        }
+        // During a pat with a second of it left: the thumbs-up comes as it ends.
+        let afterPat = played(cue: pat.end - 1.0)
+        let greeted = try XCTUnwrap(afterPat.first { $0.item == .beat(.okay) && $0.at > pat.at })
+        XCTAssertEqual(greeted.at, pat.end + 0.1, accuracy: 1e-9)
+        // During a thumbs-up with most of it left: let go.
+        let duringOkay = played(cue: okay.at + 0.2)
+        XCTAssertEqual(duringOkay.filter { $0.item == .beat(.okay) }.count, 1, "only the one that was playing")
+        for gestures in [afterPat, duringOkay] {
+            for (a, b) in zip(gestures, gestures.dropFirst()) { XCTAssertLessThanOrEqual(a.end, b.at) }
+        }
+        // Famished greets with please; a mood that has changed by then, with nothing.
+        let famished = PetRigMoodBeats.gestures(in: PetSegment(start: 0, behaviour: .idle(.famished)), previous: nil, at: 400,
+                                                lookBack: 5, seed: 7, reduceMotion: false, cues: [PetCue(t: 396, kind: .greet)])
+        XCTAssertTrue(famished.contains { $0.item == .beat(.please) && abs($0.at - 396) < 1.6 }, "\(famished)")
+        let changed = PetRigMoodBeats.gestures(in: PetSegment(start: 397, behaviour: .idle(.full)),
+                                               previous: PetSegment(start: 0, behaviour: .idle(.hungry)), at: 400, lookBack: 5,
+                                               seed: 7, reduceMotion: false, cues: [PetCue(t: 396, kind: .greet)])
+        XCTAssertTrue(changed.isEmpty)
+    }
+
+    /// A beat under way when the mood changes plays on into the next idle instead of vanishing.
+    func testABeatPlaysOnAcrossAChangeOfMood() throws {
+        let okay = try XCTUnwrap(Self.gestures(.idle(.stuffed), span: 900).first { $0.item == .beat(.okay) })
+        let change = okay.at + 1.0
+        let script = PetReelScript([(0, .idle(.stuffed)), (change, .idle(.full))], hunger: -30)
+        let rig = PetRig()
+        let during = script.pose(rig, at: change + 0.3, zones: zones).pet
+        XCTAssertGreaterThan(during.thumbR, 0.9, "the thumbs-up goes on")
+        XCTAssertGreaterThan(during.armR, 0.8)
+        let after = script.pose(rig, at: okay.end + 0.2, zones: zones).pet
+        XCTAssertEqual(after.thumbR, 0)
+    }
+
     /// Settled, famished keeps its posture and rumbles at half strength on its own schedule, with none of
     /// the gestures the quiet hours' 10 fps cannot draw.
     func testSettledFamishedOnlyRumbles() {

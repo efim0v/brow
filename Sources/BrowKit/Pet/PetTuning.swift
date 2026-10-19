@@ -305,6 +305,16 @@ public enum PetTuning {
         public static let notice: TimeInterval = 0.25
     }
 
+    /// The greeting when the panel opens at an end of the meter: a thumbs-up stuffed, please famished.
+    public enum Greet {
+        /// After the panel opens: the hop into the header has landed.
+        public static let after: TimeInterval = 0.6
+        /// At most one greeting this often, however often the panel opens.
+        public static let every: TimeInterval = 180
+        /// A greeting waits at most this long for a gesture already playing to end, or is let go.
+        public static let wait: TimeInterval = 1.5
+    }
+
     /// Boops, in the panel only.
     public enum Boop {
         public static let boop: TimeInterval = 0.6

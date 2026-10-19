@@ -274,6 +274,9 @@ public final class PetController {
         updateVisible()
         if expanded { publishWords(at: now) }
         updateWordsTimer()
+        // At either end of the meter the pet greets whoever opened the panel.
+        _ = brain.handle(.panel(open: expanded), at: now)
+        layer.timeline = brain.timeline
         afterChange(at: now, redraw: true)
     }
 
@@ -486,11 +489,13 @@ public final class PetController {
         brain.timeline.segments.last(where: { $0.start <= mono })?.behaviour
     }
 
-    /// The pounce's wind-up and leap in the idle playing at `mono`, or the next one's
-    /// (`PetRigIdle.fastWindow`).
+    /// The leap of the idle playing at `mono`, or the next one's: the pounce, or at an end of the meter the
+    /// thumbs-up's rise and the hiccup's hop, greetings included (`PetRigIdle.fastWindow`).
     private func idleFastWindow(after mono: TimeInterval) -> Range<TimeInterval>? {
-        guard let segment = brain.timeline.segments.last(where: { $0.start <= mono }) else { return nil }
-        return PetRigIdle.fastWindow(after: mono, segment: segment, seed: brain.seed, reduceMotion: motion.reduceMotion)
+        let segments = brain.timeline.segments
+        guard let i = segments.lastIndex(where: { $0.start <= mono }) else { return nil }
+        return PetRigIdle.fastWindow(after: mono, segment: segments[i], previous: i > 0 ? segments[i - 1] : nil,
+                                     cues: brain.timeline.cues, seed: brain.seed, reduceMotion: motion.reduceMotion)
     }
 
     private func isFadingOut(at mono: TimeInterval) -> Bool {

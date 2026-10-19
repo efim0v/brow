@@ -822,18 +822,24 @@ public final class ClaudeService: @unchecked Sendable {
     /// per-account router, so a re-login from a Grove-launched session lands in
     /// that account's own browser profile instead of the default browser.
     /// `claude`: the binary to run — the host's Path to claude — or nil for the
-    /// engine's own guesses (`claudeExecutable()`).
+    /// engine's own guesses (`claudeExecutable()`). `environment`: what the command starts
+    /// with instead of the variables built here — the host's own prefix for the account,
+    /// already quoted (Brow's `env -u CLAUDE_CONFIG_DIR …` for the default account).
     public static func launchCommand(account: AccountConfig, resume sessionId: String? = nil,
                                      model: String? = nil, effort: String? = nil,
                                      skipPermissions: Bool = false, browser: String? = nil,
-                                     claude path: String? = nil) -> String {
+                                     claude path: String? = nil, environment: String? = nil) -> String {
         let dir = expandTilde(account.configDir)
         let isDefaultAccount = dir == NSHomeDirectory() + "/.claude"
         let chosen = path?.trimmingCharacters(in: .whitespaces)
         let claude = shellQuote(chosen.flatMap { $0.isEmpty ? nil : $0 } ?? claudeExecutable())
         var env: [String] = []
-        if !isDefaultAccount { env.append("CLAUDE_CONFIG_DIR=\(shellQuote(dir))") }
-        if let browser, !browser.isEmpty { env.append("BROWSER=\(shellQuote(browser))") }
+        if let environment, !environment.trimmingCharacters(in: .whitespaces).isEmpty {
+            env.append(environment)
+        } else {
+            if !isDefaultAccount { env.append("CLAUDE_CONFIG_DIR=\(shellQuote(dir))") }
+            if let browser, !browser.isEmpty { env.append("BROWSER=\(shellQuote(browser))") }
+        }
         var command = env.isEmpty ? claude : env.joined(separator: " ") + " " + claude
         // Guard on non-empty so an empty value (e.g. a hand-edited config with
         // model: "") is treated like nil instead of emitting `--model ''`.

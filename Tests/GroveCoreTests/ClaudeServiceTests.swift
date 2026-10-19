@@ -68,6 +68,23 @@ final class ClaudeServiceTests: XCTestCase {
         XCTAssertEqual(ClaudeService.mangle("/work/demo_app"), ClaudeService.mangle("/work/demo-app"))
     }
 
+    /// Claude Code replaces UTF-16 units, not characters: an emoji outside the basic plane
+    /// is two of them, and two dashes.
+    func testMangleCountsUTF16Units() {
+        XCTAssertEqual(ClaudeService.mangle("/Users/demo/Code/🚀rocket"), "-Users-demo-Code---rocket")
+        XCTAssertEqual(ClaudeService.mangle("/Users/demo/Code/é"), "-Users-demo-Code--")
+    }
+
+    /// Past 200 units the name is cut and ends in the path's Java hash, in base 36 and
+    /// without its sign (this path's hash is negative).
+    func testMangleCutsALongPathAndAddsItsHash() {
+        let path = "/Users/demo/" + String(repeating: "very-long-folder-name/", count: 10) + "harbor"
+        let name = ClaudeService.mangle(path)
+        XCTAssertEqual(name, "-Users-demo-" + String(repeating: "very-long-folder-name-", count: 8) + "very-long-fo-4owx6w")
+        XCTAssertEqual(name.count, 200 + 1 + 6)
+        XCTAssertEqual(ClaudeService.mangle("/x/" + String(repeating: "a", count: 197)).count, 200, "200 exactly is not cut")
+    }
+
     // MARK: - identity
 
     func testIdentityReadsOAuthAccountFromConfigDir() throws {

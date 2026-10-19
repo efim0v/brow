@@ -147,16 +147,27 @@ public final class ClaudeService: @unchecked Sendable {
 
     // MARK: - cwd mangling
 
-    /// Claude Code project-directory mangling: every Unicode scalar that is not
-    /// ASCII [A-Za-z0-9] becomes "-". Example: "/a/b.c" -> "-a-b-c". Lossy.
+    /// The longest folder name Claude Code gives a working directory under `projects/`.
+    static let maxFolderName = 200
+
+    /// The folder Claude Code keeps a working directory's transcripts in, under
+    /// `projects/`, named as Claude Code names it: every UTF-16 unit of the path that is
+    /// not an ASCII letter or digit becomes "-" — "/a/b.c" is "-a-b-c", an emoji two
+    /// dashes. A name longer than 200 is cut to 200, then "-" and the path's hash in base
+    /// 36: Java's `String.hashCode` over the same units, an Int32, without its sign. Lossy:
+    /// a transcript's own `cwd` says which folder it really is.
     public static func mangle(_ absolutePath: String) -> String {
-        String(absolutePath.unicodeScalars.map { scalar -> Character in
-            let v = scalar.value
-            let isAsciiAlnum = (v >= 0x30 && v <= 0x39)   // 0-9
-                || (v >= 0x41 && v <= 0x5A)               // A-Z
-                || (v >= 0x61 && v <= 0x7A)               // a-z
-            return isAsciiAlnum ? Character(scalar) : "-"
-        })
+        var name = String(decoding: absolutePath.utf16.map { unit -> UInt8 in
+            let isAsciiAlnum = (unit >= 0x30 && unit <= 0x39)   // 0-9
+                || (unit >= 0x41 && unit <= 0x5A)                // A-Z
+                || (unit >= 0x61 && unit <= 0x7A)                // a-z
+            return isAsciiAlnum ? UInt8(unit) : UInt8(ascii: "-")
+        }, as: UTF8.self)
+        guard name.utf8.count > maxFolderName else { return name }
+        name = String(name.prefix(maxFolderName))
+        var hash: Int32 = 0
+        for unit in absolutePath.utf16 { hash = hash &* 31 &+ Int32(unit) }
+        return name + "-" + String(abs(Int64(hash)), radix: 36)
     }
 
     // MARK: - Account identity

@@ -367,6 +367,12 @@ enum PetRigParticles {
         // Never cut in half by the strip's top edge: like the Zzz, a star stays below the zone's top, and
         // it slows to a stop there rather than meeting it.
         p.y = belowCeiling(Double(p.y), Double(scene.zone.bounds.minY) + 1 + size)
+        // Nor by the notch beside it, where the screen has no pixels: the thumbs-up's star, off the arm raised
+        // toward the notch, would lose its far point to it more often than not. It stops short of the edge the
+        // same way.
+        if case .side(let edge) = scene.zone.den {
+            p.x = -belowCeiling(-Double(p.x), -(Double(edge) - 0.5 - size))
+        }
         let twinkle = pow(sin(.pi * u), 0.7)
         out.particles.append(PetParticle(kind: .sparkle, position: p, size: size * (still ? 1 : twinkle),
                                          opacity: 0.95 * (still ? twinkle : 1), angle: 0.4 * u + hash(seed, t0, 90 + k),

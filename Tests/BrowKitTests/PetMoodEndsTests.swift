@@ -313,6 +313,33 @@ final class PetMoodEndsTests: XCTestCase {
         }
     }
 
+    /// Beside the notch the thumbs-up's arm is raised toward it, and its sparkle is never cut by it: over an
+    /// hour, for both seeds, and after a meal that leaves the pet stuffed, the whole star stays short of the
+    /// notch's edge. It used to lose its far point to the camera in more than half of the thumbs-ups.
+    func testTheThumbsUpSparkleIsNeverCutByTheNotch() throws {
+        guard case .side(let edge) = zones.strip!.den else { return XCTFail("beside has the notch for a den") }
+        var stars = 0
+        func check(_ script: PetReelScript, from: Double, seed: UInt64) {
+            let rig = PetRig()
+            for n in 0..<60 {
+                let t = from + Double(n) / 60
+                for p in script.pose(rig, at: t, zones: zones, seed: seed).particles where p.kind == .sparkle {
+                    stars += 1
+                    XCTAssertLessThanOrEqual(Double(p.position.x) + p.size, Double(edge), "seed \(seed), t = \(t)")
+                }
+            }
+        }
+        for seed: UInt64 in [7, 1_311_768_467_294_899_695] {
+            let okays = Self.gestures(.idle(.stuffed), span: 3600, seed: seed).filter { $0.item == .beat(.okay) }
+            for okay in okays { check(Self.stuffed(), from: okay.at + 0.9, seed: seed) }
+        }
+        let more = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed)
+        var brim = PetReelScript([(0, .idle(.stuffed)), (10, .eat(more)), (10 + more.duration, .satisfied(.brim))], hunger: -40)
+        brim.meter(10 + more.swallowStart, -50)
+        check(brim, from: 10 + more.duration + 1.75, seed: 7)
+        XCTAssertGreaterThan(stars, 1000, "the stars were seen")
+    }
+
     /// The pat-pat is seen, at real size too: both nubs come in across the round belly, their tips well in
     /// from where they rest, and lift off it and land on it twice before they go back. A swing a little
     /// further in from the side of the belly barely moved the outline.

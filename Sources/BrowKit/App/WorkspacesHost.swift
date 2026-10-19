@@ -62,6 +62,12 @@ public final class WorkspacesHost: ObservableObject {
     private let engineLock: WorkspacesEngineLock
     private var engine: WorkspacesEngine?
     private lazy var section = ProjectsSection(host: self)
+    /// Who talks to whom among the agents of Brow's accounts: the Agents section's reader,
+    /// watching only while the panel is open (and half a minute after).
+    public let agents: AgentsObserver
+    private lazy var agentsSection = AgentsSection(host: self)
+    /// Keeps the Agents switch's dot on what the reader saw, and its accounts on the notch's.
+    private var agentsWatch: Set<AnyCancellable> = []
     private lazy var statusItem = WorkspacesStatusItem { [weak self] in self?.statusItemClicked() }
     /// Keeps the running-apps watch alive while started.
     private var runningAppsWatch: AnyObject?
@@ -103,8 +109,11 @@ public final class WorkspacesHost: ObservableObject {
                 }),
                 groveConfigExists: (() -> Bool)? = nil,
                 watchRunningApps: RunningAppsWatch? = nil,
-                runningClaude: (@Sendable () -> [RunningClaude])? = nil) {
+                runningClaude: (@Sendable () -> [RunningClaude])? = nil,
+                readsAgents: Bool = false) {
         self.store = store
+        // Tests and renders read no agents: the app asks for it.
+        self.agents = AgentsObserver(reads: readsAgents)
         self.folders = folders
         self.groveGuard = groveGuard
         self.runningClaude = runningClaude
@@ -145,6 +154,8 @@ public final class WorkspacesHost: ObservableObject {
         clearBadges()
         statusItem.hide()
         notch?.sections.unregister(.projects)
+        notch?.sections.unregister(.agents)
+        stopAgents()
         engineLock.release()
         started = false
     }
@@ -239,16 +250,78 @@ public final class WorkspacesHost: ObservableObject {
         reloadDormantAccounts()
     }
 
-    /// The notch has a Projects section exactly while Workspaces is wanted.
+    /// The notch has Projects and Agents sections exactly while Workspaces is wanted.
     private func syncSection() {
         guard let notch else { return }
         if activation.isWanted {
             notch.sections.register(.projects, section)
+            notch.sections.register(.agents, agentsSection)
             notch.badges.openAccount = { [weak self] dir in self?.openAccount(configDir: dir) }
+            watchAgents()
         } else {
             notch.sections.unregister(.projects)
+            notch.sections.unregister(.agents)
             notch.badges.openAccount = nil
+            stopAgents()
         }
+    }
+
+    // MARK: - Agents
+
+    /// The notch's visible accounts as the Agents tab watches them: each with its alias
+    /// folders, named and coloured as Limits shows it.
+    func agentsAccounts() -> [AgentsAccount] {
+        store.rows.enumerated().map { index, row in
+            AgentsAccount(name: row.name, dot: NotchTheme.account(index),
+                          configDirs: [row.account.configDir] + row.account.aliasDirs)
+        }
+    }
+
+    /// Feeds the reader the notch's accounts, keeps them in step, and puts what it saw
+    /// on the switch.
+    private func watchAgents() {
+        agents.setAccounts(agentsAccounts())
+        agents.place = { [weak self] cwd in self?.state?.placeDescription(ofCwd: cwd) }
+        guard agentsWatch.isEmpty else { return }
+        // `@Published` fires in willSet: the new value is the argument.
+        agents.$isLive
+            .removeDuplicates()
+            .sink { [weak self] live in
+                MainActor.assumeIsolated {
+                    guard let badges = self?.notch?.badges, badges.agentsActive != live else { return }
+                    badges.agentsActive = live
+                }
+            }
+            .store(in: &agentsWatch)
+        store.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.agents.setAccounts(self.agentsAccounts())
+                }
+            }
+            .store(in: &agentsWatch)
+    }
+
+    private func stopAgents() {
+        agentsWatch.removeAll()
+        agents.stop()
+        if let badges = notch?.badges, badges.agentsActive { badges.agentsActive = false }
+    }
+
+    /// "Go to session" on the Agents tab: as Go on a session row — its cmux workspace, else
+    /// a resume — as the Workspaces account whose folders it runs in.
+    func goToSession(_ node: AgentNode) {
+        guard let state, activation == .on, let sessionId = node.sessionId,
+              let cwd = node.cwd ?? node.live?.cwd else { return }
+        let dirs = Set((agents.account(key: node.account)?.configDirs ?? []).map(NotchBadges.key))
+        let account = state.config.accounts.first { !dirs.isDisjoint(with: $0.allConfigDirs.map(NotchBadges.key)) }
+            ?? state.defaultLaunchAccount
+        guard let account else { return }
+        SessionMenu.primary(SessionRef(sessionId: sessionId, cwd: cwd, accountName: account.name, title: node.name,
+                                       isLive: node.live != nil, lastActivity: Date()),
+                            state: state)
     }
 
     // MARK: - Status lines captured while Workspaces is not on

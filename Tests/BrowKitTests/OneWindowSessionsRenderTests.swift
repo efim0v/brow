@@ -146,9 +146,116 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         }
     }
 
-    // MARK: - Agents (filled in with the Agents tab)
+    // MARK: - Agents
 
-    private func renderAgents(into out: URL) throws {}
+    private func renderAgents(into out: URL) throws {
+        func file(_ name: String) -> URL { out.appendingPathComponent(name) }
+        let liveCaption = "Agents: who talks to whom, live — sessions joined by arcs, their agents below, a message on its way"
+
+        // b-10: live, on a light and a dark desktop.
+        for dark in [false, true] {
+            let world = try makeWorld()
+            show(world) { AgentsSnapshot.live($0, now: now) }
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([panel(notch)], dark: dark, caption: liveCaption),
+                                to: file("b-10-agents-live-\(dark ? "dark" : "light").png"))
+        }
+
+        // b-11: one message at 0, 0.5 and 1 s: sent, on its way, arriving (the receiver rings).
+        do {
+            let world = try makeWorld()
+            let frames: [(TimeInterval, String)] = [(0.04, "0.0 s — atlas sends"), (0.5, "0.5 s — on its way"),
+                                                    (0.995, "1.0 s — harbor receives")]
+            var views: [AnyView] = []
+            for (elapsed, label) in frames {
+                show(world) { AgentsSnapshot.live($0, now: now, flight: elapsed, lumenFlight: nil) }
+                let observer = world.host.agents
+                let scene = observer.scene
+                let layout = AgentsLayout(scene: scene, width: 432)
+                let diagram = AgentsDiagram(observer: observer, scene: scene, layout: layout, reduceMotion: false)
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.black))
+                    .environment(\.groveAccent, NotchTheme.cream)
+                    .foregroundStyle(.white)
+                    .snapshotRender()
+                    .environment(\.colorScheme, .dark)
+                views.append(RenderKit.labelled(label, try RenderKit.still(diagram)))
+            }
+            try RenderKit.write(RenderKit.scene(views, caption: "A message in flight: a cream light runs its edge in about a second; the receiver rings as it lands"),
+                                to: file("b-11-agents-in-flight.png"))
+        }
+
+        // b-12: busy.
+        do {
+            let world = try makeWorld()
+            show(world) { AgentsSnapshot.busy($0, now: now) }
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([panel(notch)],
+                                                caption: "Busy: a team of six (+1 more), a session on another Mac, a message held for approval, one quiet session folded"),
+                                to: file("b-12-agents-busy.png"))
+        }
+
+        // b-13: quiet.
+        do {
+            let world = try makeWorld()
+            show(world) { AgentsSnapshot.live($0, now: now, quiet: true) }
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([panel(notch)],
+                                                caption: "Quiet: nothing moves, the edges have cooled to grey, the last messages stay listed"),
+                                to: file("b-13-agents-quiet.png"))
+        }
+
+        // b-14: nothing in the last hour.
+        do {
+            let world = try makeWorld()
+            show(world) { _ in AgentGraph() }
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([panel(notch)],
+                                                caption: "Empty: what the tab will show, and what Brow does and does not do to see it"),
+                                to: file("b-14-agents-empty.png"))
+        }
+
+        // b-15: a session picked.
+        do {
+            let world = try makeWorld()
+            show(world) { AgentsSnapshot.live($0, now: now, flight: 0.82, lumenFlight: nil) }
+            world.host.agents.selected = world.host.agents.graph.nodes.values.first { $0.name == "harbor" }?.id
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([panel(notch)],
+                                                caption: "A session picked: its links stay lit, the rest dims; its messages listed, and Go to session"),
+                                to: file("b-15-agents-selected.png"))
+        }
+
+        // b-16: Reduce Motion.
+        do {
+            let world = try makeWorld()
+            show(world) { AgentsSnapshot.live($0, now: now) }
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([AnyView(panel(notch).environment(\.renderReduceMotion, true))],
+                                                caption: "Reduce Motion: no light runs; the edge that just carried a message glows, then cools"),
+                                to: file("b-16-agents-reduce-motion.png"))
+        }
+
+        // b-17 (Agents half): Increase Contrast.
+        do {
+            let world = try makeWorld()
+            show(world) { AgentsSnapshot.live($0, now: now) }
+            let notch = try makeNotch(world, tab: .agents)
+            try RenderKit.write(RenderKit.scene([AnyView(panel(notch).environment(\.renderContrast, .increased))],
+                                                caption: "Increase Contrast: grey edges, trunks and pill outlines drawn stronger"),
+                                to: file("b-17-increase-contrast-agents.png"))
+        }
+    }
+
+    /// The made-up agents in `world`'s Agents tab, keyed by its accounts as the notch has them.
+    private func show(_ world: World, _ graph: (AgentsSnapshot.Accounts) -> AgentGraph) {
+        let accounts = world.host.agentsAccounts()
+        func key(_ name: String) -> String { accounts.first { $0.name == name }?.key ?? name }
+        let keys = AgentsSnapshot.Accounts(work: key("Work"), team: key("Team"), personal: key("Personal"))
+        world.host.agents.setAccounts(accounts)
+        world.host.agents.order = []
+        world.host.agents.preview(graph: graph(keys), now: now)
+    }
 
     // MARK: - The world
 

@@ -562,6 +562,29 @@ final class PetMoodEndsTests: XCTestCase {
         XCTAssertLessThan(more.lookX, -0.2, "on the number")
     }
 
+    // MARK: - Asleep at the 5-hour limit
+
+    /// Asleep at the limit it sleeps sweetly, full and cozy, never bored, sick or worse: the brows rest above
+    /// the shut eyes rather than pressing on them, the mouth is a small closed smile, the cheeks warm; the
+    /// loaf is the loaf, with no belly, and as low as ever.
+    func testAsleepAtTheLimitSmilesInItsSleep() {
+        let rig = PetRig()
+        let zones = PetStage.zones(PetStage.frames(.beside), PetStage.aggregate(left: 100))
+        let script = PetReelScript([(0, .idle(.stuffed)), (1, .fallAsleep), (1 + PetTuning.Behaviour.fallAsleep, .asleep)],
+                                   hunger: -50)
+        for n in 0..<(120 * 15) {
+            let t = 8 + Double(n) / 15
+            let frame = script.pose(rig, at: t, zones: zones)
+            let p = frame.pet
+            XCTAssertGreaterThanOrEqual(min(p.browLiftL, p.browLiftR), -0.05, "t = \(t): the brows off the eyes")
+            XCTAssertGreaterThanOrEqual(p.smile, 0.5, "t = \(t)")
+            XCTAssertLessThan(p.mouthOpen, 0.02, "t = \(t): a closed mouth, no dark dash")
+            XCTAssertGreaterThanOrEqual(p.blush, 0.85, "t = \(t)")
+            XCTAssertEqual(p.belly, 0, "t = \(t)")
+            XCTAssertLessThanOrEqual(frame.bodyBox.height, PetTuning.Zone.asleepMaxHeight, "t = \(t)")
+        }
+    }
+
     // MARK: - The greeting
 
     /// The greetings the brain cued, by time.

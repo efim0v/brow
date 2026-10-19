@@ -223,11 +223,13 @@ extension PetPosture {
     }
 
     /// Asleep at the 5-hour limit: curled into a low loaf at the anchor, eyes shut, the light breathing
-    /// slowly like a sleeping Mac's, the glow at 0.6.
+    /// slowly like a sleeping Mac's, the glow at 0.6. A sweet sleep, full and cozy: the brows rest easy above
+    /// the shut eyes rather than pressing down on them, which drew "=_=", the face of someone bored or put
+    /// out, and the mouth is a small closed smile with warm cheeks rather than a dark open dash.
     static let asleep = make(hz: 1.5, zeta: 0.8, breath: 4.6, amp: 0.03, drift: 0) { p in
-        p.curl = 1; p.girth = 1.0; p.tilt = 0.04; p.nod = -0.2; p.lidL = 0; p.lidR = 0; p.browLiftL = -0.45
-        p.browLiftR = -0.45; p.browTiltL = 0.05; p.browTiltR = 0.05; p.smile = 0.25; p.mouthOpen = 0.07
-        p.mouthWide = 0.45; p.blush = 0.55; p.armL = -0.3; p.armR = -0.3; p.glow = PetTuning.Light.glowAsleep
+        p.curl = 1; p.girth = 1.0; p.tilt = 0.04; p.nod = -0.2; p.lidL = 0; p.lidR = 0; p.browLiftL = 0.05
+        p.browLiftR = 0.05; p.browTiltL = 0.12; p.browTiltR = 0.12; p.smile = 0.55; p.mouthOpen = 0
+        p.mouthWide = 0.6; p.blush = 0.9; p.armL = -0.3; p.armR = -0.3; p.glow = PetTuning.Light.glowAsleep
     }
 
     /// In the den at the weekly limit: curled, the glow down to 0.3, a slower breath still.

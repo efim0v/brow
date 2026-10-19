@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Glim has two new moods at the ends of its hunger meter. Fed far past the brim it is Stuffed: round-bellied and blissful, it pats its belly, gives a thumbs-up and still takes another bite. After hours at the Mac with nothing used it is Famished: up on its toes and leaning toward the number, its tummy rumbling, hopeful and never sad. Asleep at the 5-hour limit, it now sleeps with a small smile.
+
 ## [0.4.0] - 2026-10-18
 
 Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md). The notch also gets a pet that eats what your accounts use.

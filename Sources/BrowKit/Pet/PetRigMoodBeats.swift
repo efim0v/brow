@@ -69,7 +69,7 @@ enum PetRigMoodBeats {
 
     static func length(_ b: Beat) -> Double {
         switch b {
-        case .pat: return 1.5
+        case .pat: return 1.9
         case .sigh: return 2.2
         case .roomForMore: return 1.9
         case .okay: return 3.1
@@ -340,7 +340,7 @@ enum PetRigMoodBeats {
         switch b {
         case .pat:
             var sq = 0.0
-            for c in [0.3, 0.8] { sq -= 0.012 * PetCurve.bump(tau, c - 0.04, c + 0.2) }
+            for c in idlePat.taps { sq -= 0.012 * PetCurve.bump(tau, c - 0.04, c + 0.2) }
             return (0, 0, sq)
         case .sigh:
             // In, up and round over 0.7 s; out slowly.
@@ -365,6 +365,46 @@ enum PetRigMoodBeats {
         }
     }
 
+    /// A pat-pat on the round belly: both nubs come in across it, lift a little off it and land on it at each
+    /// of `taps`, and go back to rest. A nub resting on the side of the belly that swings only a little further
+    /// in barely changes the outline and reads as nothing at real size; both nubs held across the belly are a
+    /// pose that reads at any size, and the taps on it are the pat. As an offset to a nub's raise; `lag` holds
+    /// one nub a moment behind the other on its way in and out.
+    struct BellyPat {
+        /// When the nubs start in, and how long coming in and going back take.
+        var arrive: Double
+        var settle: Double
+        /// The instants the nubs land on the belly.
+        var taps: [Double]
+        /// When they start back.
+        var leave: Double
+        /// How far in from where they rest, and how high a tap lifts them.
+        var depth = 1.35
+        var lift = 0.25
+        /// How long a tap takes to go up, and as long again to come down.
+        var tapTime = 0.12
+
+        var end: Double { leave + settle }
+
+        /// Up quick off the belly, and down again gathering speed, so that it lands rather than settles.
+        func offset(_ tau: Double, lag: Double = 0) -> Double {
+            var x = -depth * PetCurve.envelope(tau - lag, arrive, arrive + settle, leave, leave + settle,
+                                               up: PetEase.inOutSine, down: PetEase.inOutSine)
+            for c in taps where tau > c - 2 * tapTime && tau < c {
+                let u = tau - (c - 2 * tapTime)
+                x -= u < tapTime ? lift * sin(.pi / 2 * u / tapTime) : lift * cos(.pi / 2 * (u - tapTime) / tapTime)
+            }
+            return x
+        }
+    }
+
+    /// The idle's pat-pat, 1.9 s. Coming in and going back take 0.66 s: at the idle's 30 fps the nubs' tips
+    /// keep to its half a point a frame.
+    static let idlePat = BellyPat(arrive: 0, settle: 0.66, taps: [0.92, 1.16], leave: 1.18)
+
+    /// How far behind the near nub the far one comes in and goes back.
+    static let patLag = 0.06
+
     /// Up on its toes for a reach: up over 0.75 s, held, down by 2.5 s.
     static func reaching(_ tau: Double) -> Double {
         PetCurve.envelope(tau, 0, 0.75, 1.7, 2.5, up: PetEase.inOutSine, down: PetEase.inOutSine)
@@ -385,7 +425,9 @@ enum PetRigMoodBeats {
     /// Kicks at the beats' contacts: a pat on the belly sets it wobbling, a hiccup jolts it.
     static func impulses(_ b: Beat) -> [(Double, PetRigSecondary.Spring, Double)] {
         switch b {
-        case .pat: return [(0.3, .belly, 1.0), (0.8, .belly, 0.9)]
+        case .pat:
+            let landed = idlePat.arrive + idlePat.settle
+            return [(landed, .belly, 0.4), (idlePat.taps[0], .belly, 1.0), (idlePat.taps[1], .belly, 0.9)]
         case .hiccup: return [(0.54, .jiggle, -0.8), (0.54, .belly, 0.8), (0.3, .brows, 5)]
         case .okay: return [(0.75, .brows, 4)]
         case .grumble: return [(0.03, .belly, 1.2), (0.41, .belly, 0.9), (0.93, .belly, 0.6)]
@@ -396,14 +438,14 @@ enum PetRigMoodBeats {
     static func act(_ b: Beat, _ p: inout PetBody, tau: Double, dir: Double, scene: PetRigPoser) {
         switch b {
         case .pat:
-            // The near nub, then the far one, pat the round belly; the eyes stay shut, a little nod.
-            for (i, c) in [0.3, 0.8].enumerated() {
-                let hit = PetCurve.envelope(tau, c - 0.3, c, c + 0.04, c + 0.4, up: PetEase.inOutSine, down: PetEase.inOutSine)
-                if (i == 0) == (dir < 0) { p.armL -= 0.62 * hit } else { p.armR -= 0.62 * hit }
-            }
-            p.happy = max(p.happy, 0.92 * PetCurve.envelope(tau, 0, 0.15, 1.3, 1.5, up: PetEase.smoother))
-            p.smile += 0.12 * PetCurve.envelope(tau, 0.1, 0.3, 1.1, 1.4)
-            p.nod += 0.06 * PetCurve.envelope(tau, 0.2, 0.45, 0.9, 1.3)
+            // Both nubs on the round belly, a pat-pat on it that sets it wobbling, and back; the eyes stay shut,
+            // a little nod at each pat.
+            let near = idlePat.offset(tau), far = idlePat.offset(tau, lag: patLag)
+            p.armL += dir < 0 ? near : far
+            p.armR += dir < 0 ? far : near
+            p.happy = max(p.happy, 0.92 * PetCurve.envelope(tau, 0, 0.15, 1.7, 1.9, up: PetEase.smoother))
+            p.smile += 0.12 * PetCurve.envelope(tau, 0.1, 0.3, 1.5, 1.8)
+            for c in idlePat.taps { p.nod += 0.06 * PetCurve.bump(tau, c - 0.05, c + 0.3) }
         case .sigh:
             // In, up and round; out slowly through a little "o", a puff of breath (`particles`); a wider
             // smile after.

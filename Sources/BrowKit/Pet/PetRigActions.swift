@@ -601,7 +601,8 @@ enum PetRigActions {
         case .perk: return [(0.1, .jiggle, 0.8), (0.08, .brows, 4)]
         case .satisfied(.meal): return [(1.25, .jiggle, -0.4), (1.75, .jiggle, -0.4)]
         case .satisfied(.grateful): return [(1.31, .jiggle, -0.7), (0.45, .belly, 0.5)]
-        case .satisfied(.brim): return [(0.35, .belly, 1.0), (0.75, .belly, 0.9), (1.55, .brows, 4)]
+        case .satisfied(.brim):
+            return [(brimPat.taps[0], .belly, 1.0), (brimPat.taps[1], .belly, 0.9), (1.55, .brows, 4)]
         case .satisfied(.feast): return [(1.45, .jiggle, 1.4), (0.65, .jiggle, -0.4), (1.1, .jiggle, -0.4)]
         case .boop(let giggle): return [(0.02, .jiggle, -3.0), (0.02, .brows, 9)] + (giggle ? [(0.32, .jiggle, -1.0), (0.62, .jiggle, -1.0)] : [])
         case .celebrate(.streak): return [(0.96, .jiggle, -0.7), (twirl.land, .jiggle, -0.6)]
@@ -919,13 +920,16 @@ enum PetRigActions {
         }
     }
 
-    /// A full meal that leaves it stuffed: a pat-pat on the round belly, the near nub and then the far one,
-    /// eyes shut; then the eyes open on the viewer for a thumbs-up with a wink, and a contented sigh.
+    /// The brim's pat-pat, drawn at the satisfactions' 60 fps: the nubs come across the belly from the meal at
+    /// once, pat it twice and are back at rest by 1.1 s, before the thumbs-up.
+    static let brimPat = PetRigMoodBeats.BellyPat(arrive: 0, settle: 0.3, taps: [0.5, 0.74], leave: 0.8, tapTime: 0.1)
+
+    /// A full meal that leaves it stuffed: both nubs across the round belly for a pat-pat, eyes shut; then
+    /// the eyes open on the viewer for a thumbs-up with a wink, and a contented sigh.
     static func brim(_ p: inout PetBody, e: Double, dir: Double, side: Double) {
-        for (i, c) in [0.35, 0.75].enumerated() {
-            let hit = PetCurve.envelope(e, c - 0.17, c, c + 0.03, c + 0.25, up: PetEase.inOutSine, down: PetEase.inOutSine)
-            if (i == 0) == (dir < 0) { p.armL -= 0.75 * hit } else { p.armR -= 0.75 * hit }
-        }
+        let near = brimPat.offset(e), far = brimPat.offset(e, lag: PetRigMoodBeats.patLag)
+        p.armL += dir < 0 ? near : far
+        p.armR += dir < 0 ? far : near
         p.nod += 0.08 * PetCurve.envelope(e, 0.2, 0.45, 0.85, 1.1)
         p.happy = PetCurve.mix(p.happy, 0, PetRigMoodBeats.eyes(e, open: 1.0, close: 2.35))
         PetRigMoodBeats.thumbsUp(&p, e - 1.15, rise: 0.4, hold: 0.75, lower: 0.5, side: side)

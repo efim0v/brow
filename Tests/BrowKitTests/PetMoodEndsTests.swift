@@ -313,6 +313,33 @@ final class PetMoodEndsTests: XCTestCase {
         }
     }
 
+    /// The pat-pat is seen, at real size too: both nubs come in across the round belly, their tips well in
+    /// from where they rest, and lift off it and land on it twice before they go back. A swing a little
+    /// further in from the side of the belly barely moved the outline.
+    func testThePatHoldsTheBellyAndPatsIt() throws {
+        let rig = PetRig()
+        let script = Self.stuffed()
+        let pat = try XCTUnwrap(Self.gestures(.idle(.stuffed), span: 610).first { $0.item == .beat(.pat) })
+        func tips(_ t: Double) -> [CGPoint] {
+            let g = PetBodyGeometry(script.pose(rig, at: t, zones: zones).pet)
+            return [-1.0, 1.0].map { side in
+                let a = g.arm(side)
+                return CGPoint(x: a.centre.x + cos(a.angle) * a.length / 2, y: a.centre.y + sin(a.angle) * a.length / 2)
+            }
+        }
+        let rest = tips(pat.at - 0.05), held = tips(pat.at + 0.75)
+        XCTAssertGreaterThan(held[0].x - rest[0].x, 3, "the left nub across the belly")
+        XCTAssertGreaterThan(rest[1].x - held[1].x, 3, "the right nub across the belly")
+        let p = PetRigMoodBeats.idlePat
+        for c in p.taps {
+            let up = tips(pat.at + c - p.tapTime), down = tips(pat.at + c)
+            for side in 0..<2 {
+                XCTAssertGreaterThan(down[side].y - up[side].y, 0.5, "a tap at \(c): off the belly and onto it")
+            }
+        }
+        XCTAssertEqual(tips(pat.end + 0.1)[1].x, rest[1].x, accuracy: 0.6, "and back")
+    }
+
     /// The belly is the meter's: none above −26, 0.59 where the pet becomes stuffed, full from −42, and it
     /// rounds out as the meal that makes it stuffed lands. Curled up asleep it is gone: the loaf keeps its
     /// shape.

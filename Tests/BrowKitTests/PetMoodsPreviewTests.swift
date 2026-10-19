@@ -247,7 +247,7 @@ final class PetMoodsPreviewTests: XCTestCase {
             Pose(label: "now and then the eyes open", script: stuffed, t: blissOpen(after: 8)),
             Pose(label: "all good: a thumbs-up and a wink", script: stuffed,
                  t: start(of: .okay, mood: .stuffed, after: 5) + 1.3),
-            Pose(label: "pat-pat on the belly", script: stuffed, t: start(of: .pat, mood: .stuffed, after: 5) + 0.3),
+            Pose(label: "pat-pat on the belly", script: stuffed, t: start(of: .pat, mood: .stuffed, after: 5) + 0.9),
             Pose(label: "a contented sigh", script: stuffed, t: start(of: .sigh, mood: .stuffed, after: 5) + 1.25),
             Pose(label: "room for more: a peek at the number", script: stuffed,
                  t: start(of: .roomForMore, mood: .stuffed, after: 5) + 0.75),

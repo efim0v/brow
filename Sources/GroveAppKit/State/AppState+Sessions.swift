@@ -301,6 +301,19 @@ extension AppState {
         return path
     }
 
+    /// "acme-shop › checkout-redesign": the project a folder is in and its place there (a
+    /// workspace, a repository); the project alone at its own folder; nil outside every
+    /// project. What the Agents tab writes under a session.
+    public func placeDescription(ofCwd cwd: String) -> String? {
+        guard let project = owningProject(forCwd: cwd) else { return nil }
+        let path = canonicalPath(cwd)
+        let projectPath = canonicalPath(expandTilde(project.path))
+        if path == projectPath { return project.name }
+        let place = sessionPlace(cwd: cwd, branch: nil, projectPath: projectPath,
+                                 workspacesRoot: canonicalPath(workspacesRoot(of: project)))
+        return project.name + " › " + place
+    }
+
     /// Adds a suggested folder as a project: it moves into the list with its sessions.
     public func addSuggestion(_ suggestion: ProjectSuggestion) {
         addProject(at: suggestion.path)

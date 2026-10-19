@@ -160,16 +160,19 @@ struct SessionLineRow: View {
                 Text(ref.title)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1).truncationMode(.tail)
-                meta
+                // Asked, the question takes the meta's line, the row's whole width: the title
+                // stays readable above it.
+                if askingDelete {
+                    DeleteTranscriptConfirm(onDelete: {
+                        state.confirmingDelete = nil
+                        SessionMenu.delete(ref, state: state)
+                    }, onCancel: { state.confirmingDelete = nil })
+                } else {
+                    meta
+                }
             }
-            Spacer(minLength: 8)
-            if askingDelete {
-                DeleteTranscriptConfirm(onDelete: {
-                    state.confirmingDelete = nil
-                    SessionMenu.delete(ref, state: state)
-                }, onCancel: { state.confirmingDelete = nil })
-                .fixedSize()
-            } else {
+            if !askingDelete {
+                Spacer(minLength: 8)
                 Text(relativeAge(ref.lastActivity, now: Date()))
                     .font(.system(size: 11)).monospacedDigit().foregroundStyle(.tertiary)
                 Button { SessionMenu.primary(ref, state: state) } label: {
@@ -208,6 +211,7 @@ struct SessionLineRow: View {
             AccountTag(state: state, accountName: ref.accountName)
         }
         .font(.system(size: 11))
+        .lineLimit(1)
     }
 
     private var statusWord: String {

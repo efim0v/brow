@@ -531,7 +531,7 @@ enum PetRigMoodBeats {
         }
         let grin = PetCurve.envelope(tau, rise * 0.5, rise, rise + hold, rise + hold + lower * 0.8)
         p.smile += 0.25 * grin
-        p.mouthOpen = max(p.mouthOpen, 0.13 * grin)
+        p.mouthOpen = max(p.mouthOpen, 0.32 * grin)
         p.blush += 0.15 * grin
         p.tilt += side * 0.05 * grin
     }

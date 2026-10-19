@@ -295,6 +295,24 @@ final class PetMoodEndsTests: XCTestCase {
         XCTAssertTrue(winked)
     }
 
+    /// The thumbs-up grins, open-mouthed, wider than it smiles at rest. A mouth only just open is drawn as a
+    /// thin flat sliver, pressed lips that read as a smirk: through the hold the mouth is open into a grin.
+    func testTheThumbsUpGrins() {
+        let rig = PetRig()
+        let script = Self.stuffed()
+        let okays = Self.gestures(.idle(.stuffed), span: 610).filter { $0.item == .beat(.okay) }
+        XCTAssertFalse(okays.isEmpty)
+        for okay in okays {
+            // The arm is up from 0.75 s, held for a second.
+            for n in 0...10 {
+                let t = okay.at + 0.8 + Double(n) * 0.09
+                let p = script.pose(rig, at: t, zones: zones).pet
+                XCTAssertGreaterThanOrEqual(p.mouthOpen, 0.3, "t = \(t): a grin, not pressed lips")
+                XCTAssertGreaterThan(p.smile, PetPosture.stuffed.body.smile, "t = \(t): wider than at rest")
+            }
+        }
+    }
+
     /// The belly is the meter's: none above −26, 0.59 where the pet becomes stuffed, full from −42, and it
     /// rounds out as the meal that makes it stuffed lands. Curled up asleep it is gone: the loaf keeps its
     /// shape.

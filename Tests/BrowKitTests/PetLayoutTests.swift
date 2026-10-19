@@ -337,12 +337,15 @@ final class PetZoneSweepTests: XCTestCase {
             PetReelScript.meal(.full, chews: 3, feast: true, points: 9), PetReelScript.meal(.full, chews: 2, reduceMotion: true),
             PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed),
             PetMeal(size: .nibble, chews: 2, feast: false, points: 1, reduceMotion: false, mood: .stuffed),
+            PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .famished),
+            PetMeal(size: .full, chews: 3, feast: true, points: 9, reduceMotion: false, mood: .famished),
         ]
         var out: [PetBehaviour] = [.intro(noAccounts: false), .intro(noAccounts: true)]
         for mood in PetMood.allCases { out += [.idle(mood), .settled(mood), .unsureIdle(mood)] }
         out += [.perk(.prompt), .perk(.freshData), .eager]
         out += meals.map { .eat($0) }
-        out += [.satisfied(.meal), .satisfied(.feast), .satisfied(.lick), .satisfied(.brim), .boop(giggle: false), .boop(giggle: true),
+        out += [.satisfied(.meal), .satisfied(.feast), .satisfied(.lick), .satisfied(.brim), .satisfied(.grateful),
+                .boop(giggle: false), .boop(giggle: true),
                 .celebrate(.streak(days: 7)), .celebrate(.goodWeek), .freshWindow, .fallAsleep, .asleep, .drowsy, .wake,
                 .rollOver, .enterDen(retreat: false), .enterDen(retreat: true), .hibernating, .stirring, .leaveDen(stretch: true),
                 .leaveDen(stretch: false), .denWait, .peek, .dozeIn, .doze, .welcomeBack]
@@ -375,9 +378,20 @@ final class PetZoneSweepTests: XCTestCase {
         switch behaviour {
         case .idle(.stuffed), .settled(.stuffed), .unsureIdle(.stuffed):
             return PetReelScript([(0, .idle(.content)), (5, behaviour)], hunger: -46)
+        case .idle(.famished), .settled(.famished), .unsureIdle(.famished):
+            return PetReelScript([(0, .idle(.hungry)), (5, behaviour)], hunger: 96)
         case .eat(let m) where m.mood == .stuffed:
             var script = PetReelScript([(0, .idle(.stuffed)), (5, behaviour)], hunger: -40)
             script.meter(5 + m.swallowStart, -50)
+            return script
+        case .eat(let m) where m.mood == .famished:
+            var script = PetReelScript([(0, .idle(.famished)), (5, behaviour)], hunger: 96)
+            script.meter(5 + m.swallowStart, 96 - 6 * m.points)
+            return script
+        case .satisfied(.grateful):
+            let meal = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .famished)
+            var script = PetReelScript([(0, .idle(.famished)), (5 - meal.duration, .eat(meal)), (5, behaviour)], hunger: 96)
+            script.meter(5 - meal.duration + meal.swallowStart, 78)
             return script
         case .satisfied(.brim):
             let more = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed)

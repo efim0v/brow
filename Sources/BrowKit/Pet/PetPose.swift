@@ -118,6 +118,8 @@ public struct PetBody: Sendable, Equatable {
     /// 0 ... 1 each: that eye alone closes into a happy arc, a wink.
     public var winkL: Double = 0
     public var winkR: Double = 0
+    /// 0 ... 1: shining eyes, their catchlights bigger and a third pin of light: hope, never a tear.
+    public var shine: Double = 0
     /// Points up; tilts in radians, + raises the inner end.
     public var browLiftL: Double = 0
     public var browLiftR: Double = 0

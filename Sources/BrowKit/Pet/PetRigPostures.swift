@@ -23,14 +23,17 @@ struct PetPosture: Sendable {
     /// How bright the whole pet is drawn, 1 as its light has it: hibernating on the pill, where there is
     /// no den, it turns itself down. A posture's, so it cross-fades with the rest of it.
     var light: Double = 1
-    /// A lean toward the food source (a shear, as `PetBody.lean`), whichever side it is on: stuffed leans
-    /// back from the number, belly out. Below and in the panel the food is to the right, so the lean is
-    /// the posture's and not the body's.
+    /// A lean toward the food source (a shear, as `PetBody.lean`), whichever side it is on: famished leans
+    /// in at the number, stuffed back from it, belly out. Below and in the panel the food is to the right,
+    /// so the lean is the posture's and not the body's.
     var foodLean: Double = 0
     /// How far the body stands toward the food source, in points at scale 1.
     var foodStep: Double = 0
-    /// How much higher the arm on the food's side is held than the other.
+    /// How much higher the arm on the food's side is held than the other: famished reaches for it.
     var foodArm: Double = 0
+    /// How much of its look at the food the head takes over from the eyes. Leaning in, famished turns its
+    /// whole face to the number: its big eyes sliding across the face on their own would end up on its smile.
+    var foodFace: Double = 0
     /// Eyes shut in bliss that open now and then, and no blinks while they are shut: stuffed
     /// (`PetRigMoodBeats.bliss`).
     var bliss: Double = 0
@@ -40,7 +43,7 @@ struct PetPosture: Sendable {
     static let channels: [WritableKeyPath<PetBody, Double>] = [
         \.squash, \.girth, \.curl, \.lean, \.tilt, \.nod, \.turn, \.lookX, \.lidL, \.lidR, \.lidSlant, \.happy,
         \.eyeSize, \.browLiftL, \.browLiftR, \.browTiltL, \.browTiltR, \.smile, \.mouthOpen, \.mouthWide, \.blush,
-        \.armL, \.armR, \.glow,
+        \.armL, \.armR, \.glow, \.shine,
     ]
 
     static func mixed(_ a: PetPosture, _ b: PetPosture, _ t: Double) -> PetPosture {
@@ -57,6 +60,7 @@ struct PetPosture: Sendable {
         m.foodLean = PetCurve.mix(a.foodLean, b.foodLean, t)
         m.foodStep = PetCurve.mix(a.foodStep, b.foodStep, t)
         m.foodArm = PetCurve.mix(a.foodArm, b.foodArm, t)
+        m.foodFace = PetCurve.mix(a.foodFace, b.foodFace, t)
         m.bliss = PetCurve.mix(a.bliss, b.bliss, t)
         for i in m.breath.indices { m.breath[i] = PetCurve.mix(a.breath[i], b.breath[i], t) }
         return m
@@ -83,7 +87,7 @@ struct PetPosture: Sendable {
     }
 
     static func make(hz: Double, zeta: Double, breath: Double, amp: Double, drift: Double, food: Double = 0,
-                     foodLean: Double = 0, foodStep: Double = 0, foodArm: Double = 0,
+                     foodLean: Double = 0, foodStep: Double = 0, foodArm: Double = 0, foodFace: Double = 0,
                      _ f: (inout PetBody) -> Void) -> PetPosture {
         var p = PetBody()
         p.smile = 0.42
@@ -92,7 +96,8 @@ struct PetPosture: Sendable {
         p.lidR = 0.94
         f(&p)
         return PetPosture(body: p, jellyHz: hz, jellyZeta: zeta, breath: PetRigIdle.bankWeights(breath), breathAmp: amp,
-                          drift: drift, lookAtFood: food, foodLean: foodLean, foodStep: foodStep, foodArm: foodArm)
+                          drift: drift, lookAtFood: food, foodLean: foodLean, foodStep: foodStep, foodArm: foodArm,
+                          foodFace: foodFace)
     }
 }
 
@@ -167,6 +172,25 @@ extension PetPosture {
         return posture
     }()
 
+    /// The meter near the top, and every bit of it hope: up on its toes, leaning in at the number and a
+    /// step closer to it, the near nub reaching, shining eyes on it, the brows high and level, an eager open
+    /// smile, rosy cheeks. Its light is low (that is the meter), so the face carries the mood: never a
+    /// raised inner brow, a down-turned mouth, a lower or thinner body, a tear or a tongue resting out.
+    static let famished = make(hz: 3.2, zeta: 0.34, breath: 3.7, amp: 0.02, drift: 0.6, food: 1.0, foodLean: 0.09,
+                               foodStep: 1.2, foodArm: 0.4, foodFace: 1) { p in
+        p.squash = 1.03; p.eyeSize = 1.3; p.lidL = 1; p.lidR = 1; p.lidSlant = -0.18; p.shine = 1
+        p.browLiftL = 0.95; p.browLiftR = 1.05; p.browTiltL = 0; p.browTiltR = 0.02
+        p.smile = 0.6; p.mouthOpen = 0.2; p.mouthWide = 0.7; p.blush = 0.9; p.armL = 0.45; p.armR = 0.45
+        p.glow = 1.08
+    }
+
+    /// Fed when it was famished: eyes shut, brows up and touched, the widest smile, pink to the ears, its
+    /// light up.
+    static let grateful = make(hz: 3.0, zeta: 0.3, breath: 2.8, amp: 0.02, drift: 0.3) { p in
+        p.squash = 0.98; p.girth = 1.02; p.happy = 1; p.lidL = 1; p.lidR = 1; p.browLiftL = 0.7; p.browLiftR = 0.75
+        p.browTiltL = 0.14; p.browTiltR = 0.14; p.smile = 1.0; p.blush = 1.1; p.armL = -0.15; p.armR = -0.15; p.glow = 1.25
+    }
+
     /// Stuffed with its eyes open, as Full's are: looking at a grey dot when the numbers are stale.
     static let stuffedOpen: PetPosture = {
         var posture = stuffed
@@ -225,14 +249,15 @@ extension PetPosture {
         p.smile = 0.3; p.blush = 0.5; p.armL = -0.2; p.armR = -0.2; p.glow = 0.85
     }
 
-    /// The posture of a mood, the open behaviours' base. Famished looks like hungry for now.
+    /// The posture of a mood, the open behaviours' base.
     static func mood(_ m: PetMood) -> PetPosture {
         switch m {
         case .stuffed: return .stuffed
         case .full: return .full
         case .content: return .content
         case .peckish: return .peckish
-        case .hungry, .famished: return .hungry
+        case .hungry: return .hungry
+        case .famished: return .famished
         }
     }
 }

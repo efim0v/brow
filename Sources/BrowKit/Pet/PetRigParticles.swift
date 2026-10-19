@@ -93,7 +93,12 @@ enum PetRigParticles {
         case .eat(let meal):
             guard current || tau < PetRigActions.timing(meal).end + 0.6 else { return }
             food(meal, start: seg.start, body: body, current: current, scene: scene, into: &out)
-        case .satisfied(.meal), .satisfied(.grateful):
+        case .satisfied(.grateful):
+            for (k, at) in [0.45, 0.7, 0.95, 1.2].enumerated() where (end ?? .infinity) > seg.start + at {
+                sparkle(at: seg.start + at, origin: CGPoint(x: crown.x + [-7, 6, -2, 8][k] * s, y: crown.y + [3, 2, 0, 3][k] * s),
+                        seed: seed, k: k, size: [2.2, 1.9, 2.4, 1.7][k] * s, scene: scene, into: &out)
+            }
+        case .satisfied(.meal):
             for (k, at) in [0.12, 0.38, 0.62].enumerated() where (end ?? .infinity) > seg.start + at {
                 sparkle(at: seg.start + at, origin: CGPoint(x: crown.x + [-6, 5, -1][k] * s, y: crown.y + 2 * s),
                         seed: seed, k: k, size: 2.0 * s, scene: scene, into: &out)
@@ -463,19 +468,22 @@ enum PetRigParticles {
         }
     }
 
-    /// The hungry tummy's rumble lines, either side of the belly, for a third of a second.
-    static func rumble(at t0: Double, body: PetBody, scene: PetRigPoser, into out: inout Extras) {
+    /// The hungry tummy's rumble lines, either side of the belly, for a third of a second; a famished
+    /// grumble's are longer, sit lower at the belly and stand out further.
+    static func rumble(at t0: Double, body: PetBody, scene: PetRigPoser, into out: inout Extras, strong: Bool = false) {
         let tau = scene.t - t0
-        guard tau >= 0, tau < 0.32 else { return }
+        let life = strong ? 0.42 : 0.32
+        guard tau >= 0, tau < life else { return }
         let g = PetBodyGeometry(body)
-        let u = tau / 0.32
+        let u = tau / life
         for side in [-1.0, 1.0] {
             for k in 0..<2 {
-                let base = g.point(u: side * 1.0, v: -0.45)
-                let off = ((1.6 + Double(k) * 1.5) * side + 0.35 * sin(2 * .pi * 18 * scene.t + Double(k))) * body.size
+                let base = g.point(u: side * 1.0, v: strong ? -0.68 : -0.45)
+                let off = ((1.6 + Double(k) * 1.5) * side * (strong ? 1.15 : 1)
+                           + 0.35 * sin(2 * .pi * 18 * scene.t + Double(k))) * body.size
                 out.particles.append(PetParticle(kind: .rumble, position: CGPoint(x: Double(base.x) + off, y: Double(base.y)),
-                                                 size: (1.3 - 0.3 * Double(k)) * body.size,
-                                                 opacity: 0.75 * PetCurve.envelope(u, 0, 0.15, 0.6, 1),
+                                                 size: (1.3 - 0.3 * Double(k)) * body.size * (strong ? 1.25 : 1),
+                                                 opacity: (strong ? 0.85 : 0.75) * PetCurve.envelope(u, 0, 0.15, 0.6, 1),
                                                  angle: side > 0 ? 0 : .pi, tint: .rumble))
             }
         }

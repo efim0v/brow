@@ -377,19 +377,19 @@ public struct PetCanvas: View {
     static func drawEyes(_ g: PetBodyGeometry, _ pal: PetPalette.Colors, in ctx: inout GraphicsContext) {
         let s = g.s, p = g.body
         for side in [-1.0, 1.0] {
-            let f = g.facePoint(dTheta: side * 0.37 + p.lookX * 0.05, dv: p.lookY * 0.04)
-            let c = CGPoint(x: f.p.x + p.lookX * 0.5 * s, y: f.p.y - p.lookY * 0.45 * s)
-            let w = 3.3 * s * p.eyeSize * g.featureScaleX * max(0.25, f.fx)
+            let (c, fx) = g.eye(side)
+            let w = 3.3 * s * p.eyeSize * g.featureScaleX * max(0.25, fx)
             let h = 4.5 * s * p.eyeSize * g.featureScaleY
             // A wink closes one eye alone into the happy arc: it holds open the lid the arc is drawn for.
             let wink = PetEase.clamp01(side < 0 ? p.winkL : p.winkR)
             let lid = max(PetEase.clamp01(side < 0 ? p.lidL : p.lidR), wink)
             // Each feature fades as it turns away round the dome.
             var e = ctx
-            e.opacity *= PetCurve.ramp(f.fx, 0.04, 0.32)
+            e.opacity *= PetCurve.ramp(fx, 0.04, 0.32)
             guard e.opacity > 0.001 else { continue }
             drawEye(centre: c, w: w, h: h, lid: lid, slant: p.lidSlant, happy: max(PetEase.clamp01(p.happy), wink),
-                    squeeze: PetEase.clamp01(p.squeeze), side: side, tilt: p.tilt, s: s, pal, in: &e)
+                    squeeze: PetEase.clamp01(p.squeeze), side: side, tilt: p.tilt, s: s, shine: PetEase.clamp01(p.shine),
+                    pal, in: &e)
         }
     }
 
@@ -398,7 +398,8 @@ public struct PetCanvas: View {
     static let happyBand: ClosedRange<Double> = 0.5...0.72
 
     static func drawEye(centre c: CGPoint, w: Double, h: Double, lid: Double, slant: Double, happy: Double, squeeze: Double,
-                        side: Double, tilt: Double, s: Double, _ pal: PetPalette.Colors, in ctx: inout GraphicsContext) {
+                        side: Double, tilt: Double, s: Double, shine: Double = 0, _ pal: PetPalette.Colors,
+                        in ctx: inout GraphicsContext) {
         let ink = pal.ink.color()
         let lineWidth = 1.15 * s
         // Four drawings, cross-faded so nothing pops. The lid's edge reaches 0.3 h, where the shut line
@@ -435,13 +436,20 @@ public struct PetCanvas: View {
                 b.clip(to: Path(ellipseIn: CGRect(x: -r, y: h / 2 - rise, width: 2 * r, height: 2 * r)), options: .inverse)
             }
             b.fill(eye, with: .color(ink))
-            // Catchlights: the big one up and toward the light, a small one opposite.
-            let big = 0.62 * s * min(1, w / (3.3 * s) + 0.15)
+            // Catchlights: the big one up and toward the light, a small one opposite. Shining, both grow and a
+            // third pin of light comes on, high on the far side, never at the lower rim where a spot of light
+            // could read as a tear.
+            let big = 0.62 * s * min(1, w / (3.3 * s) + 0.15) * (1 + 0.32 * shine)
             b.fill(Path(ellipseIn: CGRect(x: w * 0.12 - big, y: -h * 0.26 - big, width: 2 * big, height: 2 * big)),
                    with: .color(.white.opacity(0.95)))
-            let small = 0.3 * s
+            let small = 0.3 * s * (1 + 0.32 * shine)
             b.fill(Path(ellipseIn: CGRect(x: -w * 0.2 - small, y: h * 0.2 - small, width: 2 * small, height: 2 * small)),
-                   with: .color(.white.opacity(0.7)))
+                   with: .color(.white.opacity(0.7 + 0.2 * shine)))
+            if shine > 0.01 {
+                let pin = 0.2 * s * shine
+                b.fill(Path(ellipseIn: CGRect(x: w * 0.26 - pin, y: h * 0.02 - pin, width: 2 * pin, height: 2 * pin)),
+                       with: .color(.white.opacity(0.85 * shine)))
+            }
             if lid < 0.97 {
                 // The lid's edge, a little wider than the eye where it crosses it.
                 let halfW = w / 2 * max(0, 1 - pow(2 * lidY / h, 2)).squareRoot() + 0.45 * s
@@ -551,7 +559,7 @@ public struct PetCanvas: View {
 
     static func drawMouth(_ g: PetBodyGeometry, _ pal: PetPalette.Colors, in ctx: inout GraphicsContext) {
         let s = g.s, p = g.body
-        let f = g.facePoint(dTheta: 0, dv: -0.36)
+        let f = g.mouth
         let open = PetCurve.clamp(p.mouthOpen, 0, 1.2)
         let w = (3.4 + 6.2 * open) * s * p.mouthWide * max(0.35, f.fx) * g.featureScaleX
         let depth = 6.6 * open * s * g.featureScaleY

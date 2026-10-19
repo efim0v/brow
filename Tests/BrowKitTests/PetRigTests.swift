@@ -541,10 +541,11 @@ final class PetSpeedTests: XCTestCase {
         let length: Double = full ? 1800 : 600
         let seeds: [UInt64] = [7, 1_311_768_467_294_899_695]
         let moods: [(PetBehaviour, Double)] = [(.idle(.full), -20), (.idle(.content), 22), (.idle(.peckish), 50),
-                                               (.idle(.hungry), 85), (.eager, 30), (.idle(.stuffed), -46)]
+                                               (.idle(.hungry), 85), (.eager, 30), (.idle(.stuffed), -46),
+                                               (.idle(.famished), 96)]
         // Full, content and peckish keep the same schedule of habits; hungry, eager and the ends of the meter
         // have their own.
-        let distinct: [PetBehaviour] = [.idle(.content), .idle(.hungry), .eager, .idle(.stuffed)]
+        let distinct: [PetBehaviour] = [.idle(.content), .idle(.hungry), .eager, .idle(.stuffed), .idle(.famished)]
         var cases: [(UInt64, PetBehaviour, Double)] = []
         for seed in seeds {
             for (behaviour, hunger) in moods where full || behaviour == .idle(.content) || seed == 7 && distinct.contains(behaviour) {

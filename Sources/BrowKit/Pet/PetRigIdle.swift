@@ -164,13 +164,15 @@ enum PetRigIdle {
         1 + PetTuning.Idle.blinkRateSpread * (2 * PetNoise.hash(seed, PetRigChannel.blinkRate, 0) - 1)
     }
 
-    /// How open the eyes are under the blink schedule at `t`. 12 % of blinks are double.
-    static func blinkOpen(at t: Double, seed: UInt64) -> Double {
+    /// How open the eyes are under the blink schedule at `t`. 12 % of blinks are double. A blink whose start
+    /// `skip` names is left out whole.
+    static func blinkOpen(at t: Double, seed: UInt64, skip: (Double) -> Bool = { _ in false }) -> Double {
         let rate = blinkRate(seed: seed)
         let local = t / rate
         var open = 1.0
         for (k, at) in blinks.recent(at: local, lookBack: 0.6 / rate, seed: seed) {
             let start = at * rate
+            if skip(start) { continue }
             open = min(open, IdleBlink.shape(t - start))
             if PetNoise.hash(seed, PetRigChannel.blinkDouble, k) < PetTuning.Idle.doubleBlinkShare {
                 open = min(open, IdleBlink.shape(t - start - 0.24))
@@ -233,7 +235,7 @@ enum PetRigIdle {
 
         // Blinks. Eyes shut in a happy arc have nothing to blink.
         if profile.blinks {
-            let open = blinkOpen(at: t, seed: seed)
+            let open = blinkOpen(at: t, seed: seed) { PetRigMoodBeats.holdsTheBlink(at: $0, beat: beat, scene: scene) }
             let depth = 1 - PetCurve.ramp(body.happy, PetCanvas.happyBand.lowerBound, PetCanvas.happyBand.upperBound)
             body.lidL *= 1 - (1 - open) * depth
             body.lidR *= 1 - (1 - open) * depth
@@ -260,7 +262,7 @@ enum PetRigIdle {
         if profile.small { smallIdle(&body, beat: beat, scene: scene) }
         if profile.rare { rareIdle(&body, beat: beat, scene: scene) }
         PetRigMoodBeats.apply(&body, beat: beat, scene: scene)
-        if case .idle(let mood) = beat.behaviour, mood == .peckish || mood == .hungry || mood == .famished {
+        if case .idle(let mood) = beat.behaviour, mood == .peckish || mood == .hungry {
             rumble(&body, beat: beat, scene: scene)
         }
         if case .settled(let mood) = beat.behaviour, mood == .hungry || mood == .famished {
@@ -512,18 +514,28 @@ enum PetRigIdle {
     }
 
     /// Peckish and hungry, a tummy rumble every 40 to 70 s: a shiver of the outline, a look down at the
-    /// belly, and back to the number, hopeful.
+    /// belly, and back to the number, hopeful. Famished and settled, the same at half its strength on the
+    /// famished tummy's schedule: the grumble's pat and lick are more than the quiet hours' 10 fps can draw.
     static func rumble(_ p: inout PetBody, beat: PetRigBeat, scene: PetRigPoser) {
-        for (_, at) in rumbles.recent(at: scene.t, lookBack: 1.2, seed: scene.seed) where at > beat.start + 1.5 {
+        let famished = beat.behaviour == .settled(.famished)
+        let k = famished ? 0.5 : 1.0
+        for at in rumbleTimes(beat: beat, scene: scene, lookBack: 1.2) {
             let tau = scene.t - at
             // The shiver is the outline's own ripple; the clench under it is slow enough for 30 fps.
-            p.tremor += 0.8 * PetCurve.ring(tau, 0, frequency: 15, decay: 0.09)
-            p.squash -= 0.02 * PetCurve.envelope(tau, 0, 0.06, 0.1, 0.22)
-            p.lookY -= 0.7 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
-            p.nod -= 0.15 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
-            p.browLiftL += 0.3 * PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6)
-            p.mouthWide = PetCurve.mix(p.mouthWide, 0.45, PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6))
+            p.tremor += k * 0.8 * PetCurve.ring(tau, 0, frequency: 15, decay: 0.09)
+            p.squash -= k * 0.02 * PetCurve.envelope(tau, 0, 0.06, 0.1, 0.22)
+            p.lookY -= k * 0.7 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
+            p.nod -= k * 0.15 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
+            p.browLiftL += k * 0.3 * PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6)
+            p.mouthWide = PetCurve.mix(p.mouthWide, 0.45, k * PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6))
         }
+    }
+
+    /// The rumbles that started in the last `lookBack` seconds: famished and settled on the famished tummy's
+    /// schedule, every 25 to 43 s; otherwise every 40 to 70 s.
+    static func rumbleTimes(beat: PetRigBeat, scene: PetRigPoser, lookBack: Double) -> [Double] {
+        let schedule = beat.behaviour == .settled(.famished) ? PetRigMoodBeats.grumbles : rumbles
+        return schedule.recent(at: scene.t, lookBack: lookBack, seed: scene.seed).map(\.at).filter { $0 > beat.start + 1.5 }
     }
 
     /// The last rumble's start, if one is on: the rumble lines are drawn from it.
@@ -533,8 +545,11 @@ enum PetRigIdle {
         case .idle(let m), .settled(let m): mood = m
         default: mood = nil
         }
-        guard let m = mood, m == .hungry || m == .famished || (m == .peckish && isIdle(beat)) else { return nil }
-        return rumbles.recent(at: scene.t, lookBack: 0.4, seed: scene.seed).last { $0.at > beat.start + 1.5 }?.at
+        // Famished at rest grumbles instead, and draws its own lines (`PetRigMoodBeats.particles`).
+        guard let m = mood, m == .hungry || (m == .famished && !isIdle(beat)) || (m == .peckish && isIdle(beat)) else {
+            return nil
+        }
+        return rumbleTimes(beat: beat, scene: scene, lookBack: 0.4).last
     }
 
     static func isIdle(_ beat: PetRigBeat) -> Bool { if case .idle = beat.behaviour { return true }; return false }

@@ -83,6 +83,7 @@ enum PetRigChannel {
     static let side = PetNoise.Channel(0x213)
     static let blissAt = PetNoise.Channel(0x214)
     static let blissHold = PetNoise.Channel(0x215)
+    static let grumbleAt = PetNoise.Channel(0x216)
     // Drift, first octaves (0x240 to 0x27F); their second octaves are 0x2C0 to 0x2FF.
     static let driftTurn = PetNoise.Channel(0x240)
     static let driftNod = PetNoise.Channel(0x241)

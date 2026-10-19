@@ -386,4 +386,195 @@ final class PetMoodEndsTests: XCTestCase {
             XCTAssertEqual(script.pose(backward, at: t, zones: zones), frame, "t = \(t)")
         }
     }
+
+    // MARK: - Famished, the look
+
+    static func famished(_ hunger: Double = 96) -> PetReelScript { PetReelScript([(0, .idle(.famished))], hunger: hunger) }
+
+    /// At rest, between its gestures, famished is up and hopeful: the brows high and level, smiling, leaning
+    /// toward the number, the near nub held higher than the far one, the eyes big and shining.
+    func testFamishedAtRestLeansInHopefully() {
+        let rig = PetRig()
+        let script = Self.famished()
+        let gestures = Self.gestures(.idle(.famished), span: 610)
+        let anchor = Double(zones.strip!.anchor.x)
+        for n in 0..<(600 * 10) {
+            let t = 5 + Double(n) / 10
+            guard !gestures.contains(where: { $0.at - 0.25 < t && t < $0.end + 0.25 }) else { continue }
+            let p = script.pose(rig, at: t, zones: zones).pet
+            XCTAssertLessThanOrEqual(max(p.browTiltL, p.browTiltR), 0.05, "t = \(t): level brows, never a pleading slope")
+            XCTAssertGreaterThanOrEqual(p.smile, 0.4, "t = \(t)")
+            XCTAssertLessThan(p.x, anchor - 0.6, "t = \(t): a step toward the number, on the left")
+            XCTAssertLessThan(p.lean, 0, "t = \(t): leaning toward it")
+            XCTAssertGreaterThan(p.armL, p.armR + 0.2, "t = \(t): the near nub reaching")
+            XCTAssertGreaterThanOrEqual(p.eyeSize, 1.25, "t = \(t)")
+            XCTAssertGreaterThanOrEqual(p.shine, 0.95, "t = \(t)")
+            XCTAssertGreaterThanOrEqual(p.squash, 0.99, "t = \(t): up on its toes, never lower")
+        }
+    }
+
+    /// Famished is never sad, through every gesture: the outer lids never droop, it always smiles, its eyes
+    /// stay big, no tongue rests out; and its tummy grumbles and it licks.
+    func testFamishedIsHopefulNeverSad() {
+        let rig = PetRig()
+        let script = Self.famished()
+        var grumbles = 0, licks = 0, tongueOut = 0
+        for n in 0..<(600 * 10) {
+            let t = 5 + Double(n) / 10
+            let frame = script.pose(rig, at: t, zones: zones)
+            let p = frame.pet
+            XCTAssertLessThanOrEqual(p.lidSlant, 0.001, "t = \(t)")
+            XCTAssertGreaterThanOrEqual(p.smile, 0.3, "t = \(t)")
+            XCTAssertGreaterThanOrEqual(p.eyeSize, 1.2, "t = \(t)")
+            // A sheepish moment after a pounce that falls short lifts the inner brows a little, briefly.
+            XCTAssertLessThanOrEqual(max(p.browTiltL, p.browTiltR), 0.3, "t = \(t): no sad slope")
+            if frame.particles.contains(where: { $0.kind == .rumble }) { grumbles += 1 }
+            if p.tongue > 0.5 { licks += 1 }
+            if p.tongue > 0.05 { tongueOut += 1 }
+        }
+        XCTAssertGreaterThan(grumbles, 0)
+        XCTAssertGreaterThan(licks, 0)
+        XCTAssertLessThan(Double(tongueOut) / 6000, 0.1, "the tongue only for a lick")
+    }
+
+    /// Leaning in, famished turns its whole face to the number, so its big eyes stay over its smile rather
+    /// than sliding across the face onto it: over ten minutes at rest the smile sits under the middle of its
+    /// eyes at least as well as hungry's does, beside the notch and under it.
+    func testFamishedTurnsItsWholeFaceToTheNumber() {
+        func offset(_ mood: PetMood, hunger: Double, _ placement: EarsPlacement) -> Double {
+            let zones = PetStage.zones(PetStage.frames(placement), PetStage.aggregate(left: 41))
+            let rig = PetRig()
+            let script = PetReelScript([(0, .idle(mood))], hunger: hunger)
+            let gestures = Self.gestures(.idle(mood), span: 610)
+            var sum = 0.0, count = 0
+            for n in 0..<(600 * 10) {
+                let t = 5 + Double(n) / 10
+                guard !gestures.contains(where: { $0.at - 0.25 < t && t < $0.end + 0.25 }) else { continue }
+                let p = script.pose(rig, at: t, zones: zones).pet
+                let g = PetBodyGeometry(p)
+                let middle = Double(g.eye(-1).centre.x + g.eye(1).centre.x) / 2
+                sum += abs(Double(g.mouth.p.x) - middle) / p.size
+                count += 1
+            }
+            return sum / Double(count)
+        }
+        for placement in [EarsPlacement.beside, .below] {
+            XCTAssertLessThanOrEqual(offset(.famished, hunger: 96, placement), offset(.hungry, hunger: 80, placement),
+                                     "\(placement)")
+        }
+    }
+
+    /// The tummy grumbles every 25 to 43 s on a schedule of its own; coming up from hungry the first comes
+    /// 0.9 s in, or 8 s after a rumble it has just had, and the schedule's own come no sooner than 20 s after
+    /// it: never a grumble on the heels of a rumble, nor two at once.
+    func testTheTummyGrumblesOnItsOwnSchedule() {
+        let segment = PetSegment(start: 0, behaviour: .idle(.famished))
+        let times = PetRigMoodBeats.grumbleTimes(in: segment, previous: nil, from: 0, to: 3600, seed: 7)
+        for (a, b) in zip(times, times.dropFirst()) {
+            XCTAssertGreaterThanOrEqual(b - a, 25 - 1e-9)
+            XCTAssertLessThanOrEqual(b - a, 43 + 1e-9)
+        }
+        let before = PetSegment(start: 0, behaviour: .idle(.hungry))
+        var afterARumble = 0
+        for seed: UInt64 in [7, 1_311_768_467_294_899_695] {
+            for start in stride(from: 3.0, through: 300, by: 7) {
+                let into = PetSegment(start: start, behaviour: .idle(.famished))
+                let entering = PetRigMoodBeats.grumbleTimes(in: into, previous: before, from: start, to: start + 100, seed: seed)
+                let rumbled = PetRigIdle.rumbles.recent(at: start + 0.9, lookBack: 8, seed: seed).map(\.at).filter { $0 > 1.5 }.max()
+                if rumbled != nil { afterARumble += 1 }
+                let first = max(start + 0.9, (rumbled ?? -.infinity) + 8)
+                XCTAssertEqual(entering.first ?? 0, first, accuracy: 1e-9, "seed \(seed), from \(start): the entrance comes first")
+                XCTAssertGreaterThanOrEqual((entering.dropFirst().first ?? .infinity) - first, 20, "seed \(seed), from \(start)")
+            }
+        }
+        XCTAssertGreaterThan(afterARumble, 0, "some come up just after a rumble")
+    }
+
+    /// Please: the shining eyes leave the number for the viewer and both nubs come in to the cheeks, to
+    /// −1.9 whatever they were; two quick happy squints, and no blink in it, or in a grumble.
+    func testPleaseBringsTheNubsToTheCheeksAndHoldsTheEyesWide() {
+        let rig = PetRig()
+        let script = Self.famished()
+        let gestures = Self.gestures(.idle(.famished), span: 900)
+        let please = try? XCTUnwrap(gestures.first { $0.item == .beat(.please) })
+        guard let please else { return XCTFail("no please in 15 minutes") }
+        let held = script.pose(rig, at: please.at + 2.0, zones: zones).pet
+        XCTAssertEqual(held.armL, -1.9, accuracy: 0.15)
+        XCTAssertEqual(held.armR, -1.9, accuracy: 0.15)
+        XCTAssertLessThan(abs(held.lookX), 0.2, "at the viewer")
+        var squints = 0, previous = 0.0
+        for n in 0..<Int(please.length * 60) {
+            let t = please.at + Double(n) / 60
+            let p = script.pose(rig, at: t, zones: zones).pet
+            if p.happy > 0.9, previous <= 0.9 { squints += 1 }
+            previous = p.happy
+            XCTAssertGreaterThanOrEqual(min(p.lidL, p.lidR), 0.95, "t = \(t - please.at): no blink in please")
+        }
+        XCTAssertEqual(squints, 2)
+        for grumble in gestures where grumble.item == .beat(.grumble) {
+            for n in 0..<Int(grumble.length * 30) {
+                let p = script.pose(rig, at: grumble.at + Double(n) / 30, zones: zones).pet
+                XCTAssertGreaterThanOrEqual(min(p.lidL, p.lidR), 0.95, "no blink in a grumble")
+            }
+        }
+    }
+
+    /// One gesture at a time: over an hour of famished idle no two gestures overlap, and every beat comes.
+    func testFamishedGesturesNeverOverlap() {
+        for seed: UInt64 in [7, 1_311_768_467_294_899_695] {
+            let all = Self.gestures(.idle(.famished), span: 3600, seed: seed)
+            for (a, b) in zip(all, all.dropFirst()) { XCTAssertLessThanOrEqual(a.end, b.at, "seed \(seed): \(a) and \(b)") }
+            for beat: PetRigMoodBeats.Beat in [.reach, .please, .grumble] {
+                XCTAssertTrue(all.contains { $0.item == .beat(beat) }, "seed \(seed): \(beat) within the hour")
+            }
+        }
+    }
+
+    /// The grateful meal keeps the meal's beats, hops for joy at the wind-up, and then hugs itself, eyes
+    /// shut, with four sparkles and a bounce; the eyes open shining on the number for more.
+    func testTheGratefulMeal() {
+        let rig = PetRig()
+        let meal = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .famished)
+        var script = PetReelScript([(0, .idle(.famished)), (10, .eat(meal)), (10 + meal.duration, .satisfied(.grateful)),
+                                    (13 + meal.duration, .idle(.hungry))], hunger: 96)
+        script.meter(10 + meal.swallowStart, 78)
+        let m = PetRigActions.timing(meal)
+        func pose(_ e: Double) -> PetFrame { script.pose(rig, at: 10 + e, zones: zones) }
+        XCTAssertGreaterThan(pose(m.anticipation * 0.42).pet.lift, 0.8, "a hop of joy")
+        XCTAssertGreaterThan(pose(m.snap - 1.0 / 60).pet.mouthOpen, 0.6)
+        XCTAssertLessThan(pose(m.snap + 2.0 / 60).pet.mouthOpen, 0.1)
+        XCTAssertGreaterThanOrEqual(pose(m.swallowStart + 0.15).pet.lump, 0)
+        let s0 = meal.duration
+        let hug = pose(s0 + 1.0).pet
+        XCTAssertLessThan(hug.armL, -1.9)
+        XCTAssertLessThan(hug.armR, -1.9)
+        XCTAssertGreaterThanOrEqual(hug.happy, PetCanvas.happyBand.upperBound, "eyes shut")
+        XCTAssertGreaterThan(pose(s0 + 1.12).pet.lift, 0.8, "a happy bounce")
+        var sparkles = 0
+        for n in 0..<(Int(1.6 * 60)) {
+            let count = pose(s0 + Double(n) / 60).particles.filter { $0.kind == .sparkle }.count
+            sparkles = max(sparkles, count)
+        }
+        XCTAssertGreaterThanOrEqual(sparkles, 2)
+        let more = pose(s0 + 2.3).pet
+        XCTAssertLessThan(more.happy, PetCanvas.happyBand.lowerBound, "the eyes open")
+        XCTAssertGreaterThan(more.shine, 0.9, "shining")
+        XCTAssertLessThan(more.lookX, -0.2, "on the number")
+    }
+
+    /// Settled, famished keeps its posture and rumbles at half strength on its own schedule, with none of
+    /// the gestures the quiet hours' 10 fps cannot draw.
+    func testSettledFamishedOnlyRumbles() {
+        XCTAssertTrue(Self.gestures(.settled(.famished), span: 600).isEmpty)
+        let rig = PetRig()
+        let script = PetReelScript([(0, .settled(.famished))], hunger: 96)
+        var tremor = 0.0
+        for n in 0..<(300 * 30) {
+            let p = script.pose(rig, at: 5 + Double(n) / 30, zones: zones).pet
+            tremor = max(tremor, abs(p.tremor))
+            XCTAssertGreaterThanOrEqual(p.shine, 0.95)
+        }
+        XCTAssertGreaterThan(tremor, 0.1, "it rumbles")
+        XCTAssertLessThan(tremor, 0.45, "at half strength")
+    }
 }

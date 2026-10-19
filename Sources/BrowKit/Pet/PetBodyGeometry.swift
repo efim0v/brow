@@ -111,6 +111,17 @@ struct PetBodyGeometry {
         return (point(u: u, v: v), cos(theta))
     }
 
+    /// An eye on the face: its centre, moved a little inside the face by where it looks, and its
+    /// foreshortening on the dome.
+    func eye(_ side: Double) -> (centre: CGPoint, fx: Double) {
+        let p = body
+        let f = facePoint(dTheta: side * 0.37 + p.lookX * 0.05, dv: p.lookY * 0.04)
+        return (CGPoint(x: f.p.x + p.lookX * 0.5 * s, y: f.p.y - p.lookY * 0.45 * s), f.fx)
+    }
+
+    /// The mouth's centre on the face, and its foreshortening there.
+    var mouth: (p: CGPoint, fx: Double) { facePoint(dTheta: 0, dv: -0.36) }
+
     /// How much of the face is on the visible side: a twirl takes it round the back.
     var faceVisibility: Double { PetCurve.ramp(cos(body.turn * 0.62 + body.spin), -0.4, -0.1) }
 

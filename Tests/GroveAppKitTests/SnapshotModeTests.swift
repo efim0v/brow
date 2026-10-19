@@ -45,7 +45,7 @@ final class SnapshotModeTests: XCTestCase {
     func testScenesHaveContractFileNames() {
         XCTAssertEqual(SnapshotMode.SnapshotScene.allCases.map(\.fileName),
                        ["projects.png", "root-workspaces.png", "workspaces-expanded.png",
-                        "create-sheet.png", "graph.png", "stats.png", "sessions.png", "accounts.png",
+                        "create-sheet.png", "graph.png", "stats.png",
                         "settings.png", "stats-settings.png", "error-banner.png"])
     }
 
@@ -66,10 +66,6 @@ final class SnapshotModeTests: XCTestCase {
         XCTAssertEqual(state(.graph).selectedTab, .graph)
         XCTAssertEqual(state(.stats).route, .project(projectID))
         XCTAssertEqual(state(.stats).selectedTab, .stats)
-        XCTAssertEqual(state(.sessions).route, .project(projectID))
-        XCTAssertEqual(state(.sessions).selectedTab, .sessions)
-        XCTAssertEqual(state(.accounts).route, .accounts)
-        XCTAssertFalse(state(.accounts).snapshotsByAccount.isEmpty, "accounts must carry capture snapshots")
         XCTAssertEqual(state(.settings).route, .projectSettings(projectID))
 
         // stats-settings routes to the new top-level page; the fixture seeds the
@@ -101,9 +97,7 @@ final class SnapshotModeTests: XCTestCase {
         XCTAssertEqual(SnapshotMode.SnapshotScene.workspacesExpanded.size, CGSize(width: 600, height: 540))
         XCTAssertEqual(SnapshotMode.SnapshotScene.graph.size, CGSize(width: 600, height: 540))
         XCTAssertEqual(SnapshotMode.SnapshotScene.stats.size, CGSize(width: 600, height: 540))
-        XCTAssertEqual(SnapshotMode.SnapshotScene.sessions.size, CGSize(width: 600, height: 540))
         XCTAssertEqual(SnapshotMode.SnapshotScene.createSheet.size, CGSize(width: 540, height: 560))
-        XCTAssertEqual(SnapshotMode.SnapshotScene.accounts.size, CGSize(width: 560, height: 480))
         XCTAssertEqual(SnapshotMode.SnapshotScene.settings.size, CGSize(width: 560, height: 560))
         XCTAssertEqual(SnapshotMode.SnapshotScene.statsSettings.size, CGSize(width: 560, height: 560))
         // projects frame + vertical allowance for the banner stacked above it.
@@ -222,14 +216,6 @@ final class SnapshotModeTests: XCTestCase {
                       date: $0.date, refs: $0.refs, subject: $0.subject)
         }
         XCTAssertEqual(layoutLanes(raw).map(\.lane), nodes.map(\.lane))
-    }
-
-    func testFixtureIdentityOnlyForDefaultAccount() {
-        let identity = SnapshotMode.fixtureIdentity(AccountConfig(name: "default", configDir: "~/.claude"))
-        XCTAssertEqual(identity?.email, "artem@example.com")
-        XCTAssertEqual(identity?.tier, "max_20x")
-        XCTAssertNil(SnapshotMode.fixtureIdentity(AccountConfig(name: "work",
-                                                                configDir: "~/.claude-accounts/work")))
     }
 
     @MainActor

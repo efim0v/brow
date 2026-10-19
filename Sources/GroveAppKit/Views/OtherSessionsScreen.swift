@@ -4,214 +4,54 @@
 import SwiftUI
 import GroveCore
 
-/// "Other sessions" bucket — sessions discovered disk-wide whose cwd matches
-/// no configured project. Shown at `.otherSessions` route; backs out to `.projects`.
-/// Uses the same session-row table + resume machinery as SessionsScreen.
+/// The sessions whose folder is no project's (route .otherSessions), newest first, each
+/// with Resume and its own menu: resume as another account, share, copy, delete.
 struct OtherSessionsScreen: View {
     @ObservedObject var state: AppState
-    @Environment(\.isSnapshotRender) private var isSnapshotRender
 
     init(state: AppState) {
         _state = ObservedObject(wrappedValue: state)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            content
-                .frame(maxHeight: .infinity)
-        }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            BackButton { state.goBack() }
-            Text("Other Sessions")
-                .font(.headline)
-                .lineLimit(1)
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - Content
-
-    @ViewBuilder
-    private var content: some View {
-        let rows = buildOtherSessionRows(sessions: state.otherSessions)
-        if rows.isEmpty {
-            emptyState
-        } else if isSnapshotRender {
-            table(rows: rows, now: Date())
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        } else {
-            ScrollView { table(rows: rows, now: Date()) }
-        }
-    }
-
-    // MARK: - Table
-
-    private func table(rows: [SessionRow], now: Date) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                sessionRow(row, now: now)
-                if index < rows.count - 1 { Divider().opacity(0.4) }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-    }
-
-    /// Same multi-line card as the Claude tab; these rows are always resumable
-    /// (no live process, no gear), so the trailing slot is just Resume + menus.
-    private func sessionRow(_ row: SessionRow, now: Date) -> some View {
-        SessionCard(row: row, now: now, accountLabel: state.displayName(forAccountNamed: row.accountName)) {
-            actionCell(row)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { performResume(row) }
-        .help(row.cwd)
-    }
-
-    // MARK: - Action cell
-
-    @ViewBuilder
-    private func actionCell(_ row: SessionRow) -> some View {
-        HStack(spacing: 4) {
-            Text("Resume")
-                .font(.callout)
-                .foregroundStyle(Palette.primary)
-            if let account = state.config.accounts.first(where: { $0.name == row.accountName }),
-               !isSnapshotRender,
-               AppState.canShareAcrossAccounts(account: account, canonicalDir: state.canonicalDir) {
-                shareButton(row: row, account: account)
-            }
-            migrateToMenu(row)
-            resumeAsMenu(row)
-        }
-    }
-
-    /// "Share" button — adopts the session into the canonical store so it is
-    /// visible from every linked account. Only shown for non-default-account rows.
-    private func shareButton(row: SessionRow, account: AccountConfig) -> some View {
-        Button {
-            guard let session = findSession(row) else { return }
-            Task { await state.adoptSession(cwd: session.cwd, sessionId: session.id, account: account) }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 11))
-                .foregroundStyle(Palette.primary)
-        }
-        .buttonStyle(.plain)
-        .help("Share across accounts — makes this session visible under every linked account")
-    }
-
-    /// "Migrate to account…" menu — copies the full session footprint (transcript +
-    /// aux + tasks + settings keys + plugins) to another account. Non-destructive.
-    /// Only shown when ≥1 other account exists. Snapshot-safe: a static lookalike offscreen.
-    @ViewBuilder
-    private func migrateToMenu(_ row: SessionRow) -> some View {
-        let sourceAccount = state.config.accounts.first { $0.name == row.accountName }
-            ?? state.config.accounts.first
-            ?? AccountConfig(name: "default", configDir: "~/.claude")
-        let others = state.config.accounts.filter { $0.name != row.accountName }
-        if !others.isEmpty {
-            if isSnapshotRender {
-                Image(systemName: "tray.and.arrow.up")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            ScopeHeader(title: "Other sessions", subtitle: "\(state.otherSessions.count) outside your projects",
+                        onBack: { state.goBack() })
+            let sessions = listed
+            if sessions.isEmpty {
+                emptyState
             } else {
-                Menu {
-                    ForEach(others, id: \.name) { targetAccount in
-                        Button(state.menuTitle("Migrate to", targetAccount)) {
-                            let cwd = row.cwd
-                            let sid = row.sessionId
-                            let src = sourceAccount
-                            let dst = targetAccount
-                            Task { await state.migrateSession(cwd: cwd, sessionId: sid,
-                                                              from: src, to: dst) }
+                FadingScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(sessions, id: \.id) { session in
+                            SessionLineRow(state: state, ref: SessionRef(session: session, isLive: false),
+                                           status: .closed, place: (session.cwd as NSString).lastPathComponent)
                         }
                     }
-                } label: {
-                    Image(systemName: "tray.and.arrow.up")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.primary)
+                    .padding(.bottom, 10)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Migrate this session (data + config + plugins/hooks) to another account — full copy")
             }
         }
     }
 
-    @ViewBuilder
-    private func resumeAsMenu(_ row: SessionRow) -> some View {
-        let reachable = Set(row.accounts)
-        let everyOther = state.config.accounts.map(\.name)
-        let candidateNames = Array(Set(everyOther).union(reachable))
-            .filter { $0 != row.accountName }
-            .sorted()
-        let others = candidateNames.compactMap { name in
-            state.config.accounts.first { $0.name == name }
-        }
-        if !others.isEmpty {
-            if isSnapshotRender {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            } else {
-                Menu {
-                    ForEach(others, id: \.name) { account in
-                        Button(state.menuTitle("Resume as", account)) {
-                            resumeOther(row, as: account)
-                        }
-                    }
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .frame(width: 16)
-            }
+    /// The sessions, the search applied.
+    private var listed: [ClaudeSession] {
+        let needle = state.searchNeedle
+        guard !needle.isEmpty else { return state.otherSessions }
+        return state.otherSessions.filter {
+            ($0.title ?? "").lowercased().contains(needle) || $0.cwd.lowercased().contains(needle)
         }
     }
-
-    // MARK: - Actions
-
-    private func performResume(_ row: SessionRow) {
-        guard let session = findSession(row) else { return }
-        let account = state.config.accounts.first { $0.name == row.accountName }
-            ?? state.config.accounts.first
-            ?? AccountConfig(name: "default", configDir: "~/.claude")
-        Task { await state.resumeSession(session, as: account) }
-    }
-
-    private func resumeOther(_ row: SessionRow, as account: AccountConfig) {
-        guard let session = findSession(row) else { return }
-        Task { await state.resumeSession(session, as: account) }
-    }
-
-    private func findSession(_ row: SessionRow) -> ClaudeSession? {
-        state.otherSessions.first { $0.id == row.sessionId && $0.cwd == row.cwd }
-    }
-
-    // MARK: - Empty state
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "bubble.left.and.text.bubble.right")
-                .font(.largeTitle)
+            Image(systemName: "tray")
+                .font(.system(size: 26, weight: .light))
                 .foregroundStyle(.secondary)
             Text("No other sessions")
-                .font(.headline)
-            Text("Sessions under configured project paths appear in their project's Claude tab.")
-                .font(.caption)
+                .font(.system(size: 14, weight: .semibold))
+            Text("Sessions in a project's folders are listed under the project.")
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }

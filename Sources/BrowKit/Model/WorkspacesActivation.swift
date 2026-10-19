@@ -3,19 +3,21 @@
 
 import Foundation
 
-/// The Workspaces part of Brow's own `config.json`: whether it runs, whether its
-/// menu-bar item shows, and the panel's material. Grove's own `config.json` is not
-/// touched by any of these.
+/// The Workspaces part of Brow's own `config.json`: whether it runs and whether its
+/// menu-bar item shows (and 0.4's panel material, kept as it was written). Grove's own
+/// `config.json` is not touched by any of these.
 public struct WorkspacesSettings: Codable, Sendable, Equatable {
     /// The user's choice; nil until they make one, and Workspaces then follows whether
     /// a Grove config exists (`WorkspacesActivation`).
     public var enabled: Bool?
-    /// Settings › General › Show Workspaces in the menu bar.
+    /// Settings › General › Show Workspaces in the menu bar: the item that opens the notch
+    /// panel on Projects.
     public var showInMenuBar: Bool = true
-    /// `liquidGlass` or `visualEffect`; nil means Liquid Glass.
+    /// The material of the Workspaces window Brow 0.4 had: `liquidGlass` or `visualEffect`.
+    /// Nothing reads it since Workspaces moved into the notch panel; kept so the settings an
+    /// older Brow wrote read back, and are written back, as they were.
     public var panelMaterial: String?
-    /// Grove's own material setting has been looked at, and copied if there was one.
-    /// Once only: a later change in Grove.app is not Brow's.
+    /// Brow 0.4 copied Grove's own material setting once. Kept for the same reason.
     public var importedGroveMaterial: Bool = false
     /// Whether the setup Workspaces first ran on was Grove's: its `config.json` was there
     /// before Brow's engine ever ran. nil until Workspaces first runs, which is when it is

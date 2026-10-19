@@ -5,243 +5,213 @@ import SwiftUI
 import AppKit
 import GroveCore
 
-/// The Projects tab (item 4 — the primary view): an Apple-26 grouped list. Each
-/// project is a section — an H4 name header (+ its repos/ws counts) LIFTED OUT
-/// onto the plain background, ABOVE a separate gray .glassCard() that carries the
-/// 2 most recent Claude sessions as tappable blocks for instant terminal access
-/// (items 4/7/24). An "Open project" chevron at the END of each section drills
-/// into the project's full workspace scope.
+/// The Projects list: one section per project — its name and counts, a header that opens
+/// it, and its newest sessions — then the sessions outside every project. With no project
+/// yet, what a project is and the way to add one.
 struct ProjectsTab: View {
     @ObservedObject var state: AppState
-    @Environment(\.isSnapshotRender) private var isSnapshotRender
-    /// When set (by RootShell), the live ScrollView mirrors its vertical offset
-    /// here so the floating "Projects" large title can collapse on scroll. nil
-    /// keeps the plain behavior (and ProjectsTab independently testable).
-    var scrollOffset: Binding<CGFloat>? = nil
+    @Environment(\.groveAccent) private var accent
 
     var body: some View {
         if state.config.projects.isEmpty {
-            emptyState
-        } else if isSnapshotRender {
-            cards.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if let scrollOffset {
-            ScrollView { cards.tracksScrollOffset(scrollOffset) }
-                .frame(maxHeight: .infinity)
+            ProjectsEmptyState(state: state)
         } else {
-            ScrollView { cards }.frame(maxHeight: .infinity)
+            FadingScrollView {
+                list
+            }
         }
     }
 
-    /// The ONE content inset (Apple-uniform) that lines up every level of a
-    /// project section. It equals the session STATUS DOT's total leading INSIDE
-    /// the session card: sessionCard `.padding(10)` + SessionBlock's own
-    /// `.padding(.horizontal, 9)` = 19. The lifted name header and the "Open
-    /// project" footer use this same inset so the name's left edge, the dot, the
-    /// "Open project" affordance, and the card content all share one left edge —
-    /// and, symmetrically, the right edge (repos/ws counts, the open chevron, the
-    /// card content) shares one right edge.
-    static let sectionContentInset: CGFloat = 19
-
-    private var cards: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(state.config.projects) { project in
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            let projects = state.listedProjects
+            if projects.isEmpty {
+                Text("Nothing matches “\(state.searchQuery)”.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            }
+            ForEach(projects) { project in
                 projectSection(project)
             }
-            if !state.otherSessions.isEmpty {
-                otherSessionsSection
+            if !state.otherSessions.isEmpty, state.searchNeedle.isEmpty {
+                otherSessionsRow
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.top, 2)
+        .padding(.bottom, 10)
     }
 
-    /// One grouped project: H4 name header → separate session card → open footer.
     private func projectSection(_ project: ProjectConfig) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            nameHeader(project)
-            sessionCard(project)
-            openFooter(project)
-        }
-    }
-
-    /// The project NAME (H4) + its repos/ws count, LIFTED OUT of the card onto
-    /// the plain background — distinct from the gray session-list surface below.
-    private func nameHeader(_ project: ProjectConfig) -> some View {
-        HStack(spacing: 10) {
-            Text(project.name)
-                .font(.headline)
-                .lineLimit(1)
-            Spacer(minLength: 10)
-            if let snapshot = state.snapshots[project.id] {
-                Text("\(snapshot.repos.count) repos · \(snapshot.workspaces.count) ws")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        // Apple-uniform: the lifted name lines up with the session status dot, and
-        // the repos/ws counts line up with the card's right content edge.
-        .padding(.horizontal, Self.sectionContentInset)
-    }
-
-    /// The project's recent Claude sessions on their OWN gray .glassCard()
-    /// surface, separated from the lifted name header above.
-    private func sessionCard(_ project: ProjectConfig) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            let sessions = state.recentSessionsByProject[project.id] ?? []
-            if sessions.isEmpty {
-                Text("No recent Claude sessions")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            } else {
-                ForEach(sessions) { row in
-                    SessionBlock(row: row) { Task { await state.openSession(row) } }
+        let rows = state.listedSessions(of: project)
+        let all = state.recentSessionsByProject[project.id] ?? []
+        return VStack(alignment: .leading, spacing: 6) {
+            Button { state.open(.project(project.id)) } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(project.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    if let snapshot = state.snapshots[project.id] {
+                        Text("\(snapshot.repos.count) repos · \(snapshot.workspaces.count) ws")
+                            .font(.system(size: 11)).foregroundStyle(.tertiary)
+                    }
+                    Spacer(minLength: 8)
+                    let running = all.filter { $0.status == .running }.count
+                    if running > 0 {
+                        Text("\(running) running").font(.system(size: 11, weight: .semibold)).foregroundStyle(accent)
+                    }
+                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
                 }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .glassCard()
-    }
-
-    /// The open-project affordance, moved to the END of the section. This is the
-    /// tap-to-open target (the name header is now non-interactive lifted copy).
-    private func openFooter(_ project: ProjectConfig) -> some View {
-        Button { state.open(.project(project.id)) } label: {
-            HStack(spacing: 6) {
-                Spacer(minLength: 0)
-                Text("Open project")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-            // Same Apple-uniform inset as the name header and the card content: the
-            // open chevron's right edge lines up with the card's right content edge.
-            .padding(.horizontal, Self.sectionContentInset)
-        }
-        .buttonStyle(.plain)
-        .help(project.path)
-    }
-
-    /// Footer section for sessions that don't match any configured project.
-    /// Hidden when the bucket is empty. Styled like a project section but with a
-    /// fixed name header and no workspace card — just an open-bucket affordance.
-    private var otherSessionsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Text("Other sessions")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 10)
-                Text("\(state.otherSessions.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, Self.sectionContentInset)
-            Button { state.open(.otherSessions) } label: {
-                HStack(spacing: 6) {
-                    Spacer(minLength: 0)
-                    Text("View other sessions")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                .padding(.horizontal, 2)
                 .contentShape(Rectangle())
-                .padding(.horizontal, Self.sectionContentInset)
             }
             .buttonStyle(.plain)
+            .help(project.path)
+            .accessibilityAddTraits(.isHeader)
+            if rows.isEmpty {
+                Text(state.searchNeedle.isEmpty ? "No recent Claude sessions" : "No session matches")
+                    .font(.system(size: 11)).foregroundStyle(.tertiary)
+                    .padding(.horizontal, 2)
+            }
+            ForEach(rows) { row in
+                SessionLineRow(state: state, ref: SessionRef(row: row), status: row.status,
+                               place: row.location, focused: state.keyboardFocus == row.id)
+            }
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "tree").font(.largeTitle).foregroundStyle(.secondary)
-            Text("No projects yet").font(.headline)
-            Text("Add the directory that contains your repos with +.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+    /// The sessions whose folder is no project's.
+    private var otherSessionsRow: some View {
+        Button { state.open(.otherSessions) } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "tray").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text("Other sessions").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                Text("\(state.otherSessions.count) outside your projects")
+                    .font(.system(size: 11)).foregroundStyle(.tertiary)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
+            .padding(.top, 4)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .buttonStyle(.plain)
     }
 }
 
-/// One recent session, rendered as a distinct, tappable block (item 7): status
-/// dot + word, title, location · account, age, and a Go/Resume affordance.
-struct SessionBlock: View {
-    let row: ProjectSessionRow
-    let onTap: () -> Void
-    @Environment(\.isSnapshotRender) private var isSnapshotRender
-
-    private var isLive: Bool { row.status != .closed }
+/// No project yet: what a project is, and the way to add one.
+struct ProjectsEmptyState: View {
+    @ObservedObject var state: AppState
+    @Environment(\.groveAccent) private var accent
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 10) {
-                Circle().fill(statusColor).frame(width: 7, height: 7)
-                VStack(alignment: .leading, spacing: 2) {
-                    // Lead with the WORKSPACE — not the project name (card header)
-                    // and not the often-junk session title.
-                    Text(row.location)
-                        .font(.callout.weight(.semibold))
-                        .lineLimit(1)
-                    // Secondary: status word (lighter) + age.
-                    HStack(spacing: 5) {
-                        Text(statusWord).foregroundStyle(statusColor)
-                        Text("· \(relativeAge(row.lastActivity, now: Date()))").foregroundStyle(.tertiary)
-                    }
-                    .font(.caption2.weight(.regular))
-                }
-                Spacer(minLength: 8)
-                action   // bigger, vertically-centered Go / Resume
+        VStack(spacing: 10) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(accent)
+            Text("No projects yet").font(.system(size: 15, weight: .semibold))
+            Text("A project is a folder of repositories you work in with Claude Code. Its sessions show up here, with what was said last.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 320)
+            Button { addFolder() } label: {
+                Text("Add a folder…")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Color(red: 0x2A / 255, green: 0x22 / 255, blue: 0x18 / 255))
+                    .padding(.horizontal, 14).frame(height: 26)
+                    .background(Capsule().fill(accent))
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .background(blockBackground)
+            .buttonStyle(.plain)
+            .padding(.top, 4)
         }
-        .buttonStyle(.plain)
-        .help(isLive ? "Go to this running session\n\(row.cwd)"
-                     : "Resume — starts a new Claude process with --resume\n\(row.cwd)")
+        .padding(.top, 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// Live → "Go" (jump to the running session). Closed → "Resume" (clearly a NEW
-    /// process). A real, centered capsule button — not a cramped corner label.
-    private var action: some View {
-        Label(isLive ? "Go" : "Resume",
-              systemImage: isLive ? "arrow.right.circle.fill" : "play.circle")
-            .labelStyle(.titleAndIcon)
-            .font(.callout.weight(.semibold))
-            .foregroundStyle(isLive ? Palette.primary : .secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(.white.opacity(0.07)))
-            .fixedSize()
-    }
-
-    /// A faint inset fill — NO border — so the session rows read as a quiet list
-    /// inside the project card, not a stack of bordered card-in-cards.
-    private var blockBackground: some View {
-        RoundedRectangle(cornerRadius: DesignRadius.field, style: .continuous)
-            .fill(.white.opacity(isSnapshotRender ? 0.05 : 0.04))
-    }
-
-    private var statusColor: Color {
-        switch row.status {
-        case .running: return Palette.primary
-        case .waiting: return Palette.mid
-        case .closed: return Palette.neutral
+    private func addFolder() {
+        if let addFolder = state.addFolder { addFolder(); return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add Project"
+        if panel.runModal() == .OK, let url = panel.url {
+            state.addProject(at: url.path)
         }
+    }
+}
+
+/// One session in a list: what state it is in, its title, where it runs and as whom, and
+/// Go or Resume with the rest of its menu. Delete asks in the row itself.
+struct SessionLineRow: View {
+    @ObservedObject var state: AppState
+    let ref: SessionRef
+    let status: ProjectSessionRow.Status
+    /// The workspace, worktree or folder the session runs in.
+    let place: String
+    var focused = false
+    @Environment(\.groveAccent) private var accent
+
+    private var askingDelete: Bool { state.confirmingDelete == ref.sessionId }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            SessionStatusGlyph(status: status)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(ref.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1).truncationMode(.tail)
+                meta
+            }
+            Spacer(minLength: 8)
+            if askingDelete {
+                DeleteTranscriptConfirm(onDelete: {
+                    state.confirmingDelete = nil
+                    SessionMenu.delete(ref, state: state)
+                }, onCancel: { state.confirmingDelete = nil })
+                .fixedSize()
+            } else {
+                Text(relativeAge(ref.lastActivity, now: Date()))
+                    .font(.system(size: 11)).monospacedDigit().foregroundStyle(.tertiary)
+                Button { SessionMenu.primary(ref, state: state) } label: {
+                    Text(ref.isLive ? "Go" : "Resume")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(ref.isLive ? Color(red: 0x2A / 255, green: 0x22 / 255, blue: 0x18 / 255) : .white)
+                        .padding(.horizontal, 10).frame(height: 22)
+                        .background(Capsule().fill(ref.isLive ? AnyShapeStyle(accent) : AnyShapeStyle(Color.white.opacity(0.10))))
+                }
+                .buttonStyle(.plain)
+                .help(ref.isLive ? "Go to this running session" : "Resume: a new Claude process with --resume")
+                SessionActionsMenu(state: state, ref: ref, onAskDelete: askDelete)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(SessionCardBackground(focused: focused))
+        .opacity(status == .closed ? 0.85 : 1)
+        .contentShape(Rectangle())
+        .contextMenu {
+            SessionMenuContent(items: SessionMenu.items(for: ref, state: state, onAskDelete: askDelete))
+        }
+        .help(ref.cwd)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(statusWord). \(ref.title). \(place), \(state.displayName(forAccountNamed: ref.accountName))")
+    }
+
+    private func askDelete() { state.confirmingDelete = ref.sessionId }
+
+    private var meta: some View {
+        HStack(spacing: 5) {
+            Text(statusWord).foregroundStyle(status == .running ? accent : Color.white.opacity(0.62))
+            Text("·").foregroundStyle(.tertiary)
+            Text(place).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            Text("·").foregroundStyle(.tertiary)
+            AccountTag(state: state, accountName: ref.accountName)
+        }
+        .font(.system(size: 11))
     }
 
     private var statusWord: String {
-        switch row.status {
+        switch status {
         case .running: return "running"
         case .waiting: return "waiting"
         case .closed: return "closed"
@@ -249,3 +219,58 @@ struct SessionBlock: View {
     }
 }
 
+/// A session row's surface: white 5.5 % with a 7 % edge, continuous corners; the keyboard's
+/// focus a 2 pt ring in the accent.
+struct SessionCardBackground: View {
+    var focused = false
+    @Environment(\.groveAccent) private var accent
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        shape.fill(.white.opacity(contrast == .increased ? 0.09 : 0.055))
+            .overlay(shape.strokeBorder(.white.opacity(contrast == .increased ? 0.25 : 0.07), lineWidth: 1))
+            .overlay { if focused { shape.strokeBorder(accent, lineWidth: 2) } }
+    }
+}
+
+/// An account where a row names it: its host colour as a dot, then its name.
+struct AccountTag: View {
+    @ObservedObject var state: AppState
+    let accountName: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let dot = state.dot(forAccountNamed: accountName) {
+                Circle().fill(dot).frame(width: 5, height: 5)
+            }
+            Text(state.displayName(forAccountNamed: accountName)).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+}
+
+/// The state of a session at a glance: a working arc in the accent, a ring with a dot for
+/// one waiting on the user, a dashed ring for one that is closed. Never colour alone: the
+/// row says the word too.
+struct SessionStatusGlyph: View {
+    let status: ProjectSessionRow.Status
+    @Environment(\.groveAccent) private var accent
+
+    var body: some View {
+        ZStack {
+            switch status {
+            case .running:
+                Circle().trim(from: 0, to: 0.75)
+                    .stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            case .waiting:
+                Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5)
+                Circle().fill(.white.opacity(0.9)).frame(width: 4, height: 4)
+            case .closed:
+                Circle().strokeBorder(.white.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
+            }
+        }
+        .frame(width: 14, height: 14)
+        .accessibilityHidden(true)
+    }
+}

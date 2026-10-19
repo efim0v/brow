@@ -17,16 +17,17 @@ final class RouteTests: XCTestCase {
     func testDepthsCompareGeneralToSpecific() {
         XCTAssertEqual(Route.projects.depth, 0)
         XCTAssertEqual(Route.project(id).depth, 1)
-        XCTAssertEqual(Route.accounts.depth, 1)
+        XCTAssertEqual(Route.otherSessions.depth, 1)
         XCTAssertEqual(Route.projectSettings(id).depth, 2)
         XCTAssertEqual(Route.createWorkspace(id).depth, 2)
+        XCTAssertEqual(Route.launch.depth, 3, "the launch form is pushed over whatever asked for it")
     }
 
     func testExplicitBackMap() {
         XCTAssertEqual(Route.createWorkspace(id).backRoute, .project(id))
         XCTAssertEqual(Route.projectSettings(id).backRoute, .project(id))
         XCTAssertEqual(Route.project(id).backRoute, .projects)
-        XCTAssertEqual(Route.accounts.backRoute, .projects)
+        XCTAssertEqual(Route.otherSessions.backRoute, .projects)
         XCTAssertEqual(Route.projects.backRoute, .projects)   // root: stays put
     }
 
@@ -62,8 +63,8 @@ final class RouteTests: XCTestCase {
 
     func testOpenSetsRouteAndForwardDirection() throws {
         let (state, _) = try makeState()
-        state.open(.accounts)
-        XCTAssertEqual(state.route, .accounts)
+        state.open(.otherSessions)
+        XCTAssertEqual(state.route, .otherSessions)
         XCTAssertTrue(state.routeIsForward)
     }
 

@@ -6,11 +6,8 @@ import Foundation
 /// The panel's navigation state machine: at any moment the panel shows ONE
 /// scope (general -> specific), never an overlay. RootView switches over this
 /// and animates transitions; AppState.open/goBack mutate it.
-public enum Route: Equatable {
+public enum Route: Hashable {
     case projects
-    /// Sessions by account. The account settings themselves are in the host's
-    /// Settings window (`AppState.openSettings`).
-    case accounts
     case project(UUID)
     case projectSettings(UUID)
     case createWorkspace(UUID)
@@ -20,23 +17,28 @@ public enum Route: Equatable {
     /// Sessions discovered disk-wide that don't match any configured project.
     /// Shown as a sibling entry in the projects navigation (footer or cards area).
     case otherSessions
+    /// New session / Resume with options: `AppState.launchRequest`, pushed over the screen
+    /// it was asked from (`AppState.launchOrigin`), which it goes back to.
+    case launch
 
     /// Scope depth, used to classify a route change as push (deeper or equal)
     /// or pop (shallower) for the transition direction.
     public var depth: Int {
         switch self {
         case .projects: return 0
-        case .project, .accounts, .otherSessions: return 1
+        case .project, .otherSessions: return 1
         case .projectSettings, .createWorkspace, .statsSettings: return 2
+        case .launch: return 3
         }
     }
 
     /// Explicit back-map: createWorkspace/projectSettings/statsSettings -> their
-    /// project; project/accounts/otherSessions -> projects; projects -> itself (root).
+    /// project; project/otherSessions -> projects; projects -> itself (root). The launch
+    /// form goes back to the screen it was opened from (`AppState.cancelLaunch`).
     public var backRoute: Route {
         switch self {
         case .projects: return .projects
-        case .project, .accounts, .otherSessions: return .projects
+        case .project, .otherSessions, .launch: return .projects
         case .projectSettings(let id), .createWorkspace(let id), .statsSettings(let id):
             return .project(id)
         }

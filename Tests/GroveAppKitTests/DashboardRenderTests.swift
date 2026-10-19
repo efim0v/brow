@@ -38,17 +38,6 @@ final class DashboardRenderTests: XCTestCase {
         }
     }
 
-    /// The Accounts screen's live branch: the settings link appears only when the host
-    /// can open its Settings window.
-    func testAccountsScreenRendersLiveBranchWithAndWithoutTheSettingsLink() {
-        let state = SnapshotMode.fixtureState()
-        render(AccountsScreen(state: state).environment(\.isSnapshotRender, false), height: 480)
-        var opened: [WorkspacesSettingsLink] = []
-        state.openSettings = { opened.append($0) }
-        render(AccountsScreen(state: state).environment(\.isSnapshotRender, false), height: 480)
-        XCTAssertTrue(opened.isEmpty, "rendering opens nothing")
-    }
-
     func testProjectsTabEmptyAndPopulatedStates() {
         let populated = SnapshotMode.fixtureState()
         render(ProjectsTab(state: populated).environment(\.isSnapshotRender, true), height: 520)

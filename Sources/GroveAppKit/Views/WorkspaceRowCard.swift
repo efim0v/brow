@@ -21,6 +21,7 @@ struct WorkspaceRowCard: View {
     /// and `.buttonStyle(.link)` render as yellow/crossed placeholders
     /// offscreen — snapshot mode swaps in static lookalikes.
     @Environment(\.isSnapshotRender) private var isSnapshotRender
+    @Environment(\.groveAccent) private var accent
     /// The nested-worktree fold; closed by default so a workspace with 28 of them
     /// opens to its four real repos and a one-line count.
     @State private var nestedExpanded = false
@@ -73,7 +74,7 @@ struct WorkspaceRowCard: View {
 
     private var ageColor: Color {
         switch badges.ageBucket {
-        case .fresh: return Palette.primary
+        case .fresh: return accent
         case .aging: return Palette.mid
         case .stale: return Palette.negative
         case .unknown: return Palette.neutral
@@ -96,7 +97,7 @@ struct WorkspaceRowCard: View {
             }
             if badges.busyCount > 0 {
                 Label("\(badges.busyCount)", systemImage: "circle.fill")
-                    .foregroundStyle(Palette.primary)
+                    .foregroundStyle(accent)
             }
             if badges.waitingCount > 0 {
                 Label("\(badges.waitingCount)", systemImage: "circle.fill")
@@ -139,7 +140,7 @@ struct WorkspaceRowCard: View {
                             Text("from \(meta.baseBranch)")
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1).truncationMode(.middle)
-                            Text("+\(meta.ahead)").foregroundStyle(Palette.primary)
+                            Text("+\(meta.ahead)").foregroundStyle(accent)
                             Text("−\(meta.behind)").foregroundStyle(Palette.negative)
                             Text(meta.dirtyCount > 0 ? "✎\(meta.dirtyCount)" : "✓")
                                 .foregroundStyle(meta.dirtyCount > 0 ? Palette.mid : .secondary)
@@ -203,7 +204,7 @@ struct WorkspaceRowCard: View {
                             .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 8)
                         if let meta = state.meta {
-                            Text("+\(meta.ahead)").foregroundStyle(Palette.primary)
+                            Text("+\(meta.ahead)").foregroundStyle(accent)
                             Text("−\(meta.behind)").foregroundStyle(Palette.negative)
                             Text(meta.dirtyCount > 0 ? "✎\(meta.dirtyCount)" : "✓")
                                 .foregroundStyle(meta.dirtyCount > 0 ? Palette.mid : .secondary)
@@ -224,26 +225,20 @@ struct WorkspaceRowCard: View {
         return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : (path as NSString).lastPathComponent
     }
 
-    // MARK: - Sessions — a distinct, detailed sub-table (its OWN entity, set apart
-    // from the repos): status, title, account · model, age, Go/Resume.
+    // MARK: - Sessions: one row each, with Go or Resume and the session's own menu
 
     private var sessionRows: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 5) {
-                Image(systemName: "bubble.left.and.text.bubble.right").font(.caption2)
-                Text("Sessions").font(.caption.weight(.semibold))
-                Text("\(workspace.sessions.count)").font(.caption2).foregroundStyle(.tertiary)
-                Spacer()
-            }
-            .foregroundStyle(.secondary)
-            .padding(.bottom, 4)
-            ForEach(Array(workspace.sessions.enumerated()), id: \.element.id) { index, session in
-                if index > 0 { Divider().opacity(0.3) }
-                sessionDetailRow(session)
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(workspace.sessions, id: \.id) { session in
+                let live = liveProcess(for: session)
+                SessionLineRow(state: state,
+                               ref: SessionRef(sessionId: session.id, cwd: session.cwd, accountName: session.accountName,
+                                               title: displayTitle(session), isLive: live != nil,
+                                               lastActivity: session.lastActivity),
+                               status: live.map { SessionLiveStatus(rawStatus: $0.status) == .busy ? .running : .waiting } ?? .closed,
+                               place: session.gitBranch.flatMap { $0.isEmpty ? nil : $0 } ?? workspace.name)
             }
         }
-        .padding(8)
-        .background(sessionTableBackground)
     }
 
     @ViewBuilder private var sessionTableBackground: some View {
@@ -253,109 +248,6 @@ struct WorkspaceRowCard: View {
         } else {
             shape.fill(.black.opacity(0.22)).overlay(shape.strokeBorder(.white.opacity(0.08)))
         }
-    }
-
-    private func sessionDetailRow(_ session: ClaudeSession) -> some View {
-        let model = session.model
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Circle().fill(activityColor(for: session)).frame(width: 7, height: 7)
-                Text(statusWord(for: session))
-                    .foregroundStyle(activityColor(for: session))
-                    .frame(width: 52, alignment: .leading)
-                Text(displayTitle(session)).fontWeight(.medium).lineLimit(1)
-                Spacer(minLength: 8)
-                Text(relativeAge(session.lastActivity, now: now)).foregroundStyle(.tertiary)
-                // Gear: reconfigure + relaunch a CLOSED session (new model / effort /
-                // account / skip-permissions). A live process can't be reconfigured.
-                if liveProcess(for: session) == nil, !isSnapshotRender {
-                    Button { state.beginConfigure(session: session) } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Relaunch with new model / effort / account / permissions")
-                }
-                // Share button — only for non-canonical accounts.
-                if let owningAcct = state.config.accounts.first(where: { $0.name == session.accountName }),
-                   AppState.canShareAcrossAccounts(account: owningAcct, canonicalDir: state.canonicalDir),
-                   !isSnapshotRender {
-                    Button {
-                        let acct = owningAcct
-                        Task { await state.adoptSession(cwd: session.cwd, sessionId: session.id, account: acct) }
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Palette.primary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Share across accounts (symlink into ~/.claude)")
-                }
-                // Migrate menu — shown when ≥1 other account exists.
-                sessionMigrateMenu(session)
-                if isSnapshotRender {
-                    Text(liveProcess(for: session) == nil ? "Resume" : "Go")
-                        .foregroundStyle(Palette.primary)
-                } else {
-                    Button(liveProcess(for: session) == nil ? "Resume" : "Go") { open(session) }
-                        .buttonStyle(.link)
-                }
-            }
-            .font(.caption)
-            HStack(spacing: 8) {
-                Text(state.displayName(forAccountNamed: session.accountName)).foregroundStyle(.tertiary)
-                if let model, !model.isEmpty { Text(shortModelName(model)).monospaced() }
-                Spacer(minLength: 0)
-            }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .padding(.leading, 13)
-        }
-        .padding(.vertical, 4)
-    }
-
-    /// Migrate icon-menu for a session row. Snapshot-safe: renders a static icon
-    /// offscreen (Menu is AppKit-backed and breaks ImageRenderer).
-    @ViewBuilder
-    private func sessionMigrateMenu(_ session: ClaudeSession) -> some View {
-        let sourceAccount = state.config.accounts.first { $0.name == session.accountName }
-            ?? state.config.accounts.first
-            ?? AccountConfig(name: "default", configDir: "~/.claude")
-        let others = state.config.accounts.filter { $0.name != session.accountName }
-        if !others.isEmpty {
-            if isSnapshotRender {
-                Image(systemName: "tray.and.arrow.up")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            } else {
-                Menu {
-                    ForEach(others, id: \.name) { targetAccount in
-                        Button(state.menuTitle("Migrate to", targetAccount)) {
-                            let cwd = session.cwd
-                            let sid = session.id
-                            let src = sourceAccount
-                            let dst = targetAccount
-                            Task { await state.migrateSession(cwd: cwd, sessionId: sid,
-                                                              from: src, to: dst) }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "tray.and.arrow.up")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.primary)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Migrate this session — full copy (data + config + plugins/hooks) to another account")
-            }
-        }
-    }
-
-    /// running (busy/idle live) / waiting / closed (no live process).
-    private func statusWord(for session: ClaudeSession) -> String {
-        guard let live = liveProcess(for: session) else { return "closed" }
-        return live.status == "waiting" ? "waiting" : "running"
     }
 
     /// Sessions whose first message is the cmux/local-command caveat get a junk
@@ -373,20 +265,9 @@ struct WorkspaceRowCard: View {
         workspace.liveProcesses.liveProcess(forSessionId: session.id, cwd: session.cwd)
     }
 
-    /// running -> primary (blue), waiting -> mid (yellow), other live or no
-    /// process -> neutral (gray).
-    private func activityColor(for session: ClaudeSession) -> Color {
-        guard let live = liveProcess(for: session) else { return Palette.neutral }
-        switch live.status {
-        case "busy": return Palette.primary
-        case "waiting": return Palette.mid
-        default: return Palette.neutral
-        }
-    }
-
     private func open(_ session: ClaudeSession) {
         let account = state.config.accounts.first { $0.name == session.accountName }
-            ?? state.config.accounts.first
+            ?? state.defaultLaunchAccount
             ?? AccountConfig(name: "default", configDir: "~/.claude")
         Task {
             await state.goToSession(session, fallbackCwd: workspace.umbrellaPath,
@@ -401,13 +282,13 @@ struct WorkspaceRowCard: View {
             if isSnapshotRender {
                 // Menu draws a yellow placeholder offscreen — a plain Button
                 // (which renders fine) stands in with the primary action.
-                Button("New Claude") {
+                Button("New session") {
                     if let account = state.defaultLaunchAccount { launch(account: account) }
                 }
             } else {
-                Menu("New Claude") {
-                    ForEach(state.config.accounts, id: \.name) { account in
-                        Button(state.menuTitle("", account)) { launch(account: account) }
+                Menu("New session") {
+                    ForEach(state.accounts) { account in
+                        Button(state.menuTitle("", account)) { launch(account: account.config) }
                     }
                 } primaryAction: {
                     // Single click launches on the project's default account

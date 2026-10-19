@@ -29,17 +29,20 @@ final class BrowMainMenuTests: XCTestCase {
         XCTAssertNil(quit.target, "nil target so the action reaches NSApp through the responder chain")
     }
 
-    /// The way into Workspaces from Settings' menu, whatever the menu bar shows.
-    func testMainMenuCarriesShowWorkspaces() throws {
-        let item = try XCTUnwrap(appMenu().items.first { $0.title == "Show Workspaces" })
+    /// The way to the notch panel's Projects from Settings' menu, whatever the menu bar
+    /// and the notch show. Nothing is called Workspaces' window any more: there is none.
+    func testMainMenuCarriesShowProjects() throws {
+        let item = try XCTUnwrap(appMenu().items.first { $0.title == "Show Projects" })
         XCTAssertTrue(item.target is BrowAppController)
         XCTAssertNotNil(item.action)
+        XCTAssertNil(try appMenu().items.first { $0.title == "Show Workspaces" })
     }
 
-    /// Opening Brow again shows Workspaces while it is wanted, Settings otherwise.
-    func testReopeningShowsWorkspacesOnlyWhileItIsWanted() {
-        XCTAssertEqual(BrowAppController.reopenTarget(for: .on), .workspaces)
-        XCTAssertEqual(BrowAppController.reopenTarget(for: .paused), .workspaces)
+    /// Opening Brow again opens the notch panel pinned on Projects while Workspaces is
+    /// wanted, Settings otherwise.
+    func testReopeningShowsProjectsOnlyWhileWorkspacesIsWanted() {
+        XCTAssertEqual(BrowAppController.reopenTarget(for: .on), .projects)
+        XCTAssertEqual(BrowAppController.reopenTarget(for: .paused), .projects)
         XCTAssertEqual(BrowAppController.reopenTarget(for: .off), .settings)
     }
 

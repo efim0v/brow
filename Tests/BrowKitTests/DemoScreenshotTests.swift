@@ -211,7 +211,7 @@ final class DemoScreenshotTests: XCTestCase {
         state.limitsProvider = store
         let host = WorkspacesHost(store: store, folders: state.folders,
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
-                                  groveConfigExists: { false }, groveDefaults: { nil })
+                                  groveConfigExists: { false })
         host.preview(state: state, activation: .on)
         return host
     }
@@ -290,7 +290,7 @@ final class DemoScreenshotTests: XCTestCase {
         if let review = ProcessInfo.processInfo.environment["BROW_REVIEW_DIR"], !review.isEmpty {
             let off = WorkspacesHost(store: store, folders: workspaces.folders,
                                      groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
-                                     groveConfigExists: { false }, groveDefaults: { nil })
+                                     groveConfigExists: { false })
             off.preview(state: nil, activation: .off,
                         dormant: (workspaces.state?.config.accounts ?? []).filter(\.monitoring))
             for (pane, name) in [(SettingsPane.accounts, "brow-settings-accounts-off.png"),
@@ -303,11 +303,9 @@ final class DemoScreenshotTests: XCTestCase {
             }
         }
 
-        // (6) What the Workspaces panel says when it is not running its projects.
-        try renderWindowContent(WorkspacesNoticeView(notice: workspaces.groveRunningNotice),
+        // (6) What Projects says while Grove.app keeps Workspaces paused.
+        try renderWindowContent(WorkspacesNoticeView(notice: workspaces.groveRunningNotice).frame(width: 432),
                                 to: out.appendingPathComponent("workspaces-paused.png"))
-        try renderWindowContent(WorkspacesNoticeView(notice: workspaces.introductionNotice),
-                                to: out.appendingPathComponent("workspaces-introduction.png"))
     }
 
     /// A strip of menu bar with Brow's item among two stand-ins, the way the bar tints a

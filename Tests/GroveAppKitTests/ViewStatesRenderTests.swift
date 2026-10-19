@@ -23,15 +23,13 @@ final class ViewStatesRenderTests: XCTestCase {
 
     private let projectSize = CGSize(width: 600, height: 540)
 
-    func testSessionsSearchNoMatchAndEmptyScanning() {
+    func testProjectSearchNoMatchAndEmptyScanning() {
         let s = SnapshotMode.fixtureState()
-        s.selectedTab = .sessions
         s.route = .project(s.selectedProjectID!)
         s.searchQuery = "zzz-no-match"
         render(s, projectSize)
 
         let s2 = SnapshotMode.fixtureState()
-        s2.selectedTab = .sessions
         s2.route = .project(s2.selectedProjectID!)
         s2.snapshots = [:]              // no snapshot -> "scan this project" empty state
         s2.isScanning = true
@@ -49,17 +47,25 @@ final class ViewStatesRenderTests: XCTestCase {
         render(s, projectSize)
     }
 
-    /// Exercises the merged window root (the projects section under the window's
-    /// glass). Forcing cgImage catches a crashing/blank body.
-    func testMergedRootRenders() {
-        let state = SnapshotMode.fixtureState()
-        let view = MergedRootView(state: state)
-            .frame(width: 460, height: 520)
-            .environment(\.colorScheme, .dark)
-            .environment(\.isSnapshotRender, true)
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 1
-        _ = renderer.cgImage
+    /// Every route as the notch hosts it: 432 pt wide inside the panel's black, no title of
+    /// its own on the list. Forcing cgImage catches a crashing or blank body.
+    func testEveryRouteRendersInTheNotch() {
+        let id = SnapshotMode.fixtureState().selectedProjectID!
+        let routes: [Route] = [.projects, .project(id), .projectSettings(id), .createWorkspace(id),
+                               .statsSettings(id), .otherSessions]
+        for route in routes {
+            let state = SnapshotMode.fixtureState()
+            state.route = route
+            let view = RootView(state: state)
+                .environment(\.groveHost, .notch(width: 432))
+                .frame(width: 432, height: 540)
+                .background(Color.black)
+                .environment(\.colorScheme, .dark)
+                .snapshotRender()
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 1
+            XCTAssertNotNil(renderer.cgImage, "\(route) did not render in the notch")
+        }
     }
 
     func testNonCmuxErrorBannerBranch() {

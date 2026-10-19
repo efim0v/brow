@@ -13,19 +13,12 @@ struct TreeConnector: View {
     let depth: Int
     let ancestorContinues: [Bool]
     let isLast: Bool
+    @Environment(\.groveAccent) private var accent
 
     static let indent: CGFloat = 20
-    /// On-brand depth ramp: every connector lane is `Palette.primary`, stepped
-    /// down in opacity by depth so nested columns stay distinguishable while the
-    /// whole tree reads as one cohesive blue hierarchy.
-    static let palette: [Color] = [
-        Palette.primary,
-        Palette.primary.opacity(0.8),
-        Palette.primary.opacity(0.62),
-        Palette.primary.opacity(0.48),
-        Palette.primary.opacity(0.38),
-        Palette.primary.opacity(0.3),
-    ]
+    /// The depth ramp: every connector lane is the accent, stepped down in opacity by depth
+    /// so nested columns stay distinguishable while the tree reads as one hierarchy.
+    static let ramp: [Double] = [1, 0.8, 0.62, 0.48, 0.38, 0.3]
 
     var body: some View {
         Canvas { context, size in
@@ -34,7 +27,7 @@ struct TreeConnector: View {
                 CGFloat(column) * Self.indent + Self.indent / 2
             }
             func color(_ column: Int) -> GraphicsContext.Shading {
-                .color(Self.palette[column % Self.palette.count].opacity(0.8))
+                .color(accent.opacity(Self.ramp[column % Self.ramp.count] * 0.8))
             }
 
             for column in 0..<depth where column < ancestorContinues.count && ancestorContinues[column] {
@@ -69,6 +62,7 @@ struct WorkspacesScreen: View {
     /// Task 18's seam for workspaces-expanded.png: workspace names in this set
     /// render expanded with zero interaction (unioned with `expanded` below).
     @Environment(\.snapshotExpandedWorkspaces) private var snapshotExpanded
+    @Environment(\.groveAccent) private var accent
 
     @State private var expanded: Set<String> = []
     @State private var flatList = false
@@ -93,19 +87,8 @@ struct WorkspacesScreen: View {
         let allRows = buildWorkspaceTree(snapshot, now: now)
         let rows = filterTree(allRows, query: state.searchQuery)
         let visible = flatList ? flattenByRecency(rows) : rows
-        return Group {
-            if isSnapshotRender {
-                // ImageRenderer does not render ScrollView content offscreen
-                // (Task 15 finding): snapshot mode lays the column out
-                // unscrolled so every card is visible in the PNGs.
-                cardsColumn(snapshot: snapshot, visible: visible, now: now)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                ScrollView {
-                    cardsColumn(snapshot: snapshot, visible: visible, now: now)
-                        .collapsesSearchOnScroll()
-                }
-            }
+        return FadingScrollView {
+            cardsColumn(snapshot: snapshot, visible: visible, now: now)
         }
     }
 
@@ -124,7 +107,8 @@ struct WorkspacesScreen: View {
         // Plain VStack, NOT LazyVStack: ImageRenderer renders lazy
         // containers blank, and workspace counts are small anyway.
         VStack(alignment: .leading, spacing: 0) {
-            screenHeader(snapshot: snapshot)
+            projectFolderSection(snapshot: snapshot)
+            workspacesCaption
             if visible.isEmpty {
                 noWorkspacesHint(snapshot: snapshot)
             } else {
@@ -135,8 +119,58 @@ struct WorkspacesScreen: View {
             }
             looseSection(snapshot: snapshot)
         }
-        .padding(.horizontal, 12)
         .padding(.bottom, 12)
+    }
+
+    // MARK: - The project's own folder
+
+    /// The sessions that ran in the project's own folder, or anywhere under it outside a
+    /// workspace — what the project's Claude tab listed as "External". Their state comes
+    /// from the Projects list's index where it knows it; the rest are closed.
+    @ViewBuilder
+    private func projectFolderSection(snapshot: ProjectSnapshot) -> some View {
+        let rows = projectFolderRows(snapshot: snapshot)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                SectionCaption(title: "PROJECT FOLDER")
+                ForEach(rows, id: \.ref.sessionId) { row in
+                    SessionLineRow(state: state, ref: row.ref, status: row.status, place: row.place,
+                                   focused: false)
+                }
+            }
+            .padding(.bottom, 14)
+        }
+    }
+
+    private func projectFolderRows(snapshot: ProjectSnapshot)
+        -> [(ref: SessionRef, status: ProjectSessionRow.Status, place: String)] {
+        guard let id = state.selectedProjectID else { return [] }
+        let inSnapshot = Set((snapshot.workspaces.flatMap(\.sessions) + snapshot.loose.flatMap(\.sessions))
+            .map { SessionRow.rowID(cwd: $0.cwd, session: $0.id) })
+        let indexed = Dictionary((state.recentSessionsByProject[id] ?? []).map { ($0.sessionId, $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        let needle = state.searchNeedle
+        var seen = Set<String>()
+        return (state.externalSessionsByProject[id] ?? []).compactMap { session in
+            let key = SessionRow.rowID(cwd: session.cwd, session: session.id)
+            guard !inSnapshot.contains(key), seen.insert(key).inserted else { return nil }
+            let row = indexed[session.id]
+            let status = row?.status ?? .closed
+            let ref = SessionRef(session: session, isLive: status != .closed, cmuxWorkspaceId: row?.cmuxWorkspaceId)
+            guard needle.isEmpty || ref.title.lowercased().contains(needle) else { return nil }
+            let place = session.gitBranch.flatMap { $0.isEmpty ? nil : $0 } ?? (session.cwd as NSString).lastPathComponent
+            return (ref, status, place)
+        }
+    }
+
+    /// WORKSPACES, with the tree/list switch.
+    private var workspacesCaption: some View {
+        HStack(spacing: 8) {
+            SectionCaption(title: "WORKSPACES")
+            Spacer()
+            viewToggle
+        }
+        .padding(.bottom, 6)
     }
 
     private func rowView(_ row: WorkspaceTreeRow, now: Date) -> some View {
@@ -175,26 +209,6 @@ struct WorkspacesScreen: View {
         }
     }
 
-    // MARK: - Header row (count + create + tree/list toggle; the project
-    // name lives in ProjectScreen's navigation header now)
-
-    private func screenHeader(snapshot: ProjectSnapshot) -> some View {
-        HStack {
-            Text("\(snapshot.workspaces.count) workspaces")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                openCreate(CreatePrefill())
-            } label: {
-                Label("Workspace", systemImage: "plus")
-            }
-            .controlSize(.small)
-            viewToggle
-        }
-        .padding(.vertical, 10)
-    }
-
     /// Pure-SwiftUI tree/list toggle in the capsule style of ProjectScreen's
     /// tab strip (Task 15). NOT Picker(.segmented): segmented controls are
     /// AppKit-backed and ImageRenderer draws them as a yellow error
@@ -202,7 +216,7 @@ struct WorkspacesScreen: View {
     /// (selectionCapsule); the SwiftUI GlassEffectContainer is gone — it crashes
     /// nested inside the AppKit NSGlassEffectView window substrate.
     private var viewToggle: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             toggleButton("point.3.connected.trianglepath.dotted", isOn: !flatList,
                          help: "Tree") { flatList = false }
             toggleButton("list.bullet", isOn: flatList,
@@ -214,13 +228,15 @@ struct WorkspacesScreen: View {
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.callout)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .font(.system(size: 11))
+                .foregroundStyle(isOn ? Color.white : Color.white.opacity(0.5))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
                 .selectionCapsule(isOn: isOn)
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     /// The trunk all roots hang from: "base" plus the base branches seen by the scan.
@@ -258,16 +274,23 @@ struct WorkspacesScreen: View {
     private func looseSection(snapshot: ProjectSnapshot) -> some View {
         let groups = looseGroups(snapshot: snapshot)
         if !groups.isEmpty {
-            DisclosureGroup(isExpanded: $looseExpanded) {
-                VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                Button { looseExpanded.toggle() } label: {
+                    HStack(spacing: 6) {
+                        SectionCaption(title: "LOOSE WORKTREES")
+                        Text("\(snapshot.loose.count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                        Image(systemName: looseExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if looseExpanded {
                     ForEach(groups, id: \.leaf) { group in
                         looseGroupView(group)
                     }
                 }
-            } label: {
-                Text("Loose worktrees (\(snapshot.loose.count))")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
             .padding(.top, 14)
         }
@@ -286,15 +309,13 @@ struct WorkspacesScreen: View {
     }
 
     private func looseGroupView(_ group: (leaf: String, members: [LooseWorktree])) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(group.leaf)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
             ForEach(group.members, id: \.entry.path) { loose in
                 looseRow(loose)
             }
         }
-        .padding(8)
-        .glassCard()
         .padding(.vertical, 2)
     }
 
@@ -305,7 +326,7 @@ struct WorkspacesScreen: View {
                     .foregroundStyle(.secondary)
                 Text(loose.entry.branch ?? "detached")
                 if let meta = loose.meta {
-                    Text("+\(meta.ahead)").foregroundStyle(Palette.primary)
+                    Text("+\(meta.ahead)").foregroundStyle(accent)
                     Text("−\(meta.behind)").foregroundStyle(Palette.negative)
                     Text(meta.dirtyCount > 0 ? "✎\(meta.dirtyCount)" : "✓")
                         .foregroundStyle(meta.dirtyCount > 0 ? Palette.mid : .secondary)
@@ -322,9 +343,9 @@ struct WorkspacesScreen: View {
                     }
                 } else {
                     Menu("Claude") {
-                        ForEach(state.config.accounts, id: \.name) { account in
+                        ForEach(state.accounts) { account in
                             Button(state.menuTitle("", account)) {
-                                launchLooseClaude(loose, account: account)
+                                launchLooseClaude(loose, account: account.config)
                             }
                         }
                     } primaryAction: {
@@ -350,7 +371,10 @@ struct WorkspacesScreen: View {
             // Resume / go-to routing as workspace cards (goToSession picks the
             // hook-mapped cmux workspace first, --resume relaunch as fallback).
             ForEach(loose.sessions, id: \.id) { session in
-                looseSessionRow(session, loose: loose)
+                let live = loose.liveProcesses.liveProcess(forSessionId: session.id, cwd: session.cwd)
+                SessionLineRow(state: state, ref: SessionRef(session: session, isLive: live != nil),
+                               status: live.map { SessionLiveStatus(rawStatus: $0.status) == .busy ? .running : .waiting } ?? .closed,
+                               place: loose.entry.branch ?? (loose.entry.path as NSString).lastPathComponent)
             }
         }
         .font(.caption)
@@ -364,43 +388,6 @@ struct WorkspacesScreen: View {
                                      title: (loose.entry.path as NSString).lastPathComponent,
                                      account: account, resume: nil)
         }
-    }
-
-    private func looseSessionRow(_ session: ClaudeSession, loose: LooseWorktree) -> some View {
-        let isLive = loose.liveProcesses.liveProcess(forSessionId: session.id, cwd: session.cwd) != nil
-        return HStack(spacing: 6) {
-            Circle()
-                .fill(isLive ? Palette.primary : Palette.neutral)
-                .frame(width: 6, height: 6)
-            Text(session.title ?? "(untitled session)")
-                .lineLimit(1)
-            Text(state.displayName(forAccountNamed: session.accountName))
-                .foregroundStyle(.tertiary)
-            Spacer(minLength: 8)
-            Text(relativeAge(session.lastActivity, now: Date()))
-                .foregroundStyle(.secondary)
-            if isSnapshotRender {
-                // .buttonStyle(.link) draws a yellow placeholder offscreen —
-                // static link-colored lookalike instead.
-                Text(isLive ? "Go" : "Resume")
-                    .foregroundStyle(Palette.primary)
-            } else {
-                Button(isLive ? "Go" : "Resume") {
-                    let account = state.config.accounts.first { $0.name == session.accountName }
-                        ?? state.config.accounts.first
-                        ?? AccountConfig(name: "default", configDir: "~/.claude")
-                    Task {
-                        await state.goToSession(
-                            session,
-                            fallbackCwd: loose.entry.path,
-                            fallbackTitle: (loose.entry.path as NSString).lastPathComponent,
-                            account: account)
-                    }
-                }
-                .buttonStyle(.link)
-            }
-        }
-        .padding(.leading, 14)
     }
 
     // MARK: - Empty states (spec §7)

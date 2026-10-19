@@ -19,8 +19,8 @@ extension EnvironmentValues {
     }
 }
 
-/// Headless UI harness: `BrowApp --snapshot <outDir>` renders the Workspaces panel
-/// with a synthetic fixture state into PNGs and exits without ever starting
+/// Headless UI harness: `BrowApp --snapshot <outDir>` renders Workspaces' screens, as a
+/// window of their own draws them, with a synthetic fixture state into PNGs and exits without ever starting
 /// NSApplication. Rich fixture (4 workspaces incl. one stacked child, all four
 /// age buckets, busy/waiting/resumable mixes, 2 loose worktrees); every scene
 /// renders RootView with the scene's ROUTE set (the panel is a state machine
@@ -45,8 +45,6 @@ public enum SnapshotMode {
         case createSheet = "create-sheet"
         case graph = "graph"
         case stats = "stats"
-        case sessions = "sessions"
-        case accounts = "accounts"
         case settings = "settings"
         case statsSettings = "stats-settings"
         case errorBanner = "error-banner"
@@ -59,10 +57,9 @@ public enum SnapshotMode {
         var size: CGSize {
             switch self {
             case .projects: return CGSize(width: 460, height: 520)
-            case .rootWorkspaces, .workspacesExpanded, .graph, .stats, .sessions:
+            case .rootWorkspaces, .workspacesExpanded, .graph, .stats:
                 return CGSize(width: 600, height: 540)
             case .createSheet: return CGSize(width: 540, height: 560)
-            case .accounts: return CGSize(width: 560, height: 480)
             case .settings, .statsSettings: return CGSize(width: 560, height: 560)
             case .errorBanner: return CGSize(width: 460, height: 584)
             }
@@ -599,18 +596,6 @@ public enum SnapshotMode {
         ]
     }
 
-    // MARK: - Identity fixture (consumed by AccountsScreen in Task 22)
-
-    /// Deterministic identities for accounts.png: "default" is logged in,
-    /// every other account renders the not-logged-in row.
-    static func fixtureIdentity(_ account: AccountConfig) -> AccountIdentity? {
-        guard account.name == "default" else { return nil }
-        return AccountIdentity(email: "artem@example.com",
-                               organization: "Personal",
-                               tier: "max_20x",
-                               organizationRateLimitTier: "default_claude_max_20x")
-    }
-
     // MARK: - Rendering
 
     @MainActor
@@ -649,11 +634,6 @@ public enum SnapshotMode {
             // manual (non-Charts) fallback offscreen.
             state.selectedTab = .stats
             state.route = .project(projectID)
-        case .sessions:
-            state.selectedTab = .sessions
-            state.route = .project(projectID)
-        case .accounts:
-            state.route = .accounts
         case .settings:
             state.route = .projectSettings(projectID)
         case .statsSettings:
@@ -713,9 +693,6 @@ public enum SnapshotMode {
         .frame(width: size.width, height: size.height)
         .environment(\.colorScheme, .dark)
         .environment(\.isSnapshotRender, true)
-        // Identity from the fixture, NEVER from ~/.claude.json: offscreen
-        // renders must not read the user's real Claude config.
-        .environment(\.claudeIdentityProvider, { SnapshotMode.fixtureIdentity($0) })
 
         let renderer = ImageRenderer(content: wrapped)
         renderer.scale = 2

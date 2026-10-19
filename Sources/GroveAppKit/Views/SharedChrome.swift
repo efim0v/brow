@@ -3,9 +3,6 @@
 
 import SwiftUI
 
-/// Grove's blue, for the screens that do not take the host's accent yet.
-let cardAccent = Palette.primary
-
 /// A card's label in the screen's accent: Stats, Stats settings.
 struct CardLabel: View {
     let title: String

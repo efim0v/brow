@@ -6,22 +6,18 @@ import SwiftUI
 import AppKit
 import GroveCore
 
-/// Capsule tab strip inside the project scope (Workspaces | Graph | Claude).
-/// Accounts left the strip when it became its own Route (.accounts).
+/// A project's views: Workspaces · Graph · Stats. What its Claude tab did — every session
+/// with its actions — is on each session's own menu, wherever the session is listed.
 public enum MainTab: String, CaseIterable {
     case workspaces
     case graph
     case stats
-    case sessions
 
-    /// Tab-strip label. `sessions` reads "Claude" (the strip is
-    /// Workspaces | Graph | Stats | Claude).
     public var label: String {
         switch self {
         case .workspaces: return "Workspaces"
         case .graph: return "Graph"
         case .stats: return "Stats"
-        case .sessions: return "Claude"
         }
     }
 }
@@ -38,9 +34,8 @@ public final class AppState: ObservableObject {
     /// filled by refreshUsage on the scan tick. Empty until the first refresh.
     @Published public var snapshotsByAccount: [String: [UsageSnapshot]] = [:]
     /// Per-account identity (email/org/tier), resolved OFF the main actor in
-    /// refreshUsage. AccountsScreen reads this instead of a synchronous .claude.json
-    /// read per card per render. Empty until the first refresh (the screen falls back
-    /// to its injected provider then — which is also the snapshot seam).
+    /// refreshUsage: what `reconcileAccountNames` names accounts by. Empty until the
+    /// first refresh.
     var identityByAccount: [String: AccountIdentity] = [:]
     /// Per-project recent Claude sessions (item 4): the Projects tab's previews.
     /// Filled by refreshSessionIndex (cheap, off-main — no git scan).
@@ -70,11 +65,11 @@ public final class AppState: ObservableObject {
     /// The scan spawned by the last open(.project(id)); tests await it.
     internal var refreshTask: Task<Void, Never>?
     @Published public var searchQuery: String = ""
-    /// True only while the menu-bar panel is actually open. The controller sets it
-    /// on show/hide; RootView's 15s refresh loop is keyed on it so the loop never
-    /// runs while the panel is hidden (or in a headless render/test) — which would
-    /// otherwise spin forever parsing real transcripts (the menu-bar panel hides
-    /// via orderOut, which does NOT deallocate the view or cancel its .task).
+    /// True only while the screens are actually looked at: Brow's Projects section, in
+    /// view for a quarter of a second. RootView's 15s refresh loop is keyed on it so the
+    /// loop never runs while they are not (or in a headless render/test) — which would
+    /// otherwise spin forever parsing real transcripts (the notch keeps its sections in
+    /// the tree while it is closed, so their .task is not cancelled by the close).
     @Published public var isPanelOpen: Bool = false
     @Published public var isScanning: Bool = false
     @Published public var actionError: String?
@@ -207,17 +202,41 @@ public final class AppState: ObservableObject {
     /// files — Grove.app, still running — says no until that has stopped.
     public var mayWrite: (() -> Bool)?
 
-    /// The host keeps the panel's material in its own settings: the in-panel picker
-    /// hands a change to it here (and the host sets `WindowSubstrateStyle.current`).
-    public var onPanelMaterialChange: ((WindowSubstrateStyle) -> Void)?
-
     /// Opens the host's Settings window where the panel cannot hold the settings:
-    /// Workspaces' own (the footer's gear) or an account's (the Accounts screen).
+    /// Workspaces' own, or an account's.
     public var openSettings: ((WorkspacesSettingsLink) -> Void)?
 
     /// Each account's 5-hour and weekly use, from the host (Brow's limits store), for
     /// the account pickers. nil: no numbers, just names.
     public weak var limitsProvider: AccountLimitsProviding?
+
+    /// The host's accounts — Brow's, in Brow's order, with Brow's names, plans and colours,
+    /// hidden ones left out — which every account picker lists (`accounts`). nil without a
+    /// host: Grove's own config.
+    @Published public var hostAccounts: [HostAccount]?
+    /// The environment a launch as the account in `configDir` (expanded) starts with: the
+    /// host's own, so a session launched here runs as the account it says (Brow: `env -u
+    /// CLAUDE_CONFIG_DIR` for `~/.claude`, `CLAUDE_CONFIG_DIR=…` for the others, and its
+    /// browser router). nil: GroveCore's.
+    public var launchEnvironment: ((String) -> String)?
+    /// Told when an action hands the user to something else — a terminal, cmux, Finder — so
+    /// a host that shows these screens in a panel can close it.
+    public var onHandOff: (() -> Void)?
+    /// When the last full `refresh()` finished; nil before the first.
+    @Published public internal(set) var lastRefreshAt: Date?
+    /// The screen the launch form was opened from, and goes back to.
+    public internal(set) var launchOrigin: Route?
+    /// The session the keyboard is on in the Projects list (its row id); nil until ↑ or ↓
+    /// is pressed: the focus ring shows only once the keyboard drives.
+    @Published public var keyboardFocus: String?
+    /// Runs the host's folder picker for "Add a folder…"; nil: an open panel of its own.
+    public var addFolder: (() -> Void)?
+    /// The screen in front cannot be left now: a workspace is being created, and leaving would
+    /// lose its log. Esc and ‹ wait (`goBackForKey`).
+    @Published public var blocksBack = false
+    /// The session whose row asks "Delete this transcript?" in place of its buttons; nil for
+    /// none. One at a time, and Esc answers Cancel.
+    @Published public var confirmingDelete: String?
 
     /// What the host last read for `account`, by its config folders.
     public func limits(for account: AccountConfig) -> AccountLimits? {
@@ -290,7 +309,8 @@ public final class AppState: ObservableObject {
         // to a stack-overflow SIGSEGV while it re-resolved the glass layers of the
         // animated SwiftUI content INSIDE the window's NSGlassEffectView (introduced by
         // the one-window merge). A non-animated swap renders once and never re-enters
-        // that resolution mid-interpolation.
+        // that resolution mid-interpolation. Brow's notch has no glass: there RootView
+        // slides the screens itself (`groveHost`).
         route = target
     }
 
@@ -298,6 +318,10 @@ public final class AppState: ObservableObject {
     /// pending prefill so a later visit never reuses stale form state.
     public func goBack() {
         if case .createWorkspace = route { createPrefill = nil }
+        if route == .launch {
+            cancelLaunch()
+            return
+        }
         open(route.backRoute)
     }
 
@@ -311,15 +335,16 @@ public final class AppState: ObservableObject {
         selectedProjectID.flatMap { snapshots[$0] }
     }
 
-    /// Account a single-click "New Claude" launches on (spec §6.1): the
-    /// selected project's defaultAccount when it names a configured account,
-    /// else the first account. The account MENUS always list all accounts.
+    /// Account a single-click "New session" launches on (spec §6.1): the selected
+    /// project's defaultAccount when it is one the pickers offer, else the first of them
+    /// (`accounts`: the host's, in its order).
     public var defaultLaunchAccount: AccountConfig? {
+        let offered = accounts.map(\.config)
         if let name = selectedProject?.defaultAccount,
-           let account = config.accounts.first(where: { $0.name == name }) {
+           let account = offered.first(where: { $0.name == name }) {
             return account
         }
-        return config.accounts.first
+        return offered.first ?? config.accounts.first
     }
 
     /// Runs one of the actions below for a window of the host's own — Brow's Settings —
@@ -338,7 +363,7 @@ public final class AppState: ObservableObject {
 
     // MARK: - Persistence
 
-    private func persist() {
+    func persist() {
         guard mayPersist() else { return }
         do {
             try configStore.save(config)
@@ -567,6 +592,7 @@ extension AppState {
         await usage
         await sessions
         await reconcileTranscripts()
+        lastRefreshAt = Date()
     }
 
     /// Cheap per-project recent-session previews for the Projects tab (item 4).
@@ -609,7 +635,8 @@ extension AppState {
             let live = claude.allLiveProcesses(accounts: accounts)
             var out: [UUID: [ProjectSessionRow]] = [:]
             for job in jobs {
-                let sessions = claude.recentSessions(underRoots: job.roots, accounts: accounts, limit: 2)
+                let sessions = claude.recentSessions(underRoots: job.roots, accounts: accounts,
+                                                     limit: AppState.sessionsPerProject)
                 out[job.id] = buildProjectSessionRows(sessions: sessions, live: live, cmuxMap: cmuxMap)
             }
             // Disk-wide scan for attribution indices (Phase 2 / Task 2).
@@ -736,6 +763,7 @@ extension AppState {
                              resume sessionId: String?,
                              model: String? = nil, effort: String? = nil,
                              skipPermissions: Bool? = nil) async {
+        handOff()
         let service = cmux()
         // --dangerously-skip-permissions: an explicit per-launch choice (from the
         // config sheet) wins; otherwise resolve the project default by `cwd`, here in
@@ -744,7 +772,8 @@ extension AppState {
         let command = ClaudeService.launchCommand(account: account, resume: sessionId,
                                                   model: model, effort: effort,
                                                   skipPermissions: skipPermissions ?? effectiveSkipPermissions(cwd: cwd),
-                                                  browser: browserRouter, claude: claudePath?())
+                                                  browser: browserRouter, claude: claudePath?(),
+                                                  environment: launchEnvironment?(expandTilde(account.configDir)))
         do {
             try await service.ensureRunning()
             try await service.newWorkspace(name: title, cwd: cwd, command: command, focus: true)
@@ -851,6 +880,7 @@ extension AppState {
         // LIVE → redirect to the running process; NEVER spawn a duplicate. Try each
         // gate in turn and only fall through on FAILURE — a stale/closed workspace
         // from one path must not dead-end before the others are tried.
+        handOff()
         let service = cmux()
         // 1) cmux by workspace id (row, or re-resolved from the hook registry).
         if let target = row.cmuxWorkspaceId
@@ -892,6 +922,20 @@ extension AppState {
             effort: owner?.defaultEffort ?? acct?.defaultEffort,
             skipPermissions: effectiveSkipPermissions(cwd: cwd),
             target: .cmux)
+        // The form is a screen of its own, pushed over the one it was asked from.
+        if route != .launch {
+            launchOrigin = route
+            open(.launch)
+        }
+    }
+
+    /// The launch form's Cancel, Esc and back: nothing launches, and the screen it was
+    /// opened from comes back.
+    public func cancelLaunch() {
+        launchRequest = nil
+        let origin = launchOrigin ?? .projects
+        launchOrigin = nil
+        if route == .launch { open(origin) }
     }
 
     /// Presents the launch sheet pre-filled to RESUME `row`'s session.
@@ -920,6 +964,12 @@ extension AppState {
     /// sheet first so it can't be double-submitted.
     public func confirmLaunch(_ request: LaunchRequest) async {
         launchRequest = nil
+        if route == .launch {
+            let origin = launchOrigin ?? .projects
+            launchOrigin = nil
+            open(origin)
+        }
+        handOff()
         let account = config.accounts.first { $0.name == request.account }
             ?? config.accounts.first ?? AccountConfig(name: "default", configDir: "~/.claude")
         // Resuming under a DIFFERENT account than the session belongs to needs the
@@ -939,7 +989,8 @@ extension AppState {
             let command = ClaudeService.launchCommand(account: account, resume: request.sessionId,
                                                       model: request.model, effort: request.effort,
                                                       skipPermissions: request.skipPermissions,
-                                                      browser: browserRouter, claude: claudePath?())
+                                                      browser: browserRouter, claude: claudePath?(),
+                                                      environment: launchEnvironment?(expandTilde(account.configDir)))
             let cwd = request.cwd
             let ok = await Task.detached(priority: .userInitiated) {
                 TerminalFocus.launchInTerminal(command: command, cwd: cwd)
@@ -949,6 +1000,7 @@ extension AppState {
     }
 
     public func goToCmux(_ ws: CmuxWorkspace) async {
+        handOff()
         do {
             try await cmux().selectWorkspace(ws.id)
         } catch {
@@ -964,6 +1016,7 @@ extension AppState {
     /// a genuine miss do we relaunch Claude with --resume in a fresh workspace.
     public func goToSession(_ s: ClaudeSession, fallbackCwd: String, fallbackTitle: String,
                             account: AccountConfig, workspaceId: String? = nil) async {
+        handOff()
         let service = cmux()
         if let id = workspaceId ?? service.claudeSessionWorkspaceMap(hookFile: cmuxHookFile)[s.id] {
             do {
@@ -978,8 +1031,8 @@ extension AppState {
 
     /// The canonical store directory: the default account's `~/.claude`
     /// (`folders.canonicalDir`). Linking roots here; it is never symlinked. Internal so
-    /// views in the same module (SessionsScreen, OtherSessionsScreen) can evaluate
-    /// canShareAcrossAccounts without recomputing the path.
+    /// views in the same module (a session's menu) can evaluate canShareAcrossAccounts
+    /// without recomputing the path.
     var canonicalDir: String { folders.canonicalDir }
 
     /// The account whose expanded configDir IS the canonical dir, if configured.
@@ -1412,6 +1465,7 @@ extension AppState {
     /// cmux-button fallback when a workspace has no cmux workspace yet.
     /// `command: nil` means cmux starts its default shell.
     public func openCmuxShell(cwd: String, title: String) async {
+        handOff()
         let service = cmux()
         do {
             try await service.ensureRunning()
@@ -1445,8 +1499,8 @@ extension AppState {
             var ids: [String: AccountIdentity] = [:]
             for job in jobs {
                 snaps[job.name] = reader.read(configDir: job.dir, accountName: job.name)
-                // .claude.json read off-main here (was a per-render main-thread read via
-                // AccountsScreen's identity provider).
+                // .claude.json read off-main here: what reconcileAccountNames names
+                // accounts by.
                 if let id = ClaudeService.identity(claudeJSONPath: job.claudeJSON) {
                     ids[job.name] = id
                 }

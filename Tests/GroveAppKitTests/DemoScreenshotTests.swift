@@ -19,8 +19,8 @@ import GroveCore
 ///     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
 ///
 /// Same ImageRenderer path (and the same caveats) as `BrowApp --snapshot`, see
-/// docs/snapshot-testing.md: no Liquid Glass, a stand-in gradient for the desktop. The
-/// launch sheet, whose pickers are AppKit-backed, is drawn in an offscreen window.
+/// docs/snapshot-testing.md: no Liquid Glass, a stand-in gradient for the desktop. These are
+/// the screens as a window of their own draws them; the notch draws them in Brow's renders.
 final class DemoScreenshotTests: XCTestCase {
 
     /// Plain (not `@MainActor`) so it is called synchronously on the main thread, the
@@ -68,13 +68,6 @@ final class DemoScreenshotTests: XCTestCase {
                     }),
                    width: 540, to: out.appendingPathComponent("workspaces-new.png"))
 
-        // (5) Sessions across accounts: the Claude tab (every row carries the
-        // migrate-to-account control) and the Accounts screen.
-        try render(RootView(state: state { s, id in s.selectedTab = .sessions; s.route = .project(id) }),
-                   width: 600, to: out.appendingPathComponent("workspaces-sessions.png"))
-        try render(AccountsScreen(state: state { s, _ in s.route = .accounts }).tint(Palette.primary),
-                   width: 560, to: out.appendingPathComponent("workspaces-accounts.png"))
-
         // (6) Project settings. Rendered as the screen itself, not through RootView:
         // RootView pins this route to 560 pt and scrolls, and a ScrollView does not
         // render offscreen.
@@ -82,13 +75,13 @@ final class DemoScreenshotTests: XCTestCase {
                                          projectID: DemoFixture.shopID).tint(Palette.primary),
                    width: 560, to: out.appendingPathComponent("workspaces-project-settings.png"))
 
-        // (7) The launch sheet: the account picker carries each account's limits.
+        // (7) The launch form: the account list carries each account's limits.
         let launch = state { s, _ in
             s.beginNew(cwd: DemoFixture.workspacesRoot + "/checkout-redesign", title: "checkout-redesign",
                        account: s.config.accounts[1])
         }
-        try renderInWindow(LaunchConfigSheet(state: launch, request: try XCTUnwrap(launch.launchRequest)),
-                           to: out.appendingPathComponent("workspaces-launch-sheet.png"))
+        XCTAssertEqual(launch.route, .launch)
+        try render(RootView(state: launch), width: 460, to: out.appendingPathComponent("workspaces-launch-sheet.png"))
     }
 
     /// The view in a real window, ordered in far off-screen and never activated, drawn
@@ -149,7 +142,6 @@ final class DemoScreenshotTests: XCTestCase {
             .overlay(shape.strokeBorder(.white.opacity(0.10)))
             .environment(\.colorScheme, .dark)
             .environment(\.isSnapshotRender, true)
-            .environment(\.claudeIdentityProvider, { DemoFixture.identity($0) })
         let renderer = ImageRenderer(content: wrapped)
         renderer.scale = 2
         if let state {

@@ -12,12 +12,14 @@ import GroveCore
 /// progress log, and a strictly-scoped rollback offer on failure.
 struct CreateWorkspaceScreen: View {
     @ObservedObject var state: AppState
+    @Environment(\.groveAccent) private var accent
     let prefill: CreatePrefill
     /// Explicit close callback (RootView passes state.goBack()): the screen
     /// is a route of the single panel window, so @Environment(\.dismiss)
     /// would be a no-op.
     let onClose: () -> Void
     @Environment(\.isSnapshotRender) private var isSnapshotRender
+    @Environment(\.groveHost) private var host
 
     private enum Phase: Equatable {
         case editing
@@ -57,7 +59,12 @@ struct CreateWorkspaceScreen: View {
         VStack(alignment: .leading, spacing: 6) {
             header
             if let snapshot = state.selectedSnapshot {
-                form(snapshot: snapshot)
+                if host.isNotch {
+                    // The notch gives the form the panel's room, however tall the form is.
+                    FadingScrollView { form(snapshot: snapshot) }
+                } else {
+                    form(snapshot: snapshot)
+                }
             } else {
                 Text("No project selected.")
                     .foregroundStyle(.secondary)
@@ -65,8 +72,12 @@ struct CreateWorkspaceScreen: View {
             }
         }
         // Width comes from RootView's route frame (540); height is adaptive —
-        // fixedSize keeps the form's natural height (RootView caps it at 560).
-        .fixedSize(horizontal: false, vertical: true)
+        // fixedSize keeps the form's natural height (RootView caps it at 560). In the notch
+        // the form scrolls in the room it is given instead.
+        .fixedSize(horizontal: false, vertical: !host.isNotch)
+        // While a creation runs, neither Esc nor ‹ leaves the screen: its log would be lost.
+        .onChange(of: phase) { _, phase in state.blocksBack = phase == .running }
+        .onDisappear { state.blocksBack = false }
         .task {
             // Fill the per-repo branch pickers; until this lands they show
             // just the resolved default. Never runs under ImageRenderer.
@@ -94,7 +105,9 @@ struct CreateWorkspaceScreen: View {
             progressAndLog
             footer(branch: branch, snapshot: snapshot, forkFrom: forkFrom)
         }
-        .padding(12)
+        // In the notch the panel's own inset is the form's.
+        .padding(host.isNotch ? EdgeInsets(top: 2, leading: 0, bottom: 10, trailing: 0)
+                              : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
     }
 
     // MARK: - Name + validation feedback
@@ -179,7 +192,7 @@ struct CreateWorkspaceScreen: View {
                     } label: {
                         HStack {
                             Image(systemName: isOn.wrappedValue ? "checkmark.square.fill" : "square")
-                                .foregroundStyle(isOn.wrappedValue ? Palette.primary : Color.secondary)
+                                .foregroundStyle(isOn.wrappedValue ? accent : Color.secondary)
                             Text(repo.dirName)
                             Spacer()
                         }

@@ -16,6 +16,7 @@ struct TranscriptBuilder {
     private var counter = 0
     private var bytesSinceMetadata = 0
     private var lastPrompt: String?
+    private var branch = "main"
     var aiTitle: String?
     var customTitle: String?
     /// Re-append the metadata as Claude Code does (`false` writes it only where asked).
@@ -63,7 +64,7 @@ struct TranscriptBuilder {
         var object: [String: Any] = [
             "parentUuid": parent ?? NSNull(), "isSidechain": false, "type": type, "uuid": id,
             "timestamp": stamp(seconds), "userType": "external", "entrypoint": "cli", "cwd": cwd,
-            "sessionId": sessionId, "version": "2.1.302", "gitBranch": "main",
+            "sessionId": sessionId, "version": "2.1.302", "gitBranch": branch,
         ]
         for (key, value) in fields { object[key] = value }
         parent = id
@@ -135,6 +136,32 @@ struct TranscriptBuilder {
     mutating func raw(_ line: String) {
         add(line)
     }
+
+    /// Another session's message, as it starts a turn here: a meta prompt wrapped in the
+    /// envelope its Claude Code builds, with the origin Claude Code keeps beside it.
+    mutating func peerMessage(_ text: String, from name: String, at seconds: Int) {
+        let envelope = "<cross-session-message from=\"uds:/tmp/cc-socks/41001.sock\" from-name=\"\(name)\">\n\(text)\n</cross-session-message>"
+        append(entry("user", ["message": ["role": "user", "content": envelope], "isMeta": true,
+                              "origin": ["kind": "peer", "from": "uds:/tmp/cc-socks/41001.sock", "name": name]],
+                     at: seconds))
+    }
+
+    /// The same message arriving while Claude works: an attachment queued for the next round.
+    mutating func queuedPeerMessage(_ text: String, from name: String, at seconds: Int) {
+        let envelope = "<cross-session-message from=\"uds:/tmp/cc-socks/41001.sock\" from-name=\"\(name)\">\n\(text)\n</cross-session-message>"
+        append(entry("attachment", ["attachment": [
+            "type": "queued_command", "prompt": envelope, "isMeta": true,
+            "origin": ["kind": "peer", "from": "uds:/tmp/cc-socks/41001.sock", "name": name],
+        ]], at: seconds))
+    }
+
+    /// The summary a compaction leaves in place of the conversation.
+    mutating func compactSummary(_ text: String, at seconds: Int) {
+        append(entry("user", ["message": ["role": "user", "content": text], "isCompactSummary": true], at: seconds))
+    }
+
+    /// The newest message on another branch, as Claude Code records each line's.
+    mutating func setBranch(_ branch: String) { self.branch = branch }
 
     mutating func turnEnd(at seconds: Int) {
         append(["type": "system", "subtype": "turn_duration", "durationMs": 61_000, "messageCount": 12,

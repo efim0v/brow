@@ -27,8 +27,15 @@ public struct SessionPreview: Sendable, Equatable {
         case unknown
     }
 
-    /// The newest prompt the user typed, on one line, at most `TranscriptTail.length`
-    /// characters: the same text Claude Code's own session list shows.
+    /// Who the newest prompt came from: the user, or another session that messaged this
+    /// one (named as its envelope names it).
+    public enum Sender: Sendable, Equatable {
+        case you
+        case peer(String)
+    }
+
+    /// The newest prompt, on one line, at most `TranscriptTail.length` characters: the same
+    /// text Claude Code's own session list shows; a message from another session is its body.
     public let prompt: String?
     /// The newest text Claude wrote, on one line, markdown dropped.
     public let reply: String?
@@ -39,14 +46,31 @@ public struct SessionPreview: Sendable, Equatable {
     public let turn: Turn
     /// When the newest message was written.
     public let at: Date?
+    /// What the pending tool call works on, in a line: a Bash command, the file an Edit or
+    /// Write changes, the address WebFetch reads. With `turn` `.tool`.
+    public let pendingInput: String?
+    /// The question a pending AskUserQuestion puts to the user.
+    public let question: String?
+    /// Who sent `prompt`.
+    public let sender: Sender
+    /// The git branch and the model of the newest message.
+    public let gitBranch: String?
+    public let model: String?
 
-    public init(prompt: String?, reply: String?, tool: String?, title: String?, turn: Turn, at: Date?) {
+    public init(prompt: String?, reply: String?, tool: String?, title: String?, turn: Turn, at: Date?,
+                pendingInput: String? = nil, question: String? = nil, sender: Sender = .you,
+                gitBranch: String? = nil, model: String? = nil) {
         self.prompt = prompt
         self.reply = reply
         self.tool = tool
         self.title = title
         self.turn = turn
         self.at = at
+        self.pendingInput = pendingInput
+        self.question = question
+        self.sender = sender
+        self.gitBranch = gitBranch
+        self.model = model
     }
 }
 
@@ -100,15 +124,17 @@ public enum TranscriptTail {
     /// The preview in `tail`, newest entry first. `found` is false when no message
     /// entry was in it at all, which asks for a bigger window.
     static func preview(tail: Data, startsMidFile: Bool) -> (preview: SessionPreview?, found: Bool) {
-        var prompt: String?
+        var prompt: (text: String, sender: SessionPreview.Sender)?
         var promptRecord: String?          // `last-prompt`, for a window with no prompt in it
         var reply: String?
         var customTitle: String?
         var titleRecordSeen = false        // the newest `custom-title` decides, even an empty one
         var aiTitle: String?
         var turn: SessionPreview.Turn?
-        var tool: String?
+        var tool: (name: String?, input: String?, question: String?)?
         var at: Date?
+        var gitBranch: String?
+        var model: String?
         var sawMessage = false
 
         forEachLineFromTheEnd(of: tail, startsMidFile: startsMidFile) { line in
@@ -128,28 +154,41 @@ public enum TranscriptTail {
             case "system":
                 // The end of a turn, written after Claude's last reply.
                 if turn == nil, !sawMessage, (object["subtype"] as? String) == "turn_duration" { turn = .answered }
+            case "attachment":
+                // A prompt that came in while Claude was working: typed ahead, or another
+                // session's message. It is the newest prompt; the turn is unchanged.
+                guard prompt == nil, let attachment = object["attachment"] as? [String: Any],
+                      attachment["type"] as? String == "queued_command" else { break }
+                prompt = Self.queuedPrompt(attachment)
             case "user", "assistant":
                 guard object["isSidechain"] as? Bool != true else { return true }
                 let entry = Message(object, assistant: type == "assistant")
                 if !sawMessage, entry.counts {
                     sawMessage = true
                     at = (object["timestamp"] as? String).flatMap(parseISODate)
-                    if turn == nil { (turn, tool) = entry.turn }
+                    if turn == nil { (turn, tool) = (entry.turn, entry.call) }
                 }
-                if prompt == nil, let text = entry.prompt { prompt = text }
+                if gitBranch == nil, entry.counts, let branch = object["gitBranch"] as? String, !branch.isEmpty {
+                    gitBranch = branch
+                }
+                if model == nil, let name = entry.model { model = name }
+                if prompt == nil, let text = entry.prompt { prompt = (text, entry.sender) }
                 if reply == nil, let text = entry.reply { reply = text }
             default:
                 break
             }
             let titled = customTitle != nil || aiTitle != nil
-            return !(prompt != nil && reply != nil && sawMessage && titled)
+            return !(prompt != nil && reply != nil && sawMessage && titled && model != nil)
         }
 
         let title = customTitle ?? aiTitle
         let found = sawMessage || prompt != nil || reply != nil
         guard found || promptRecord != nil || title != nil else { return (nil, false) }
-        return (SessionPreview(prompt: prompt ?? promptRecord, reply: reply, tool: tool, title: title,
-                               turn: turn ?? .unknown, at: at), found)
+        let pending = turn == .tool ? tool : nil
+        return (SessionPreview(prompt: prompt?.text ?? promptRecord, reply: reply, tool: pending?.name, title: title,
+                               turn: turn ?? .unknown, at: at, pendingInput: pending?.input,
+                               question: pending?.question, sender: prompt?.sender ?? .you,
+                               gitBranch: gitBranch, model: model), found)
     }
 
     /// Calls `body` with each complete line, the last one first, until it returns false.
@@ -176,7 +215,7 @@ public enum TranscriptTail {
 
     private static let patterns: [[UInt8]] = [
         #""type":"assistant""#, #""type":"user""#, #""type":"last-prompt""#,
-        #""type":"custom-title""#, #""type":"ai-title""#, #""type":"system""#,
+        #""type":"custom-title""#, #""type":"ai-title""#, #""type":"system""#, #""type":"attachment""#,
     ].map { Array($0.utf8) }
 
     /// Whether the line can be an entry a preview reads: it has one of their `"type":"…"`
@@ -189,14 +228,30 @@ public enum TranscriptTail {
         }
     }
 
+    /// A prompt queued mid-turn: another session's message (its envelope, or the origin
+    /// Claude Code keeps beside it), else what the user typed ahead.
+    static func queuedPrompt(_ attachment: [String: Any]) -> (String, SessionPreview.Sender)? {
+        let text = Message.texts(attachment["prompt"]).joined(separator: "\n\n")
+        let origin = attachment["origin"] as? [String: Any]
+        if let (body, sender) = Message.peerPrompt(in: [text], origin: origin) { return (body, sender) }
+        guard attachment["isMeta"] as? Bool != true, origin?["kind"] as? String != "peer" else { return nil }
+        return promptLine(text).map { ($0, .you) }
+    }
+
     /// One `user` or `assistant` entry, as far as a preview needs it.
     struct Message {
         /// Takes part in the conversation: not a meta entry (a command's caveat, a skill's
-        /// prompt) and not the summary a compaction left.
+        /// prompt) and not the summary a compaction left. A message from another agent does,
+        /// meta as it is: it is what the session was asked.
         let counts: Bool
-        let turn: (SessionPreview.Turn, String?)
+        let turn: SessionPreview.Turn
+        /// The newest tool call of an assistant entry: its name, its input in a line, and
+        /// the question when it asks the user one.
+        let call: (name: String?, input: String?, question: String?)?
         let prompt: String?
+        let sender: SessionPreview.Sender
         let reply: String?
+        let model: String?
 
         init(_ object: [String: Any], assistant: Bool) {
             let message = object["message"] as? [String: Any]
@@ -208,32 +263,65 @@ public enum TranscriptTail {
                 let synthetic = object["isApiErrorMessage"] as? Bool == true
                     || (message?["model"] as? String) == "<synthetic>"
                 let texts = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
-                let call = blocks.last { $0["type"] as? String == "tool_use" }
+                let callBlock = blocks.last { $0["type"] as? String == "tool_use" }
                 if synthetic {
-                    turn = (.failed, nil)
-                } else if let call {
-                    turn = (.tool, call["name"] as? String)
-                } else if texts.isEmpty {
-                    turn = (.working, nil)          // thinking only: the reply is on its way
+                    turn = .failed
+                    call = nil
+                } else if let callBlock {
+                    turn = .tool
+                    let name = callBlock["name"] as? String
+                    let input = callBlock["input"] as? [String: Any] ?? [:]
+                    call = (name, TranscriptTail.inputLine(tool: name, input: input, cwd: object["cwd"] as? String),
+                            name == "AskUserQuestion" ? TranscriptTail.question(in: input) : nil)
                 } else {
-                    turn = (.answered, nil)
+                    turn = texts.isEmpty ? .working : .answered     // thinking only: the reply is on its way
+                    call = nil
                 }
                 prompt = nil
+                sender = .you
                 reply = synthetic ? nil : texts.last.flatMap(TranscriptTail.replyLine)
+                model = synthetic ? nil : (message?["model"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             } else {
-                var texts: [String] = []
-                if let string = content as? String { texts = [string] }
-                for block in blocks where block["type"] as? String == "text" {
-                    if let text = block["text"] as? String { texts.append(text) }
-                }
+                let texts = Self.texts(content)
                 let isResult = blocks.contains { $0["type"] as? String == "tool_result" }
                 let interrupted = texts.contains { $0.hasPrefix("[Request interrupted by user") }
-                turn = (interrupted ? .interrupted : .working, nil)   // a prompt or a result: Claude's move
-                prompt = isMeta || isResult ? nil : texts.lazy.compactMap(TranscriptTail.promptLine).first
+                turn = interrupted ? .interrupted : .working        // a prompt or a result: Claude's move
+                call = nil
                 reply = nil
-                // A local command's echo (`/model`, its output) is not a turn.
-                counts = !isMeta && (isResult || interrupted || prompt != nil)
+                model = nil
+                if let (body, peer) = Self.peerPrompt(in: texts, origin: object["origin"] as? [String: Any]) {
+                    prompt = body
+                    sender = peer
+                    counts = true
+                } else {
+                    prompt = isMeta || isResult ? nil : texts.lazy.compactMap(TranscriptTail.promptLine).first
+                    sender = .you
+                    // A local command's echo (`/model`, its output) is not a turn; a
+                    // subagent's report (`<agent-message>`) is, though not a prompt.
+                    let agentReport = texts.contains { $0.contains("<agent-message") }
+                    counts = (!isMeta || agentReport) && (isResult || interrupted || prompt != nil || agentReport)
+                }
             }
+        }
+
+        /// A message content's texts: a plain string, or its text blocks.
+        static func texts(_ content: Any?) -> [String] {
+            if let string = content as? String { return [string] }
+            guard let blocks = content as? [[String: Any]] else { return [] }
+            return blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
+        }
+
+        /// Another session's or a teammate's message among `texts`: its body on one line and
+        /// who sent it — the envelope's name, else the `origin` Claude Code keeps beside it.
+        static func peerPrompt(in texts: [String], origin: [String: Any]?) -> (String, SessionPreview.Sender)? {
+            for text in texts {
+                for envelope in AgentEnvelope.all(in: text) where envelope.kind != .agent {
+                    guard let body = TranscriptTail.oneLine(envelope.body) else { continue }
+                    let name = envelope.senderName ?? (origin?["name"] as? String) ?? "another session"
+                    return (body, .peer(name))
+                }
+            }
+            return nil
         }
     }
 
@@ -273,6 +361,43 @@ public enum TranscriptTail {
         var line = kept.joined(separator: " ")
         for mark in ["**", "`"] { line = line.replacingOccurrences(of: mark, with: "") }
         return oneLine(line)
+    }
+
+    /// What a tool call works on, in a line: the command a Bash call runs, the file an
+    /// Edit, Write or Read touches (relative to the session's folder when it is in it), the
+    /// address WebFetch reads, what a search looks for, the task a subagent is given.
+    static func inputLine(tool: String?, input: [String: Any], cwd: String?) -> String? {
+        func string(_ key: String) -> String? { (input[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        let value: String?
+        switch tool {
+        case "Bash":
+            value = string("command")
+        case "Edit", "MultiEdit", "Write", "Read", "NotebookEdit":
+            value = (string("file_path") ?? string("notebook_path")).map { path in
+                guard let cwd, path.hasPrefix(cwd + "/") else { return path }
+                return String(path.dropFirst(cwd.count + 1))
+            }
+        case "WebFetch":
+            value = string("url")
+        case "WebSearch":
+            value = string("query")
+        case "Grep", "Glob":
+            value = string("pattern")
+        case "Agent", "Task":
+            value = string("description")
+        case "AskUserQuestion":
+            value = nil
+        default:
+            value = nil
+        }
+        return value.flatMap(oneLine)
+    }
+
+    /// The first question an AskUserQuestion call asks, on one line.
+    static func question(in input: [String: Any]) -> String? {
+        if let questions = input["questions"] as? [[String: Any]],
+           let first = questions.first?["question"] as? String { return oneLine(first) }
+        return (input["question"] as? String).flatMap(oneLine)
     }
 
     /// Newlines and runs of spaces become one space; longer than `length`, the text is

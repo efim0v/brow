@@ -159,6 +159,95 @@ final class TranscriptTailTests: XCTestCase {
         XCTAssertEqual(p.turn, .working)
     }
 
+    /// Stopped at a permission prompt, the session shows what it wants to do: the pending
+    /// Bash command, the file an edit changes (relative to the session's folder).
+    func testThePendingToolCallSaysWhatItWorksOn() throws {
+        var bash = TranscriptBuilder()
+        bash.prompt("Run the webhook suite with retries", at: 0)
+        bash.toolCall("Bash", input: ["command": "npm run test:webhooks -- --retries=5\necho done"], at: 1)
+        let pending = try XCTUnwrap(preview(bash, file: "bash"))
+        XCTAssertEqual(pending.turn, .tool)
+        XCTAssertEqual(pending.tool, "Bash")
+        XCTAssertEqual(pending.pendingInput, "npm run test:webhooks -- --retries=5 echo done")
+
+        var edit = TranscriptBuilder()
+        edit.prompt("Fix the retry delay", at: 0)
+        edit.toolCall("Edit", input: ["file_path": "/Users/demo/Code/harbor/Sources/Upload.swift"], at: 1)
+        XCTAssertEqual(try preview(edit, file: "edit")?.pendingInput, "Sources/Upload.swift")
+
+        var fetch = TranscriptBuilder()
+        fetch.prompt("Read the changelog", at: 0)
+        fetch.toolCall("WebFetch", input: ["url": "https://example.com/changelog"], at: 1)
+        XCTAssertEqual(try preview(fetch, file: "fetch")?.pendingInput, "https://example.com/changelog")
+
+        var answered = bash
+        answered.toolResult(bytes: 200, at: 2)
+        answered.reply("All 41 pass.", at: 3)
+        XCTAssertNil(try preview(answered, file: "answered")?.pendingInput, "nothing pending once it has run")
+    }
+
+    /// Asking the user, the session shows the question.
+    func testAPendingQuestionIsTheQuestion() throws {
+        var b = TranscriptBuilder()
+        b.prompt("Resolve the sync conflict", at: 0)
+        b.toolCall("AskUserQuestion", input: ["questions": [
+            ["question": "Two edits hit the same note. Keep both as versions?", "header": "Conflict",
+             "options": [["label": "Keep both"], ["label": "Last write wins"]]],
+        ]], at: 1)
+        let p = try XCTUnwrap(preview(b))
+        XCTAssertEqual(p.question, "Two edits hit the same note. Keep both as versions?")
+        XCTAssertEqual(p.tool, "AskUserQuestion")
+    }
+
+    /// A prompt another session sent is labelled with that session's name, whether it
+    /// started the turn or came in while Claude worked.
+    func testAPeersPromptIsLabelledWithItsName() throws {
+        var b = TranscriptBuilder()
+        b.prompt("Wait for harbor", at: 0)
+        b.reply("Waiting.", at: 1)
+        b.peerMessage("Schema migration finished\nThe new column is tenant_id.", from: "atlas", at: 60)
+        let p = try XCTUnwrap(preview(b))
+        XCTAssertEqual(p.prompt, "Schema migration finished The new column is tenant_id.")
+        XCTAssertEqual(p.sender, .peer("atlas"))
+        XCTAssertEqual(p.turn, .working)
+
+        var queued = b
+        queued.reply("Rebasing on main.", at: 61)
+        queued.toolCall("Bash", input: ["command": "git rebase main"], at: 62)
+        queued.queuedPeerMessage("One more thing: keep the old column a week.", from: "quill", at: 63)
+        let q = try XCTUnwrap(preview(queued, file: "queued"))
+        XCTAssertEqual(q.prompt, "One more thing: keep the old column a week.")
+        XCTAssertEqual(q.sender, .peer("quill"))
+        XCTAssertEqual(q.turn, .tool, "a message queued mid-turn leaves the turn as it was")
+
+        var mine = b
+        mine.prompt("Thanks, carry on", at: 120)
+        XCTAssertEqual(try preview(mine, file: "mine")?.sender, .you)
+    }
+
+    /// Meta lines, the summary a compaction leaves and tool results are not the prompt.
+    func testCompactionSummariesAreNotThePrompt() throws {
+        var b = TranscriptBuilder()
+        b.prompt("Trim the upload queue", at: 0)
+        b.reply("Trimmed.", at: 1)
+        b.compactSummary("This session is being continued from a previous conversation…", at: 2)
+        b.toolResult(bytes: 100, at: 3)
+        XCTAssertEqual(try preview(b)?.prompt, "Trim the upload queue")
+    }
+
+    /// The branch and the model are the newest message's.
+    func testTheBranchAndModelAreTheNewestMessages() throws {
+        var b = TranscriptBuilder()
+        b.prompt("Start on main", at: 0)
+        b.reply("Started.", at: 1)
+        b.setBranch("feat/retries")
+        b.prompt("Now on the feature branch", at: 60)
+        b.reply("On it.", at: 61)
+        let p = try XCTUnwrap(preview(b))
+        XCTAssertEqual(p.gitBranch, "feat/retries")
+        XCTAssertEqual(p.model, "claude-opus-4-8")
+    }
+
     func testEmptyMissingAndGarbledFilesHaveNoPreview() throws {
         XCTAssertNil(TranscriptTail.preview(path: root.appendingPathComponent("none.jsonl").path))
         let empty = root.appendingPathComponent("empty.jsonl")

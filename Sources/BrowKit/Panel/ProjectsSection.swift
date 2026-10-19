@@ -62,16 +62,34 @@ final class ProjectsSection: NotchSection {
             return true
         case .open:
             // The launch form's own ↩ (its default button) when it is in front.
-            guard state.route == .projects, let row = state.focusedSessionRow else { return false }
+            guard state.route == .projects else { return false }
+            if let suggestion = state.focusedSuggestion {
+                state.addSuggestion(suggestion)
+                return true
+            }
+            guard let row = state.focusedSessionRow else { return false }
             SessionMenu.primary(SessionRef(row: row), state: state)
             return true
         case .openWithOptions:
             guard state.route == .projects, let row = state.focusedSessionRow, row.state == .closed else { return false }
             state.beginResume(row)
             return true
-        case .delete, .tab:
+        case .delete:
+            // ⌫ turns a focused suggestion down.
+            guard state.route == .projects, let suggestion = state.focusedSuggestion else { return false }
+            state.dismissSuggestion(suggestion)
+            state.moveKeyboardFocus(by: 0)
+            return true
+        case .tab:
             return false
         }
+    }
+
+    /// The panel opened, on any section: what runs is read again (a few small files), so
+    /// the switch's count of sessions that need the user is current wherever it is looked at.
+    func panelOpenChanged(_ open: Bool) {
+        guard open, let state = host.state, host.activation == .on else { return }
+        Task { await state.refreshLive() }
     }
 
     func visibilityChanged(_ visible: Bool) {
@@ -79,6 +97,8 @@ final class ProjectsSection: NotchSection {
         opening = nil
         guard let state = host.state else { return }
         if visible {
+            // The order the list shows in now is kept while it is in view.
+            state.freezeOrder()
             let work = DispatchWorkItem { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self, let state = self.host.state, self.host.activation == .on else { return }
@@ -90,6 +110,7 @@ final class ProjectsSection: NotchSection {
         } else {
             state.isPanelOpen = false
             state.keyboardFocus = nil
+            state.thawOrder()
         }
     }
 }
@@ -139,14 +160,58 @@ struct ProjectsAccessory: View {
     var body: some View {
         HStack(spacing: 2) {
             if let state = host.state, host.activation == .on {
-                SearchControl(state: state, search: search, focused: $focused, isSnapshotRender: isSnapshotRender)
-                Button { host.addFolder() } label: { NotchIconLabel(symbol: "plus") }
-                    .buttonStyle(.plain)
-                    .help("Add a folder as a project")
-                    .accessibilityLabel("Add a folder as a project")
+                ProjectsAccessoryControls(state: state, host: host, search: search, focused: $focused,
+                                          isSnapshotRender: isSnapshotRender)
             }
         }
         .onChange(of: search.focusRequest) { _, _ in focused = true }
+    }
+}
+
+/// Search and +; while the list is narrowed to one account, the chip that says so and
+/// clears it, in their place.
+private struct ProjectsAccessoryControls: View {
+    @ObservedObject var state: AppState
+    let host: WorkspacesHost
+    @ObservedObject var search: ProjectsSearch
+    var focused: FocusState<Bool>.Binding
+    let isSnapshotRender: Bool
+
+    var body: some View {
+        if let name = state.accountFilter {
+            AccountFilterChip(state: state, accountName: name)
+        } else {
+            SearchControl(state: state, search: search, focused: focused, isSnapshotRender: isSnapshotRender)
+            Button { host.addFolder() } label: { NotchIconLabel(symbol: "plus") }
+                .buttonStyle(.plain)
+                .help("Add a folder as a project")
+                .accessibilityLabel("Add a folder as a project")
+        }
+    }
+}
+
+/// "● Work ✕": Projects narrowed to one account; ✕ shows every account again.
+struct AccountFilterChip: View {
+    @ObservedObject var state: AppState
+    let accountName: String
+
+    var body: some View {
+        let account = state.workspacesAccount(named: accountName)
+        Button { state.filter(account: nil) } label: {
+            HStack(spacing: 5) {
+                if let dot = account?.dot { Circle().fill(dot).frame(width: 6, height: 6) }
+                Text(account?.name ?? state.displayName(forAccountNamed: accountName))
+                    .font(.system(size: 11.5, weight: .medium)).lineLimit(1)
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(NotchTheme.secondary())
+            }
+            .padding(.horizontal, 10).frame(height: 24)
+            .background(Capsule().fill(Color.white.opacity(0.10)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Show every account again")
+        .accessibilityLabel("Showing \(account?.name ?? accountName) only. Clear the filter")
     }
 }
 
@@ -208,12 +273,23 @@ struct ProjectsFooterStatus: View {
         default: break
         }
         if !state.searchQuery.isEmpty {
-            let found = state.listedSessionOrder.count
-            return "\(found) \(found == 1 ? "match" : "matches") for “\(state.searchQuery)”"
+            let found = state.searchMatchCount
+            return "\(found) \(found == 1 ? "match" : "matches") for “\(state.searchQuery)” · closed sessions included"
         }
         var parts: [String] = []
-        let running = state.recentSessionsByProject.values.flatMap { $0 }.filter { $0.state == .working }.count
-        if running > 0 { parts.append("\(running) working") }
+        let rows = state.recentSessionsByProject.values.flatMap { $0 }
+            .filter { state.accountFilter == nil || $0.accountName == state.accountFilter }
+        if let name = state.accountFilter {
+            parts.append(state.workspacesAccount(named: name)?.name ?? state.displayName(forAccountNamed: name))
+        }
+        let working = rows.filter { $0.state == .working }.count
+        let needsYou = rows.filter(\.state.needsYou).count
+        if working > 0 { parts.append("\(working) working") }
+        if needsYou > 0 { parts.append("\(needsYou) need\(needsYou == 1 ? "s" : "") you") }
+        if state.accountFilter != nil {
+            parts.append("\(rows.count) session\(rows.count == 1 ? "" : "s")")
+            return parts.joined(separator: " · ")
+        }
         if state.isScanning {
             parts.append("scanning…")
         } else if let scanned = state.lastRefreshAt {

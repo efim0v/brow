@@ -67,6 +67,9 @@ public protocol NotchSection: AnyObject {
     /// The section came into view (true) or left it (false): the panel opened on it, the
     /// switch moved to it or away, the panel closed.
     func visibilityChanged(_ visible: Bool)
+    /// The panel opened (true) or closed (false), whichever section is in front: what keeps
+    /// the switch's marks current on every section.
+    func panelOpenChanged(_ open: Bool)
 }
 
 public extension NotchSection {
@@ -75,6 +78,7 @@ public extension NotchSection {
     func escape() -> Bool { false }
     func handleKey(_ key: NotchKey) -> Bool { false }
     func visibilityChanged(_ visible: Bool) {}
+    func panelOpenChanged(_ open: Bool) {}
 }
 
 /// Which sections the panel has. Limits is always there; the others while whoever provides
@@ -110,6 +114,23 @@ public final class NotchSections: ObservableObject {
 public final class NotchBadges: ObservableObject {
     @Published public var projectsNeedYou = 0
     @Published public var agentsActive = false
+    /// The sessions running as each account, by the account's config folder (as Limits
+    /// lists it): the "N live" chip after its name.
+    @Published public var liveByConfigDir: [String: Int] = [:]
+    /// Opens Projects narrowed to the account in a config folder: what the chip does.
+    public var openAccount: ((String) -> Void)?
 
     public init() {}
+
+    /// The live count for an account by its config folder, however the folder is spelled.
+    public func live(configDir: String) -> Int {
+        liveByConfigDir[Self.key(configDir)] ?? 0
+    }
+
+    /// One spelling of a config folder: `~` expanded, no trailing slash.
+    public static func key(_ dir: String) -> String {
+        var path = (dir as NSString).expandingTildeInPath
+        while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
+        return path
+    }
 }

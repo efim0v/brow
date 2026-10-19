@@ -291,7 +291,7 @@ public final class NotchPanelController: NotchPresenting {
         // as light grey in a dark appearance, so the host never inherits a light one.
         panel.appearance = NSAppearance(named: .darkAqua)
         model = NotchPanelModel(frames: frames, pet: pet?.layer)
-        limits = LimitsSection(store: store, clock: clock, hover: hover, pet: pet?.panel,
+        limits = LimitsSection(store: store, clock: clock, hover: hover, pet: pet?.panel, badges: model.badges,
                                onRefresh: { [store] in Task { await store.refresh(force: true) } })
         host = FirstMouseHostingView(rootView: NotchRootView(model: model))
         panel.contentView = host
@@ -462,6 +462,7 @@ public final class NotchPanelController: NotchPresenting {
         // The same instant as the outline's spring: the hop is timed against it. The pet hops
         // into the header only on Limits; elsewhere it stays on its ledge beside the camera.
         pet?.dockChanged(expanded: value && model.tab == .limits)
+        for tab in sections.tabs { sections.section(tab)?.panelOpenChanged(value) }
         sections.section(model.tab)?.visibilityChanged(value)
         withAnimation(value ? Self.openAnimation : Self.closeAnimation) { model.expanded = value }
         BrowLog.panel.debug("expanded=\(value) tab=\(self.model.tab.rawValue, privacy: .public)")

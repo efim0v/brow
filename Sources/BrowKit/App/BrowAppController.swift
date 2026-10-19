@@ -160,7 +160,7 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
         pet.start()
         // After the notch is up, like everything that may touch the disk. Its Projects section
         // lives in the notch panel, registered while Workspaces is wanted.
-        let workspaces = WorkspacesHost(store: store)
+        let workspaces = WorkspacesHost(store: store, runningClaude: { ProcessTable.claudeCodeFolders() })
         self.workspaces = workspaces
         workspaces.openSettings = { [weak self] link in self?.showSettings(pane: SettingsPane(link)) }
         workspaces.notch = panel

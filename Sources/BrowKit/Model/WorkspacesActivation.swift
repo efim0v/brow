@@ -23,17 +23,23 @@ public struct WorkspacesSettings: Codable, Sendable, Equatable {
     /// before Brow's engine ever ran. nil until Workspaces first runs, which is when it is
     /// recorded — afterwards the file exists either way. Settings words itself by it.
     public var groveSetup: Bool?
+    /// Session rows show the newest prompt and Claude's newest line; off, only the
+    /// session's title — for sharing the screen.
+    public var showMessagePreviews: Bool = true
 
     public init(enabled: Bool? = nil, showInMenuBar: Bool = true, panelMaterial: String? = nil,
-                importedGroveMaterial: Bool = false, groveSetup: Bool? = nil) {
+                importedGroveMaterial: Bool = false, groveSetup: Bool? = nil, showMessagePreviews: Bool = true) {
         self.enabled = enabled
         self.showInMenuBar = showInMenuBar
         self.panelMaterial = panelMaterial
         self.importedGroveMaterial = importedGroveMaterial
         self.groveSetup = groveSetup
+        self.showMessagePreviews = showMessagePreviews
     }
 
-    enum CodingKeys: String, CodingKey { case enabled, showInMenuBar, panelMaterial, importedGroveMaterial, groveSetup }
+    enum CodingKeys: String, CodingKey {
+        case enabled, showInMenuBar, panelMaterial, importedGroveMaterial, groveSetup, showMessagePreviews
+    }
 
     /// Field by field: one bad value costs that field, never the others (brow#7).
     public init(from decoder: Decoder) throws {
@@ -50,6 +56,7 @@ public struct WorkspacesSettings: Codable, Sendable, Equatable {
         panelMaterial = field(.panelMaterial, String.self)
         importedGroveMaterial = field(.importedGroveMaterial, Bool.self) ?? false
         groveSetup = field(.groveSetup, Bool.self)
+        showMessagePreviews = field(.showMessagePreviews, Bool.self) ?? true
     }
 }
 

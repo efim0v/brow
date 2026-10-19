@@ -137,7 +137,9 @@ struct NotchTabSwitch<Accessory: View>: View {
     let showsKeys: Bool
     let onSelect: (NotchTab) -> Void
     @ViewBuilder let accessory: () -> Accessory
-    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorSchemeContrast) private var systemContrast
+    @Environment(\.renderContrast) private var renderContrast
+    private var contrast: ColorSchemeContrast { renderContrast ?? systemContrast }
 
     private var increased: Bool { contrast == .increased }
 
@@ -225,7 +227,9 @@ struct NotchFooter: View {
     let onPin: () -> Void
     let onSettings: () -> Void
     let onQuit: () -> Void
-    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorSchemeContrast) private var systemContrast
+    @Environment(\.renderContrast) private var renderContrast
+    private var contrast: ColorSchemeContrast { renderContrast ?? systemContrast }
     @Environment(\.isSnapshotRender) private var isSnapshotRender
 
     /// Between two buttons.

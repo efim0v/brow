@@ -53,6 +53,10 @@ public final class WorkspacesHost: ObservableObject {
     private let groveGuard: GroveAppGuard
     private let groveConfigExists: () -> Bool
     private let watchRunningApps: RunningAppsWatch
+    /// The look at the Claude Code processes that run (`ProcessTable.claudeCodeFolders`): what
+    /// finds sessions that keep no record and the folders to suggest. nil reads none — what
+    /// every test and offscreen render gets, so none of them looks at the Mac's processes.
+    private let runningClaude: (@Sendable () -> [RunningClaude])?
     /// Held while this copy of Brow runs the engine; another copy that runs it first
     /// keeps this one paused.
     private let engineLock: WorkspacesEngineLock
@@ -68,6 +72,10 @@ public final class WorkspacesHost: ObservableObject {
     private var accountsWatch: AnyCancellable?
     /// Keeps the pickers on the notch's accounts.
     private var storeWatch: AnyCancellable?
+    /// Keeps the switch's "needs you" count and the "N live" chips on what runs.
+    private var liveWatch: AnyCancellable?
+    /// Keeps the rows' previews on or off as Settings has them.
+    private var previewsWatch: AnyCancellable?
     /// Brings the panel back for an error that follows a hand-off.
     private var errorWatch: AnyCancellable?
     /// When the panel last handed the user off: an error the engine reports right after
@@ -94,10 +102,12 @@ public final class WorkspacesHost: ObservableObject {
                     NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
                 }),
                 groveConfigExists: (() -> Bool)? = nil,
-                watchRunningApps: RunningAppsWatch? = nil) {
+                watchRunningApps: RunningAppsWatch? = nil,
+                runningClaude: (@Sendable () -> [RunningClaude])? = nil) {
         self.store = store
         self.folders = folders
         self.groveGuard = groveGuard
+        self.runningClaude = runningClaude
         let configPath = folders.configFile.path
         self.groveConfigExists = groveConfigExists ?? { FileManager.default.fileExists(atPath: configPath) }
         self.watchRunningApps = watchRunningApps ?? Self.watchWorkspaceApps
@@ -130,6 +140,9 @@ public final class WorkspacesHost: ObservableObject {
         engine = nil
         storeWatch = nil
         errorWatch = nil
+        liveWatch = nil
+        previewsWatch = nil
+        clearBadges()
         statusItem.hide()
         notch?.sections.unregister(.projects)
         engineLock.release()
@@ -182,6 +195,9 @@ public final class WorkspacesHost: ObservableObject {
             accountsWatch = nil
             storeWatch = nil
             errorWatch = nil
+            liveWatch = nil
+            previewsWatch = nil
+            clearBadges()
             store.runtimeExtraDirs = []
             pendingProjects = []
         case .paused:
@@ -198,6 +214,8 @@ public final class WorkspacesHost: ObservableObject {
                 accountsWatch = nil
                 storeWatch = nil
                 errorWatch = nil
+                liveWatch = nil
+                previewsWatch = nil
             }
             let engine = ensureEngine()
             engine.startEngine()
@@ -224,8 +242,13 @@ public final class WorkspacesHost: ObservableObject {
     /// The notch has a Projects section exactly while Workspaces is wanted.
     private func syncSection() {
         guard let notch else { return }
-        if activation.isWanted { notch.sections.register(.projects, section) }
-        else { notch.sections.unregister(.projects) }
+        if activation.isWanted {
+            notch.sections.register(.projects, section)
+            notch.badges.openAccount = { [weak self] dir in self?.openAccount(configDir: dir) }
+        } else {
+            notch.sections.unregister(.projects)
+            notch.badges.openAccount = nil
+        }
     }
 
     // MARK: - Status lines captured while Workspaces is not on
@@ -379,8 +402,13 @@ public final class WorkspacesHost: ObservableObject {
         }
         state.addFolder = { [weak self] in self?.addFolder() }
         state.hostAccounts = hostAccounts()
+        // The sessions that keep no record of their own, and the folders to suggest: Brow's
+        // look at the kernel's process table, which the engine never takes itself.
+        state.runningClaude = runningClaude
+        state.showsMessagePreviews = store.settings.workspaces.showMessagePreviews
         self.state = state
         watchStore(state)
+        watchLive(state)
         // An error right after a hand-off — cmux would not start, say — brings the panel
         // back, where the error is shown with its fix.
         errorWatch = state.$actionError
@@ -431,7 +459,80 @@ public final class WorkspacesHost: ObservableObject {
             }
     }
 
+    // MARK: - The switch's marks and the chips
+
+    /// Keeps the switch's "needs you" count and each account's "N live" chip on what runs,
+    /// and the rows' previews on what Settings says.
+    private func watchLive(_ state: AppState) {
+        liveWatch = state.$liveSessions
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak state] live in
+                MainActor.assumeIsolated {
+                    guard let self, let state else { return }
+                    self.syncBadges(live: live, state: state)
+                }
+            }
+        previewsWatch = store.$settings
+            .map(\.workspaces.showMessagePreviews)
+            .removeDuplicates()
+            .sink { [weak state] on in
+                MainActor.assumeIsolated { if state?.showsMessagePreviews != on { state?.showsMessagePreviews = on } }
+            }
+        notch?.badges.openAccount = { [weak self] dir in self?.openAccount(configDir: dir) }
+    }
+
+    /// The count of sessions that need the user, and each Brow account's live sessions by its
+    /// config folder.
+    func syncBadges(live: [LiveProcess], state: AppState) {
+        guard let badges = notch?.badges else { return }
+        let needsYou = live.filter { !$0.isAutomated && SessionState.of($0).needsYou }.count
+        if badges.projectsNeedYou != needsYou { badges.projectsNeedYou = needsYou }
+        var byAccount: [String: Int] = [:]
+        for process in live where !process.isAutomated && !process.accountName.isEmpty {
+            byAccount[process.accountName, default: 0] += 1
+        }
+        var byDir: [String: Int] = [:]
+        for row in store.rows {
+            let dirs = Set(([row.account.configDir] + row.account.aliasDirs).map(NotchBadges.key))
+            let count = state.config.accounts
+                .filter { !dirs.isDisjoint(with: $0.allConfigDirs.map(NotchBadges.key)) }
+                .reduce(0) { $0 + (byAccount[$1.name] ?? 0) }
+            if count > 0 { byDir[NotchBadges.key(row.account.configDir)] = count }
+        }
+        if badges.liveByConfigDir != byDir { badges.liveByConfigDir = byDir }
+    }
+
+    private func clearBadges() {
+        guard let badges = notch?.badges else { return }
+        if badges.projectsNeedYou != 0 { badges.projectsNeedYou = 0 }
+        if !badges.liveByConfigDir.isEmpty { badges.liveByConfigDir = [:] }
+    }
+
+    /// An account's "N live" chip: Projects, narrowed to that account.
+    func openAccount(configDir: String) {
+        guard let state, activation == .on else { return }
+        let key = NotchBadges.key(configDir)
+        let row = store.rows.first { NotchBadges.key($0.account.configDir) == key }
+        let dirs = Set(([configDir] + (row?.account.aliasDirs ?? [])).map(NotchBadges.key))
+        guard let account = state.config.accounts.first(where: { !dirs.isDisjoint(with: $0.allConfigDirs.map(NotchBadges.key)) })
+        else { return }
+        state.filter(account: account.name)
+        state.searchQuery = ""
+        if state.route != .projects { state.open(.projects) }
+        notch?.openPinned(on: .projects)
+    }
+
     // MARK: - What the user can do
+
+    /// Settings › Workspaces › Show message previews: rows show the newest prompt and
+    /// Claude's newest line, or only the title.
+    public var showsMessagePreviews: Bool {
+        get { store.settings.workspaces.showMessagePreviews }
+        set {
+            objectWillChange.send()
+            store.settings.workspaces.showMessagePreviews = newValue
+        }
+    }
 
     /// Turns Workspaces on or off in Brow's own settings.
     public func setEnabled(_ on: Bool) {

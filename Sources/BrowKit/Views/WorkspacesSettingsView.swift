@@ -132,6 +132,14 @@ struct WorkspacesEngineSettings: View {
             Button("Add project…", action: addProject)
         }
         Section {
+            Toggle("Show message previews", isOn: Binding(get: { host.showsMessagePreviews },
+                                                          set: { host.showsMessagePreviews = $0 }))
+        } footer: {
+            Text("A session's row shows the last thing asked and the last line Claude wrote. Off, it shows the session's title only — for sharing your screen.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Section {
             // The label in the form's own font; only the value, a path, is monospaced.
             LabeledContent("Workspace folder") {
                 TextField("Workspace folder", text: Binding(get: { state.config.workspacesRootTemplate },

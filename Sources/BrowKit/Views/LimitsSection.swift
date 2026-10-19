@@ -14,19 +14,22 @@ final class LimitsSection: NotchSection {
     let clock: PanelClock
     let hover: CalendarHoverTracker
     let pet: PetPanelModel?
+    /// The "N live" chips' counts, from Workspaces.
+    let badges: NotchBadges
     private let onRefresh: () -> Void
 
     init(store: LimitsStore, clock: PanelClock, hover: CalendarHoverTracker, pet: PetPanelModel?,
-         onRefresh: @escaping () -> Void) {
+         badges: NotchBadges? = nil, onRefresh: @escaping () -> Void) {
         self.store = store
         self.clock = clock
         self.hover = hover
         self.pet = pet
+        self.badges = badges ?? NotchBadges()
         self.onRefresh = onRefresh
     }
 
     func content(layout: NotchShellLayout) -> AnyView {
-        AnyView(LimitsContent(store: store, clock: clock, hover: hover, pet: pet, scrolls: true))
+        AnyView(LimitsContent(store: store, clock: clock, hover: hover, pet: pet, scrolls: true, badges: badges))
     }
 
     func footerStatus() -> AnyView { AnyView(LimitsFooterStatus(store: store, clock: clock)) }
@@ -64,17 +67,19 @@ struct LimitsContent: View {
     var reportsPetFrame = true
     /// Offscreen renders of a scrolled panel: how far the body is scrolled.
     var renderOffset: CGFloat = 0
+    /// The "N live" chips' counts; none outside the notch.
+    var badges = NotchBadges()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             LimitsHeader(store: store, pet: pet, reportsPetFrame: reportsPetFrame)
             if scrolls {
                 FadingScrollView(renderOffset: renderOffset) {
-                    LimitsBody(store: store, clock: clock, hover: hover)
+                    LimitsBody(store: store, clock: clock, hover: hover, badges: badges)
                         .padding(.vertical, 10)
                 }
             } else {
-                LimitsBody(store: store, clock: clock, hover: hover)
+                LimitsBody(store: store, clock: clock, hover: hover, badges: badges)
                     .padding(.vertical, 10)
             }
         }
@@ -142,6 +147,7 @@ struct LimitsBody: View {
     @ObservedObject var store: LimitsStore
     @ObservedObject var clock: PanelClock
     @ObservedObject var hover: CalendarHoverTracker
+    @ObservedObject var badges: NotchBadges
     /// At most this many account cards beside the month: a day on which every account
     /// resets cannot make the month taller than its grid (`CalendarView`).
     static let maxDayCards = 3
@@ -155,7 +161,9 @@ struct LimitsBody: View {
             ForEach(Array(store.rows.enumerated()), id: \.element.id) { index, row in
                 AccountBlockView(row: row, now: clock.now,
                                  claudePath: store.settings.claudePath ?? store.claudeDetected ?? "claude",
-                                 onGrant: { [store] in Task { await store.grantKeychainAccess(row.account) } })
+                                 onGrant: { [store] in Task { await store.grantKeychainAccess(row.account) } },
+                                 live: badges.live(configDir: row.account.configDir),
+                                 onLive: badges.openAccount.map { open in { open(row.account.configDir) } })
                 if index < store.rows.count - 1 || showsCalendar {
                     Divider().overlay(Color.white.opacity(0.15))
                 }

@@ -257,20 +257,23 @@ private struct SearchControl: View {
 /// The footer's line on Projects: what runs, and how fresh the list is; in a form, its keys.
 struct ProjectsFooterStatus: View {
     @ObservedObject var host: WorkspacesHost
-    @Environment(\.groveIsShowing) private var isShowing
 
     var body: some View {
-        // Its ages kept current every few seconds while the panel is open; still while closed.
-        TimelineView(.animation(minimumInterval: 5, paused: !isShowing)) { context in
-            Text(line(now: context.date))
-                .font(.system(size: 10.5)).monospacedDigit().lineLimit(1)
-                .foregroundStyle(NotchTheme.secondary())
+        if let state = host.state, host.activation != .paused {
+            ProjectsFooterLine(host: host, state: state)
+        } else {
+            Self.label(host.activation == .paused ? "Paused while Grove runs" : "")
         }
     }
 
-    private func line(now: Date) -> String {
+    static func label(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10.5)).monospacedDigit().lineLimit(1)
+            .foregroundStyle(NotchTheme.secondary())
+    }
+
+    static func line(host: WorkspacesHost, state: AppState, now: Date) -> String {
         if host.activation == .paused { return "Paused while Grove runs" }
-        guard let state = host.state else { return "" }
         switch state.route {
         case .launch: return "↩ start · esc back"
         case .createWorkspace: return "tab next · ↩ create · esc back"
@@ -308,6 +311,21 @@ struct ProjectsFooterStatus: View {
         if seconds < 5 { return "just now" }
         if seconds < 60 { return "\(seconds) s ago" }
         return Formatting.age(date, now: now)
+    }
+}
+
+/// The line while the engine runs, drawn again the moment what it counts changes — a scan
+/// starting or ending, a session's state, each letter of a search — and its ages every few
+/// seconds while the panel is open: the engine's state is observed, not only the host.
+private struct ProjectsFooterLine: View {
+    @ObservedObject var host: WorkspacesHost
+    @ObservedObject var state: AppState
+    @Environment(\.groveIsShowing) private var isShowing
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 5, paused: !isShowing)) { context in
+            ProjectsFooterStatus.label(ProjectsFooterStatus.line(host: host, state: state, now: context.date))
+        }
     }
 }
 

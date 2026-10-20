@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Artem Efimov
 
+import SwiftUI
 import XCTest
 @testable import GroveAppKit
 import GroveCore
@@ -145,5 +146,25 @@ final class ProjectsLiveTests: XCTestCase {
         XCTAssertFalse(state.showsMessagePreviews)
         host.showsMessagePreviews = true
         XCTAssertTrue(state.showsMessagePreviews)
+    }
+
+    /// The footer's line is drawn again the moment what it counts changes — a letter typed in
+    /// the search, a scan — not at its next tick, five seconds on.
+    func testTheFooterLineFollowsTheEngineAtOnce() async throws {
+        let notch = FakeNotch()
+        let (host, _) = try makeHost(notch)
+        let state = try XCTUnwrap(host.state)
+        // Closed, so no tick of its own draws it again: only what it watches does.
+        let view = NSHostingView(rootView: ProjectsFooterStatus(host: host).fixedSize()
+            .environment(\.groveIsShowing, false))
+        // The host settles first (the engine's start publishes), so nothing else draws it again.
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        view.layoutSubtreeIfNeeded()
+        let before = view.fittingSize.width
+        state.searchQuery = "webhook"
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        view.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(view.fittingSize.width, before + 60,
+                             "“0 matches for “webhook” · closed sessions included” at once")
     }
 }

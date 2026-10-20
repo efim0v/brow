@@ -334,7 +334,9 @@ public final class AgentCommsReader: @unchecked Sendable {
     }
 
     /// Every transcript of the accounts written since `since`, newest last, read from its
-    /// end (`coldTail`) and followed from there; the sidecars of their subagents too.
+    /// end (`coldTail`) and followed from there; the sidecars of their subagents too — of
+    /// the subagents at work since then only: every session ever run keeps its subagents'
+    /// sidecars, and they name nothing the picture shows.
     public func readRecent(since: Date) {
         var files: [(path: String, mtime: Date)] = []
         let fm = FileManager.default
@@ -348,13 +350,21 @@ public final class AgentCommsReader: @unchecked Sendable {
                         if let mtime = Self.modified(path), mtime >= since { files.append((path, mtime)) }
                     } else if let enumerator = fm.enumerator(atPath: path + "/subagents") {
                         let session = name
+                        var sidecars: [String] = []
+                        var working = Set<String>()     // agents whose transcript was written since
                         for case let sub as String in enumerator {
                             let subPath = path + "/subagents/" + sub
                             if sub.hasSuffix(".meta.json") {
-                                readSidecar(subPath, account: account.name, session: session)
+                                sidecars.append(subPath)
                             } else if sub.hasSuffix(".jsonl"), let mtime = Self.modified(subPath), mtime >= since {
                                 files.append((subPath, mtime))
+                                working.insert(String(subPath.dropLast(".jsonl".count)))
                             }
+                        }
+                        for sidecar in sidecars {
+                            let agent = String(sidecar.dropLast(".meta.json".count))
+                            guard working.contains(agent) || (Self.modified(sidecar).map { $0 >= since } ?? false) else { continue }
+                            readSidecar(sidecar, account: account.name, session: session)
                         }
                     }
                 }

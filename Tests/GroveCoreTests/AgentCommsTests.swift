@@ -310,6 +310,22 @@ final class AgentCommsTests: XCTestCase {
         XCTAssertEqual(reader.graph().messages.count, messages + 1)
     }
 
+    /// A cold start reads the sidecars of the subagents at work in its window only: every
+    /// session ever run keeps its subagents' sidecars.
+    func testAColdStartReadsTheSidecarsOfRecentSubagentsOnly() throws {
+        let sub = cfg + "/projects/" + F.mangle(F.atlasCwd) + "/" + F.atlas + "/subagents/agent-"
+        let old = Date().addingTimeInterval(-2 * 3_600)
+        for path in [sub + F.lumen + ".jsonl", sub + F.lumen + ".meta.json"] {
+            try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: path)
+        }
+        let reader = AgentCommsReader(accounts: [AgentAccount(name: "work", configDir: cfg)])
+        reader.recordsReads = true
+        reader.loadStatic()
+        reader.readRecent(since: Date().addingTimeInterval(-30 * 60))
+        XCTAssertFalse(reader.readsLog.contains(sub + F.lumen + ".meta.json"), "lumen has not worked for two hours")
+        XCTAssertTrue(reader.readsLog.contains(sub + F.scout + ".meta.json"), "scout wrote in the window")
+    }
+
     /// A cold start reads only the transcripts written in its window, and of them only the end.
     func testAColdStartReadsOnlyRecentTranscripts() throws {
         let old = Date().addingTimeInterval(-3_600)

@@ -201,6 +201,36 @@ final class AppStateHostTests: XCTestCase {
         XCTAssertNil(state.transcriptPath(sessionId: "s1", cwd: cwd, accountName: "me@example.com"))
     }
 
+    /// Delete works for accounts that are all outside `~/.claude` too: it used to do nothing,
+    /// without a word, when no account was the canonical one.
+    func testDeletingWorksWithoutAnAccountInTheCanonicalFolder() throws {
+        let state = try makeState(accounts: [AccountConfig(name: "work@example.com", configDir: dir("work"))])
+        let cwd = dir("acme-shop")
+        let folder = dir("work") + "/projects/" + ClaudeService.mangle(cwd)
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let file = folder + "/s1.jsonl"
+        try Data("{}\n".utf8).write(to: URL(fileURLWithPath: file))
+        state.purgeTranscript(id: "s1")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file))
+        XCTAssertNil(state.actionError)
+    }
+
+    /// A session that started running since Delete was asked keeps its transcript: its process
+    /// would go on writing a file that is gone.
+    func testARunningSessionsTranscriptIsNotDeleted() throws {
+        let state = try makeState(accounts: [AccountConfig(name: "me@example.com", configDir: dir("personal"))])
+        let cwd = dir("acme-shop")
+        let folder = dir("personal") + "/projects/" + ClaudeService.mangle(cwd)
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let file = folder + "/s1.jsonl"
+        try Data("{}\n".utf8).write(to: URL(fileURLWithPath: file))
+        state.allLiveProcessesOverride = [LiveProcess(pid: 4242, sessionId: "s1", cwd: cwd, status: "busy",
+                                                      accountName: "me@example.com")]
+        state.purgeTranscript(id: "s1")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file))
+        XCTAssertEqual(state.actionError, "This session is running — close it, then delete its transcript.")
+    }
+
     // MARK: - The Projects list and the keyboard
 
     private func listState() throws -> (AppState, ProjectConfig, ProjectConfig) {

@@ -1208,7 +1208,15 @@ extension AppState {
     /// Permanent delete of a session's transcript (mirror + live sides), then
     /// refreshes the session index. Failures land in actionError.
     public func purgeTranscript(id: String) {
-        guard canonicalAccount != nil else { return }
+        // Asked in the row, answered maybe minutes later: a session that started running since
+        // would go on writing a file no longer there.
+        let live = allLiveProcessesOverride ?? liveService.allLiveProcesses(accounts: config.accounts)
+        if ClaudeService.isSessionLive(among: live, sessionId: id) {
+            actionError = "This session is running — close it, then delete its transcript."
+            return
+        }
+        // Every account's copy, and the safety net's (kept under the canonical folder, which
+        // no account needs to be for the delete to happen).
         let accts = config.accounts.flatMap(\.allConfigDirs).map {
             MirrorAccount(key: accountKey($0), configDir: expandTilde($0))
         }

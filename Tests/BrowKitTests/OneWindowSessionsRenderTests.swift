@@ -311,11 +311,16 @@ final class OneWindowSessionsRenderTests: XCTestCase {
             below.settings = { $0.earsPlacement = .below }
             var off = SessionsWorld.Options()
             off.settings = { $0.showEars = false }
+            var tallBelow = below
+            tallBelow.accounts = 8
             let a = try makeWorld(below)
             let b = try makeWorld(off)
+            let c = try makeWorld(tallBelow)
             try RenderKit.write(RenderKit.scene([RenderKit.labelled("readouts below the notch", panel(try makeNotch(a, tab: .projects))),
-                                                 RenderKit.labelled("readouts off", panel(try makeNotch(b, tab: .projects)))],
-                                                caption: "The band follows the strip: below the notch it is 22 pt taller; with the readouts off it is the notch alone"),
+                                                 RenderKit.labelled("readouts off", panel(try makeNotch(b, tab: .projects))),
+                                                 RenderKit.labelled("below, eight accounts, 13-inch: Limits",
+                                                                    panel(try makeNotch(c, tab: .limits, screen: Self.screen13)))],
+                                                caption: "The band follows the strip: below the notch it is 22 pt taller; with the readouts off it is the notch alone; the footer stays inside"),
                                 to: file("r-03-readouts-below-and-off.png"))
         }
 
@@ -421,6 +426,18 @@ final class OneWindowSessionsRenderTests: XCTestCase {
             try RenderKit.write(RenderKit.scene([panel(try makeNotch(world, tab: .agents))],
                                                 caption: "One session and its subagents: the tree under it, a report on its way up"),
                                 to: file("r-12-agents-one-session.png"))
+        }
+
+        // What went wrong, with its fix, over the list; and Grove.app still running.
+        do {
+            let error = try makeWorld()
+            error.state.actionError = "cmux isn't running, so Go can't switch to the session."
+            let paused = try makeWorld()
+            paused.host.preview(state: paused.state, activation: .paused)
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("an error, with its fix", panel(try makeNotch(error, tab: .projects))),
+                                                 RenderKit.labelled("Grove.app running", panel(try makeNotch(paused, tab: .projects)))],
+                                                caption: "Notices in Projects: an error with its fix over the list; Grove still running in place of it"),
+                                to: file("r-13-notices.png"))
         }
 
         // Agents quiet, and with nothing in the last hour.

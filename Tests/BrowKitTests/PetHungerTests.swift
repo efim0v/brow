@@ -99,8 +99,11 @@ final class PetHungerTests: XCTestCase {
     }
 
     func testABigMealOrADebugValueCrossesSeveralMoodsAtOnce() {
-        XCTAssertEqual(PetHunger.mood(-50, from: .hungry), .full)
+        XCTAssertEqual(PetHunger.mood(-50, from: .hungry), .stuffed)
+        XCTAssertEqual(PetHunger.mood(-20, from: .hungry), .full)
         XCTAssertEqual(PetHunger.mood(70, from: .content), .hungry)
+        XCTAssertEqual(PetHunger.mood(100, from: .stuffed), .famished)
+        XCTAssertEqual(PetHunger.mood(95, from: .content), .famished)
     }
 
     // MARK: - When the clock runs (through the brain)
@@ -186,5 +189,9 @@ final class PetHungerTests: XCTestCase {
         XCTAssertEqual(PetHunger.moodOnTheWayUp(35), .peckish)
         XCTAssertEqual(PetHunger.moodOnTheWayUp(64), .peckish)
         XCTAssertEqual(PetHunger.moodOnTheWayUp(65), .hungry)
+        XCTAssertEqual(PetHunger.moodOnTheWayUp(89.9), .hungry)
+        XCTAssertEqual(PetHunger.moodOnTheWayUp(90), .famished)
+        XCTAssertEqual(PetHunger.moodOnTheWayUp(-29.9), .full)
+        XCTAssertEqual(PetHunger.moodOnTheWayUp(-30), .stuffed)
     }
 }

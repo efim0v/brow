@@ -70,21 +70,40 @@ enum PetRigActions {
 
     // MARK: - Postures
 
-    static func posture(_ b: PetBehaviour, elapsed e: Double, scene: PetRigPoser) -> PetPosture {
+    /// - Parameter start: when the segment started, for the behaviours whose look depends on the meal
+    ///   before them or the mood they rest in (a lick, a boop, the satisfactions); nil: the plain look.
+    static func posture(_ b: PetBehaviour, elapsed e: Double, scene: PetRigPoser, start: Double? = nil) -> PetPosture {
         let room = PetRigRoom(zone: scene.zone)
         switch b {
         case .intro: return keyed(e, [(0, .curious, 0.2), (1.9, .content, 0.6), (2.8, .happy, 0.3), (3.3, .content, 0.4)])
+        // Looking at a grey dot, stuffed keeps its eyes open, so the look shows.
+        case .unsureIdle(.stuffed): return .stuffedOpen
         case .idle(let m), .settled(let m), .unsureIdle(let m): return .mood(m)
         case .perk, .eager: return .eager
         case .eat(let meal):
             let snap = meal.reduceMotion ? PetTuning.Reduced.mealFade : timing(meal).snap
-            return keyed(e, [(0, .eager, 0.1), (snap, .munch, 0.12)])
+            return keyed(e, [(0, relish(meal.mood), 0.1), (snap, .munch, 0.12)])
         case .satisfied(.meal): return .satisfied
-        case .satisfied(.feast): return keyed(e, [(0, .stuffed, 0.3), (2.6, .satisfied, 1.0)])
-        case .satisfied(.lick): return .content
-        case .boop: return .content
+        case .satisfied(.brim): return .stuffed
+        case .satisfied(.grateful):
+            // Eyes shut and hugging itself, then from 1.75 s the face of the mood the meal left it in: the eyes
+            // open, shining, on the number.
+            let after = start.flatMap { meal(before: $0, scene: scene) }.map { moodAfter($0.meal, start: $0.start, scene: scene) }
+            return keyed(e, [(0, .grateful, 0.25), (1.75, .mood(after ?? .hungry), 0.45)])
+        case .satisfied(.feast):
+            if let start, stuffedAfter(start, scene: scene) { return .stuffed }
+            return keyed(e, [(0, .feasted, 0.3), (2.6, .satisfied, 1.0)])
+        case .satisfied(.lick):
+            // After a nibble on a full belly it keeps the stuffed face; elsewhere content's, as ever.
+            if let start, let m = meal(before: start, scene: scene), moodAfter(m.meal, start: m.start, scene: scene) == .stuffed {
+                return .stuffed
+            }
+            return .content
+        case .boop:
+            if let start, let m = restingMood(before: start, scene: scene), m == .stuffed || m == .famished { return .mood(m) }
+            return .content
         case .celebrate, .freshWindow: return .happy
-        case .fallAsleep: return keyed(e, [(0, .stuffed, 0.25), (B.fallAsleepYawn, .drowsy, 0.5),
+        case .fallAsleep: return keyed(e, [(0, .heavy, 0.25), (B.fallAsleepYawn, .drowsy, 0.5),
                                            (B.fallAsleepYawn + B.fallAsleepDroop, .asleep, B.fallAsleepCurl)])
         case .asleep, .rollOver: return .asleep
         case .drowsy: return .drowsy
@@ -157,16 +176,86 @@ enum PetRigActions {
     static func keyed(_ e: Double, _ keys: [(Double, PetPosture, Double)]) -> PetPosture {
         var p = keys[0].1
         for k in keys.dropFirst() where e > k.0 {
-            p = PetPosture.mixed(p, k.1, PetEase.smoother((e - k.0) / k.2))
+            p = PetPosture.blended(p, k.1, elapsed: e - k.0, over: k.2)
         }
         return p
+    }
+
+    /// The wind-up of a meal: eager's, but a stuffed pet stays round and low, its eyes popping open in
+    /// delight, and a famished one's eyes shine.
+    static func relish(_ mood: PetMood) -> PetPosture {
+        switch mood {
+        case .stuffed: return relishStuffed
+        case .famished: return relishFamished
+        default: return .eager
+        }
+    }
+
+    static let relishFamished: PetPosture = {
+        var p = PetPosture.mixed(.eager, .famished, 0.5)
+        // The lunge leans, reaches and turns to the food on its own.
+        p.foodLean = 0
+        p.foodStep = 0
+        p.foodArm = 0
+        p.foodFace = 0
+        p.body.shine = 1
+        p.body.eyeSize = 1.3
+        return p
+    }()
+
+    static let relishStuffed: PetPosture = {
+        var p = PetPosture.mixed(.eager, .stuffed, 0.45)
+        p.body.happy = 0
+        p.bliss = 0
+        return p
+    }()
+
+    /// The meal a satisfaction follows: the last `eat` that started before `start`.
+    static func meal(before start: Double, scene: PetRigPoser) -> (meal: PetMeal, start: Double)? {
+        for seg in scene.timeline.segments.reversed() where seg.start < start - 1e-9 {
+            if case .eat(let meal) = seg.behaviour { return (meal, seg.start) }
+            if start - seg.start > 8 { break }
+        }
+        return nil
+    }
+
+    /// The mood a meal leaves the pet in: the meter once its drop has landed, judged from the mood it was
+    /// eaten in, as the brain judges it.
+    static func moodAfter(_ meal: PetMeal, start: Double, scene: PetRigPoser) -> PetMood {
+        PetHunger.mood(PetRigMeter.value(scene.timeline.meter, at: start + meal.duration + 1e-6), from: meal.mood)
+    }
+
+    /// Whether the meal before a satisfaction starting at `start` left the pet stuffed.
+    static func stuffedAfter(_ start: Double, scene: PetRigPoser) -> Bool {
+        guard let m = meal(before: start, scene: scene) else { return false }
+        return moodAfter(m.meal, start: m.start, scene: scene) == .stuffed
+    }
+
+    /// The mood it rests in around `start`: that of the last open behaviour before it, or, when a meal came
+    /// after that one, the mood the meal left it in. A boop during the satisfaction after a meal that made it
+    /// stuffed is a stuffed pet's, and one after a famished pet's meal no longer a famished one's.
+    static func restingMood(before start: Double, scene: PetRigPoser) -> PetMood? {
+        for seg in scene.timeline.segments.reversed() where seg.start < start - 1e-9 {
+            switch seg.behaviour {
+            case .idle(let m), .settled(let m), .unsureIdle(let m): return m
+            case .eat(let meal): return moodAfter(meal, start: seg.start, scene: scene)
+            default: if start - seg.start > 30 { return nil }
+            }
+        }
+        return nil
     }
 
     /// How long a behaviour takes to settle into its posture from the one before it.
     static func blendIn(_ b: PetBehaviour, after previous: PetBehaviour) -> Double {
         switch b {
         case .off: return 1e9               // turned off, it holds whatever it was doing and fades
-        case .idle, .settled, .unsureIdle: return 0.6
+        case .idle(let m), .settled(let m), .unsureIdle(let m):
+            // Out of stuffed the rest gives way slowly, as the belly it rests on goes down; the eyes open
+            // on their own quick clock (`PetPosture.blended`).
+            switch previous {
+            case .idle(.stuffed), .settled(.stuffed): return m == .stuffed ? 0.6 : 2.0
+            default: return 0.6
+            }
         case .perk: return 0.12
         case .eager: return 0.25
         case .eat: return 0.12
@@ -211,6 +300,8 @@ enum PetRigActions {
         var chews: Int
         var full: Bool
         var feast: Bool
+        /// The mood it was planned in: stuffed eats lazily.
+        var mood: PetMood = .content
         var snap: Double { anticipation + lunge }
         var recoilStart: Double { snap + hold }
         var chewStart: Double { recoilStart + recoil }
@@ -224,11 +315,11 @@ enum PetRigActions {
         if meal.size == .full {
             return MealTiming(anticipation: M.fullAnticipation, lunge: M.fullLunge, hold: M.fullHold, recoil: M.fullRecoil,
                               chew: M.fullChew, swallow: M.fullSwallow + (meal.feast ? M.feastSwallowExtra : 0),
-                              chews: meal.chews, full: true, feast: meal.feast)
+                              chews: meal.chews, full: true, feast: meal.feast, mood: meal.mood)
         }
         return MealTiming(anticipation: M.nibbleAnticipation, lunge: M.nibbleLunge, hold: M.nibbleHold,
                           recoil: M.nibbleRecoil, chew: M.nibbleChew, swallow: M.nibbleSwallow, chews: meal.chews,
-                          full: false, feast: false)
+                          full: false, feast: false, mood: meal.mood)
     }
 
     // MARK: - Movement
@@ -246,6 +337,18 @@ enum PetRigActions {
         case .satisfied(.meal):
             let sigh = PetCurve.envelope(e, 0.2, 0.6, 0.62, 1.05, up: PetEase.inOutSine, down: PetEase.inOutSine)
             return (0, 0, 0.05 * sigh - 0.02 * (PetCurve.bump(e, 1.1, 1.36) + PetCurve.bump(e, 1.6, 1.86)))
+        case .satisfied(.grateful):
+            // Hugging itself it squeezes a little; a small happy bounce in the middle of the hug.
+            let hug = PetCurve.envelope(e, 0.12, 0.45, 1.45, 1.8, up: PetEase.inOutSine, down: PetEase.inOutSine)
+            let bounce = PetCurve.bump(e, 0.95, 1.3)
+            let land = PetCurve.envelope(e, 1.27, 1.31, 1.33, 1.5, up: PetEase.outQuad)
+            return (0, 1.1 * s * bounce, -0.035 * hug - 0.03 * land)
+        case .satisfied(.brim):
+            // The pats dip the round belly; the contented sigh at the end lifts it.
+            var dip = 0.0
+            for c in [0.35, 0.75] { dip -= 0.015 * PetCurve.bump(e, c - 0.03, c + 0.17) }
+            let sigh = PetCurve.envelope(e, 2.2, 2.5, 2.55, 3.0, up: PetEase.inOutSine, down: PetEase.inOutSine)
+            return (0, 0, dip + 0.035 * sigh)
         case .satisfied(.feast):
             let hic = PetCurve.envelope(e, 1.4, 1.48, 1.5, 1.66, up: PetEase.outQuad, down: PetEase.inOutSine)
             let sigh = PetCurve.envelope(e, 2.6, 3.0, 3.05, 3.5, up: PetEase.inOutSine, down: PetEase.inOutSine)
@@ -309,29 +412,34 @@ enum PetRigActions {
     /// whole-body beat per chew, and the swallow's long neck.
     static func eatRoot(_ m: MealTiming, _ e: Double, _ room: PetRigRoom) -> (dx: Double, lift: Double, squash: Double) {
         let s = room.scale, dir = room.foodSide
-        let big = m.full ? 1.0 : 0.6
-        let rear = -dir * 2.0 * s * big
-        let reach = dir * room.reach * (m.full ? 1 : 0.6)
+        // Stuffed, it leans for the food rather than leaping at it: round and happy to stay put.
+        let lazy = m.mood == .stuffed
+        let big = (m.full ? 1.0 : 0.6) * (lazy ? 0.7 : 1)
+        let rear = -dir * 2.0 * s * big * (lazy ? 0.7 : 1)
+        let reach = dir * room.reach * (m.full ? 1 : 0.6) * (lazy ? 0.55 : 1)
+        let leap = lazy ? 0.55 : 1.0
         var dx = 0.0, lift = 0.0, squash = 0.0
         if e < m.anticipation {
             let u = e / m.anticipation
             dx = rear * PetEase.outQuad(u)
             squash = -0.12 * big * PetEase.outQuad(u)
+            // Famished, a little hop of joy as the food pops out of the number.
+            if m.mood == .famished && m.full { lift = 1.0 * s * PetCurve.bump(e, 0, m.anticipation * 0.85) }
         } else if e < m.snap {
             let u = (e - m.anticipation) / m.lunge
             dx = PetCurve.mix(rear, reach, PetEase.inQuad(u))
-            lift = 2.5 * s * big * sin(.pi * u * 0.8)
+            lift = 2.5 * s * big * leap * sin(.pi * u * 0.8)
             squash = PetCurve.mix(-0.12 * big, 0.10 * big, PetEase.outQuad(min(1, u * 1.6)))
         } else if e < m.recoilStart {
             let u = (e - m.snap) / max(m.hold, 1e-6)
             dx = reach
-            lift = 2.5 * s * big * sin(.pi * 0.8) * (1 - u)
+            lift = 2.5 * s * big * leap * sin(.pi * 0.8) * (1 - u)
             squash = PetCurve.mix(0.10 * big, 0.02 * big, PetEase.outQuad(min(1, u * 2)))
         } else if e < m.chewStart {
             let u = (e - m.recoilStart) / m.recoil
             // Back to the seat, a touch past it, and home.
             dx = reach * (1 - PetEase.outBack(u, 1.2))
-            lift = (m.hold > 0 ? 0 : 2.5 * s * big * sin(.pi * 0.8)) * (1 - PetEase.outQuad(min(1, u * 1.5)))
+            lift = (m.hold > 0 ? 0 : 2.5 * s * big * leap * sin(.pi * 0.8)) * (1 - PetEase.outQuad(min(1, u * 1.5)))
             squash = PetCurve.mix(0.02 * big, -0.04 * big, PetEase.inOutSine(min(1, u * 1.6))) * (1 - PetEase.inOutSine((u - 0.5) * 2))
         } else if e < m.swallowStart {
             let i = Int((e - m.chewStart) / m.chew)
@@ -345,6 +453,8 @@ enum PetRigActions {
             let k = m.feast ? 0.36 / m.swallow : 1
             squash = -0.04 * PetCurve.bump(u, 0, 0.2 * k) + 0.075 * PetCurve.envelope(u, 0.18 * k, 0.32 * k, 0.45 * k, 0.7 * k)
                 + (m.feast ? 0.06 * PetCurve.envelope(u, 0.5, 0.65, 0.75, 0.95) : 0)
+                // Stuffed, the bite lands on a full belly, which bounces.
+                - (lazy ? 0.05 * PetCurve.envelope(u, 0.6, 0.72, 0.78, 1.0) : 0)
         }
         return (dx, lift, squash)
     }
@@ -481,7 +591,8 @@ enum PetRigActions {
             let big = m.full ? 1.0 : 0.6
             var out: [(Double, PetRigSecondary.Spring, Double)] = [
                 (m.snap + 0.001, .jiggle, -1.2 * big), (m.snap, .brows, -8 * big), (m.chewStart, .jiggle, -0.9 * big),
-                (m.swallowStart + 0.06, .jiggle, 0.9), (m.splash, .wave, 2.6), (m.splash, .belly, m.feast ? 0.3 : 0.14),
+                (m.swallowStart + 0.06, .jiggle, 0.9), (m.splash, .wave, 2.6),
+                (m.splash, .belly, m.mood == .stuffed ? 0.9 : m.feast ? 0.3 : 0.14),
             ]
             for i in 0..<m.chews {
                 out.append((m.chewStart + (Double(i) + 0.5) * m.chew, .jiggle, i == m.chews - 1 ? -0.9 : -0.7))
@@ -489,6 +600,9 @@ enum PetRigActions {
             return out
         case .perk: return [(0.1, .jiggle, 0.8), (0.08, .brows, 4)]
         case .satisfied(.meal): return [(1.25, .jiggle, -0.4), (1.75, .jiggle, -0.4)]
+        case .satisfied(.grateful): return [(1.31, .jiggle, -0.7), (0.45, .belly, 0.5)]
+        case .satisfied(.brim):
+            return [(brimPat.taps[0], .belly, 1.0), (brimPat.taps[1], .belly, 0.9), (1.55, .brows, 4)]
         case .satisfied(.feast): return [(1.45, .jiggle, 1.4), (0.65, .jiggle, -0.4), (1.1, .jiggle, -0.4)]
         case .boop(let giggle): return [(0.02, .jiggle, -3.0), (0.02, .brows, 9)] + (giggle ? [(0.32, .jiggle, -1.0), (0.62, .jiggle, -1.0)] : [])
         case .celebrate(.streak): return [(0.96, .jiggle, -0.7), (twirl.land, .jiggle, -0.6)]
@@ -582,6 +696,9 @@ enum PetRigActions {
         switch b {
         case .eat(let meal):
             if meal.reduceMotion { reducedMeal(meal, &p, e: e) } else { eat(timing(meal), &p, e: e, dir: dir) }
+            // A green or red glow at the mouth of a full creature reads as nausea: stuffed, or stuffed by
+            // this meal, the swallowed light is the pet's own.
+            if meal.mood == .stuffed || moodAfter(meal, start: scene.t - e, scene: scene) == .stuffed { p.lumpTint = 0 }
         case .perk(let kind):
             // The signature: a cheeky double flick of the brows, then everything up, eyes on the food.
             for (i, c) in [0.0, 0.13].enumerated() {
@@ -591,6 +708,8 @@ enum PetRigActions {
             }
             p.eyeSize += 0.1 * PetCurve.envelope(e, 0.02, 0.08, 0.3, kind == .prompt ? 0.5 : 0.8)
             p.smile += 0.25 * PetCurve.envelope(e, 0.02, 0.08, 0.2, 0.3)
+        case .satisfied(.grateful):
+            grateful(&p, e: e, dir: dir)
         case .satisfied(.meal):
             p.nod += 0.2 * PetCurve.envelope(e, 0.2, 0.6, 0.62, 1.05)
             pats(&p, e: e, at: [1.2, 1.7])
@@ -603,8 +722,28 @@ enum PetRigActions {
             p.browLiftL += 0.7 * hic; p.browLiftR += 0.7 * hic
             p.mouthOpen = max(p.mouthOpen, 0.22 * PetCurve.bump(e, 1.4, 1.5))
             p.mouthWide *= 1 - 0.4 * hic
+            if stuffedAfter(scene.t - e, scene: scene) {
+                // Stuffed by it, and still great: the eyes open on the viewer for a thumbs-up, then a sigh.
+                p.happy = PetCurve.mix(p.happy, 0, PetRigMoodBeats.eyes(e, open: 1.9, close: 3.25))
+                PetRigMoodBeats.thumbsUp(&p, e - 2.0, rise: 0.4, hold: 0.75, lower: 0.45, side: PetRigMoodBeats.thumbSide(scene))
+                PetRigMoodBeats.sighOut(&p, e - 3.3)
+            }
+        case .satisfied(.brim):
+            brim(&p, e: e, dir: dir, side: PetRigMoodBeats.thumbSide(scene))
         case .satisfied(.lick):
             lick(&p, e: e, dir: dir)
+            if let m = meal(before: scene.t - e, scene: scene) {
+                if m.meal.mood == .famished {
+                    // Grateful even for a nibble: a quick happy squint, pink cheeks.
+                    p.happy = max(p.happy, PetCurve.envelope(e, 0.36, 0.42, 0.5, 0.6))
+                    p.blush += 0.25 * PetCurve.envelope(e, 0.3, 0.4, 0.5, 0.6)
+                } else if moodAfter(m.meal, start: m.start, scene: scene) == .stuffed {
+                    // A nibble on a full belly: the near nub comes across it for one pat, and is back by the
+                    // end of the lick.
+                    let pat = nibblePat.offset(e)
+                    if dir < 0 { p.armL += pat } else { p.armR += pat }
+                }
+            }
         case .boop(let giggle):
             p.squeeze = max(p.squeeze, PetCurve.envelope(e, 0, 0.03, 0.16, 0.3))
             p.blush += 0.4 * PetCurve.envelope(e, 0, 0.1, 0.4, 0.6)
@@ -625,7 +764,7 @@ enum PetRigActions {
                 + PetCurve.envelope(e, twirl.takeoff - 0.08, twirl.takeoff + 0.06, twirl.land - 0.04, twirl.land + 0.24)
             p.armL += 0.9 * up; p.armR += 1.0 * up
             p.spin += 2 * .pi * PetEase.inOutSine((e - twirl.takeoff) / twirl.air)
-            p.happy = max(p.happy, 0.9 * PetCurve.envelope(e, 0.5, 0.7, 2.0, 2.35))
+            p.happy = max(p.happy, 0.9 * PetRigMoodBeats.eyes(e, open: 0.5, close: 2.1))
             p.smile += 0.3 * PetCurve.envelope(e, 0.3, 0.5, 2.0, 2.3)
             p.footL -= 0.6 * min(1, up); p.footR -= 0.6 * min(1, up)
         case .celebrate(.goodWeek):
@@ -634,10 +773,10 @@ enum PetRigActions {
                 let hit = PetCurve.envelope(e, c - 0.14, c, c + 0.02, c + 0.16, up: PetEase.inOutSine, down: PetEase.inOutSine)
                 if i % 2 == 0 { p.armL -= 1.3 * hit } else { p.armR -= 1.3 * hit }
             }
-            p.happy = max(p.happy, 0.8 * PetCurve.envelope(e, 0.15, 0.35, 1.3, 1.55))
+            p.happy = max(p.happy, 0.8 * PetRigMoodBeats.eyes(e, open: 0.15, close: 1.35))
             let up = PetCurve.envelope(e, 1.6, 1.9, 2.15, 2.45)
             p.armL += 0.9 * up; p.armR += 0.9 * up
-            p.happy = max(p.happy, 0.9 * PetCurve.envelope(e, 2.1, 2.3, 2.55, 2.8))
+            p.happy = max(p.happy, 0.9 * PetRigMoodBeats.eyes(e, open: 2.1, close: 2.55))
         case .freshWindow:
             p.turn += 0.4 * dir * PetCurve.envelope(e, 0, 0.12, 0.3, 0.5)
             p.lookX += 0.8 * dir * PetCurve.envelope(e, 0, 0.08, 0.3, 0.45)
@@ -718,7 +857,14 @@ enum PetRigActions {
     // MARK: The meal
 
     static func eat(_ m: MealTiming, _ p: inout PetBody, e: Double, dir: Double) {
-        let big = m.full ? 1.0 : 0.65
+        let big = (m.full ? 1.0 : 0.65) * (m.mood == .stuffed ? 0.7 : 1)
+        if m.mood == .famished {
+            // Shining eyes on the food, and through the chews a blissful sway, the cheeks pink.
+            p.eyeSize += 0.08 * PetCurve.envelope(e, 0, m.anticipation * 0.5, m.snap, m.snap + 0.05)
+            let savour = PetCurve.envelope(e, m.chewStart, m.chewStart + 0.1, m.swallowStart, m.swallowStart + 0.2)
+            p.turn += 0.1 * sin(2 * .pi * (e - m.chewStart) / (2 * m.chew)) * savour
+            p.blush += 0.3 * savour
+        }
         // Anticipation: lean back, eyes wide on the food, the mouth opening wide.
         let rear = PetCurve.envelope(e, 0, m.anticipation * 0.8, m.anticipation, m.snap, up: PetEase.outQuad, down: PetEase.inQuad)
         p.lean -= dir * 0.10 * big * rear
@@ -775,6 +921,40 @@ enum PetRigActions {
         }
     }
 
+    /// A nibble's pat on a full belly, inside the lick's 0.6 s, at the satisfactions' 60 fps.
+    static let nibblePat = PetRigMoodBeats.BellyPat(arrive: 0.04, settle: 0.2, taps: [0.4], leave: 0.4, tapTime: 0.08)
+
+    /// The brim's pat-pat, drawn at the satisfactions' 60 fps: the nubs come across the belly from the meal at
+    /// once, pat it twice and are back at rest by 1.1 s, before the thumbs-up.
+    static let brimPat = PetRigMoodBeats.BellyPat(arrive: 0, settle: 0.3, taps: [0.5, 0.74], leave: 0.8, tapTime: 0.1)
+
+    /// A full meal that leaves it stuffed: both nubs across the round belly for a pat-pat, eyes shut; then
+    /// the eyes open on the viewer for a thumbs-up with a wink, and a contented sigh.
+    static func brim(_ p: inout PetBody, e: Double, dir: Double, side: Double) {
+        let near = brimPat.offset(e), far = brimPat.offset(e, lag: PetRigMoodBeats.patLag)
+        p.armL += dir < 0 ? near : far
+        p.armR += dir < 0 ? far : near
+        p.nod += 0.08 * PetCurve.envelope(e, 0.2, 0.45, 0.85, 1.1)
+        p.happy = PetCurve.mix(p.happy, 0, PetRigMoodBeats.eyes(e, open: 1.0, close: 2.35))
+        PetRigMoodBeats.thumbsUp(&p, e - 1.15, rise: 0.4, hold: 0.75, lower: 0.5, side: side)
+        PetRigMoodBeats.sighOut(&p, e - 2.45)
+    }
+
+    /// A meal eaten famished, the most grateful of all: it hugs itself with both nubs, eyes shut, cheeks
+    /// pink, swaying a little, a small happy bounce in the middle; then the eyes open, shining, on the
+    /// number, and a lick: more?
+    static func grateful(_ p: inout PetBody, e: Double, dir: Double) {
+        let hug = PetCurve.envelope(e, 0.12, 0.45, 1.45, 1.8, up: PetEase.inOutSine, down: PetEase.inOutSine)
+        p.armL -= 2.05 * hug
+        p.armR -= 2.05 * hug
+        let sway = sin(2 * .pi * (e - 0.45) / 0.9) * PetCurve.envelope(e, 0.4, 0.6, 1.3, 1.5)
+        p.tilt += -dir * 0.07 * hug + 0.04 * sway
+        p.blush += 0.3 * hug
+        p.smile += 0.1 * hug
+        p.shine = max(p.shine, PetCurve.ramp(e, 1.7, 2.0))
+        lick(&p, e: (e - 2.15) / 1.1, dir: dir, turn: 0.2)
+    }
+
     /// Reduce Motion's meal: a crossfade to a chewing pose, one chew per point up to three, a crossfade
     /// back. No lunge, no squash beyond ±2 %.
     static func reducedMeal(_ meal: PetMeal, _ p: inout PetBody, e: Double) {
@@ -808,7 +988,8 @@ enum PetRigActions {
         p.browLiftL += 0.3 * PetCurve.envelope(e, 0.05, 0.15, 0.3, 0.45)
         p.chew = max(p.chew, 0.5 * PetCurve.envelope(e, 0.34, 0.37, 0.42, 0.48))
         p.chewPhase = 2 * .pi * (e - 0.34) / 0.12
-        p.happy = max(p.happy, 0.6 * PetCurve.envelope(e, 0.3, 0.38, 0.5, 0.6))
+        // A happy squint, all the way to the arcs: held part way, the eye would show two drawings.
+        p.happy = max(p.happy, 0.8 * PetCurve.envelope(e, 0.3, 0.38, 0.5, 0.6))
     }
 
     // MARK: Sleep
@@ -947,6 +1128,15 @@ enum PetRigActions {
         let r = root(prev.behaviour, elapsed: length, room: room)
         cut.x += r.dx; cut.lift += r.lift; cut.squash += r.squash
         act(prev.behaviour, &cut, e: length, room: room, scene: scene)
+        // A beat at an end of the meter under way when an action cuts the idle fades with it rather than
+        // vanish; between two open behaviours it plays on instead (`PetRigMoodBeats.carries`).
+        if let i = beat.index, i > 0, PetRigMoodBeats.extreme(prev.behaviour) != nil,
+           !PetRigMoodBeats.carries(from: prev, to: scene.timeline.segments[i]) {
+            let atCut = PetRigPoser(timeline: scene.timeline, t: beat.start, pointer: scene.pointer, zone: scene.zone,
+                                    seed: scene.seed, motion: scene.motion, memo: scene.memo, flight: nil, flightSource: nil,
+                                    lookAt: nil)
+            PetRigMoodBeats.apply(&cut, beat: PetRigBeat(segments: scene.timeline.segments, index: i - 1, t: beat.start), scene: atCut)
+        }
         let k = 1 - PetEase.smooth(beat.elapsed / 0.2)
         for key in fadeChannels { p[keyPath: key] += (cut[keyPath: key] - base[keyPath: key]) * k }
     }
@@ -954,7 +1144,7 @@ enum PetRigActions {
     static let fadeChannels: [WritableKeyPath<PetBody, Double>] = [
         \.x, \.lift, \.squash, \.lean, \.tilt, \.nod, \.turn, \.cheekPuff, \.mouthOpen, \.mouthWide, \.smile, \.squeeze,
         \.eyeSize, \.browLiftL, \.browLiftR, \.browTiltL, \.browTiltR, \.armL, \.armR, \.chew, \.tongue, \.happy, \.flash,
-        \.glow,
+        \.glow, \.thumbL, \.thumbR, \.winkL, \.winkR, \.shine,
     ]
 
     /// A feast leaves the belly round, easing back over 20 minutes.

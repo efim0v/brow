@@ -21,7 +21,7 @@ public struct PetHunger: Sendable, Equatable {
         PetTuning.Hunger.perHour * min(max(f, 0), 1) / 3600
     }
 
-    /// `seconds` of hunger time at pace `f`. Nothing happens at 100 but staying Hungry.
+    /// `seconds` of hunger time at pace `f`. Nothing happens at 100 but staying Famished.
     public mutating func pass(_ seconds: TimeInterval, pace f: Double) {
         guard seconds > 0 else { return }
         value = min(PetTuning.Hunger.maximum, value + Self.rate(pace: f) * seconds)
@@ -47,8 +47,11 @@ public struct PetHunger: Sendable, Equatable {
         for _ in 0..<PetMood.allCases.count {
             let next: PetMood
             switch mood {
+            case .stuffed:
+                next = value > H.fullAbove ? .full : .stuffed
             case .full:
-                next = value > H.contentAbove ? .content : .full
+                next = value > H.contentAbove ? .content
+                    : value <= H.fullAbove - H.moodHysteresis ? .stuffed : .full
             case .content:
                 next = value >= H.peckishFrom ? .peckish
                     : value <= H.contentAbove - H.moodHysteresis ? .full : .content
@@ -56,7 +59,10 @@ public struct PetHunger: Sendable, Equatable {
                 next = value >= H.hungryFrom ? .hungry
                     : value < H.peckishFrom - H.moodHysteresis ? .content : .peckish
             case .hungry:
-                next = value < H.hungryFrom - H.moodHysteresis ? .peckish : .hungry
+                next = value >= H.famishedFrom ? .famished
+                    : value < H.hungryFrom - H.moodHysteresis ? .peckish : .hungry
+            case .famished:
+                next = value < H.famishedFrom - H.moodHysteresis ? .hungry : .famished
             }
             if next == mood { break }
             mood = next
@@ -67,21 +73,25 @@ public struct PetHunger: Sendable, Equatable {
     /// The mood a value gives with no history: a new pet's, or one restored from `pet.json`.
     public static func moodOnTheWayUp(_ value: Double) -> PetMood {
         typealias H = PetTuning.Hunger
+        if value >= H.famishedFrom { return .famished }
         if value >= H.hungryFrom { return .hungry }
         if value >= H.peckishFrom { return .peckish }
         if value > H.contentAbove { return .content }
-        return .full
+        if value > H.fullAbove { return .full }
+        return .stuffed
     }
 
-    /// The next value above `value` at which the mood changes on the way up; nil when Hungry, which
+    /// The next value above `value` at which the mood changes on the way up; nil when Famished, which
     /// has nowhere higher to go.
     public static func nextThreshold(above value: Double, mood: PetMood) -> Double? {
         typealias H = PetTuning.Hunger
         switch mood {
+        case .stuffed: return max(value, H.fullAbove)
         case .full: return max(value, H.contentAbove)
         case .content: return max(value, H.peckishFrom)
         case .peckish: return max(value, H.hungryFrom)
-        case .hungry: return nil
+        case .hungry: return max(value, H.famishedFrom)
+        case .famished: return nil
         }
     }
 }

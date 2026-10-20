@@ -82,6 +82,29 @@ final class PetZoneRenderTests: XCTestCase {
         add("celebrate", PetReelScript([(0, .idle(.content)), (5, .celebrate(.streak(days: 7)))]),
             stride(from: 5.0, to: 7.5, by: 1.0 / 15).map { $0 })
         add("idle", PetReelScript([(0, .idle(.content))]), stride(from: 1.0, to: 240, by: 0.5).map { $0 })
+        // The ends of the meter: stuffed round-bellied, famished leaning in with its near nub reaching, and
+        // each gesture of theirs frame by frame.
+        for (mood, hunger) in [(PetMood.stuffed, -46.0), (.famished, 96)] {
+            let script = PetReelScript([(0, .idle(mood))], hunger: hunger)
+            add("\(mood)", script, stride(from: 2.0, to: 30, by: 0.5).map { $0 })
+            let gestures = PetRigMoodBeats.gestures(in: PetSegment(start: 0, behaviour: .idle(mood)), previous: nil, at: 900,
+                                                    lookBack: 900, seed: 7, reduceMotion: false)
+            var seen: [String: Int] = [:]
+            for g in gestures {
+                guard case .beat(let b) = g.item, seen["\(b)", default: 0] < 2 else { continue }
+                seen["\(b)", default: 0] += 1
+                add("\(mood) \(b)", script, stride(from: g.at, to: g.end, by: 0.1).map { $0 })
+            }
+        }
+        let more = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed)
+        var stuffedMeal = PetReelScript([(0, .idle(.stuffed)), (5, .eat(more)), (5 + more.duration, .satisfied(.brim))], hunger: -40)
+        stuffedMeal.meter(5 + more.swallowStart, -50)
+        add("stuffed meal", stuffedMeal, stride(from: 5.0, to: 10.0, by: 1.0 / 20).map { $0 })
+        let keen = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .famished)
+        var gratefulMeal = PetReelScript([(0, .idle(.famished)), (5, .eat(keen)), (5 + keen.duration, .satisfied(.grateful))],
+                                         hunger: 96)
+        gratefulMeal.meter(5 + keen.swallowStart, 78)
+        add("grateful meal", gratefulMeal, stride(from: 5.0, to: 10.0, by: 1.0 / 20).map { $0 })
         return out
     }
 

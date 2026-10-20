@@ -119,6 +119,8 @@ public final class PetController {
     private(set) var expanded = false
     private var windowVisible = true
     private var presence = PetPresence()
+    /// When the senses reported `presence`, on the monotonic clock: its `inputIdle` was true then.
+    private var presenceAt: TimeInterval?
     private var systemAwake = true
     private var power = PetPower()
     private var motion = PetMotion()
@@ -259,13 +261,21 @@ public final class PetController {
         }
         // A moving pointer is someone at the Mac: ask the senses now rather than at the next 5 s check,
         // so a settled or dozing pet answers the hand that came back, not five seconds later.
-        if presence.inputIdle >= PetTuning.Presence.settled, now.mono - lastEarlyCheck >= 1 {
+        if Self.mayHaveSettled(presence, heardAt: presenceAt, now: now.mono), now.mono - lastEarlyCheck >= 1 {
             lastEarlyCheck = now.mono
             senses?.checkPresence()
         }
         guard let eyes = eyes() else { return }
         let distance = hypot(Double(location.x - eyes.x), Double(location.y - eyes.y))
         handle(.pointer(distance: distance), at: now)
+    }
+
+    /// Whether the pet may be settled or dozing at `now`: the input idle the last presence check found, plus
+    /// the time since that check. The brain settles the pet on its own clock, 120 s after the last input, and
+    /// a check can be 5 s old: by the idle it found alone, a hand coming back in those seconds would leave
+    /// the pet settled until the next check, and a panel opened then would get no greeting.
+    static func mayHaveSettled(_ presence: PetPresence, heardAt: TimeInterval?, now: TimeInterval) -> Bool {
+        presence.inputIdle + max(0, now - (heardAt ?? now)) >= PetTuning.Presence.settled
     }
 
     /// `setExpanded`, at the instant the outline's spring starts: the hop, glide or crossfade.
@@ -280,6 +290,9 @@ public final class PetController {
         updateVisible()
         if expanded { publishWords(at: now) }
         updateWordsTimer()
+        // At either end of the meter the pet greets whoever opened the panel.
+        _ = brain.handle(.panel(open: expanded), at: now)
+        layer.timeline = brain.timeline
         afterChange(at: now, redraw: true)
     }
 
@@ -378,7 +391,7 @@ public final class PetController {
     /// What `PetSenses` heard, stamped with the instant it heard it.
     func sensed(_ event: PetEvent, at time: PetTime) {
         switch event {
-        case .presence(let p): presence = p
+        case .presence(let p): presence = p; presenceAt = time.mono
         case .motion(let m): motion = m; layer.motion = m
         case .systemSleep: systemAwake = false
         case .systemWake: systemAwake = true
@@ -492,11 +505,13 @@ public final class PetController {
         brain.timeline.segments.last(where: { $0.start <= mono })?.behaviour
     }
 
-    /// The pounce's wind-up and leap in the idle playing at `mono`, or the next one's
-    /// (`PetRigIdle.fastWindow`).
+    /// The leap of the idle playing at `mono`, or the next one's: the pounce, or at an end of the meter the
+    /// thumbs-up's rise and the hiccup's hop, greetings included (`PetRigIdle.fastWindow`).
     private func idleFastWindow(after mono: TimeInterval) -> Range<TimeInterval>? {
-        guard let segment = brain.timeline.segments.last(where: { $0.start <= mono }) else { return nil }
-        return PetRigIdle.fastWindow(after: mono, segment: segment, seed: brain.seed, reduceMotion: motion.reduceMotion)
+        let segments = brain.timeline.segments
+        guard let i = segments.lastIndex(where: { $0.start <= mono }) else { return nil }
+        return PetRigIdle.fastWindow(after: mono, segment: segments[i], previous: i > 0 ? segments[i - 1] : nil,
+                                     cues: brain.timeline.cues, seed: brain.seed, reduceMotion: motion.reduceMotion)
     }
 
     private func isFadingOut(at mono: TimeInterval) -> Bool {

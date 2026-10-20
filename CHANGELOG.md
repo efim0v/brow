@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Glim has two new moods at the ends of its hunger meter. Fed far past the brim it is Stuffed: round-bellied and blissful, it pats its belly, gives a thumbs-up and still takes another bite. After hours at the Mac with nothing used it is Famished: up on its toes and leaning toward the number, its tummy rumbling, hopeful and never sad. Asleep at the 5-hour limit, it now sleeps with a small smile.
+
 ### Fixed
 
 - Brow refreshes your tokens again while Claude Code sessions sit open in your accounts. 0.3.1 stopped refreshing the token of any account with a running `claude` process for its folder, however long that session had been idle, so that two refreshes at once could not leave the session with a dead token. That reasoning does not hold. Claude Code now takes a lock around each refresh and re-reads the token under it, so a refresh by Brow and one by a session no longer collide. And a session renews its token only when it sends a request in the token's last five minutes, so an idle session renews nothing. With sessions left open for days, nothing refreshed any token: eight hours after the last refresh each account read *Token in use by Claude Code*, then *Rate limited*, its bars went grey, and signing in again only started the eight hours over. Now a session gets the first go only while the token has more than two minutes left. After that, after Anthropic rejects the token, and when you press ⟳, Brow runs `claude doctor` whether or not a session holds the account. A session busy at that moment may see one rejected request, which Claude Code recovers from by itself. Brow notes each time in its log.

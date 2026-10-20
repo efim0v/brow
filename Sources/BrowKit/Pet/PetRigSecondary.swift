@@ -117,6 +117,8 @@ struct PetRigSource: Hashable {
         case bounce(height: Double, air: Double)
         /// The rare idle pounce that falls short.
         case pounce
+        /// A beat at an end of the meter: a pat on the belly, a hiccup (`PetRigMoodBeats`).
+        case beat(PetRigMoodBeats.Beat)
         /// The hop between the strip and the panel.
         case dock(expand: Bool, ax: Double, ay: Double, bx: Double, by: Double, sa: Double, sb: Double, stepsOff: Bool)
         /// The idle cycles' probe: never integrated.
@@ -141,6 +143,7 @@ struct PetRigSource: Hashable {
         case .segment(_, let length): return length
         case .bounce(_, let air): return air + 0.4
         case .pounce: return PetRigIdle.pounceLength
+        case .beat(let b): return PetRigMoodBeats.length(b)
         case .dock(let expand, let ax, let ay, let bx, let by, _, _, _):
             return PetRigDock.hopDuration(expand: expand, a: CGPoint(x: ax, y: ay), b: CGPoint(x: bx, y: by))
         case .idle: return 0
@@ -158,6 +161,8 @@ struct PetRigSource: Hashable {
             return PetRigIdle.bounceRoot(tau, height: height, air: air, scale: scale)
         case .pounce:
             return PetRigIdle.pounceRoot(tau, scale: scale, side: foodSide)
+        case .beat(let b):
+            return PetRigMoodBeats.root(b, min(tau, PetRigMoodBeats.length(b)), scale: scale, foodSide: foodSide)
         case .dock(let expand, let ax, let ay, let bx, let by, let sa, let sb, let stepsOff):
             let a = CGPoint(x: ax, y: ay), b = CGPoint(x: bx, y: by)
             let f = expand ? PetLayout.expand(a: a, b: b, scaleA: sa, scaleB: sb, stepsOff: stepsOff, tau: tau)
@@ -178,6 +183,8 @@ struct PetRigSource: Hashable {
             return [(0.12 + air, .jiggle, -0.02 * 4 * height / air)]
         case .pounce:
             return PetRigIdle.pounceImpulses
+        case .beat(let b):
+            return PetRigMoodBeats.impulses(b)
         case .dock(let expand, let ax, let ay, let bx, let by, _, _, _):
             let a = CGPoint(x: ax, y: ay), b = CGPoint(x: bx, y: by)
             let land = expand ? PetTuning.Hop.crouch + PetLayout.flightTime(from: a, to: b) : PetTuning.Hop.collapseY

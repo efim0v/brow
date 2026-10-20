@@ -65,6 +65,9 @@ public enum PetEvent: Sendable, Equatable {
     case pointer(distance: Double)
     /// A click on the pet in the panel, or VoiceOver's "Pet" action.
     case boop
+    /// The panel opened (`true`) or closed, at the instant its outline starts to spring: at either end of
+    /// the meter the pet greets whoever opened it.
+    case panel(open: Bool)
     /// The instant `PetBrain.nextDeadline(after:)` asked for has come.
     case tick
     /// Script-only: sets H, so a test can make the pet hungry without hours of script.
@@ -124,9 +127,12 @@ public enum PetForcedState: String, Sendable, CaseIterable {
 
 // MARK: - Conditions and moods
 
-/// What the hunger meter means to the pet: thresholds 0, 35 and 65 on H + pendingDrop, each entered at
-/// its threshold on the way up and left 5 points below it on the way down.
+/// What the hunger meter means to the pet: thresholds −30, 0, 35, 65 and 90 on H + pendingDrop, each
+/// entered at its threshold on the way up and left 5 points below it on the way down.
 public enum PetMood: String, Sendable, Hashable, CaseIterable {
+    /// Fed far past the brim, and loving it: a round belly, eyes shut in bliss, a pat on the tummy and
+    /// now and then a thumbs-up. Never heavy, unwell or sleepy, and always glad of another bite.
+    case stuffed
     /// Rounder, breathing slower.
     case full
     case content
@@ -134,6 +140,9 @@ public enum PetMood: String, Sendable, Hashable, CaseIterable {
     /// Hopeful, never sad, because hunger is a nudge and never a reproach: big eyes on the number, a
     /// lick, a tummy rumble.
     case hungry
+    /// The meter near the top: the most hopeful face it has. Up on its toes and leaning toward the
+    /// number, shining eyes, a tummy it pats; never sad, thin, tearful or sickly.
+    case famished
 }
 
 /// What the data says the pet's state is, highest first. It is re-evaluated on every brain update, and
@@ -173,7 +182,8 @@ public enum PetBehaviour: Sendable, Hashable {
     case eager
     /// A meal: anticipation, the bite, the chews, the swallow.
     case eat(PetMeal)
-    /// After a meal: 3.0 s, 4.0 after a feast; after a nibble, a 0.6 s lick.
+    /// After a meal: 3.0 s, 4.0 after a feast; after a nibble, a 0.6 s lick. A full meal that leaves it
+    /// stuffed, and one eaten famished, have satisfactions of their own (`brim`, `grateful`).
     case satisfied(Satisfaction)
     /// A click on the pet in the panel: 0.6 s, or the 1.2 s giggle after five boops in 6 s.
     case boop(giggle: Bool)
@@ -232,6 +242,12 @@ public enum PetBehaviour: Sendable, Hashable {
     /// Which meal `satisfied` follows.
     public enum Satisfaction: Sendable, Hashable {
         case meal, feast, lick
+        /// A full meal that leaves it stuffed: a pat-pat on the round belly, a thumbs-up, a contented
+        /// sigh. 3.0 s, like `meal`.
+        case brim
+        /// A full meal or a feast eaten famished, the most grateful of all: it hugs itself, sparkles, a
+        /// little bounce, then a hopeful look at the number for more. 3.0 s, like `meal`.
+        case grateful
     }
 
     /// What is being celebrated.
@@ -262,6 +278,9 @@ public struct PetMeal: Sendable, Hashable {
     /// Planned as Reduce Motion's meal: a crossfade to a chewing pose, the chews, a crossfade back.
     /// Stamped when it is planned, so a setting changed mid-meal cannot change its length.
     public var reduceMotion: Bool
+    /// The mood it was planned in, before this food reached the meter: a famished pet eats the most
+    /// grateful meal, a stuffed one a lazy, happy one. How it looks only; its timing never depends on it.
+    public var mood: PetMood = .content
 
     /// From the meal's start to the swallow's: where the meter's drop lands. Under Reduce Motion, the
     /// start of the crossfade back.
@@ -318,7 +337,7 @@ extension PetBehaviour {
         case .intro(let noAccounts): return noAccounts ? B.introNoAccounts : B.intro
         case .perk(let perk): return perk == .prompt ? B.perk : B.freshDataPerk
         case .eat(let meal): return meal.duration
-        case .satisfied(.meal): return PetTuning.Meal.satisfied
+        case .satisfied(.meal), .satisfied(.brim), .satisfied(.grateful): return PetTuning.Meal.satisfied
         case .satisfied(.feast): return PetTuning.Meal.satisfiedFeast
         case .satisfied(.lick): return PetTuning.Meal.lick
         case .boop(let giggle): return giggle ? PetTuning.Boop.giggle : PetTuning.Boop.boop
@@ -392,6 +411,9 @@ public struct PetCue: Sendable, Hashable {
         case sleepyEye
         /// A boop while hibernating: the glow pulses once, 0.6 s.
         case glowPulse
+        /// The panel opened at an end of the meter: a thumbs-up stuffed, please famished, once the hop into
+        /// the header has landed.
+        case greet
     }
 
     public var t: TimeInterval

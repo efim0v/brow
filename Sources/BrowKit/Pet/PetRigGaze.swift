@@ -66,12 +66,18 @@ enum PetRigGaze {
     }
 
     static func apply(_ p: inout PetBody, posture: PetPosture, beat: PetRigBeat, scene: PetRigPoser) {
-        // The eyes rest on the food source in the moods that want it: eager, hungry, unsure.
+        // The eyes rest on the food source in the moods that want it: eager, hungry, famished, unsure; a beat
+        // at an end of the meter may take them to the viewer or down to the tummy for a moment.
         var foodWeight = posture.lookAtFood
         if case .unsureIdle = beat.behaviour { foodWeight = max(foodWeight, 0.8) }
+        let beats = PetRigMoodBeats.gaze(beat: beat, scene: scene)
+        foodWeight *= 1 - max(beats.viewer, beats.away)
         if foodWeight > 0.001 {
             let base = Look(x: p.lookX, y: p.lookY, turn: p.turn, nod: p.nod)
-            let food = toward(scene.zone.foodSource, from: eyes(p), scale: p.size)
+            var food = toward(scene.zone.foodSource, from: eyes(p), scale: p.size)
+            // Leaning in, the head takes over part of the eyes' travel and the face turns as one.
+            food.turn += 0.12 * food.x * posture.foodFace
+            food.x *= 1 - 0.4 * posture.foodFace
             let l = base + (food - Look(x: 0, y: 0, turn: 0, nod: 0)) * foodWeight
             p.lookX = l.x; p.lookY = l.y; p.turn = l.turn; p.nod = l.nod
         }
@@ -81,6 +87,22 @@ enum PetRigGaze {
         // across the screen.
         watch(&p, beat: beat, scene: scene)
         hideAndPeek(&p, beat: beat, scene: scene)
+        // A thumbs-up and please look straight out of the screen at whoever is there, wherever the pointer is.
+        let viewer = beats.viewer
+        if viewer > 0.001 {
+            p.lookX = PetCurve.mix(p.lookX, 0, viewer)
+            p.lookY = PetCurve.mix(p.lookY, 0.1, viewer)
+            p.turn = PetCurve.mix(p.turn, 0, viewer)
+            p.nod = PetCurve.mix(p.nod, p.nod + 0.06, viewer)
+        }
+        // Eyes shut in bliss do not roll under their lids: a glance turns the head, and the arcs stay where
+        // they are, over the smile, rather than sliding down onto it.
+        if posture.bliss > 0.001 {
+            let band = PetCanvas.happyBand
+            let shut = PetCurve.ramp(p.happy, band.lowerBound, band.upperBound) * posture.bliss
+            p.lookX *= 1 - shut
+            p.lookY *= 1 - shut
+        }
         if let target = scene.lookAt {
             lookToward(&p, target, weight: 1, scene: scene)
         }
@@ -100,7 +122,7 @@ enum PetRigGaze {
         let t = scene.t, seed = scene.seed
         let hungry: Bool
         switch beat.behaviour {
-        case .idle(let m), .settled(let m): hungry = m == .hungry || m == .peckish
+        case .idle(let m), .settled(let m): hungry = m == .hungry || m == .peckish || m == .famished
         default: hungry = false
         }
         var eye = Look(), head = Look()
@@ -177,6 +199,9 @@ enum PetRigGaze {
             case .glowPulse:
                 // Booped hibernating: the glow pulses once (0.6 s).
                 p.glow += 0.35 * PetCurve.bump(tau, 0, PetTuning.Boop.glowPulse)
+            case .greet:
+                // A gesture of its own (`PetRigMoodBeats`).
+                continue
             }
         }
     }

@@ -125,8 +125,9 @@ Workspaces, which is the panel's Projects side, is in
   hunger runs from −50 to 100 (a new pet starts at 30): +20 an hour while you are at
   the Mac, it is awake and a reading is under 10 min old, slower when the week is
   ahead of an even pace and stopped 30 points ahead; −6 for each point it eats.
-  Full at 0 or below, Content to 35, Peckish to 65, Hungry from 65, with 5 points of
-  hysteresis on the way back. At an effective 5-hour aggregate of 99.5 % (the
+  Stuffed at −35 or below, Full to 0, Content to 35, Peckish to 65, Hungry to 90,
+  Famished from 90, with 5 points of hysteresis on the way back (Stuffed until above
+  −30, Famished until below 85). At an effective 5-hour aggregate of 99.5 % (the
   readout's `100%`) it falls asleep until the window resets; at 99.5 % weekly it
   hibernates in the den behind the camera until the weekly reset. A prompt written
   to an account's `history.jsonl` (watched, never read) makes it eager for 90 s.

@@ -625,7 +625,8 @@ public final class NotchPanelController: NotchPresenting {
                         self.pet?.click(at: self.hostPoint(fromWindow: event.locationInWindow))
                     }
                     self.pin()
-                } else if self.model.pinned, !Self.isMenuWindow(event.window) {
+                } else if self.model.pinned, !Self.isMenuWindow(event.window),
+                          !Self.isStatusItemWindow(event.window) {
                     // Another of Brow's windows: Settings. Outside the outline.
                     self.dismiss(.outsideClick)
                 }
@@ -643,6 +644,14 @@ public final class NotchPanelController: NotchPresenting {
         guard let window else { return false }
         return window.level.rawValue >= NSWindow.Level.popUpMenu.rawValue
             || String(describing: type(of: window)).contains("Menu")
+    }
+
+    /// Brow's menu-bar item, in a status-bar window of its own: its click opens the panel on
+    /// Projects or closes it, and closing it here first, on the mouse-down, had that click
+    /// open it again on the mouse-up.
+    static func isStatusItemWindow(_ window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        return String(describing: type(of: window)).contains("StatusBar")
     }
 
     /// Clicks in other apps, the desktop and the menu bar close a pinned panel. Not in a test,

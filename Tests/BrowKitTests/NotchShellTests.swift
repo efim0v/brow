@@ -343,6 +343,20 @@ final class NotchShellTests: XCTestCase {
         XCTAssertNil(press(0, "ф"), "a key the panel has no shortcut on")
     }
 
+    /// A click in another of Brow's windows closes a pinned panel — but not one in a menu the
+    /// panel opened, nor on Brow's menu-bar item, whose own click opens or closes the panel.
+    func testWhichOfBrowsOtherWindowsAClickClosesThePanelFrom() {
+        final class NSStatusBarWindowStandIn: NSWindow {}
+        let settings = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+        let menu = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: true)
+        menu.level = .popUpMenu
+        let item = NSStatusBarWindowStandIn(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: true)
+        XCTAssertFalse(NotchPanelController.isMenuWindow(settings) || NotchPanelController.isStatusItemWindow(settings))
+        XCTAssertTrue(NotchPanelController.isMenuWindow(menu))
+        XCTAssertTrue(NotchPanelController.isStatusItemWindow(item))
+        XCTAssertFalse(NotchPanelController.isStatusItemWindow(nil))
+    }
+
     // MARK: - The footer
 
     /// ⚙: the version, Settings… ⌘, and Quit Brow ⌘Q — Grove's footer held the only Quit button.

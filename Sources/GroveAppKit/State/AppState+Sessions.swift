@@ -182,6 +182,23 @@ extension AppState {
         liveSessions.filter { !$0.isAutomated && SessionState.of($0).needsYou }.count
     }
 
+    /// Sessions stopped on the user in a folder no project shows yet: the suggestion's row
+    /// says so, so the switch's count is never a number nothing on the list explains.
+    public func needsYou(in suggestion: ProjectSuggestion) -> Int {
+        let pids = Set(suggestion.pids)
+        return liveSessions.filter { pids.contains($0.pid) && !$0.isAutomated && SessionState.of($0).needsYou }.count
+    }
+
+    /// Sessions stopped on the user among `folders`' (outside every project), less the ones a
+    /// suggestion's row already shows: what the Other folders row says.
+    public func needsYou(in folders: [OtherFolder]) -> Int {
+        let suggested = Set(listedSuggestions.flatMap(\.pids))
+        let ids = Set(folders.flatMap { $0.sessions.map(\.id) })
+        return liveSessions.filter {
+            ids.contains($0.sessionId) && !suggested.contains($0.pid) && !$0.isAutomated && SessionState.of($0).needsYou
+        }.count
+    }
+
     /// The sessions running as each account, by its name in Grove's config: the "N live"
     /// chips on Limits.
     public var liveCountByAccount: [String: Int] {

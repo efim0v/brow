@@ -192,9 +192,9 @@ struct SuggestedSection: View {
 }
 
 /// A folder Claude Code runs in that no project shows: a dashed outline (not a project
-/// yet), the folder and as whom it runs there, where it is and how many sessions run there,
-/// Add, and "not now", which is remembered. The path gives way first: a long one keeps its
-/// two ends.
+/// yet), the folder and as whom it runs there, where it is and how many sessions run there
+/// (a session stopped on the user said in yellow), Add, and "not now", which is
+/// remembered. The path gives way first: a long one keeps its two ends.
 struct SuggestionRow: View {
     @ObservedObject var state: AppState
     @Environment(\.colorSchemeContrast) private var systemContrast
@@ -251,7 +251,13 @@ struct SuggestionRow: View {
             if focused { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(accent, lineWidth: 2) }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Suggested project \(suggestion.name): Claude is running there")
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        let waiting = state.needsYou(in: suggestion)
+        return "Suggested project \(suggestion.name): Claude is running there"
+            + (waiting > 0 ? ", \(waiting) need\(waiting == 1 ? "s" : "") you" : "")
     }
 
     /// "● Work", the accounts its sessions run as.
@@ -268,16 +274,23 @@ struct SuggestionRow: View {
         return Text.joined(parts)
     }
 
-    /// "~/Code/harbor-api · 2 claude sessions": the path in the middle cut short when it is
-    /// long, the count whole.
+    /// "~/Code/harbor-api · 2 claude sessions · 1 needs you": the path in the middle cut
+    /// short when it is long, the rest whole.
     private var place: some View {
         let quiet = PanelWhite.tertiary(increased)
         let count = suggestion.pids.count
+        let waiting = state.needsYou(in: suggestion)
         return HStack(spacing: 0) {
             Text(state.displayPath(suggestion.path))
                 .lineLimit(1).truncationMode(.middle)
             Text(" · " + (count == 1 ? "claude running" : "\(count) claude sessions"))
                 .lineLimit(1).fixedSize()
+            if waiting > 0 {
+                Text(" · ").lineLimit(1).fixedSize()
+                Text("\(waiting) need\(waiting == 1 ? "s" : "") you")
+                    .foregroundStyle(SessionColors.needsYou)
+                    .lineLimit(1).fixedSize()
+            }
         }
         .font(.system(size: 10.5))
         .foregroundStyle(quiet)
@@ -365,6 +378,7 @@ struct OtherFoldersRow: View {
 
     var body: some View {
         let sessions = folders.reduce(0) { $0 + $1.sessions.count }
+        let waiting = state.needsYou(in: folders)
         Button { state.open(.otherSessions) } label: {
             HStack(spacing: 8) {
                 Image(systemName: "folder").font(.system(size: 11.5)).foregroundStyle(Color.white.opacity(0.45))
@@ -372,6 +386,11 @@ struct OtherFoldersRow: View {
                 Text("\(sessions) session\(sessions == 1 ? "" : "s") in \(folders.count) folder\(folders.count == 1 ? "" : "s")")
                     .font(.system(size: 10.5)).foregroundStyle(PanelWhite.tertiary(increased)).lineLimit(1)
                 Spacer(minLength: 8)
+                if waiting > 0 {
+                    Text("\(waiting) need\(waiting == 1 ? "s" : "") you")
+                        .font(.system(size: 10.5, weight: .medium)).foregroundStyle(SessionColors.needsYou)
+                        .lineLimit(1).fixedSize()
+                }
                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(PanelWhite.tertiary(increased))
             }

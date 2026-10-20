@@ -262,6 +262,35 @@ final class AppStateSessionIndexTests: XCTestCase {
         XCTAssertEqual(state.suggestions, [], "a project now")
     }
 
+    /// The switch's count is never a number the list does not explain: a session stopped on
+    /// the user in a folder that is no project yet says so on its suggestion's row, one in
+    /// any other folder on the Other folders row — each counted in one place only.
+    func testWhatNeedsYouOutsideTheProjectsIsShownWhereItIs() throws {
+        let state = try makeState()
+        let harbor = ProjectSuggestion(path: "/made-up/code/harbor-api", pids: [701, 702],
+                                       cwds: ["/made-up/code/harbor-api"], configDirs: [cfg])
+        state.suggestions = [harbor]
+        func session(_ id: String, _ cwd: String) -> ClaudeSession {
+            ClaudeSession(id: id, cwd: cwd, title: nil, lastActivity: Date(), accountName: "work", gitBranch: nil)
+        }
+        state.otherFolders = [OtherFolder(path: "/made-up/dotfiles", sessions: [session("s-dot", "/made-up/dotfiles")]),
+                              OtherFolder(path: "/made-up/code/harbor-api",
+                                          sessions: [session("s-harbor", "/made-up/code/harbor-api")])]
+        state.liveSessions = [
+            LiveProcess(pid: 701, sessionId: "s-harbor", cwd: "/made-up/code/harbor-api", status: "waiting",
+                        accountName: "work", waitingFor: "permission prompt"),
+            LiveProcess(pid: 702, sessionId: "s-harbor-2", cwd: "/made-up/code/harbor-api", status: "busy",
+                        accountName: "work"),
+            LiveProcess(pid: 703, sessionId: "s-dot", cwd: "/made-up/dotfiles", status: "waiting",
+                        accountName: "work", waitingFor: "input needed"),
+        ]
+        XCTAssertEqual(state.needsYouCount, 2)
+        XCTAssertEqual(state.needsYou(in: harbor), 1)
+        XCTAssertEqual(state.needsYou(in: state.otherFolders), 1, "harbor-api's is on its suggestion's row")
+        state.dismissSuggestion(harbor)
+        XCTAssertEqual(state.needsYou(in: state.otherFolders), 2, "turned down, it counts with the other folders")
+    }
+
     /// An account's chip narrows the list, and its suggestions, to the account.
     func testOneAccountsSessionsAndFolders() async throws {
         let personal = root.appendingPathComponent("personal").path

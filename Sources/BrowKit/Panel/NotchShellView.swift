@@ -150,10 +150,15 @@ struct NotchTabSwitch<Accessory: View>: View {
             }
             .padding(2)
             .background(Capsule().fill(NotchTheme.track(increased)))
+            // The sections' names are never cut: what sits beside them (the search field)
+            // gives way instead.
+            .fixedSize()
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Sections")
             Spacer(minLength: 4)
+            // Offered the room first, so a field opens to its full width before the gap takes any.
             accessory()
+                .layoutPriority(1)
         }
     }
 

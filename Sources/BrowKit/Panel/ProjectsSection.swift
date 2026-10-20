@@ -215,12 +215,15 @@ struct AccountFilterChip: View {
     }
 }
 
-/// The search: a magnifier, or the 168 pt field it opens into.
+/// The search: a magnifier, or the field it opens into — 168 pt, or what the switch row
+/// leaves beside the sections' names (never less than `minWidth`).
 private struct SearchControl: View {
     @ObservedObject var state: AppState
     @ObservedObject var search: ProjectsSearch
     var focused: FocusState<Bool>.Binding
     let isSnapshotRender: Bool
+    static let width: CGFloat = 168
+    static let minWidth: CGFloat = 96
 
     var body: some View {
         if search.isOpen || !state.searchQuery.isEmpty {
@@ -240,7 +243,7 @@ private struct SearchControl: View {
                 }
             }
             .padding(.horizontal, 8)
-            .frame(width: 168, height: 24)
+            .frame(minWidth: Self.minWidth, maxWidth: Self.width, minHeight: 24, maxHeight: 24)
             .background(Capsule().fill(Color.white.opacity(0.08)))
         } else {
             Button { search.open() } label: { NotchIconLabel(symbol: "magnifyingglass") }

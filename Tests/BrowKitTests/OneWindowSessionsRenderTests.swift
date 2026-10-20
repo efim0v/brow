@@ -100,7 +100,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
             let projects = try makeNotch(filtered, tab: .projects)
             try RenderKit.write(RenderKit.scene([RenderKit.labelled("Limits: “N live” after each account", panel(limits)),
                                                  RenderKit.labelled("its chip: Projects, Work only", panel(projects))],
-                                                caption: "“3 live” on Work opens Projects narrowed to Work's sessions; ✕ on the chip shows every account"),
+                                                caption: "“4 live” on Work opens Projects narrowed to Work's sessions; ✕ on the chip shows every account"),
                                 to: file("b-06-filtered-by-account.png"))
         }
 
@@ -155,7 +155,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-10: live, on a light and a dark desktop.
         for dark in [false, true] {
             let world = try makeWorld()
-            show(world) { AgentsSnapshot.live($0, now: now) }
+            world.showAgents(now: now) { AgentsSnapshot.live($0, now: now) }
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([panel(notch)], dark: dark, caption: liveCaption),
                                 to: file("b-10-agents-live-\(dark ? "dark" : "light").png"))
@@ -168,7 +168,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
                                                     (0.995, "1.0 s — harbor receives")]
             var views: [AnyView] = []
             for (elapsed, label) in frames {
-                show(world) { AgentsSnapshot.live($0, now: now, flight: elapsed, lumenFlight: nil) }
+                world.showAgents(now: now) { AgentsSnapshot.live($0, now: now, flight: elapsed, lumenFlight: nil) }
                 let observer = world.host.agents
                 let scene = observer.scene
                 let layout = AgentsLayout(scene: scene, width: 432)
@@ -188,7 +188,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-12: busy.
         do {
             let world = try makeWorld()
-            show(world) { AgentsSnapshot.busy($0, now: now) }
+            world.showAgents(now: now) { AgentsSnapshot.busy($0, now: now) }
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([panel(notch)],
                                                 caption: "Busy: a team of six (+1 more), a session on another Mac, a message held for approval, one quiet session folded"),
@@ -198,7 +198,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-13: quiet.
         do {
             let world = try makeWorld()
-            show(world) { AgentsSnapshot.live($0, now: now, quiet: true) }
+            world.showAgents(now: now) { AgentsSnapshot.live($0, now: now, quiet: true) }
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([panel(notch)],
                                                 caption: "Quiet: nothing moves, the edges have cooled to grey, the last messages stay listed"),
@@ -208,7 +208,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-14: nothing in the last hour.
         do {
             let world = try makeWorld()
-            show(world) { _ in AgentGraph() }
+            world.showAgents(now: now) { _ in AgentGraph() }
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([panel(notch)],
                                                 caption: "Empty: what the tab will show, and what Brow does and does not do to see it"),
@@ -218,7 +218,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-15: a session picked.
         do {
             let world = try makeWorld()
-            show(world) { AgentsSnapshot.live($0, now: now, flight: 0.82, lumenFlight: nil) }
+            world.showAgents(now: now) { AgentsSnapshot.live($0, now: now, flight: 0.82, lumenFlight: nil) }
             world.host.agents.selected = world.host.agents.graph.nodes.values.first { $0.name == "harbor" }?.id
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([panel(notch)],
@@ -229,7 +229,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-16: Reduce Motion.
         do {
             let world = try makeWorld()
-            show(world) { AgentsSnapshot.live($0, now: now) }
+            world.showAgents(now: now) { AgentsSnapshot.live($0, now: now) }
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([AnyView(panel(notch).environment(\.renderReduceMotion, true))],
                                                 caption: "Reduce Motion: no light runs; the edge that just carried a message glows, then cools"),
@@ -239,7 +239,7 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         // b-17 (Agents half): Increase Contrast.
         do {
             let world = try makeWorld()
-            show(world) { AgentsSnapshot.live($0, now: now) }
+            world.showAgents(now: now) { AgentsSnapshot.live($0, now: now) }
             let notch = try makeNotch(world, tab: .agents)
             try RenderKit.write(RenderKit.scene([AnyView(panel(notch).environment(\.renderContrast, .increased))],
                                                 caption: "Increase Contrast: grey edges, trunks and pill outlines drawn stronger"),
@@ -247,185 +247,300 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         }
     }
 
-    /// The made-up agents in `world`'s Agents tab, keyed by its accounts as the notch has them.
-    private func show(_ world: World, _ graph: (AgentsSnapshot.Accounts) -> AgentGraph) {
-        let accounts = world.host.agentsAccounts()
-        func key(_ name: String) -> String { accounts.first { $0.name == name }?.key ?? name }
-        let keys = AgentsSnapshot.Accounts(work: key("Work"), team: key("Team"), personal: key("Personal"))
-        world.host.agents.setAccounts(accounts)
-        world.host.agents.order = []
-        world.host.agents.preview(graph: graph(keys), now: now)
+    // MARK: - Review: every height, long names, no notch
+
+    /// The states a review walks through besides the set above: the panel on a display without
+    /// a notch, with one account and with eight, with the readouts below the notch or off, with
+    /// long names everywhere, and Limits at every height on three MacBook sizes.
+    ///
+    ///     ONE_WINDOW_REVIEW_DIR=/path/to/review Scripts/test-in-empty-home.sh --filter OneWindowSessionsRenderTests
+    func testRenderTheReviewStates() async throws {
+        guard let path = ProcessInfo.processInfo.environment["ONE_WINDOW_REVIEW_DIR"], !path.isEmpty else {
+            throw XCTSkip("set ONE_WINDOW_REVIEW_DIR to render the review states")
+        }
+        let out = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        func file(_ name: String) -> URL { out.appendingPathComponent(name) }
+
+        // No notch: Limits, Projects and Agents under the pill.
+        do {
+            let limits = try makeWorld()
+            let projects = try makeWorld()
+            let agents = try makeWorld()
+            agents.showAgents(now: now) { AgentsSnapshot.live($0, now: now) }
+            let screen = MadeUpLimits.externalScreen
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("Limits", panel(try makeNotch(limits, tab: .limits, screen: screen))),
+                                                 RenderKit.labelled("Projects", panel(try makeNotch(projects, tab: .projects, screen: screen))),
+                                                 RenderKit.labelled("Agents", panel(try makeNotch(agents, tab: .agents, screen: screen)))],
+                                                caption: "A display without a notch: the pill's readouts in the band, square at the top, continuous at the bottom"),
+                                to: file("r-01-no-notch.png"))
+        }
+
+        // One account (the 480 pt floor) and eight (the cap): Projects at the panel's two extremes.
+        do {
+            var one = SessionsWorld.Options()
+            one.accounts = 1
+            var eight = SessionsWorld.Options()
+            eight.accounts = 8
+            let small = try makeWorld(one)
+            let tall = try makeWorld(eight)
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("one account", panel(try makeNotch(small, tab: .projects))),
+                                                 RenderKit.labelled("one account, Limits", panel(try makeNotch(small, tab: .limits))),
+                                                 RenderKit.labelled("eight accounts", panel(try makeNotch(tall, tab: .projects)))],
+                                                caption: "One account: Projects at the 480 pt floor; eight: the panel as tall as the screen allows"),
+                                to: file("r-02-few-and-many-accounts.png"))
+        }
+
+        // The readouts below the notch, and off.
+        do {
+            var below = SessionsWorld.Options()
+            below.settings = { $0.earsPlacement = .below }
+            var off = SessionsWorld.Options()
+            off.settings = { $0.showEars = false }
+            let a = try makeWorld(below)
+            let b = try makeWorld(off)
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("readouts below the notch", panel(try makeNotch(a, tab: .projects))),
+                                                 RenderKit.labelled("readouts off", panel(try makeNotch(b, tab: .projects)))],
+                                                caption: "The band follows the strip: below the notch it is 22 pt taller; with the readouts off it is the notch alone"),
+                                to: file("r-03-readouts-below-and-off.png"))
+        }
+
+        // Long names everywhere.
+        do {
+            var options = SessionsWorld.Options()
+            options.longNames = true
+            let list = try makeWorld(options)
+            let project = try makeWorld(options)
+            project.state.route = .project(project.shopID)
+            project.state.selectedTab = .workspaces
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("the list", AnyView(panel(try makeNotch(list, tab: .projects))
+                                                                                            .environment(\.renderHoveredSession, "s-checkout"))),
+                                                 RenderKit.labelled("a project", panel(try makeNotch(project, tab: .projects)))],
+                                                caption: "Long names: projects, workspaces, accounts, folders, prompts and commands"),
+                                to: file("r-04-long-names-projects.png"))
+            let agents = try makeWorld(options)
+            agents.showAgents(now: now) { Self.longNamedAgents($0, now: now) }
+            let busy = try makeWorld(options)
+            busy.showAgents(now: now) { Self.manySessions($0, now: now) }
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("long names", panel(try makeNotch(agents, tab: .agents))),
+                                                 RenderKit.labelled("seven sessions", panel(try makeNotch(busy, tab: .agents)))],
+                                                caption: "Agents with long names, and with more sessions than the row holds"),
+                                to: file("r-05-long-names-agents.png"))
+        }
+
+        // What the project's Claude tab did, on the cards: a closed session's menu with Resume as
+        // and each account's limits, and Delete transcript… asking in the card itself.
+        do {
+            let menu = try makeWorld()
+            menu.state.route = .project(menu.shopID)
+            menu.state.selectedTab = .workspaces
+            let closed = try XCTUnwrap(menu.state.externalSessionsByProject[menu.shopID]?.first { $0.id == "s-sdk" })
+            let items = SessionMenu.items(for: SessionRef(session: closed, isLive: false), state: menu.state, onAskDelete: {})
+            let look = HStack(alignment: .top, spacing: -6) {
+                MenuLook(lines: MenuLook.lines(items, open: "resume-as"))
+                if case .submenu(let accounts)? = items.first(where: { $0.id == "resume-as" })?.kind {
+                    MenuLook(lines: MenuLook.lines(accounts, open: nil), width: 290).padding(.top, 52)
+                }
+            }
+            let withMenu = AnyView(panel(try makeNotch(menu, tab: .projects, pinned: true))
+                .environment(\.renderHoveredSession, "s-sdk")
+                .overlay(alignment: .topLeading) { look.offset(x: 424, y: 252) }
+                .padding(.trailing, 500))
+            let confirm = try makeWorld()
+            confirm.state.route = .project(confirm.shopID)
+            confirm.state.selectedTab = .workspaces
+            confirm.state.confirmingDelete = "s-sdk"
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("a closed session's ••• menu", withMenu),
+                                                 RenderKit.labelled("Delete transcript…, asked in the card",
+                                                                    panel(try makeNotch(confirm, tab: .projects, pinned: true)))],
+                                                caption: "The Claude tab's actions, on every session: Resume as with each account's limits, Copy to account, Delete in the card"),
+                                to: file("r-06-menu-and-delete.png"))
+        }
+
+        // Resume with options…: Brow's accounts with their limits, where it opens, model, effort.
+        do {
+            let world = try makeWorld()
+            world.state.route = .project(world.shopID)
+            let row = try XCTUnwrap(world.state.recentSessionsByProject[world.shopID]?.first { $0.sessionId == "s-promo" })
+            world.state.beginResume(row)
+            try RenderKit.write(RenderKit.scene([panel(try makeNotch(world, tab: .projects, pinned: true))],
+                                                caption: "Resume with options…, pushed in the panel: Brow's accounts in Brow's order, each with its limits"),
+                                to: file("r-08-resume-with-options.png"))
+        }
+
+        // Pinned, ⌘ held, the keyboard on a session.
+        do {
+            let world = try makeWorld()
+            world.state.keyboardFocus = world.state.recentSessionsByProject[world.shopID]?.first { $0.sessionId == "s-mu-1" }?.id
+            try RenderKit.write(RenderKit.scene([panel(try makeNotch(world, tab: .projects, pinned: true, keys: true))],
+                                                caption: "Pinned (the cream pin), ⌘ held: the keys on the switch and the footer; ↑↓ ring a session, ↩ goes to it"),
+                                to: file("r-09-keyboard.png"))
+        }
+
+        // From the strip to the open panel: on Limits Glim hops into the header, on Projects and
+        // Agents it stays on its ledge beside the camera.
+        do {
+            var rows: [AnyView] = []
+            for tab in [NotchTab.limits, .projects, .agents] {
+                let world = try makeWorld()
+                world.showAgents(now: now) { AgentsSnapshot.live($0, now: now, flight: 4, lumenFlight: nil) }
+                let notch = try makeNotch(world, tab: tab)
+                var frames: [AnyView] = []
+                for progress in [0.0, 0.35, 0.7, 1.0] {
+                    notch.pose(expanded: tab == .limits, at: CGFloat(progress))
+                    frames.append(try RenderKit.still(notch.view(outlineProgress: CGFloat(progress))))
+                }
+                let label = tab == .limits ? "to Limits: Glim hops into the header" : "to \(tab.title): Glim stays on its ledge"
+                rows.append(AnyView(RenderKit.labelled(label, HStack(alignment: .top, spacing: 16) {
+                    ForEach(frames.indices, id: \.self) { frames[$0] }
+                })))
+            }
+            try RenderKit.write(RenderKit.scene(rows, axis: .vertical,
+                                                caption: "Strip to panel at 0, 35, 70 and 100 %: one outline growing out of the notch, the same size on every section"),
+                                to: file("r-10-strip-to-panel.png"))
+        }
+
+        // Agents quiet, and with nothing in the last hour.
+        do {
+            let quiet = try makeWorld()
+            quiet.showAgents(now: now) { AgentsSnapshot.live($0, now: now, quiet: true) }
+            let empty = try makeWorld()
+            empty.showAgents(now: now) { _ in AgentGraph() }
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("quiet", panel(try makeNotch(quiet, tab: .agents))),
+                                                 RenderKit.labelled("nothing in the last hour", panel(try makeNotch(empty, tab: .agents)))],
+                                                caption: "Quiet: nothing moves, the edges cool to grey; empty: what will show, and that Brow only reads"),
+                                to: file("r-11-agents-quiet-and-empty.png"))
+        }
+
+        // Limits at every height: one to eight accounts, resets spread or on one day, on a 13",
+        // a 14" and a 16" MacBook. The footer must sit inside the outline in every one.
+        let screens: [(String, ScreenMetrics)] = [("13-inch", Self.screen13), ("14-inch", MadeUpLimits.screen14),
+                                                  ("16-inch", Self.screen16)]
+        for (label, screen) in screens {
+            var stills: [AnyView] = []
+            for sameDay in [false, true] {
+                for count in 1...8 {
+                    let appDir = try Fixture.tempDir("one-window-heights").path
+                    let store = try MadeUpLimits.store(count: count, sameDay: sameDay, now: now, appDir: appDir) { settings in
+                        settings.workspaces.enabled = true
+                        settings.workspaces.showInMenuBar = false
+                    }
+                    let state = SnapshotMode.fixtureState()
+                    state.mayWrite = { false }
+                    state.limitsProvider = store
+                    let host = WorkspacesHost(store: store, folders: state.folders,
+                                              groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
+                                              groveConfigExists: { true }, watchRunningApps: { _ in NSObject() })
+                    host.preview(state: state, activation: .on)
+                    kept.append(host)
+                    let render = try NotchRender.open(store: store, clock: PanelClock(now: { [now] in now }), tab: .limits,
+                                                      screen: screen, host: host)
+                    kept.append(render.controller)
+                    let frames = render.controller.model.frames
+                    let image = try RenderKit.still(render.view())
+                    stills.append(AnyView(VStack(alignment: .leading, spacing: 4) {
+                        image.scaleEffect(0.5, anchor: .topLeading)
+                            .frame(width: frames.expanded.width / 2, height: frames.expanded.height / 2, alignment: .topLeading)
+                        Text("\(count) · \(sameDay ? "one day" : "spread") · \(Int(frames.expanded.height)) pt")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color(red: 0x5A / 255, green: 0x50 / 255, blue: 0x42 / 255))
+                    }))
+                }
+            }
+            let grid = VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top, spacing: 14) { ForEach(0..<8, id: \.self) { stills[$0] } }
+                HStack(alignment: .top, spacing: 14) { ForEach(8..<16, id: \.self) { stills[$0] } }
+            }
+            try RenderKit.write(RenderKit.scene([AnyView(grid)],
+                                                caption: "Limits on a \(label) screen, one to eight accounts, resets spread and on one day: the footer always inside"),
+                                to: file("r-07-heights-\(label).png"))
+        }
+    }
+
+    /// A 13" MacBook Air: 1470 × 956 pt, the Dock at the bottom.
+    nonisolated static let screen13 = ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1470, height: 956),
+                                                    topLeftArea: CGRect(x: 0, y: 924, width: 642.5, height: 32),
+                                                    topRightArea: CGRect(x: 827.5, y: 924, width: 642.5, height: 32),
+                                                    menuBarHeight: 33, notchHeight: 32,
+                                                    visibleFrame: CGRect(x: 0, y: 70, width: 1470, height: 853))
+    /// A 16" MacBook Pro: 1728 × 1117 pt, the Dock at the bottom.
+    nonisolated static let screen16 = ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                                                    topLeftArea: CGRect(x: 0, y: 1085, width: 764, height: 32),
+                                                    topRightArea: CGRect(x: 964, y: 1085, width: 764, height: 32),
+                                                    menuBarHeight: 33, notchHeight: 32,
+                                                    visibleFrame: CGRect(x: 0, y: 70, width: 1728, height: 1014))
+
+    /// Sessions and agents whose names are long, as Claude Code derives them from a first prompt.
+    static func longNamedAgents(_ accounts: AgentsSnapshot.Accounts, now: Date) -> AgentGraph {
+        let ws = "/Users/demo/Workspaces/acme.shop"
+        let checkout = AgentsSnapshot.session("checkout-address-step-inline-validation", accounts.work, status: "busy",
+                                              cwd: ws + "/checkout-redesign")
+        let webhooks = AgentsSnapshot.session("payment-webhooks-retry-with-backoff", accounts.team, status: "waiting",
+                                              waitingFor: "permission prompt", cwd: ws + "/fix-payment-webhooks")
+        let sync = AgentsSnapshot.session("offline-sync-conflict-resolution", accounts.personal, status: "idle",
+                                          cwd: "/Users/demo/Code/field-notes")
+        let explorer = AgentsSnapshot.agent("postal-code-formatting-explorer", of: checkout, detail: "explorer")
+        let runner = AgentsSnapshot.agent("checkout-integration-test-runner", of: checkout, detail: "test runner")
+        let reviewer = AgentsSnapshot.agent("security-reviewer", of: webhooks, kind: .teammate, detail: "reviewer")
+        typealias Line = AgentsSnapshot.Line
+        let lines = [
+            Line(from: checkout, to: webhooks, ago: 0.55, text: "Orders now post idempotently — can you rerun the webhook suite against them?",
+                 delivery: .sending),
+            Line(from: runner, to: checkout, ago: 30, text: "9 of 12 pass. Failing: ZIP+4, PO boxes, empty unit.", kind: .subagent),
+            Line(from: webhooks, to: checkout, ago: 50, text: "Rerun done: 41 passed, 1 flaky (clock skew on the signature)."),
+            Line(from: checkout, to: explorer, ago: 200, text: "Find every place we format postal codes.", kind: .subagent),
+            Line(from: reviewer, to: webhooks, ago: 260, text: "The signature check must run before the body is parsed.",
+                 kind: .teammate),
+            Line(from: sync, to: checkout, ago: 420, text: "Can I reuse your address fixtures for the sync tests?"),
+        ]
+        return AgentsSnapshot.graph(nodes: [checkout, webhooks, sync, explorer, runner, reviewer], lines: lines,
+                                    spawns: [(checkout, runner, 700, "Run the checkout tests")], now: now)
+    }
+
+    /// Seven sessions on three accounts, most of them talking: more than the row holds.
+    static func manySessions(_ accounts: AgentsSnapshot.Accounts, now: Date) -> AgentGraph {
+        let ws = "/Users/demo/Workspaces/acme.shop"
+        let names = [("atlas", accounts.work, "busy"), ("harbor", accounts.team, "busy"), ("quill", accounts.personal, "idle"),
+                     ("lumen", accounts.work, "waiting"), ("tide", accounts.personal, "idle"), ("orbit", accounts.work, "busy"),
+                     ("kiln", accounts.team, "idle")]
+        let sessions = names.map { AgentsSnapshot.session($0.0, $0.1, status: $0.2,
+                                                          waitingFor: $0.2 == "waiting" ? "input needed" : nil,
+                                                          cwd: ws + "/" + $0.0) }
+        typealias Line = AgentsSnapshot.Line
+        var lines: [Line] = []
+        let pairs = [(0, 1, 0.5), (1, 2, 40.0), (0, 3, 90.0), (3, 4, 150.0), (5, 0, 210.0), (6, 1, 280.0), (2, 5, 330.0)]
+        for (index, pair) in pairs.enumerated() {
+            lines.append(Line(from: sessions[pair.0], to: sessions[pair.1], ago: pair.2,
+                              text: ["Schema change is in.", "Rerun done: all green.", "Can you take the address step?",
+                                     "Fixtures pushed.", "Release notes drafted.", "Nightly is green.",
+                                     "Tokens updated for dark mode."][index]))
+        }
+        return AgentsSnapshot.graph(nodes: sessions, lines: lines, spawns: [], now: now)
     }
 
     // MARK: - The world
 
-    struct World {
-        let store: LimitsStore
-        let host: WorkspacesHost
-        let state: AppState
-        let shopID: UUID
+    /// The made-up world (`SessionsWorld`), kept alive for the render: its host holds its
+    /// notch weakly.
+    private func makeWorld(_ options: SessionsWorld.Options) throws -> SessionsWorld {
+        let world = try SessionsWorld.make(now: now, options)
+        kept.append(world.host)
+        return world
     }
 
-    /// The made-up accounts as the notch shows them, and Workspaces with the snapshot
-    /// fixture's project as "acme-shop", sessions in it at every state, a second project
-    /// waiting on a question, quiet ones, a suggested folder and two other folders.
-    private func makeWorld(projects: Bool = true, many: Bool = false) throws -> World {
-        let appDir = try Fixture.tempDir("one-window-b-render").path
-        let store = try MadeUpLimits.store(count: 3, now: now, appDir: appDir) { settings in
-            settings.workspaces.enabled = true
-            settings.workspaces.showInMenuBar = false
-        }
-        let state = SnapshotMode.fixtureState()
-        state.mayWrite = { false }
-        let home = DemoAccounts.home
-        // Paths are written from the made-up home, as `~/…`.
-        state.folders.home = home
-        var config = state.config
-        let shopID = config.projects[0].id
-        config.projects[0].name = "acme-shop"
-        config.projects[0].defaultAccount = "work"
-        let notes = ProjectConfig(name: "field-notes", path: home + "/Code/field-notes")
-        let quiet = [("orbit-design-system", "Code/orbit"), ("lighthouse-docs", "Sites/lighthouse-docs"),
-                     ("tide-mobile", "Code/tide-mobile")]
-            + (many ? [("northwind-internal-tools-platform-monorepo-2026", "Clients/northwind/tools"),
-                       ("sparrow-cli", "Code/sparrow-cli"), ("ledger-sync", "Code/ledger-sync"),
-                       ("kiln-build-farm", "Code/kiln")] : [])
-        let quietProjects = quiet.map { ProjectConfig(name: $0.0, path: home + "/" + $0.1) }
-        config.projects += [notes] + quietProjects
-        if !projects { config.projects = [] }
-        config.accounts = zip(["default", "work", "team"], DemoAccounts.all).map { name, account in
-            AccountConfig(name: name, configDir: home + "/" + account.folder, sharedStore: name != "default")
-        }
-        state.config = config
-        state.limitsProvider = store
-
-        let now = Date()
-        let shop = home + "/Desktop/acme.shop"
-        let root = "/Users/demo/Workspaces/acme.shop"
-        func preview(_ prompt: String, reply: String? = nil, tool: (String, String)? = nil, question: String? = nil,
-                     current: Bool = true, peer: String? = nil, branch: String? = nil) -> SessionPreview {
-            SessionPreview(prompt: prompt, reply: reply, tool: question != nil ? "AskUserQuestion" : tool?.0, title: nil,
-                           turn: tool != nil || question != nil ? .tool : .answered, at: nil, pendingInput: tool?.1,
-                           question: question, sender: peer.map { .peer($0) } ?? .you, gitBranch: branch,
-                           replyIsCurrent: current)
-        }
-        func row(_ id: String, _ title: String, _ cwd: String, _ place: String, _ account: String, _ ago: TimeInterval,
-                 _ state: SessionState, _ preview: SessionPreview) -> ProjectSessionRow {
-            ProjectSessionRow(sessionId: id, title: title, cwd: cwd, location: place, accountName: account,
-                              lastActivity: now.addingTimeInterval(-ago), state: state,
-                              cmuxWorkspaceId: state.isLive ? "ws-" + id : nil, preview: preview)
-        }
-        var rows: [UUID: [ProjectSessionRow]] = [
-            shopID: [
-                row("s-webhooks", "Retry failed webhook deliveries", root + "/fix-payment-webhooks", "fix-payment-webhooks",
-                    "team", 120, .needsPermission,
-                    preview("retry failed webhook deliveries with backoff, cap at 5 attempts",
-                            reply: "Backoff is in: 1 s, 2 s, 4 s, 8 s, 16 s. Running the suite.",
-                            tool: ("Bash", "npm run test:webhooks -- --retries=5"))),
-                row("s-checkout", "Checkout: address step validation", root + "/checkout-redesign", "checkout-redesign",
-                    "work", 20, .working,
-                    preview("make the address step validate inline, with errors under each field",
-                            reply: "9 of 12 checkout tests pass. Fixing the ZIP+4 rule next.",
-                            tool: ("Bash", "npm test -- checkout"), peer: nil)),
-                row("s-readme", "README: seed script", shop, "main", "default", 18 * 60, .yourTurn,
-                    preview("update the README for the new seed script",
-                            reply: "Done — Local setup now covers seeding, and the old make target is gone.")),
-                // The snapshot fixture's two workspaces' sessions, as its project screen shows them.
-                row("s-mu-1", "Multipart upload endpoint", root + "/media-upload", "media-upload", "work", 120, .asksYou,
-                    preview("accept multipart on /media and stream it to disk",
-                            question: "Keep the 25 MB limit, or raise it for video?")),
-                row("s-mp-1", "Implement media pipeline", root + "/media-pipeline", "media-pipeline", "default", 900,
-                    .working,
-                    preview("wire the upload progress events into the pipeline",
-                            tool: ("Bash", "swift test --filter Pipeline"))),
-                row("s-search", "Verify webhook signatures", root + "/fix-payment-webhooks", "fix-payment-webhooks", "team",
-                    2 * 86_400, .closed,
-                    preview("verify the webhook signature before parsing the body",
-                            reply: "Signature checked first; bad payloads get 401 and are not logged.")),
-                row("s-promo", "Promo code endpoint and tests", root + "/checkout-promo-codes", "checkout-promo-codes", "work",
-                    6 * 3_600, .closed,
-                    preview("add POST /cart/promo with tests", reply: "Endpoint and 14 tests added; expired codes return 410.")),
-            ],
-            notes.id: [
-                row("s-offline", "Offline sync conflict resolution", notes.path + "/offline-sync", "offline-sync", "default",
-                    3_600, .asksYou,
-                    preview("resolve offline sync conflicts without losing edits",
-                            question: "Two edits hit the same note. Keep both as versions, or last write wins?")),
-                row("s-share", "Share sheet freeze", notes.path, "main", "default", 5 * 86_400, .closed,
-                    preview("why does the share sheet freeze on large notes?",
-                            reply: "It rendered every image at full size; thumbnails now load lazily.")),
-            ],
-        ]
-        let quietPrompts = ["tokens for the dark palette, with contrast checks", "rewrite the quick start for v3",
-                            "fix the crash when the tide table is empty", "migrate the billing exporter to the new queue API",
-                            "add a --json flag to every list command", "reconcile ledger entries after a partial sync",
-                            "cache the toolchain between runs"]
-        for (index, project) in quietProjects.enumerated() {
-            rows[project.id] = [row("s-q\(index)", project.name, project.path, "main", index % 2 == 0 ? "work" : "default",
-                                    Double(index + 2) * 86_400, .closed, preview(quietPrompts[index % quietPrompts.count]))]
-        }
-        state.recentSessionsByProject = projects ? rows : [:]
-        state.sessionCountByProject = [shopID: 9, notes.id: 3]
-        func session(_ id: String, _ cwd: String, _ account: String, _ ago: TimeInterval, _ preview: SessionPreview,
-                     branch: String? = nil) -> ClaudeSession {
-            ClaudeSession(id: id, cwd: cwd, title: nil, lastActivity: now.addingTimeInterval(-ago), accountName: account,
-                          gitBranch: branch, preview: preview)
-        }
-        state.externalSessionsByProject = [shopID: [
-            session("s-readme", shop, "default", 18 * 60, preview("update the README for the new seed script",
-                    reply: "Done — Local setup now covers seeding, and the old make target is gone."), branch: "main"),
-            session("s-sdk", shop, "work", 2 * 86_400, preview("bump the payments SDK and fix the deprecations",
-                    reply: "SDK 7.2 in; two deprecated calls replaced, all 212 tests pass."), branch: "deps/payments-sdk"),
-        ]]
-        let dotfiles = [session("s-zsh", home + "/dotfiles", "default", 2 * 86_400,
-                                preview("show the git branch only inside repositories",
-                                        reply: "The zsh prompt now shows the git branch only inside repositories.")),
-                        session("s-alias", home + "/dotfiles", "default", 6 * 86_400,
-                                preview("add an alias for the staging tunnel", reply: "Added tunnel-staging; it opens the tunnel and prints its port."))]
-        let scratch = [session("s-csv", home + "/Desktop/scratch", "work", 4 * 86_400,
-                               preview("how many rows have a missing date?",
-                                       reply: "The CSV has 1,204 rows; 17 have a missing date, listed in missing.txt."))]
-        state.otherSessions = dotfiles + scratch
-        state.otherFolders = [OtherFolder(path: home + "/dotfiles", sessions: dotfiles),
-                              OtherFolder(path: home + "/Desktop/scratch", sessions: scratch)]
-        state.suggestions = [ProjectSuggestion(path: home + "/Code/harbor-api", pids: [41001, 41002],
-                                               cwds: [home + "/Code/harbor-api"],
-                                               configDirs: [home + "/" + DemoAccounts.work.folder]),
-                             ProjectSuggestion(path: home + "/Code/fleet", pids: [41003], cwds: [home + "/Code/fleet"],
-                                               configDirs: [home + "/" + DemoAccounts.personal.folder])]
-        if !projects {
-            state.suggestions.append(ProjectSuggestion(path: home + "/Sites/lighthouse-docs", pids: [41004],
-                                                       cwds: [home + "/Sites/lighthouse-docs"],
-                                                       configDirs: [home + "/" + DemoAccounts.all[2].folder]))
-        }
-        state.liveSessions = [
-            LiveProcess(pid: 41010, sessionId: "s-webhooks", cwd: root, status: "waiting", accountName: "team",
-                        waitingFor: "permission prompt"),
-            LiveProcess(pid: 41011, sessionId: "s-checkout", cwd: root, status: "busy", accountName: "work"),
-            LiveProcess(pid: 41012, sessionId: "s-readme", cwd: shop, status: "idle", accountName: "default"),
-            LiveProcess(pid: 41013, sessionId: "s-offline", cwd: notes.path, status: "waiting", accountName: "default",
-                        waitingFor: "input needed"),
-            LiveProcess(pid: 41014, sessionId: "s-harbor", cwd: home + "/Code/harbor-api", status: "idle", accountName: "work"),
-            // The snapshot fixture's own: media-pipeline working, media-upload asking.
-            LiveProcess(pid: 4242, sessionId: "s-mp-1", cwd: root + "/media-pipeline", status: "busy", accountName: "default"),
-            LiveProcess(pid: 4343, sessionId: "s-mu-1", cwd: root + "/media-upload", status: "waiting", accountName: "work",
-                        waitingFor: "input needed"),
-        ]
-        state.lastRefreshAt = Date().addingTimeInterval(-12)
-
-        let host = WorkspacesHost(store: store, folders: state.folders,
-                                  groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
-                                  groveConfigExists: { true }, watchRunningApps: { _ in NSObject() })
-        host.preview(state: state, activation: .on)
-        kept.append(host)
-        return World(store: store, host: host, state: state, shopID: shopID)
+    private func makeWorld(projects: Bool = true, many: Bool = false) throws -> SessionsWorld {
+        var options = SessionsWorld.Options()
+        options.projects = projects
+        options.many = many
+        return try makeWorld(options)
     }
 
     // MARK: - The notch
 
-    private func makeNotch(_ world: World, tab: NotchTab, pinned: Bool = false, keys: Bool = false) throws -> NotchRender {
+    private func makeNotch(_ world: SessionsWorld, tab: NotchTab, screen: ScreenMetrics = MadeUpLimits.screen14,
+                           pinned: Bool = false, keys: Bool = false) throws -> NotchRender {
         let render = try NotchRender.open(store: world.store, clock: PanelClock(now: { [now] in now }), tab: tab,
-                                          screen: MadeUpLimits.screen14, host: world.host, pinned: pinned, keys: keys)
+                                          screen: screen, host: world.host, pinned: pinned, keys: keys)
         world.host.syncBadges(live: world.state.liveSessions, state: world.state)
         kept.append(render.controller)
         return render

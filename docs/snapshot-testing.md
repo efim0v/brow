@@ -35,9 +35,17 @@ sessions and `AgentsSnapshot`'s made-up agents; the host's reader reads nothing:
 
     ONE_WINDOW_RENDERS_DIR=/tmp/one-window Scripts/test-in-empty-home.sh --filter OneWindowSessionsRenderTests
 
+`ONE_WINDOW_REVIEW_DIR` adds the states a review walks through from the same made-up world
+(`SessionsWorld`): a display without a notch, one account and eight, the readouts below the
+notch or off, long names everywhere, a session's menu and Delete in its card, Resume with
+options, the keyboard, the strip opening into each section, and Limits at every height on a
+13", a 14" and a 16" MacBook:
+
+    ONE_WINDOW_REVIEW_DIR=/tmp/one-window-review Scripts/test-in-empty-home.sh --filter OneWindowSessionsRenderTests
+
 Offscreen, `FadingScrollView` draws its content clipped to the room it is given, scrolled
-by `renderScrollOffset` (never past the end), with its fades and indicator: ImageRenderer
-draws no `ScrollView`. Views with AppKit-backed controls check `isSnapshotRender` (set with
+by `renderScrollOffset` (never past the end), with its fades, and its indicator only when
+scrolled, as macOS shows it: ImageRenderer draws no `ScrollView`. Views with AppKit-backed controls check `isSnapshotRender` (set with
 `.snapshotRender()`) and draw lookalikes.
 
 They draw the pet at rest. Its own renders go to a folder outside the repository:

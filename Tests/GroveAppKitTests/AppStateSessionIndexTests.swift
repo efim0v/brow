@@ -311,4 +311,31 @@ final class AppStateSessionIndexTests: XCTestCase {
         XCTAssertEqual(state.listedSessionOrder.map(\.sessionId), ["s-work"])
         XCTAssertEqual(state.liveCountByAccount["work"], 1)
     }
+
+    /// The index reads what runs, then lists transcripts for a while; a record written in the
+    /// meantime is read again and shown first. The index's older read never puts back what
+    /// ran then — a session gone idle would show "Working" until the next read.
+    func testAnOlderReadOfWhatRunsNeverWins() throws {
+        let state = try makeState()
+        let row = ProjectSessionRow(sessionId: "s-one", title: "checkout", cwd: shopPath, location: "acme-shop",
+                                    accountName: "work", lastActivity: Date(), state: .working, cmuxWorkspaceId: nil)
+        let busy = [LiveProcess(pid: 4242, sessionId: "s-one", cwd: shopPath, status: "busy", accountName: "work")]
+        let idle = [LiveProcess(pid: 4242, sessionId: "s-one", cwd: shopPath, status: "idle", accountName: "work")]
+        let indexRead = state.beginLiveRead()     // the index reads: busy
+        let recordRead = state.beginLiveRead()    // the record changes: idle, shown first
+        state.applyLive(idle, read: recordRead)
+        state.apply(SessionIndex(rows: [shop.id: [row]], counts: [shop.id: 1], byProject: [:], other: [],
+                                 otherFolders: [], live: busy), liveRead: indexRead)
+        XCTAssertEqual(state.liveSessions, idle)
+        XCTAssertEqual(state.recentSessionsByProject[shop.id]?.first?.state, .yourTurn,
+                       "the index's rows take their states from the newer read")
+        XCTAssertEqual(state.sessionCountByProject[shop.id], 1, "the rest of the index is taken")
+
+        // Two reads at once, the older finishing last.
+        let older = state.beginLiveRead(), newer = state.beginLiveRead()
+        state.applyLive(busy, read: newer)
+        state.applyLive(idle, read: older)
+        XCTAssertEqual(state.liveSessions, busy)
+        XCTAssertEqual(state.recentSessionsByProject[shop.id]?.first?.state, .working)
+    }
 }

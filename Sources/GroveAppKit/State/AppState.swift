@@ -247,6 +247,11 @@ public final class AppState: ObservableObject {
     /// read. Filled by the session index and, while the Projects list is in view, by the
     /// live layer (`SessionWatch`).
     @Published public internal(set) var liveSessions: [LiveProcess] = []
+    /// Every read of what runs is numbered as it starts (`beginLiveRead`): the session index
+    /// reads it, then lists transcripts for a while, and a record written meanwhile has the
+    /// live layer read it again and finish first. The read shown is the newest started.
+    var liveReadsStarted = 0
+    var liveReadShown = 0
     /// How many sessions each project has in all, closed included: what "N more sessions"
     /// counts from.
     @Published public internal(set) var sessionCountByProject: [UUID: Int] = [:]

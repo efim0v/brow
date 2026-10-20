@@ -46,6 +46,7 @@ extension AppState {
         let projectRoots: [(id: UUID, roots: [String])] = jobs.map { job in
             (job.id, [job.path, job.root].filter { !$0.isEmpty }.map { canonicalPath($0) })
         }
+        let read = beginLiveRead()
         let index = await Task.detached(priority: .utility) { () -> SessionIndex in
             let live = liveReader.allLiveProcesses(accounts: accounts)
             var rows: [UUID: [ProjectSessionRow]] = [:]
@@ -90,19 +91,43 @@ extension AppState {
             return SessionIndex(rows: rows, counts: counts, byProject: byProject, other: other,
                                 otherFolders: folders, live: live)
         }.value
-        apply(index)
+        apply(index, liveRead: read)
+    }
+
+    /// Numbers a read of what runs as it starts.
+    func beginLiveRead() -> Int {
+        liveReadsStarted += 1
+        return liveReadsStarted
     }
 
     /// The index's findings, published only where they changed: SwiftUI redraws what
-    /// reads a published value on every assignment.
-    func apply(_ index: SessionIndex) {
-        if recentSessionsByProject != index.rows { recentSessionsByProject = index.rows }
+    /// reads a published value on every assignment. `liveRead`: the number of the index's
+    /// read of what runs. When a newer read has been shown since — a record written while
+    /// the index listed transcripts — the index's own read is older news: its rows take
+    /// their states from the newer one, which stays.
+    func apply(_ index: SessionIndex, liveRead: Int? = nil) {
+        let isNewest = liveRead.map { $0 > liveReadShown } ?? true
+        let live = isNewest ? index.live : liveSessions
+        let rows = isNewest ? index.rows : Self.restated(index.rows, live: live)
+        if recentSessionsByProject != rows { recentSessionsByProject = rows }
         if sessionCountByProject != index.counts { sessionCountByProject = index.counts }
         if externalSessionsByProject != index.byProject { externalSessionsByProject = index.byProject }
         if otherSessions != index.other { otherSessions = index.other }
         if otherFolders != index.otherFolders { otherFolders = index.otherFolders }
-        if liveSessions != index.live { liveSessions = index.live }
-        sessionWatch.liveChanged(index.live)
+        guard isNewest else { return }
+        if let liveRead { liveReadShown = liveRead }
+        if liveSessions != live { liveSessions = live }
+        sessionWatch.liveChanged(live)
+    }
+
+    /// `rows` with each one's state read again from `live`.
+    static func restated(_ rows: [UUID: [ProjectSessionRow]], live: [LiveProcess]) -> [UUID: [ProjectSessionRow]] {
+        rows.mapValues { list in
+            list.map { row in
+                let state = SessionState.of(live.liveProcess(forSessionId: row.sessionId, cwd: row.cwd), turn: row.preview?.turn)
+                return state == row.state ? row : row.with(state: state, preview: row.preview, lastActivity: row.lastActivity)
+            }
+        }
     }
 
     /// The expanded workspaces folder of `project`.
@@ -119,20 +144,21 @@ extension AppState {
     public func refreshLive() async {
         let accounts = config.accounts
         let reader = liveService
+        let read = beginLiveRead()
         let live = await Task.detached(priority: .userInitiated) { reader.allLiveProcesses(accounts: accounts) }.value
-        applyLive(live)
+        applyLive(live, read: read)
     }
 
-    func applyLive(_ live: [LiveProcess]) {
+    /// `read`: the read's number (`beginLiveRead`); one older than what is shown — two reads
+    /// at once, the older finishing last — changes nothing.
+    func applyLive(_ live: [LiveProcess], read: Int? = nil) {
+        if let read {
+            guard read > liveReadShown else { return }
+            liveReadShown = read
+        }
         if liveSessions != live { liveSessions = live }
         sessionWatch.liveChanged(live)
-        var next = recentSessionsByProject
-        for (id, rows) in next {
-            next[id] = rows.map { row in
-                let state = SessionState.of(live.liveProcess(forSessionId: row.sessionId, cwd: row.cwd), turn: row.preview?.turn)
-                return state == row.state ? row : row.with(state: state, preview: row.preview, lastActivity: row.lastActivity)
-            }
-        }
+        let next = Self.restated(recentSessionsByProject, live: live)
         if next != recentSessionsByProject { recentSessionsByProject = next }
         let listed = Set(next.values.flatMap { $0.map(\.sessionId) } + otherSessions.map(\.id))
         if live.contains(where: { !$0.sessionId.isEmpty && !listed.contains($0.sessionId) && !$0.isAutomated }) {

@@ -262,6 +262,20 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
         func file(_ name: String) -> URL { out.appendingPathComponent(name) }
 
+        // The one window: its three sections side by side, one outline.
+        do {
+            let limits = try makeWorld()
+            let projects = try makeWorld()
+            let agents = try makeWorld()
+            agents.showAgents(now: now) { AgentsSnapshot.live($0, now: now) }
+            try RenderKit.write(RenderKit.scene([RenderKit.labelled("Limits", panel(try makeNotch(limits, tab: .limits))),
+                                                 RenderKit.labelled("Projects", AnyView(panel(try makeNotch(projects, tab: .projects))
+                                                     .environment(\.renderHoveredSession, "s-checkout"))),
+                                                 RenderKit.labelled("Agents", panel(try makeNotch(agents, tab: .agents)))],
+                                                caption: "One window in the notch: Limits, Projects and Agents behind one switch, one outline, one footer"),
+                                to: file("r-00-one-window.png"))
+        }
+
         // No notch: Limits, Projects and Agents under the pill.
         do {
             let limits = try makeWorld()
@@ -400,6 +414,15 @@ final class OneWindowSessionsRenderTests: XCTestCase {
                                 to: file("r-10-strip-to-panel.png"))
         }
 
+        // The commonest picture: one session and the subagents it started, nobody else talking.
+        do {
+            let world = try makeWorld()
+            world.showAgents(now: now) { Self.oneSessionAndItsAgents($0, now: now) }
+            try RenderKit.write(RenderKit.scene([panel(try makeNotch(world, tab: .agents))],
+                                                caption: "One session and its subagents: the tree under it, a report on its way up"),
+                                to: file("r-12-agents-one-session.png"))
+        }
+
         // Agents quiet, and with nothing in the last hour.
         do {
             let quiet = try makeWorld()
@@ -495,6 +518,27 @@ final class OneWindowSessionsRenderTests: XCTestCase {
         ]
         return AgentsSnapshot.graph(nodes: [checkout, webhooks, sync, explorer, runner, reviewer], lines: lines,
                                     spawns: [(checkout, runner, 700, "Run the checkout tests")], now: now)
+    }
+
+    /// One session that started three subagents, one of them reporting back now.
+    static func oneSessionAndItsAgents(_ accounts: AgentsSnapshot.Accounts, now: Date) -> AgentGraph {
+        let atlas = AgentsSnapshot.session("atlas", accounts.work, status: "busy",
+                                           cwd: "/Users/demo/Workspaces/acme.shop/checkout-redesign")
+        let lumen = AgentsSnapshot.agent("lumen", of: atlas, detail: "test runner")
+        let scout = AgentsSnapshot.agent("scout", of: atlas, detail: "explorer")
+        let probe = AgentsSnapshot.agent("probe", of: atlas, detail: "log reader")
+        typealias Line = AgentsSnapshot.Line
+        let lines = [
+            Line(from: lumen, to: atlas, ago: 0.5, text: "9 of 12 pass. Failing: ZIP+4, PO boxes, empty unit.", kind: .subagent),
+            Line(from: atlas, to: scout, ago: 90, text: "Find every place we format postal codes.", kind: .subagent),
+            Line(from: atlas, to: probe, ago: 150, text: "Which deliveries failed twice in the last day?", kind: .subagent),
+            Line(from: atlas, to: lumen, ago: 200, text: "Run the checkout tests and report the failures.", kind: .subagent),
+        ]
+        return AgentsSnapshot.graph(nodes: [atlas, lumen, scout, probe], lines: lines,
+                                    spawns: [(atlas, lumen, 210, "Run the checkout tests"),
+                                             (atlas, scout, 100, "Map the postal code helpers"),
+                                             (atlas, probe, 160, "Read the webhook logs")],
+                                    now: now)
     }
 
     /// Seven sessions on three accounts, most of them talking: more than the row holds.

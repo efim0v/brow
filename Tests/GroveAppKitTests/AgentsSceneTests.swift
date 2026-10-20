@@ -259,6 +259,21 @@ final class AgentsLayoutTests: XCTestCase {
         XCTAssertEqual(second.minY - first.minY, AgentsLayout.childHeight + AgentsLayout.childGap)
     }
 
+    /// A lone session with its agents starts at the top: no room is kept for arcs nothing can
+    /// draw. Two sessions keep the arcs' room above their row.
+    func testALoneSessionNeedsNoRoomForArcs() throws {
+        let s = sessions(["atlas", "harbor"])
+        let lumen = MadeUpAgents.agent("lumen", of: s[0])
+        let alone = AgentsLayout(scene: MadeUpAgents.scene([s[0], lumen], [MadeUpAgents.message(lumen, s[0], ago: 5)]),
+                                 width: 432)
+        XCTAssertLessThan(try XCTUnwrap(alone.placed[s[0].id]).rect.minY, 10)
+        XCTAssertEqual(alone.rowTop, try XCTUnwrap(alone.placed[s[0].id]).rect.minY)
+        let pair = AgentsLayout(scene: MadeUpAgents.scene(s + [lumen], [MadeUpAgents.message(lumen, s[0], ago: 5),
+                                                                        MadeUpAgents.message(s[0], s[1], ago: 9)]),
+                                width: 432)
+        XCTAssertEqual(try XCTUnwrap(pair.placed[s[0].id]).rect.minY, AgentsLayout.arcZone)
+    }
+
     /// A long name ends in "…" in a pill no wider than `maxHeadWidth` (an agent's, than
     /// `maxChildWidth`), and nothing is drawn past the row's edge — not even when the sessions
     /// that cannot fold, messages on their way between all four, do not fit side by side:

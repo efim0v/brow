@@ -249,6 +249,10 @@ public struct AgentsLayout {
     /// The order to keep: every session the scene has, folded ones included.
     public let order: [String]
     public let size: CGSize
+    /// Where the row of sessions starts: under the room the arcs need while two sessions or
+    /// more are on it (an arc may join them any time); a lone session with its agents needs
+    /// none, only the chip's room when sessions folded beside it.
+    public let rowTop: CGFloat
     /// Sessions folded into the chip at the top right.
     public let folded: Int
     /// Whether every folded session was quiet: the chip says "+N quiet"; else "+N more".
@@ -257,6 +261,7 @@ public struct AgentsLayout {
     /// "+N more" under a session whose agents do not all fit.
     public let more: [More]
 
+    /// The room above the row for the arcs between sessions.
     public static let arcZone: CGFloat = 60
     public static let headHeight: CGFloat = 26
     public static let childHeight: CGFloat = 21
@@ -389,19 +394,21 @@ public struct AgentsLayout {
         self.folded = folded
         self.foldedAreQuiet = foldedAreQuiet
         self.heads = shown
+        let rowTop: CGFloat = shown.count > 1 ? Self.arcZone : (folded > 0 ? 26 : 6)
+        self.rowTop = rowTop
 
         let used = total(shown)
         let extra = max(0, width - used) / CGFloat(max(1, shown.count))
         var placed: [String: Placed] = [:]
         var more: [More] = []
         var x: CGFloat = 0
-        var bottom = Self.arcZone + Self.headHeight
+        var bottom = rowTop + Self.headHeight
         for id in shown {
             guard let head = heads[id] else { continue }
             let block = need(id)
             let slot = block + extra
             let minX = x + (slot - block) / 2
-            let headRect = CGRect(x: minX, y: Self.arcZone, width: min(block, Self.headWidth(head)),
+            let headRect = CGRect(x: minX, y: rowTop, width: min(block, Self.headWidth(head)),
                                   height: Self.headHeight)
             placed[id] = Placed(node: head, rect: headRect)
             let kids = children(id)

@@ -223,12 +223,15 @@ extension AgentNode {
 
 /// Where the pills go: sessions on one row, each with its subagents and teammates in a short
 /// tree under it; sessions that talk joined by arcs above the row. Each family gets the width
-/// its names need, so nothing is cut short. The order is chosen when a session first shows —
+/// its names need, up to `maxHeadWidth` and `maxChildWidth` (a longer name ends in "…"; the
+/// pill's help and the picked session's strip say it whole), and never more than the row
+/// has: nothing is drawn past its edge. The order is chosen when a session first shows —
 /// from the busiest, adding at either end of the row the session most connected to that end,
 /// so arcs rarely cross — and then kept (`order`): nothing moves while you watch; a session
 /// that shows later takes its place beside the one it talks to most. When the row is full,
 /// quiet sessions fold into "+N quiet" first, then the gaps close, then the least recently
-/// active fold; never one a message is on its way to or held for, nor the selected one.
+/// active fold ("+N more"); never one a message is on its way to or held for, nor the
+/// selected one — those few share the row's width instead.
 public struct AgentsLayout {
     public struct Placed: Equatable {
         public let node: AgentsScene.Node
@@ -246,8 +249,10 @@ public struct AgentsLayout {
     /// The order to keep: every session the scene has, folded ones included.
     public let order: [String]
     public let size: CGSize
-    /// Sessions folded into "+N quiet".
+    /// Sessions folded into the chip at the top right.
     public let folded: Int
+    /// Whether every folded session was quiet: the chip says "+N quiet"; else "+N more".
+    public let foldedAreQuiet: Bool
     public let quietChip: CGRect?
     /// "+N more" under a session whose agents do not all fit.
     public let more: [More]
@@ -260,6 +265,10 @@ public struct AgentsLayout {
     /// Sessions on the row at most: more fold.
     public static let maxHeads = 4
     public static let gap: CGFloat = 12
+    /// The widest a session's pill grows: about sixteen characters of its name.
+    public static let maxHeadWidth: CGFloat = 168
+    /// The widest an agent's pill grows.
+    public static let maxChildWidth: CGFloat = 176
 
     static func textWidth(_ text: String, _ size: CGFloat, _ weight: NSFont.Weight) -> CGFloat {
         ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width)
@@ -267,10 +276,12 @@ public struct AgentsLayout {
     /// A session's pill: 10 pt each side, its 11 pt glyph and the name 6 pt apart, then its
     /// account's 6 pt dot; 2 pt to spare.
     static func headWidth(_ node: AgentsScene.Node) -> CGFloat {
-        textWidth(node.name, 12, .semibold) + 39 + (node.account != nil ? 12 : 0)
+        min(maxHeadWidth, textWidth(node.name, 12, .semibold) + 39 + (node.account != nil ? 12 : 0))
     }
     /// An agent's: 8 pt each side, its glyph and the name 5 pt apart.
-    static func childWidth(_ node: AgentsScene.Node) -> CGFloat { textWidth(node.name, 11, .medium) + 33 }
+    static func childWidth(_ node: AgentsScene.Node) -> CGFloat {
+        min(maxChildWidth, textWidth(node.name, 11, .medium) + 33)
+    }
 
     public init(scene: AgentsScene, width: CGFloat, order previous: [String] = [], selected: String? = nil) {
         let headList = scene.nodes.filter { node in node.parent.map { scene.node($0) == nil } ?? true }
@@ -330,7 +341,7 @@ public struct AgentsLayout {
         }
         self.order = order
 
-        func need(_ id: String) -> CGFloat {
+        func natural(_ id: String) -> CGFloat {
             guard let head = heads[id] else { return 0 }
             let kids = children(id)
             let shown = kids.prefix(Self.maxChildren)
@@ -340,6 +351,12 @@ public struct AgentsLayout {
             }
             return max(Self.headWidth(head), kids.isEmpty ? 0 : 25 + kidWidth)
         }
+        // The most a family may take: set below when the sessions that cannot fold still
+        // do not fit side by side.
+        var room = CGFloat.infinity
+        func need(_ id: String) -> CGFloat {
+            min(room, natural(id))
+        }
         func activity(_ id: String) -> Date {
             ([heads[id]?.lastActive] + children(id).map(\.lastActive)).compactMap { $0 }.max() ?? .distantPast
         }
@@ -347,6 +364,7 @@ public struct AgentsLayout {
         let protected = Set(ends + ends.compactMap { scene.node($0)?.parent })
         var shown = order
         var folded = 0
+        var foldedAreQuiet = true
         var gap = Self.gap
         func total(_ list: [String]) -> CGFloat {
             list.map(need).reduce(0, +) + gap * CGFloat(max(0, list.count - 1))
@@ -361,8 +379,15 @@ public struct AgentsLayout {
               let victim = shown.filter({ !protected.contains($0) }).min(by: { activity($0) < activity($1) }) {
             shown.removeAll { $0 == victim }
             folded += 1
+            if !isQuiet(victim) { foldedAreQuiet = false }
+        }
+        // What cannot fold shares the row: each family gets an equal part, its names cut short.
+        if total(shown) > width {
+            let gaps = gap * CGFloat(max(0, shown.count - 1))
+            room = max(40, (width - gaps) / CGFloat(max(1, shown.count)))
         }
         self.folded = folded
+        self.foldedAreQuiet = foldedAreQuiet
         self.heads = shown
 
         let used = total(shown)
@@ -376,12 +401,14 @@ public struct AgentsLayout {
             let block = need(id)
             let slot = block + extra
             let minX = x + (slot - block) / 2
-            let headRect = CGRect(x: minX, y: Self.arcZone, width: Self.headWidth(head), height: Self.headHeight)
+            let headRect = CGRect(x: minX, y: Self.arcZone, width: min(block, Self.headWidth(head)),
+                                  height: Self.headHeight)
             placed[id] = Placed(node: head, rect: headRect)
             let kids = children(id)
             var y = headRect.maxY + 10
             for child in kids.prefix(Self.maxChildren) {
-                placed[child.id] = Placed(node: child, rect: CGRect(x: minX + 25, y: y, width: Self.childWidth(child),
+                placed[child.id] = Placed(node: child, rect: CGRect(x: minX + 25, y: y,
+                                                                    width: min(max(0, block - 25), Self.childWidth(child)),
                                                                     height: Self.childHeight))
                 y += Self.childHeight + Self.childGap
             }

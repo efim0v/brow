@@ -223,6 +223,13 @@ final class AgentsLayoutTests: XCTestCase {
         XCTAssertFalse(layout.heads.contains(s[5].id), "the quiet one folds first")
         XCTAssertFalse(layout.heads.contains(s[4].id), "then the least recently active")
         XCTAssertNotNil(layout.quietChip)
+        XCTAssertFalse(layout.foldedAreQuiet, "e talked four minutes ago: the chip says \"+2 more\", not \"quiet\"")
+
+        // Only the quiet one folds: "+1 quiet".
+        let five = AgentsLayout(scene: MadeUpAgents.scene(Array(s[0...3]) + [s[5]], Array(messages.prefix(3)) + [messages[4]]),
+                                width: 432)
+        XCTAssertEqual(five.folded, 1)
+        XCTAssertTrue(five.foldedAreQuiet)
 
         // A message on its way to e keeps it, and its sender; d folds instead.
         let inFlight = messages + [MadeUpAgents.message(s[4], s[3], ago: 0.3)]
@@ -250,6 +257,31 @@ final class AgentsLayoutTests: XCTestCase {
         let first = try XCTUnwrap(layout.placed[team[0].id]?.rect)
         let second = try XCTUnwrap(layout.placed[team[1].id]?.rect)
         XCTAssertEqual(second.minY - first.minY, AgentsLayout.childHeight + AgentsLayout.childGap)
+    }
+
+    /// A long name ends in "…" in a pill no wider than `maxHeadWidth` (an agent's, than
+    /// `maxChildWidth`), and nothing is drawn past the row's edge — not even when the sessions
+    /// that cannot fold, messages on their way between all four, do not fit side by side:
+    /// they share the row.
+    func testLongNamesNeverRunPastTheRow() throws {
+        let s = sessions(["checkout-address-step-inline-validation", "payment-webhooks-retry-with-backoff",
+                          "offline-sync-conflict-resolution-for-notes", "release-notes-for-the-new-checkout"])
+        let explorer = MadeUpAgents.agent("postal-code-formatting-explorer-and-fixer", of: s[0])
+        let pair = AgentsLayout(scene: MadeUpAgents.scene(Array(s[0...1]) + [explorer],
+                                                          [MadeUpAgents.message(s[0], s[1], ago: 30),
+                                                           MadeUpAgents.message(explorer, s[0], ago: 40)]), width: 432)
+        XCTAssertEqual(try XCTUnwrap(pair.placed[s[0].id]).rect.width, AgentsLayout.maxHeadWidth)
+        XCTAssertEqual(try XCTUnwrap(pair.placed[explorer.id]).rect.width, AgentsLayout.maxChildWidth)
+
+        let inFlight = [MadeUpAgents.message(s[0], s[1], ago: 0.3), MadeUpAgents.message(s[2], s[3], ago: 0.4),
+                        MadeUpAgents.message(explorer, s[0], ago: 5)]
+        let crowded = AgentsLayout(scene: MadeUpAgents.scene(s + [explorer], inFlight), width: 432)
+        XCTAssertEqual(crowded.folded, 0, "a message on its way keeps both its ends")
+        XCTAssertEqual(crowded.heads.count, 4)
+        for placed in crowded.placed.values {
+            XCTAssertGreaterThanOrEqual(placed.rect.minX, 0, placed.node.name)
+            XCTAssertLessThanOrEqual(placed.rect.maxX, 432.5, placed.node.name)
+        }
     }
 
     /// Nothing is drawn past the row's width while it fits, and the paths join what they say.

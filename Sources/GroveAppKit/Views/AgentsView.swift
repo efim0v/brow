@@ -148,12 +148,13 @@ struct AgentsDiagram: View {
                     .offset(x: item.rect.minX + 8, y: item.rect.minY)
             }
             if let chip = layout.quietChip {
-                Text("+\(layout.folded) quiet")
+                Text("+\(layout.folded) \(layout.foldedAreQuiet ? "quiet" : "more")")
                     .font(.system(size: 10.5, weight: .medium)).foregroundStyle(Color.white.opacity(increased ? 0.6 : 0.36))
                     .frame(width: chip.width, height: chip.height)
                     .background(Capsule().strokeBorder(Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])))
                     .offset(x: chip.minX, y: chip.minY)
-                    .help("Sessions with nothing to say, folded to make room")
+                    .help(layout.foldedAreQuiet ? "Sessions with nothing to say, folded to make room"
+                          : "Sessions folded to make room: the ones quiet the longest. RECENT lists what they said.")
             }
         }
         .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)

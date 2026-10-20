@@ -110,10 +110,13 @@ struct SessionPreviewCard: View {
             if showsActions {
                 actions
             } else {
+                // Never squeezed: the line before it gives way (it truncates), the age does not.
                 Text(Self.age(ref.lastActivity, now: Date()))
                     .font(.system(size: 10.5)).monospacedDigit()
                     .foregroundStyle(ref.lastActivity.timeIntervalSinceNow > -60 && sessionState.isLive
                                      ? accent.opacity(0.85) : Color.white.opacity(increased ? 0.6 : 0.36))
+                    .lineLimit(1)
+                    .fixedSize()
             }
         }
         .frame(minHeight: 18)

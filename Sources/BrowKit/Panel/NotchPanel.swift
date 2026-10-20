@@ -421,12 +421,16 @@ public final class NotchPanelController: NotchPresenting {
             hover.update(pointer: inside)
             model.cardHover.update(pointer: inside)
         }
-        // Pinned, the pointer leaving does not close it; with the notch off nothing opens it.
-        guard !model.pinned, isShown else { return }
+        // Pinned, the pointer leaving does not close it.
+        guard !model.pinned else { return }
         if hot.contains(point) {
             collapseWork?.cancel(); collapseWork = nil
-            if !expanded { open(on: remembered) }
+            // With the notch off there is no strip to hover open: only the item, the menu
+            // and a reopen open the panel.
+            if !expanded, isShown { open(on: remembered) }
         } else if expanded, collapseWork == nil {
+            // Unpinned — the pin pressed again — the panel closes when the pointer leaves it,
+            // with the notch off too, where nothing else would close it any more.
             let work = DispatchWorkItem { [weak self] in Task { @MainActor in self?.setExpanded(false) } }
             collapseWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.collapseDelay, execute: work)

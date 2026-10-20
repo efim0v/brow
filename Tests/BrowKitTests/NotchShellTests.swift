@@ -222,6 +222,24 @@ final class NotchShellTests: XCTestCase {
         XCTAssertFalse(panel.model.showEars, "and opens again without one")
     }
 
+    /// With the notch off, the pin pressed again leaves a panel that closes when the pointer
+    /// leaves it — Esc and a click outside are a pinned panel's — and nothing hovers it open.
+    func testWithTheNotchOffAnUnpinnedPanelClosesWhenThePointerLeaves() async throws {
+        let (panel, _) = controller(try store(), sections: [.projects], shown: false)
+        panel.openPinned(on: .projects)
+        panel.unpin()
+        let window = panel.model.frames.expanded
+        panel.pointerMoved(to: NSPoint(x: window.midX, y: window.maxY - 200))
+        await settle(0.8)
+        XCTAssertTrue(panel.model.expanded, "the pointer is still on it")
+        panel.pointerMoved(to: away)
+        await settle(0.8)
+        XCTAssertFalse(panel.model.expanded)
+        panel.pointerMoved(to: away)
+        panel.pointerMoved(to: onStrip)
+        XCTAssertFalse(panel.model.expanded, "no strip to hover open")
+    }
+
     // MARK: - Which section it opens on
 
     /// The section the panel closed on is the one a hover opens it on again, for 15 minutes.

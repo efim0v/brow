@@ -162,10 +162,23 @@ private struct GroveAccentKey: EnvironmentKey {
     static let defaultValue: Color = Palette.primary
 }
 
+/// Whether the screens are on the screen. A host that keeps them in its view tree while it
+/// is closed — Brow's notch, invisible until it opens again — says false then, and what
+/// moves on its own (a working session's arc, a message's light) stands still: a timeline
+/// left running there would draw at the display's rate with nobody to see it.
+private struct GroveIsShowingKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
     public var groveHost: GroveHost {
         get { self[GroveHostKey.self] }
         set { self[GroveHostKey.self] = newValue }
+    }
+
+    public var groveIsShowing: Bool {
+        get { self[GroveIsShowingKey.self] }
+        set { self[GroveIsShowingKey.self] = newValue }
     }
 
     public var groveAccent: Color {

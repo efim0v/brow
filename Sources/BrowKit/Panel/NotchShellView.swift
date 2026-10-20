@@ -78,6 +78,9 @@ struct NotchShellView: View {
         .coordinateSpace(.named(Self.space))
         .foregroundStyle(.white)
         .environment(\.groveAccent, NotchTheme.cream)
+        // The shell stays in the tree while the panel is closed: what moves on its own in a
+        // section stands still until it opens again.
+        .environment(\.groveIsShowing, model.expanded)
         .tint(NotchTheme.cream)
     }
 

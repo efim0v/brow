@@ -86,9 +86,11 @@ struct AgentsLiveMark: View {
 struct AgentsFooterStatus: View {
     @ObservedObject var observer: AgentsObserver
     let width: () -> CGFloat
+    @Environment(\.groveIsShowing) private var isShowing
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 5)) { _ in
+        // Kept current every few seconds while the panel is open; still while closed.
+        TimelineView(.animation(minimumInterval: 5, paused: !isShowing)) { _ in
             Text(Self.line(observer: observer, width: width(), now: observer.now()))
                 .font(.system(size: 10.5)).monospacedDigit().lineLimit(1)
                 .foregroundStyle(NotchTheme.secondary())

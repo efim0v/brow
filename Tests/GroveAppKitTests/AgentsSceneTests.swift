@@ -299,6 +299,19 @@ final class AgentsLayoutTests: XCTestCase {
         }
     }
 
+    /// What moves on its own draws at 30 frames a second at most, and not at all while the
+    /// screens are off the screen: the notch keeps them, invisible, while it is closed.
+    func testNothingMovesWhileTheScreensAreNotShowing() {
+        XCTAssertEqual(AgentsView.frames(moving: true, showing: true).minimumInterval, 1.0 / 30, accuracy: 1e-9)
+        XCTAssertFalse(AgentsView.frames(moving: true, showing: true).paused)
+        XCTAssertEqual(AgentsView.frames(moving: false, showing: true).minimumInterval, 5)
+        XCTAssertTrue(AgentsView.frames(moving: true, showing: false).paused)
+        XCTAssertTrue(AgentsView.frames(moving: false, showing: false).paused)
+        XCTAssertEqual(SessionStatusGlyph.spin(showing: true).minimumInterval, 1.0 / 30, accuracy: 1e-9)
+        XCTAssertFalse(SessionStatusGlyph.spin(showing: true).paused)
+        XCTAssertTrue(SessionStatusGlyph.spin(showing: false).paused)
+    }
+
     /// Nothing is drawn past the row's width while it fits, and the paths join what they say.
     func testTheRowFitsAndThePathsJoinTheirEnds() throws {
         let s = sessions(["atlas", "harbor", "quill"])

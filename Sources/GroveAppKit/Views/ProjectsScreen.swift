@@ -530,6 +530,14 @@ struct SessionStatusGlyph: View {
     @Environment(\.groveAccent) private var accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isSnapshotRender) private var isSnapshotRender
+    @Environment(\.groveIsShowing) private var isShowing
+
+    /// How often the working arc is drawn as it turns: 30 times a second, not the display's
+    /// 120 — a 12 pt arc looks no smoother for it — and never while the screens are not on
+    /// the screen (`groveIsShowing`): the notch keeps them, invisible, while it is closed.
+    static func spin(showing: Bool) -> (minimumInterval: Double, paused: Bool) {
+        (1.0 / 30, !showing)
+    }
 
     var body: some View {
         ZStack {
@@ -539,7 +547,8 @@ struct SessionStatusGlyph: View {
                 if reduceMotion || isSnapshotRender {
                     arc
                 } else {
-                    TimelineView(.animation) { context in
+                    let spin = Self.spin(showing: isShowing)
+                    TimelineView(.animation(minimumInterval: spin.minimumInterval, paused: spin.paused)) { context in
                         let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
                         arc.rotationEffect(.degrees(turn * 360))
                     }

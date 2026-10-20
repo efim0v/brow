@@ -23,6 +23,7 @@ public struct AgentsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.renderReduceMotion) private var renderReduceMotion
     @Environment(\.groveAccent) private var accent
+    @Environment(\.groveIsShowing) private var isShowing
 
     public init(observer: AgentsObserver, width: CGFloat, goToSession: @escaping (AgentNode) -> Void = { _ in }) {
         _observer = ObservedObject(wrappedValue: observer)
@@ -35,8 +36,10 @@ public struct AgentsView: View {
             content(now: observer.now())
         } else {
             // 30 frames a second while a light moves; else a still picture, its ages kept
-            // current every few seconds. The time is the observer's: what it reads by.
-            TimelineView(.animation(minimumInterval: animates ? 1.0 / 30 : 5)) { _ in
+            // current every few seconds; nothing while the panel is closed. The time is the
+            // observer's: what it reads by.
+            let frames = Self.frames(moving: animates, showing: isShowing)
+            TimelineView(.animation(minimumInterval: frames.minimumInterval, paused: frames.paused)) { _ in
                 content(now: observer.now())
             }
         }
@@ -45,6 +48,12 @@ public struct AgentsView: View {
     /// A light on its way, or a receiver ringing; else the picture is still, redrawn when
     /// the reader has something new. With Reduce Motion nothing travels.
     private var animates: Bool { observer.scene.isMoving && !reduceMotion && !renderReduceMotion }
+
+    /// How often the picture is drawn: 30 times a second while something moves, every 5 s
+    /// otherwise (its ages), and never while the screens are not on the screen.
+    static func frames(moving: Bool, showing: Bool) -> (minimumInterval: Double, paused: Bool) {
+        (moving ? 1.0 / 30 : 5, !showing)
+    }
 
     @ViewBuilder
     private func content(now: Date) -> some View {

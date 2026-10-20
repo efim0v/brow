@@ -257,9 +257,11 @@ private struct SearchControl: View {
 /// The footer's line on Projects: what runs, and how fresh the list is; in a form, its keys.
 struct ProjectsFooterStatus: View {
     @ObservedObject var host: WorkspacesHost
+    @Environment(\.groveIsShowing) private var isShowing
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 5)) { context in
+        // Its ages kept current every few seconds while the panel is open; still while closed.
+        TimelineView(.animation(minimumInterval: 5, paused: !isShowing)) { context in
             Text(line(now: context.date))
                 .font(.system(size: 10.5)).monospacedDigit().lineLimit(1)
                 .foregroundStyle(NotchTheme.secondary())

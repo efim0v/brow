@@ -93,6 +93,27 @@ final class NotchShellTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(frames.row).minY, layout.switchTop, accuracy: 0.5)
     }
 
+    /// The shell stays in the tree while the panel is closed, invisible: its sections are told
+    /// so (`groveIsShowing`), and what moves on its own in them stands still until it opens.
+    func testASectionIsToldWhenThePanelIsClosed() throws {
+        let (panel, _) = controller(try store())
+        let probe = ShowingProbe()
+        panel.sections.register(.projects, probe)
+        panel.render()
+        func drawn() -> Bool? {
+            probe.seen = nil
+            let renderer = ImageRenderer(content: NotchRootView(model: panel.model).environment(\.colorScheme, .dark))
+            renderer.scale = 1
+            _ = renderer.cgImage
+            return probe.seen
+        }
+        panel.openPinned(on: .projects)
+        XCTAssertEqual(drawn(), true)
+        panel.dismiss(.escape)
+        XCTAssertFalse(panel.model.expanded)
+        XCTAssertEqual(drawn(), false, "still in the tree, told it is not on the screen")
+    }
+
     // MARK: - Hover and pin
 
     /// Hovered, the panel opens with the pointer and closes half a second after it leaves.
@@ -335,5 +356,26 @@ final class NotchShellTests: XCTestCase {
         panel.select(.limits)
         XCTAssertTrue(pet.expanded)
         XCTAssertNotNil(pet.layer.zones?.panel)
+    }
+}
+
+/// A section that notes whether its content is told it is on the screen.
+@MainActor
+private final class ShowingProbe: NotchSection {
+    var seen: Bool?
+
+    func content(layout: NotchShellLayout) -> AnyView { AnyView(ShowingProbeView(probe: self)) }
+    func footerStatus() -> AnyView { AnyView(Text("probe")) }
+    func refreshButton() -> AnyView { AnyView(EmptyView()) }
+    func refresh() {}
+}
+
+private struct ShowingProbeView: View {
+    let probe: ShowingProbe
+    @Environment(\.groveIsShowing) private var showing
+
+    var body: some View {
+        probe.seen = showing
+        return Color.clear
     }
 }

@@ -337,13 +337,15 @@ struct WorkspacesScreen: View {
                     // ImageRenderer landmine (verified in this task's PNGs):
                     // Menu draws a yellow placeholder offscreen — a plain
                     // Button stands in with the primary (default-account) action.
-                    Button("Claude") {
+                    Button("New session") {
                         if let account = state.defaultLaunchAccount {
                             launchLooseClaude(loose, account: account)
                         }
                     }
                 } else {
-                    Menu("Claude") {
+                    // "New session", as on a workspace's row: the word "Claude" alone named the
+                    // project's old Claude tab, and says nothing of what the button does.
+                    Menu("New session") {
                         ForEach(state.accounts) { account in
                             Button(state.menuTitle("", account)) {
                                 launchLooseClaude(loose, account: account.config)

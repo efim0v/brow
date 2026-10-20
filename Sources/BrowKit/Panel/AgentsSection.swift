@@ -57,9 +57,11 @@ final class AgentsSection: NotchSection {
     }
 
     /// The panel opened, on any section: the agents are watched while it is open, so the
-    /// switch's dot is current wherever it is looked at; half a minute after it closes, not.
+    /// switch's dot is current wherever it is looked at — from a quarter of a second on, as
+    /// Projects scans, so a pointer passing over the notch starts no read; half a minute after
+    /// it closes, not.
     func panelOpenChanged(_ open: Bool) {
-        if open { observer.panelOpened() } else { observer.panelClosed() }
+        if open { observer.panelOpened(after: ProjectsSection.openDelay) } else { observer.panelClosed() }
     }
 }
 

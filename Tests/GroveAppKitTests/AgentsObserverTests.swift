@@ -123,6 +123,19 @@ final class AgentsObserverTests: XCTestCase {
         try await waitFor("the watch to stop") { !observer.isWatching }
     }
 
+    /// A pointer passing over the notch opens the panel for a moment: a watch asked for a
+    /// moment on starts only if the panel is still open then.
+    func testAPassOverTheNotchStartsNoWatch() async throws {
+        let observer = observer()
+        observer.panelOpened(after: 0.2)
+        XCTAssertFalse(observer.isWatching, "not at once")
+        observer.panelClosed()
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertFalse(observer.isWatching, "closed before the watch was due")
+        observer.panelOpened(after: 0.2)
+        try await waitFor("the watch, once the panel stayed open") { observer.isWatching }
+    }
+
     /// An observer that does not read — the host's, in tests and renders — never looks.
     func testAnObserverThatDoesNotReadNeverLooks() async throws {
         try FileManager.default.createDirectory(atPath: (transcript as NSString).deletingLastPathComponent,

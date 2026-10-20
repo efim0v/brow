@@ -64,6 +64,8 @@ public final class AgentsObserver: ObservableObject {
     /// added when the next change is published.
     private var watchedPaths: [String] = []
     private var stopping: DispatchWorkItem?
+    /// A watch asked for a moment on (`panelOpened(after:)`), not started yet.
+    private var opening: DispatchWorkItem?
     private var publishing = false
     /// While watching: "● Live" turns to "● Quiet" a minute after the last message, with
     /// nothing new on disk to say so.
@@ -117,11 +119,26 @@ public final class AgentsObserver: ObservableObject {
 
     // MARK: - Watching
 
-    /// The panel opened: watch, after a cold start that reads the last half hour.
-    public func panelOpened() {
+    /// The panel opened: watch, after a cold start that reads the last half hour — `delay`
+    /// seconds on, if the panel is still open then: a pointer passing over the notch on its
+    /// way to the menu bar opens it for a moment, and should start no cold read.
+    public func panelOpened(after delay: TimeInterval = 0) {
         stopping?.cancel()
         stopping = nil
+        opening?.cancel()
+        opening = nil
         guard reads, !isWatching else { return }
+        guard delay <= 0 else {
+            let work = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.opening = nil
+                    self?.panelOpened()
+                }
+            }
+            opening = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            return
+        }
         isWatching = true
         let reader = self.reader
         let since = now().addingTimeInterval(-Self.coldStart)
@@ -137,8 +154,11 @@ public final class AgentsObserver: ObservableObject {
         publish()
     }
 
-    /// The panel closed: the watch stops half a minute later, unless it opens again.
+    /// The panel closed: the watch stops half a minute later, unless it opens again; one
+    /// still due does not start.
     public func panelClosed() {
+        opening?.cancel()
+        opening = nil
         guard isWatching else { return }
         stopping?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -152,6 +172,8 @@ public final class AgentsObserver: ObservableObject {
     public func stop() {
         stopping?.cancel()
         stopping = nil
+        opening?.cancel()
+        opening = nil
         stopStream()
         liveTimer?.invalidate()
         liveTimer = nil

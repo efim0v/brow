@@ -164,7 +164,8 @@ struct SuggestedSection: View {
             HStack {
                 SectionCaption(title: "SUGGESTED")
                 Spacer()
-                Text("Claude is running in a folder you haven't added")
+                Text(suggestions.count == 1 ? "Claude is running in a folder you haven't added"
+                     : "Claude is running in \(suggestions.count) folders you haven't added")
                     .font(.system(size: 10)).foregroundStyle(PanelWhite.tertiary(increased)).lineLimit(1)
             }
             .padding(.horizontal, 2)
@@ -191,8 +192,9 @@ struct SuggestedSection: View {
 }
 
 /// A folder Claude Code runs in that no project shows: a dashed outline (not a project
-/// yet), the folder, how many sessions run there and as whom, Add, and "not now", which
-/// is remembered.
+/// yet), the folder and as whom it runs there, where it is and how many sessions run there,
+/// Add, and "not now", which is remembered. The path gives way first: a long one keeps its
+/// two ends.
 struct SuggestionRow: View {
     @ObservedObject var state: AppState
     @Environment(\.colorSchemeContrast) private var systemContrast
@@ -215,8 +217,13 @@ struct SuggestionRow: View {
                     .offset(x: 2, y: 2)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(suggestion.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                detail.font(.system(size: 10.5)).lineLimit(1).truncationMode(.middle)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(suggestion.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    accounts
+                        .font(.system(size: 10.5)).lineLimit(1)
+                        .layoutPriority(-1)
+                }
+                place
             }
             Spacer(minLength: 6)
             Button { state.addSuggestion(suggestion) } label: {
@@ -247,20 +254,33 @@ struct SuggestionRow: View {
         .accessibilityLabel("Suggested project \(suggestion.name): Claude is running there")
     }
 
-    /// "~/Code/harbor-api · 2 claude sessions · ● Work"
-    private var detail: Text {
+    /// "● Work", the accounts its sessions run as.
+    private var accounts: Text {
         let quiet = PanelWhite.tertiary(increased)
-        let count = suggestion.pids.count
-        var parts = [Text(state.displayPath(suggestion.path) + " · " + (count == 1 ? "claude running" : "\(count) claude sessions"))
-            .foregroundStyle(quiet)]
+        var parts: [Text] = []
         for dir in suggestion.configDirs.prefix(2) {
             if let account = state.account(ofConfigDir: dir) {
-                parts.append(Text(" · ").foregroundStyle(quiet))
+                if !parts.isEmpty { parts.append(Text("  ")) }
                 if let dot = account.dot { parts.append(Text("● ").foregroundStyle(dot).font(.system(size: 7))) }
                 parts.append(Text(account.name).foregroundStyle(quiet))
             }
         }
         return Text.joined(parts)
+    }
+
+    /// "~/Code/harbor-api · 2 claude sessions": the path in the middle cut short when it is
+    /// long, the count whole.
+    private var place: some View {
+        let quiet = PanelWhite.tertiary(increased)
+        let count = suggestion.pids.count
+        return HStack(spacing: 0) {
+            Text(state.displayPath(suggestion.path))
+                .lineLimit(1).truncationMode(.middle)
+            Text(" · " + (count == 1 ? "claude running" : "\(count) claude sessions"))
+                .lineLimit(1).fixedSize()
+        }
+        .font(.system(size: 10.5))
+        .foregroundStyle(quiet)
     }
 }
 

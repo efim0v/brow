@@ -49,6 +49,7 @@ extension AppState {
         let read = beginLiveRead()
         let index = await Task.detached(priority: .utility) { () -> SessionIndex in
             let live = liveReader.allLiveProcesses(accounts: accounts)
+            let owner = Self.sessionOwner(projectRoots: projectRoots)
             var rows: [UUID: [ProjectSessionRow]] = [:]
             var counts: [UUID: Int] = [:]
             for job in jobs {
@@ -68,9 +69,12 @@ extension AppState {
                         sessions.append(session)
                     }
                 }
-                rows[job.id] = buildProjectSessionRows(sessions: sessions, live: live, cmuxMap: cmuxMap,
+                // One project per session: where two projects' folders overlap (one inside the
+                // other, or two of one name sharing a workspaces folder) both listed it.
+                let own = sessions.filter { owner($0.cwd) == job.id }
+                rows[job.id] = buildProjectSessionRows(sessions: own, live: live, cmuxMap: cmuxMap,
                                                        projectPath: job.path, workspacesRoot: job.root)
-                counts[job.id] = max(listing.total, sessions.count)
+                counts[job.id] = max(listing.total - (sessions.count - own.count), own.count)
             }
             // The disk-wide pass: what a project's own folder holds, and what is no
             // project's. 500 is a GLOBAL budget, newest first.
@@ -78,9 +82,8 @@ extension AppState {
             var byProject: [UUID: [ClaudeSession]] = [:]
             var other: [ClaudeSession] = []
             for session in all {
-                let canon = canonicalPath(session.cwd)
-                if let match = projectRoots.first(where: { $0.roots.contains { canon == $0 || canon.hasPrefix($0 + "/") } }) {
-                    byProject[match.id, default: []].append(session)
+                if let id = owner(session.cwd) {
+                    byProject[id, default: []].append(session)
                 } else {
                     other.append(session)
                 }
@@ -92,6 +95,23 @@ extension AppState {
                                 otherFolders: folders, live: live)
         }.value
         apply(index, liveRead: read)
+    }
+
+    /// The project a session in `cwd` belongs to: the one whose folder or workspaces folder
+    /// holds it most closely, the first in the list when two hold it alike. `projectRoots`:
+    /// each project's canonical folders, in the list's order.
+    nonisolated static func sessionOwner(projectRoots: [(id: UUID, roots: [String])]) -> @Sendable (String) -> UUID? {
+        let roots = projectRoots
+        return { cwd in
+            let canon = canonicalPath(cwd)
+            var best: (id: UUID, length: Int)?
+            for project in roots {
+                for root in project.roots where canon == root || canon.hasPrefix(root + "/") {
+                    if root.count > (best?.length ?? -1) { best = (project.id, root.count) }
+                }
+            }
+            return best?.id
+        }
     }
 
     /// Numbers a read of what runs as it starts.

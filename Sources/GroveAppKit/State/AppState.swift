@@ -425,14 +425,42 @@ public final class AppState: ObservableObject {
 
     // MARK: - Config CRUD
 
-    /// Adds a project named after the path's leaf directory, saves and selects it.
+    /// Adds a project named after the path's leaf directory, saves and selects it. Not a
+    /// folder that is a project's, lies in one or holds one, nor a second project of one
+    /// name: the name names its workspaces folder too. Either way its sessions and
+    /// worktrees would show twice; `actionError` says which project is in the way.
     public func addProject(at path: String) {
         let expanded = expandTilde(path)
+        if let reason = Self.overlap(adding: expanded, to: config.projects, workspacesRoot: { self.workspacesRoot(of: $0) }) {
+            actionError = reason
+            return
+        }
         let name = (expanded as NSString).lastPathComponent
         let project = ProjectConfig(name: name, path: expanded)
         config.projects.append(project)
         selectedProjectID = project.id
         persist()
+    }
+
+    /// Why `path` cannot be added next to `projects`; nil when it can.
+    static func overlap(adding path: String, to projects: [ProjectConfig],
+                        workspacesRoot: (ProjectConfig) -> String) -> String? {
+        let canon = canonicalPath(path)
+        let name = (path as NSString).lastPathComponent
+        for project in projects {
+            let folder = canonicalPath(expandTilde(project.path))
+            if canon == folder { return "\(project.name) is a project already." }
+            if canon.hasPrefix(folder + "/") { return "This folder is part of the project \(project.name)." }
+            if folder.hasPrefix(canon + "/") {
+                return "This folder holds the project \(project.name): add the folders beside it one by one."
+            }
+            let root = canonicalPath(workspacesRoot(project))
+            if canon == root || canon.hasPrefix(root + "/") { return "This folder holds \(project.name)'s workspaces." }
+            if project.name.caseInsensitiveCompare(name) == .orderedSame {
+                return "There is a project named \(project.name) already."
+            }
+        }
+        return nil
     }
 
     public func removeProject(id: UUID) {

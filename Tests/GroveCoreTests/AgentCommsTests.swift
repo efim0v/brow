@@ -237,6 +237,79 @@ final class AgentCommsTests: XCTestCase {
         XCTAssertNotNil(try? message(reader.graph(), atlas, harbor, "After the cut."))
     }
 
+    // MARK: - Big transcripts: never read whole
+
+    /// About 1.5 MB of a conversation that says nothing to the reader: no send, no envelope.
+    private func filler(_ session: String, _ prefix: String) -> String {
+        let text = String(repeating: "x", count: 1_000)
+        return (0..<1_500).map { i in
+            F.json(F.entry(session, F.harborCwd, "assistant", "\(prefix)-\(i)", nil, "2026-10-19T09:10:00.000Z",
+                           ["message": ["role": "assistant", "content": [["type": "text", "text": text]]]])) + "\n"
+        }.joined()
+    }
+
+    /// A message from atlas, as its receiver's line carries it.
+    private func delivery(_ session: String, _ uuid: String, _ body: String) -> String {
+        F.json(F.entry(session, F.harborCwd, "user", uuid, nil, "2026-10-19T09:20:00.000Z",
+                       ["message": ["role": "user", "content": F.envelope(
+                           "cross-session-message", [("from", "uds:" + F.atlasSocket), ("from-name", "atlas")], body)],
+                        "isMeta": true])) + "\n"
+    }
+
+    /// A transcript the reader first hears of through a change — one written for hours, in a
+    /// session idle past the cold start's window — is read from its end, not whole.
+    func testABigTranscriptSeenFirstThroughAChangeIsReadFromItsEnd() throws {
+        let reader = reader()
+        let session = "3c4d5e6f-3333-4333-8333-333333333333"
+        let path = cfg + "/projects/" + F.mangle(F.harborCwd) + "/" + session + ".jsonl"
+        try Data((delivery(session, "u-big-first", "From the morning.") + filler(session, "f")
+                  + delivery(session, "u-big-last", "From just now.")).utf8).write(to: URL(fileURLWithPath: path))
+        var taken: [String] = []
+        reader.onLineTaken = { taken.append($0) }
+        let before = reader.transcriptBytesRead
+        reader.changed(path)
+        XCTAssertLessThanOrEqual(reader.transcriptBytesRead - before, Int64(AgentCommsReader.coldTail))
+        XCTAssertTrue(taken.contains("u-big-last"), "the newest message is in the end that is read")
+        XCTAssertFalse(taken.contains("u-big-first"), "the start of the file is never read")
+        XCTAssertNotNil(try? message(reader.graph(), atlas, "session:work:" + session, "From just now."))
+    }
+
+    /// A followed transcript that grew by more than the window while nothing watched it (the
+    /// panel stayed closed) is taken up from its end.
+    func testATranscriptThatGrewWhileUnwatchedIsTakenUpFromItsEnd() throws {
+        let reader = reader()
+        let path = cfg + "/projects/" + F.mangle(F.harborCwd) + "/" + F.harbor + ".jsonl"
+        let handle = try XCTUnwrap(FileHandle(forWritingAtPath: path))
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(("\n" + filler(F.harbor, "g") + delivery(F.harbor, "u-grew-last", "Caught up.")).utf8))
+        try handle.close()
+        var taken: [String] = []
+        reader.onLineTaken = { taken.append($0) }
+        let before = reader.transcriptBytesRead
+        reader.readRecent(since: Date().addingTimeInterval(-30 * 60))
+        XCTAssertLessThanOrEqual(reader.transcriptBytesRead - before, Int64(AgentCommsReader.coldTail))
+        XCTAssertEqual(taken.filter { !$0.hasPrefix("g-") }, ["u-grew-last"])
+        XCTAssertNotNil(try? message(reader.graph(), atlas, harbor, "Caught up."))
+    }
+
+    /// A big transcript rewritten (a new file in its place) is read again from its end only,
+    /// and a line already taken is not taken twice.
+    func testABigRewrittenTranscriptIsReadFromItsEnd() throws {
+        let reader = reader()
+        let path = cfg + "/projects/" + F.mangle(F.harborCwd) + "/" + F.harbor + ".jsonl"
+        let messages = reader.graph().messages.count
+        try Data((filler(F.harbor, "r") + delivery(F.harbor, "u-rw-last", "After the rewrite.")).utf8)
+            .write(to: URL(fileURLWithPath: path + ".new"))
+        XCTAssertEqual(rename(path + ".new", path), 0)
+        var taken: [String] = []
+        reader.onLineTaken = { taken.append($0) }
+        let before = reader.transcriptBytesRead
+        reader.changed(path)
+        XCTAssertLessThanOrEqual(reader.transcriptBytesRead - before, Int64(AgentCommsReader.coldTail))
+        XCTAssertEqual(taken.filter { !$0.hasPrefix("r-") }, ["u-rw-last"])
+        XCTAssertEqual(reader.graph().messages.count, messages + 1)
+    }
+
     /// A cold start reads only the transcripts written in its window, and of them only the end.
     func testAColdStartReadsOnlyRecentTranscripts() throws {
         let old = Date().addingTimeInterval(-3_600)

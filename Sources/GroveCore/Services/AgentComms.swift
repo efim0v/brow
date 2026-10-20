@@ -165,7 +165,10 @@ public struct AgentGraph: Sendable, Equatable {
 public final class AgentCommsReader: @unchecked Sendable {
     /// Of a message, this much is kept.
     public static let maxText = 140
-    /// What a cold start reads of each transcript: its end only.
+    /// The most of a transcript read in one go: its end. What a cold start reads of each
+    /// one, and what a file is taken up from when it cannot be read on from where it was
+    /// left — seen for the first time, rewritten, or grown by more than this while nothing
+    /// watched it. A transcript can be hundreds of megabytes; its messages are in its end.
     public static let coldTail = 512 << 10
 
     public private(set) var accounts: [AgentAccount]
@@ -176,6 +179,8 @@ public final class AgentCommsReader: @unchecked Sendable {
     /// them. Kept only when `recordsReads` is on.
     var readsLog: [String] = []
     var recordsReads = false
+    /// How many bytes of transcripts were read: tests check a big one is never read whole.
+    private(set) var transcriptBytesRead: Int64 = 0
     /// Tests watch the lines a follower takes, by their uuid.
     var onLineTaken: ((String) -> Void)?
 
@@ -380,9 +385,12 @@ public final class AgentCommsReader: @unchecked Sendable {
         }
     }
 
-    /// Reads `path` on from where it was left, whole lines only; a replaced or shrunk file
-    /// from the start. A new file: from `fromTail` bytes before its end (nil: its start).
-    func follow(_ path: String, fromTail tail: Int?) {
+    /// Reads `path` on from where it was left, whole lines only. Never more than the file's
+    /// last `window` bytes (nil: `coldTail`): a file new to the reader, one replaced (a
+    /// rewrite swaps the file) or shrunk, and one that grew by more than that since it was
+    /// last read — the watch was off — are taken up that far from their end, the lines
+    /// already taken skipped by their uuid. A small new file is read from its start.
+    func follow(_ path: String, fromTail window: Int?) {
         guard let place = place(of: path) else { return }
         var info = stat()
         guard stat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
@@ -390,16 +398,25 @@ public final class AgentCommsReader: @unchecked Sendable {
             return
         }
         let device = UInt64(info.st_dev), inode = UInt64(info.st_ino), size = Int64(info.st_size)
-        var follower = followers[path]
-            ?? Follower(device: device, inode: inode, offset: tail.map { max(0, size - Int64($0)) } ?? 0)
-        var startsMidLine = follower.offset > 0 && followers[path] == nil
-        if follower.device != device || follower.inode != inode || size < follower.offset {
-            // Replaced (a rewrite swaps the file) or shrunk: from the start, the lines
-            // already taken skipped by their uuid.
-            follower = Follower(device: device, inode: inode, offset: 0, rest: Data(), seen: follower.seen)
-            startsMidLine = false
+        let most = Int64(max(window ?? Self.coldTail, 1))
+        var follower: Follower
+        var startsMidLine = false
+        if let known = followers[path], known.device == device, known.inode == inode, size >= known.offset {
+            follower = known
+            if size - known.offset > most {
+                // Fell behind by more than the window: what was written meanwhile is older
+                // than its end, which is all that is read.
+                follower.offset = size - most
+                follower.rest = Data()
+                startsMidLine = true
+            }
+        } else {
+            let offset = max(0, size - most)
+            follower = Follower(device: device, inode: inode, offset: offset, rest: Data(),
+                                seen: followers[path]?.seen ?? [])
+            startsMidLine = offset > 0
         }
-        guard size > follower.offset, let chunk = read(path, from: follower.offset) else {
+        guard size > follower.offset, let chunk = read(path, from: follower.offset, upTo: size) else {
             followers[path] = follower
             return
         }
@@ -1054,14 +1071,17 @@ public final class AgentCommsReader: @unchecked Sendable {
         return FileManager.default.contents(atPath: path)
     }
 
-    /// Reads a file from `offset` to its end.
-    private func read(_ path: String, from offset: Int64) -> Data? {
+    /// Reads a file from `offset` up to `end`, the size it had when it was looked at: what
+    /// it gained since is the next change's to read.
+    private func read(_ path: String, from offset: Int64, upTo end: Int64) -> Data? {
         if recordsReads { readsLog.append(path) }
-        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        guard end > offset, let handle = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? handle.close() }
         do {
             try handle.seek(toOffset: UInt64(offset))
-            return try handle.readToEnd() ?? Data()
+            let data = try handle.read(upToCount: Int(end - offset)) ?? Data()
+            transcriptBytesRead += Int64(data.count)
+            return data
         } catch {
             return nil
         }

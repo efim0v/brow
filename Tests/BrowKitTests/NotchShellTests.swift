@@ -324,6 +324,25 @@ final class NotchShellTests: XCTestCase {
         XCTAssertNil(press(0, "a"), "typing is not a command")
     }
 
+    /// On a layout without Latin letters the shortcuts are read by the key's place, as the
+    /// menus of macOS read them: ⌘F on a Russian keyboard types "а". A Latin layout keeps its
+    /// own letters.
+    func testShortcutsWorkOnALayoutWithoutLatinLetters() {
+        func press(_ code: UInt16, _ chars: String) -> NotchKeyPress.Command? {
+            NotchKeyPress(keyCode: code, characters: chars, modifiers: .command, editingText: false).command
+        }
+        XCTAssertEqual(press(3, "а"), .section(.find))
+        XCTAssertEqual(press(15, "к"), .refresh)
+        XCTAssertEqual(press(12, "й"), .quit)
+        XCTAssertEqual(press(13, "ц"), .close)
+        XCTAssertEqual(press(43, "б"), .settings)
+        XCTAssertEqual(press(3, "φ"), .section(.find), "Greek")
+        XCTAssertEqual(press(19, "2"), .tab(.projects))
+        XCTAssertNil(press(3, "u"), "Dvorak's key there is U: its ⌘F is where it puts F")
+        XCTAssertEqual(press(14, "f"), .section(.find))
+        XCTAssertNil(press(0, "ф"), "a key the panel has no shortcut on")
+    }
+
     // MARK: - The footer
 
     /// ⚙: the version, Settings… ⌘, and Quit Brow ⌘Q — Grove's footer held the only Quit button.

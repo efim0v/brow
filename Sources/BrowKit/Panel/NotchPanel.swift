@@ -671,7 +671,7 @@ public final class NotchPanelController: NotchPresenting {
             let used = MainActor.assumeIsolated { () -> Bool in
                 guard let self, self.model.pinned else { return false }
                 if event.type == .flagsChanged {
-                    let held = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+                    let held = event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command
                     if held != self.model.showsKeys { self.model.showsKeys = held }
                     return false
                 }
@@ -862,7 +862,7 @@ struct NotchKeyPress: Equatable {
     /// (arrows, ↩, ⌫, Tab) are its own.
     init(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags, editingText: Bool) {
         let flags = modifiers.intersection([.command, .control, .option, .shift])
-        let key = characters.lowercased()
+        let key = Self.latinKey(keyCode: keyCode, characters: characters)
         switch (keyCode, flags) {
         case (53, []):
             command = .escape
@@ -901,4 +901,19 @@ struct NotchKeyPress: Equatable {
         self.init(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
                   modifiers: event.modifierFlags, editingText: editingText)
     }
+
+    /// The key a shortcut is read by: the layout's own character when it is a Latin one (⌘F
+    /// is where Dvorak puts F), and on a layout with no Latin letters — Russian, Greek, Hebrew
+    /// — the key's place on a US keyboard, as the menus of macOS read it: ⌘F is ⌘F whether
+    /// the key types "f" or "а".
+    static func latinKey(keyCode: UInt16, characters: String) -> String {
+        let key = characters.lowercased()
+        if !key.isEmpty, key.unicodeScalars.allSatisfy(\.isASCII) { return key }
+        return usPlaces[keyCode] ?? key
+    }
+
+    /// The keys the panel's shortcuts use, by their place (`kVK_ANSI_*`).
+    private static let usPlaces: [UInt16: String] = [
+        18: "1", 19: "2", 20: "3", 3: "f", 15: "r", 12: "q", 13: "w", 43: ",",
+    ]
 }

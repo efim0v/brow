@@ -5,8 +5,9 @@ import SwiftUI
 
 /// A panel's scrolling part: a soft 14 pt fade at the top once it has scrolled, a 22 pt
 /// fade at the bottom while there is more, and the system's overlay indicator. Offscreen,
-/// where ImageRenderer draws no ScrollView, the content is clipped at `renderOffset` and the
-/// indicator drawn, as macOS draws it while scrolling.
+/// where ImageRenderer draws no ScrollView, the content is clipped at `renderOffset`, and
+/// the indicator is drawn only for a scrolled picture: macOS shows it while scrolling and
+/// hides it at rest, where the bottom fade alone says there is more.
 public struct FadingScrollView<Content: View>: View {
     var renderOffset: CGFloat
     @ViewBuilder let content: () -> Content
@@ -62,9 +63,9 @@ public struct FadingScrollView<Content: View>: View {
 }
 
 /// The offscreen stand-in for a scrolled `ScrollView`: the content at its own height, moved up
-/// by `offset` — at most to its end — and clipped to the room it is given, with the fades and a
-/// 4 pt indicator. Given no height (a render at its natural size), it is as tall as the
-/// content, like an unscrolled stack.
+/// by `offset` — at most to its end — and clipped to the room it is given, with the fades and,
+/// once scrolled, a 4 pt indicator. Given no height (a render at its natural size), it is as
+/// tall as the content, like an unscrolled stack.
 private struct RenderedScroll<Content: View>: View {
     let offset: CGFloat
     let content: () -> Content
@@ -95,7 +96,7 @@ private struct RenderedScroll<Content: View>: View {
 
     @ViewBuilder
     private func indicator(viewport: CGFloat, width: CGFloat) -> some View {
-        if height > viewport + 1 {
+        if height > viewport + 1, offset > 0 {
             let track = viewport - 8
             let thumb = max(28, track * viewport / height)
             let y = 4 + (track - thumb) * min(1, scrolled(viewport: viewport) / max(1, height - viewport))

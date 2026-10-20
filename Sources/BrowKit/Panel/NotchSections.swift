@@ -70,6 +70,9 @@ public protocol NotchSection: AnyObject {
     /// The panel opened (true) or closed (false), whichever section is in front: what keeps
     /// the switch's marks current on every section.
     func panelOpenChanged(_ open: Bool)
+    /// True while the section holds something that rebuilding its view would lose — a form
+    /// half filled, a creation's log: the closed panel then keeps the shell in the tree.
+    var keepsAliveWhileClosed: Bool { get }
 }
 
 public extension NotchSection {
@@ -79,6 +82,7 @@ public extension NotchSection {
     func handleKey(_ key: NotchKey) -> Bool { false }
     func visibilityChanged(_ visible: Bool) {}
     func panelOpenChanged(_ open: Bool) {}
+    var keepsAliveWhileClosed: Bool { false }
 }
 
 /// Which sections the panel has. Limits is always there; the others while whoever provides

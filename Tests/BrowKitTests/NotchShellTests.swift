@@ -114,6 +114,26 @@ final class NotchShellTests: XCTestCase {
         XCTAssertEqual(drawn(), false, "still in the tree, told it is not on the screen")
     }
 
+    /// Once the closing spring has settled the shell leaves the tree, so a closed panel evaluates
+    /// nothing of its sections, whatever they read publishes. A section holding something a
+    /// rebuild would lose (a form half filled, a creation's log) keeps it in.
+    func testAClosedPanelLetsTheShellGoUnlessASectionHoldsSomething() async throws {
+        let (panel, stubs) = controller(try store(), sections: [.projects])
+        XCTAssertFalse(panel.model.shellLive, "never opened")
+        panel.openPinned(on: .projects)
+        XCTAssertTrue(panel.model.shellLive)
+        panel.dismiss(.escape)
+        XCTAssertTrue(panel.model.shellLive, "through the closing spring")
+        await settle(NotchPanelController.closeSettle + 0.3)
+        XCTAssertFalse(panel.model.shellLive, "settled")
+        stubs[.projects]?.keepsAlive = true
+        panel.openPinned(on: .projects)
+        XCTAssertTrue(panel.model.shellLive)
+        panel.dismiss(.escape)
+        await settle(NotchPanelController.closeSettle + 0.3)
+        XCTAssertTrue(panel.model.shellLive, "a form half filled stays")
+    }
+
     /// The session card under the pointer is the controller's to say, from its own mouse
     /// monitors: the panel is never the active app's, and SwiftUI's hover does not fire there.
     func testTheCardUnderThePointerComesFromThePanelsOwnMonitors() async throws {

@@ -38,6 +38,12 @@ final class NotchPanelModel: ObservableObject {
     @Published var ears = AnyView(EmptyView())
     /// The open panel: `NotchShellView`, installed once.
     @Published var panel = AnyView(EmptyView())
+    /// Whether the shell is in the tree: from the moment the panel opens until its closing
+    /// spring has settled, and on while a section holds something a rebuild would lose (a form,
+    /// a creation's log). Out of the tree a closed panel costs nothing: a hidden shell was
+    /// evaluated again on every publish of what it reads and laid out with every frame of
+    /// the strip, a third of a core with a long project open.
+    @Published var shellLive = false
     /// The section in front.
     @Published var tab: NotchTab = .limits
     /// The panel stays open until Esc, a click outside, the pin again or a hand-off.
@@ -135,13 +141,15 @@ struct NotchRootView: View {
                     if model.showEars, !model.expanded {
                         model.ears.transition(.opacity)
                     }
-                    // The shell stays in the tree while the panel is closed, invisible and out of
-                    // the pointer's way, so what a section holds — a scroll position, a workspace
-                    // opened, a form half filled, a creation running — is there when it opens again.
-                    model.panel
-                        .opacity(model.expanded ? 1 : 0)
-                        .allowsHitTesting(model.expanded)
-                        .accessibilityHidden(!model.expanded)
+                    // The shell leaves the tree once the panel has closed (`shellLive`). Where a
+                    // section is lives in its model (Workspaces' route), so it opens where it was;
+                    // a form half filled or a creation running keeps the shell in the tree.
+                    if model.shellLive || model.expanded {
+                        model.panel
+                            .opacity(model.expanded ? 1 : 0)
+                            .allowsHitTesting(model.expanded)
+                            .accessibilityHidden(!model.expanded)
+                    }
                 }
                 // The pet, inside the clip: cut by the same shape as it grows, never over the menu bar.
                 if let pet = model.pet {
@@ -488,7 +496,10 @@ public final class NotchPanelController: NotchPresenting {
         pet?.dockChanged(expanded: value && model.tab == .limits)
         for tab in sections.tabs { sections.section(tab)?.panelOpenChanged(value) }
         sections.section(model.tab)?.visibilityChanged(value)
-        withAnimation(value ? Self.openAnimation : Self.closeAnimation) { model.expanded = value }
+        withAnimation(value ? Self.openAnimation : Self.closeAnimation) {
+            if value { model.shellLive = true }
+            model.expanded = value
+        }
         BrowLog.panel.debug("expanded=\(value) tab=\(self.model.tab.rawValue, privacy: .public)")
         if !value { scheduleSettle() }
     }
@@ -499,6 +510,9 @@ public final class NotchPanelController: NotchPresenting {
         let work = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 guard let self, !self.expanded else { return }
+                if !self.sections.tabs.contains(where: { self.sections.section($0)?.keepsAliveWhileClosed == true }) {
+                    self.model.shellLive = false
+                }
                 if self.presentedWithoutNotch {
                     self.presentedWithoutNotch = false
                     if !self.isShown { self.removePointerMonitors() }

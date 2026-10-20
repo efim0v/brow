@@ -35,6 +35,17 @@ final class ProjectsSection: NotchSection {
 
     func refreshButton() -> AnyView { AnyView(ProjectsRefreshButton(host: host)) }
 
+    /// A form keeps what was typed, a creation its log, only while its view lives: the
+    /// screens behind these routes keep the closed panel's shell in the tree. Every other
+    /// screen opens again where it was from `AppState.route`.
+    var keepsAliveWhileClosed: Bool {
+        guard let state = host.state else { return false }
+        switch state.route {
+        case .createWorkspace, .launch, .projectSettings, .statsSettings: return true
+        case .projects, .project, .otherSessions: return false
+        }
+    }
+
     func refresh() {
         guard let state = host.state, host.activation == .on else { return }
         Task { await state.refresh() }

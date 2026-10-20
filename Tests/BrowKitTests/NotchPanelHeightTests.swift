@@ -170,6 +170,8 @@ final class StubSection: NotchSection {
     var visible: [Bool] = []
     var keys: [NotchKey] = []
     var popsOnEscape = false
+    var keepsAlive = false
+    var keepsAliveWhileClosed: Bool { keepsAlive }
 
     func content(layout: NotchShellLayout) -> AnyView { AnyView(Color.clear) }
     func footerStatus() -> AnyView { AnyView(Text("stub")) }

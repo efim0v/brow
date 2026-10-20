@@ -114,6 +114,48 @@ final class NotchShellTests: XCTestCase {
         XCTAssertEqual(drawn(), false, "still in the tree, told it is not on the screen")
     }
 
+    /// The session card under the pointer is the controller's to say, from its own mouse
+    /// monitors: the panel is never the active app's, and SwiftUI's hover does not fire there.
+    func testTheCardUnderThePointerComesFromThePanelsOwnMonitors() async throws {
+        let (panel, _) = controller(try store(), sections: [.projects])
+        panel.openPinned(on: .projects)
+        let hover = panel.model.cardHover
+        hover.setFrames(["s-one": CGRect(x: 20, y: 200, width: 432, height: 60),
+                         "s-two": CGRect(x: 20, y: 268, width: 432, height: 60)])
+        let window = panel.model.frames.expanded
+        func screen(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: window.minX + x, y: window.maxY - y) }
+        panel.pointerMoved(to: screen(100, 230))
+        XCTAssertEqual(hover.session, "s-one")
+        panel.pointerMoved(to: screen(100, 300))
+        XCTAssertEqual(hover.session, "s-two")
+        panel.pointerMoved(to: screen(100, 264))
+        XCTAssertNil(hover.session, "between two cards")
+        panel.pointerMoved(to: screen(100, 300))
+        // The cards move under a pointer that stays (a scroll): looked for again.
+        hover.setFrames(["s-one": CGRect(x: 20, y: 280, width: 432, height: 60)])
+        await settle(0.05)
+        XCTAssertEqual(hover.session, "s-one")
+        panel.dismiss(.escape)
+        XCTAssertNil(hover.session, "a closed panel has nothing under the pointer")
+    }
+
+    /// The card under the pointer is told to the section's content only when it changes.
+    func testTheCardUnderThePointerIsPublishedOnlyWhenItChanges() {
+        let hover = NotchCardHover()
+        hover.setFrames(["s-one": CGRect(x: 0, y: 0, width: 100, height: 50)])
+        var published = 0
+        let watch = hover.objectWillChange.sink { published += 1 }
+        hover.update(pointer: CGPoint(x: 10, y: 10))
+        hover.update(pointer: CGPoint(x: 20, y: 12))
+        hover.update(pointer: CGPoint(x: 30, y: 14))
+        XCTAssertEqual(hover.session, "s-one")
+        XCTAssertEqual(published, 1)
+        hover.update(pointer: nil)
+        XCTAssertNil(hover.session)
+        XCTAssertEqual(published, 2)
+        watch.cancel()
+    }
+
     // MARK: - Hover and pin
 
     /// Hovered, the panel opens with the pointer and closes half a second after it leaves.

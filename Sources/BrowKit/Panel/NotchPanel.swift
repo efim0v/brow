@@ -49,6 +49,8 @@ final class NotchPanelModel: ObservableObject {
     /// Limits, and what Workspaces registers.
     let sections = NotchSections()
     let badges = NotchBadges()
+    /// The session card under the pointer, from the controller's mouse monitors.
+    let cardHover = NotchCardHover()
 
     init(frames: NotchFrames, pet: PetLayer? = nil) {
         self.frames = frames
@@ -333,13 +335,7 @@ public final class NotchPanelController: NotchPresenting {
         orderIn()
         // A test moves the pointer itself (`pointerMoved(to:)`), never the Mac's.
         guard drivesWindow else { return }
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
-            Task { @MainActor in self?.pointerMoved(to: NSEvent.mouseLocation) }
-        }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
-            Task { @MainActor in self?.pointerMoved(to: NSEvent.mouseLocation) }
-            return event
-        }
+        installPointerMonitors()
         guard let pet else { return }
         // A window macOS reports as occluded (covered, or on a display that is off) shows nobody the
         // pet: it stops drawing.
@@ -361,10 +357,29 @@ public final class NotchPanelController: NotchPresenting {
         if expanded { setExpanded(false) }
         unpin()
         collapseWork?.cancel(); collapseWork = nil
-        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
-        if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
+        removePointerMonitors()
         if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver); self.occlusionObserver = nil }
         orderOut()
+    }
+
+    /// The pointer, wherever it is on the screen: the hover that opens the strip, the pet's
+    /// eyes, and — the panel never being the active app's, where SwiftUI's hover does not
+    /// fire — the calendar's day and the session card under it. Also while the panel is up
+    /// without the notch, for the last two.
+    private func installPointerMonitors() {
+        guard drivesWindow, mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            Task { @MainActor in self?.pointerMoved(to: NSEvent.mouseLocation) }
+        }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+            Task { @MainActor in self?.pointerMoved(to: NSEvent.mouseLocation) }
+            return event
+        }
+    }
+
+    private func removePointerMonitors() {
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
+        if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
     }
 
     /// The display changed: re-render, don't just move the window. The hosted view
@@ -394,16 +409,20 @@ public final class NotchPanelController: NotchPresenting {
     func pointerMoved(to point: NSPoint) {
         // Wherever it is on the screen: the pet notices it from 160 pt and watches it.
         // Ahead of the latch, which holds the notch shut, not the pet's eyes.
-        pet?.pointerMoved(to: hostPoint(fromScreen: point))
+        if isShown { pet?.pointerMoved(to: hostPoint(fromScreen: point)) }
         // After a close the notch stays shut until the pointer has left its area once.
         guard latch.allowsHover(pointerInExpandedArea: frames.expanded.contains(point)) else { return }
         // With the readouts hidden there is nothing beside the notch to hover: the
         // pointer has to reach the notch itself.
         let collapsedHot = store.settings.showEars ? frames.collapsed : (frames.notch ?? frames.collapsed)
         let hot = expanded ? frames.expanded : collapsedHot
-        if expanded { hover.update(pointer: hot.contains(point) ? hostPoint(fromScreen: point) : nil) }
-        // Pinned, the pointer leaving does not close it.
-        guard !model.pinned else { return }
+        if expanded {
+            let inside = hot.contains(point) ? hostPoint(fromScreen: point) : nil
+            hover.update(pointer: inside)
+            model.cardHover.update(pointer: inside)
+        }
+        // Pinned, the pointer leaving does not close it; with the notch off nothing opens it.
+        guard !model.pinned, isShown else { return }
         if hot.contains(point) {
             collapseWork?.cancel(); collapseWork = nil
             if !expanded { open(on: remembered) }
@@ -449,6 +468,7 @@ public final class NotchPanelController: NotchPresenting {
         settleWork?.cancel(); settleWork = nil
         if !value {
             hover.update(pointer: nil)
+            model.cardHover.update(pointer: nil)
             lastClosed = (model.tab, now())
             collapsedAt = now()
             unpin()
@@ -477,6 +497,7 @@ public final class NotchPanelController: NotchPresenting {
                 guard let self, !self.expanded else { return }
                 if self.presentedWithoutNotch {
                     self.presentedWithoutNotch = false
+                    if !self.isShown { self.removePointerMonitors() }
                     self.orderOut()
                 } else if self.drivesWindow, self.panel.isKeyWindow {
                     // Ordered out and in again: the window server hands the keyboard back
@@ -519,6 +540,7 @@ public final class NotchPanelController: NotchPresenting {
             presentedWithoutNotch = true
             render()
             orderIn()
+            installPointerMonitors()
         }
         settleWork?.cancel(); settleWork = nil
         if expanded {

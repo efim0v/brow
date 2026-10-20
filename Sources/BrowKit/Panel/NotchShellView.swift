@@ -94,7 +94,7 @@ struct NotchShellView: View {
         let tab = tab
         ZStack(alignment: .top) {
             if let section = sections.section(tab) {
-                section.content(layout: layout)
+                CardHoverScope(hover: model.cardHover, content: section.content(layout: layout))
                     .id(tab)
                     .transition(reduceMotion ? .opacity
                                 : .asymmetric(insertion: .opacity.combined(with: .offset(x: 6)),

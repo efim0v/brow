@@ -43,13 +43,19 @@ struct SessionPreviewCard: View {
     private var contrast: ColorSchemeContrast { renderContrast ?? systemContrast }
     @Environment(\.isSnapshotRender) private var isSnapshotRender
     @Environment(\.renderHoveredSession) private var renderHovered
+    @Environment(\.hostHoveredSession) private var hostHovered
 
     /// The label column of the prompt and Claude's lines.
     static let labelWidth: CGFloat = 44
 
     private var increased: Bool { contrast == .increased }
     private var askingDelete: Bool { state.confirmingDelete == ref.sessionId }
-    private var hoveredNow: Bool { hovered || hoveredInRender || renderHovered == ref.sessionId }
+    /// Under the pointer: SwiftUI's hover in a window of its own; in Brow's notch, which is
+    /// never the active app's and where `onHover` does not fire, the host's own tracking of the
+    /// pointer over the frames the cards report (`SessionCardFrames`).
+    private var hoveredNow: Bool {
+        hovered || hoveredInRender || renderHovered == ref.sessionId || hostHovered == ref.sessionId
+    }
     private var showsActions: Bool { (hoveredNow || focused) && !askingDelete }
 
     var body: some View {
@@ -78,6 +84,9 @@ struct SessionPreviewCard: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(SessionCardBackground(focused: focused, hovered: hoveredNow))
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: SessionCardFrames.self, value: [ref.sessionId: geo.frame(in: .global)])
+        })
         .opacity(sessionState == .closed ? 0.7 : 1)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
@@ -380,10 +389,31 @@ private struct RenderHoveredSessionKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }
 
+private struct HostHoveredSessionKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+/// Every session card's frame in the hosting view's space (`.global`), by its session: what a
+/// host that follows the pointer itself hit-tests to say which card is under it
+/// (`hostHoveredSession`).
+public struct SessionCardFrames: PreferenceKey {
+    public static let defaultValue: [String: CGRect] = [:]
+    public static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
 extension EnvironmentValues {
     /// Offscreen renders: the session whose card is drawn as under the pointer.
     public var renderHoveredSession: String? {
         get { self[RenderHoveredSessionKey.self] }
         set { self[RenderHoveredSessionKey.self] = newValue }
+    }
+
+    /// The session whose card the host finds under the pointer, following it itself: Brow's
+    /// notch, a non-activating panel where SwiftUI's `onHover` does not fire. nil elsewhere.
+    public var hostHoveredSession: String? {
+        get { self[HostHoveredSessionKey.self] }
+        set { self[HostHoveredSessionKey.self] = newValue }
     }
 }

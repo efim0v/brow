@@ -87,6 +87,15 @@ enum ClaudeCodeMatcher {
     /// itself, and older Agent SDK releases, which start their bundled `cli.js` with
     /// `node` and sign in the same way. Newer SDK releases ship a binary called `claude`.
     static let packages = ["/@anthropic-ai/claude-code/", "/@anthropic-ai/claude-agent-sdk/"]
+    /// The names the native binary runs ITSELF under to be another tool, read out of
+    /// 2.1.290–2.1.302: `rg` (its bundled ripgrep), `ugrep` and `bfs` (the `grep` and
+    /// `find` of its Bash tool's shell, `ARGV0=ugrep "$_cc_bin" …` in zsh and `exec -a` in
+    /// bash) and `apply-seccomp` (the Linux sandbox's helper). Such a process is a grep,
+    /// not a session: it holds no token and never refreshes one. It does inherit the
+    /// session's `CLAUDE_CONFIG_DIR`, though, and one left behind in a `tail -F | grep`
+    /// pipeline runs for days after its session has gone, holding the account as far as
+    /// Brow could tell.
+    static let helpers: Set<String> = ["rg", "ugrep", "bfs", "apply-seccomp"]
 
     /// The native installer names its binary after its version
     /// (`~/.local/share/claude/versions/2.1.299`, started through `~/.local/bin/claude`),
@@ -108,6 +117,9 @@ enum ClaudeCodeMatcher {
         // The bridge Claude in Chrome starts from the browser. It runs no session and
         // lives as long as Chrome does, so counting it would hold `~/.claude` forever.
         if arguments.argv.contains("--chrome-native-host") { return false }
+        // Before anything that looks at paths: a helper is started from the binary
+        // itself, or through `~/.local/bin/claude`, and only its argv[0] tells it apart.
+        if let first = arguments.argv.first, helpers.contains(basename(first)) { return false }
         if basename(path) == "claude" || basename(arguments.executablePath) == "claude" { return true }
         if let first = arguments.argv.first, basename(first) == "claude" { return true }
         if path.contains("/claude/versions/") || arguments.executablePath.contains("/claude/versions/") { return true }

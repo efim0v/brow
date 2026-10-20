@@ -83,12 +83,13 @@ public struct AccountBlockView: View {
             .buttonStyle(.plain)
             .help("Copy: \(command)")
             // Sign in again, in this account's own browser profile. Orange when the
-            // server has rejected the token — that is the moment this button exists for.
+            // login is dead (`LimitsStore.needsSignIn`) — the moment this button exists
+            // for. Not for a rejected token alone: a refresh usually fixes that one.
             Button {
                 AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)
             } label: {
                 Image(systemName: "person.badge.key")
-                    .font(.system(size: 11)).foregroundStyle(needsLogin ? Color.orange : Color.secondary)
+                    .font(.system(size: 11)).foregroundStyle(row.needsSignIn ? Color.orange : Color.secondary)
                     .frame(width: 18, height: 18).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -120,11 +121,6 @@ public struct AccountBlockView: View {
         .buttonStyle(.plain)
         .help("Show this account's sessions in Projects")
         .accessibilityLabel("\(live) live session\(live == 1 ? "" : "s"). Show them in Projects")
-    }
-
-    private var needsLogin: Bool {
-        if case .error(let text) = row.status, text.contains("sign-in") { return true }
-        return row.tokenStatus.contains("revoked") || row.tokenStatus.contains("no token")
     }
 
     private var tag: String {

@@ -37,6 +37,9 @@ public final class RefreshTriggers {
     private(set) var timer: Timer?
     private(set) var ticker: Timer?
     private(set) var wakeObserver: (any NSObjectProtocol)?
+    /// The Mac going to sleep: from then until the wake, the store runs no CLI in the
+    /// dark wakes the poll timer still fires in (see `LimitsStore.markAsleep`).
+    private(set) var sleepObserver: (any NSObjectProtocol)?
     /// Built inside `start()`: `NWPathMonitor.cancel()` is terminal, so a monitor
     /// created once could never survive a stop()/start() round trip.
     private(set) var pathMonitor: NWPathMonitor?
@@ -55,8 +58,8 @@ public final class RefreshTriggers {
     var currentPathIsSatisfied: (NWPathMonitor) -> Bool = { $0.currentPath.status == .satisfied }
 
     /// What `start()` has actually put in place. Each flag is one trigger.
-    var installed: (timer: Bool, ticker: Bool, wake: Bool, path: Bool) {
-        (timer != nil, ticker != nil, wakeObserver != nil, pathMonitor != nil)
+    var installed: (timer: Bool, ticker: Bool, wake: Bool, sleep: Bool, path: Bool) {
+        (timer != nil, ticker != nil, wakeObserver != nil, sleepObserver != nil, pathMonitor != nil)
     }
 
     public init(store: LimitsStore) { self.store = store }
@@ -80,7 +83,17 @@ public final class RefreshTriggers {
         if wakeObserver == nil {
             wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                    // Posted for a wake a person sees, not for a dark wake.
+                    MainActor.assumeIsolated { self?.store.markAsleep(false) }
                     Task { @MainActor in await self?.store.refresh(force: true) }
+                }
+        }
+        if sleepObserver == nil {
+            // On the spot, not in a Task: the Mac is about to sleep, and the first timer
+            // to fire after this may already be in a dark wake.
+            sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.store.markAsleep(true) }
                 }
         }
         if pathMonitor == nil {
@@ -140,6 +153,10 @@ public final class RefreshTriggers {
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
+        }
+        if let sleepObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver)
+            self.sleepObserver = nil
         }
         pathMonitor?.cancel(); pathMonitor = nil
         pathWasSatisfied = true

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Brow refreshes your tokens again while Claude Code sessions sit open in your accounts. 0.3.1 stopped refreshing the token of any account with a running `claude` process for its folder, however long that session had been idle, so that two refreshes at once could not leave the session with a dead token. That reasoning does not hold. Claude Code now takes a lock around each refresh and re-reads the token under it, so a refresh by Brow and one by a session no longer collide. And a session renews its token only when it sends a request in the token's last five minutes, so an idle session renews nothing. With sessions left open for days, nothing refreshed any token: eight hours after the last refresh each account read *Token in use by Claude Code*, then *Rate limited*, its bars went grey, and signing in again only started the eight hours over. Now a session gets the first go only while the token has more than two minutes left. After that, after Anthropic rejects the token, and when you press ⟳, Brow runs `claude doctor` whether or not a session holds the account. A session busy at that moment may see one rejected request, which Claude Code recovers from by itself. Brow notes each time in its log.
+- Brow runs `claude doctor` in a token's last 4½ minutes, when it can work. Claude Code renews a token only in its last five minutes, so the `claude doctor` Brow ran half an hour early did nothing, was counted as a failure, and was followed by `claude -p`, which spends a little limit and starts the account's 5-hour window.
+- Brow no longer takes the `grep`, `find` and `rg` that Claude Code runs from its own binary for sessions. One left behind in an old `tail -F | grep` kept its account "in use" for days.
+- Brow no longer sends a token past its expiry to Anthropic. The panel says *Token expired 12 min ago*, adding *— Claude Code hasn't refreshed it* while a session holds the account, instead of *Rate limited*.
+- The sign-in button turns orange only when the login is really dead: when `claude doctor` or `claude -p` says so (*Please run /login*, or *Failed to authenticate* from `claude -p`), when three attempts in a row did not renew the token, or when the account has no token. A token Anthropic rejected reads *Anthropic rejected the token* while Brow tries to refresh it.
+- When `claude doctor` or `claude -p` runs past its time limit, it gets nine seconds to exit before Brow kills it, not half a second. On its way out Claude Code cleans up, runs its SessionEnd hooks and only then waits up to two seconds for a token refresh in flight to be saved, and a kill in that wait could lose the renewed token.
+- No `claude` runs while the Mac is in a dark wake (Power Nap and the like): nobody is there, and the Mac can go back to sleep in the middle of a refresh.
+
 ## [0.4.0] - 2026-10-18
 
 Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md). The notch also gets a pet that eats what your accounts use.

@@ -26,16 +26,19 @@ public protocol ClaudeCodeActivityProbing: Sendable {
     func use(configDir: String, now: Date) -> ClaudeCodeUse?
 }
 
-/// A session that runs as an account refreshes that account's token itself, and the
-/// refresh token rotates on every refresh: when Brow's `claude doctor` and a session
-/// refresh at about the same moment, one of them is left holding a dead token and the
-/// session asks for `/login`. So before the keeper runs the CLI, the store asks this.
+/// Before the keeper runs the CLI for a due token, the store asks this, to give a
+/// session the first go (see `LimitsStore.holderRule`): a session at work renews its
+/// own token with its next request inside the token's last five minutes. That is a
+/// courtesy, not a safeguard. Claude Code takes a lock in the config dir around every
+/// refresh and re-reads the token under it (seen in 2.1.290–2.1.302), so a `claude
+/// doctor` and a session no longer race each other into a dead refresh token.
 ///
 /// Two signals, either one is enough:
 ///
 /// - A live Claude Code process whose `CLAUDE_CONFIG_DIR` is this account (unset means
-///   `~/.claude`). It holds the account's tokens in memory for as long as it runs,
-///   idle or not, so it counts however long it has been quiet.
+///   `~/.claude`), however long it has been quiet. A quiet one renews nothing, which is
+///   why it holds the keeper off only briefly. The CLI's own helpers, such as the
+///   `grep` its Bash tool runs, are not sessions (`ClaudeCodeMatcher.helpers`).
 /// - A prompt typed in this account in the last 15 minutes: `history.jsonl`, which
 ///   Claude Code appends to on every prompt, belongs to one config dir and is not
 ///   shared. It covers a session the process list cannot see.

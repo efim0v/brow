@@ -440,6 +440,18 @@ final class OneWindowSessionsRenderTests: XCTestCase {
                                 to: file("r-13-notices.png"))
         }
 
+        // Settings follows the Mac's appearance (the notch panel is black in both): its
+        // Workspaces pane, with Show message previews, in the light one.
+        do {
+            let world = try makeWorld()
+            let navigation = SettingsNavigation()
+            navigation.pane = .workspaces
+            try RenderKit.renderInWindow(SettingsView(store: world.store,
+                                                      addFlow: AddAccountFlow(store: world.store, home: DemoAccounts.home),
+                                                      drafts: SettingsDrafts(), workspaces: world.host, navigation: navigation),
+                                         appearance: .aqua, to: file("r-14-settings-workspaces-light.png"))
+        }
+
         // Agents quiet, and with nothing in the last hour.
         do {
             let quiet = try makeWorld()

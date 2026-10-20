@@ -67,6 +67,9 @@ struct WorkspacesScreen: View {
     @State private var expanded: Set<String> = []
     @State private var flatList = false
     @State private var looseExpanded = true
+    /// The loose worktrees nobody works in, listed only when asked: a project can hold a
+    /// hundred an agent or a script left behind.
+    @State private var quietExpanded = false
 
     init(state: AppState) {
         _state = ObservedObject(wrappedValue: state)
@@ -271,15 +274,31 @@ struct WorkspacesScreen: View {
 
     // MARK: - Loose worktrees, grouped by leaf directory name
 
+    /// A loose worktree with nothing of anyone's in it: no session, nothing running, no cmux
+    /// workspace. What an agent or a script made and left; one line, not a row each.
+    static func isQuiet(_ loose: LooseWorktree) -> Bool {
+        loose.sessions.isEmpty && loose.liveProcesses.isEmpty && loose.cmuxWorkspaces.isEmpty
+    }
+
     @ViewBuilder
     private func looseSection(snapshot: ProjectSnapshot) -> some View {
-        let groups = looseGroups(snapshot: snapshot)
-        if !groups.isEmpty {
+        let all = looseFiltered(snapshot: snapshot)
+        if !all.isEmpty {
+            let worked = all.filter { !Self.isQuiet($0) }
+            let quiet = all.filter(Self.isQuiet)
+            // A search lists what it finds, quiet or not.
+            let showsQuiet = quietExpanded || !state.searchQuery.isEmpty
+            // The accounts and their limits, once for every row's "New session" menu: per row
+            // they were read again for each of a hundred rows on every publish.
+            let launch = state.accounts.map { (account: $0, title: state.menuTitle("", $0)) }
             VStack(alignment: .leading, spacing: 6) {
                 Button { looseExpanded.toggle() } label: {
                     HStack(spacing: 6) {
                         SectionCaption(title: "LOOSE WORKTREES")
-                        Text("\(snapshot.loose.count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                        // The ones listed; the quiet ones count on their own line.
+                        if !worked.isEmpty {
+                            Text("\(worked.count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                        }
                         Image(systemName: looseExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
                         Spacer()
@@ -288,8 +307,28 @@ struct WorkspacesScreen: View {
                 }
                 .buttonStyle(.plain)
                 if looseExpanded {
-                    ForEach(groups, id: \.leaf) { group in
-                        looseGroupView(group)
+                    ForEach(Self.looseGroups(worked), id: \.leaf) { group in
+                        looseGroupView(group, launch: launch)
+                    }
+                    if !quiet.isEmpty {
+                        Button { quietExpanded.toggle() } label: {
+                            HStack(spacing: 6) {
+                                Text(quiet.count == 1 ? "1 with no session" : "\(quiet.count) with no session")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: showsQuiet ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Worktrees no session ran in: what agents and scripts left behind")
+                        if showsQuiet {
+                            ForEach(Self.looseGroups(quiet), id: \.leaf) { group in
+                                looseGroupView(group, launch: launch)
+                            }
+                        }
                     }
                 }
             }
@@ -297,30 +336,36 @@ struct WorkspacesScreen: View {
         }
     }
 
-    private func looseGroups(snapshot: ProjectSnapshot) -> [(leaf: String, members: [LooseWorktree])] {
+    /// The loose worktrees the search finds (all of them without one).
+    private func looseFiltered(snapshot: ProjectSnapshot) -> [LooseWorktree] {
         let query = state.searchQuery
-        let filtered = snapshot.loose.filter { loose in
-            guard !query.isEmpty else { return true }
+        guard !query.isEmpty else { return snapshot.loose }
+        return snapshot.loose.filter { loose in
             let leaf = (loose.entry.path as NSString).lastPathComponent
             return leaf.localizedCaseInsensitiveContains(query)
                 || (loose.entry.branch?.localizedCaseInsensitiveContains(query) ?? false)
         }
-        let grouped = Dictionary(grouping: filtered) { ($0.entry.path as NSString).lastPathComponent }
+    }
+
+    /// Grouped by their folder's name, the groups in name order.
+    static func looseGroups(_ loose: [LooseWorktree]) -> [(leaf: String, members: [LooseWorktree])] {
+        let grouped = Dictionary(grouping: loose) { ($0.entry.path as NSString).lastPathComponent }
         return grouped.keys.sorted().map { (leaf: $0, members: grouped[$0]!) }
     }
 
-    private func looseGroupView(_ group: (leaf: String, members: [LooseWorktree])) -> some View {
+    private func looseGroupView(_ group: (leaf: String, members: [LooseWorktree]),
+                                launch: [(account: WorkspacesAccount, title: String)]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(group.leaf)
                 .font(.system(size: 12, weight: .semibold))
             ForEach(group.members, id: \.entry.path) { loose in
-                looseRow(loose)
+                looseRow(loose, launch: launch)
             }
         }
         .padding(.vertical, 2)
     }
 
-    private func looseRow(_ loose: LooseWorktree) -> some View {
+    private func looseRow(_ loose: LooseWorktree, launch: [(account: WorkspacesAccount, title: String)]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(loose.repo.dirName)
@@ -346,9 +391,9 @@ struct WorkspacesScreen: View {
                     // "New session", as on a workspace's row: the word "Claude" alone named the
                     // project's old Claude tab, and says nothing of what the button does.
                     Menu("New session") {
-                        ForEach(state.accounts) { account in
-                            Button(state.menuTitle("", account)) {
-                                launchLooseClaude(loose, account: account.config)
+                        ForEach(launch, id: \.account.id) { entry in
+                            Button(entry.title) {
+                                launchLooseClaude(loose, account: entry.account.config)
                             }
                         }
                     } primaryAction: {

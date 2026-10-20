@@ -167,4 +167,16 @@ final class ProjectsLiveTests: XCTestCase {
         XCTAssertGreaterThan(view.fittingSize.width, before + 60,
                              "“0 matches for “webhook” · closed sessions included” at once")
     }
+
+    /// Before the first scan the footer counts the projects, in words that agree with the count.
+    func testTheFooterCountsTheProjectsBeforeTheFirstScan() throws {
+        let notch = FakeNotch()
+        let (host, _) = try makeHost(notch)
+        let state = try XCTUnwrap(host.state)
+        state.mayWrite = { false }
+        state.config.projects = [ProjectConfig(name: "acme-shop", path: "/Users/demo/Code/acme-shop")]
+        XCTAssertEqual(ProjectsFooterStatus.line(host: host, state: state, now: now), "1 project")
+        state.config.projects.append(ProjectConfig(name: "field-notes", path: "/Users/demo/Code/field-notes"))
+        XCTAssertEqual(ProjectsFooterStatus.line(host: host, state: state, now: now), "2 projects")
+    }
 }

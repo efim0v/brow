@@ -303,7 +303,8 @@ struct ProjectsFooterStatus: View {
         } else if let scanned = state.lastRefreshAt {
             parts.append("scanned \(Self.age(scanned, now: now))")
         }
-        return parts.isEmpty ? "\(state.config.projects.count) projects" : parts.joined(separator: " · ")
+        let projects = state.config.projects.count
+        return parts.isEmpty ? "\(projects) project\(projects == 1 ? "" : "s")" : parts.joined(separator: " · ")
     }
 
     static func age(_ date: Date, now: Date) -> String {

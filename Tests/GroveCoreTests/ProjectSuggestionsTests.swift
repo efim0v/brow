@@ -66,6 +66,24 @@ final class ProjectSuggestionsTests: XCTestCase {
         XCTAssertNil(ProjectSuggestions.folder(for: path(""), home: path("")), "nor is the home folder")
     }
 
+    /// Where projects are kept is not one: a folder right in the home folder (`~/Code` here,
+    /// `~/Projects` on a Mac), or one holding more repositories than a project of several. A
+    /// session run there is offered nothing.
+    func testAFolderOfProjectsIsNotAProject() throws {
+        XCTAssertNil(ProjectSuggestions.folder(for: path("Code"), home: path("")), "right in the home folder")
+        XCTAssertTrue(suggest(["Code"]).isEmpty)
+        let shelf = home.appendingPathComponent("Code/shelf")
+        for index in 1...ProjectSuggestions.collectionThreshold {
+            _ = try Fixture.makeRepo(in: shelf, name: "repo-\(index)")
+        }
+        XCTAssertEqual(ProjectSuggestions.folder(for: path("Code/shelf"), home: path("")), path("Code/shelf"),
+                       "as many repositories as a project may hold")
+        _ = try Fixture.makeRepo(in: shelf, name: "one-more")
+        XCTAssertNil(ProjectSuggestions.folder(for: path("Code/shelf"), home: path("")), "one more is a collection")
+        XCTAssertEqual(ProjectSuggestions.folder(for: path("Code/shelf/one-more"), home: path("")),
+                       path("Code/shelf/one-more"), "its repositories still are")
+    }
+
     func testOneSuggestionPerFolderTheBusiestFirst() {
         let found = suggest(["Code/harbor/Sources", "Code/harbor-link", "Workspaces/harbor/feature-x/harbor",
                              "Code/fleet", "Code/notes", "", ".config/tool", "Code/meta/vendor/lib"])

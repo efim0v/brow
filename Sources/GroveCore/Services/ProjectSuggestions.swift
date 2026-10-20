@@ -66,8 +66,8 @@ public enum ProjectSuggestions {
 
     /// The folder a session at `cwd` works on: the nearest repository above it (a linked
     /// worktree's own repository; a submodule's enclosing one), never climbing to the home
-    /// folder or above; else `cwd` itself when it holds repositories. nil for a folder
-    /// that is neither.
+    /// folder or above; else `cwd` itself when it holds repositories and is not where many
+    /// projects are kept (`isCollection`). nil for a folder that is neither.
     public static func folder(for cwd: String, home: String) -> String? {
         let start = canonical(cwd)
         var dir = start
@@ -91,7 +91,28 @@ public enum ProjectSuggestions {
             dir = parent
         }
         if let submodule { return submodule }
-        return holdsRepositories(start) ? start : nil
+        return holdsRepositories(start) && !isCollection(start, home: home) ? start : nil
+    }
+
+    /// More repositories than a project of several holds: past this a folder is where
+    /// projects are kept, not one.
+    public static let collectionThreshold = 12
+
+    /// A folder that keeps projects rather than being one: right in the home folder
+    /// (`~/Projects`, `~/Developer`, `~/Code`), or holding more than `collectionThreshold`
+    /// repositories among its own folders. Claude Code run there works across them.
+    public static func isCollection(_ dir: String, home: String) -> Bool {
+        if (dir as NSString).deletingLastPathComponent == home { return true }
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return false }
+        var count = 0
+        for name in names where !name.hasPrefix(".") {
+            var info = stat()
+            if lstat(dir + "/" + name + "/.git", &info) == 0 {
+                count += 1
+                if count > collectionThreshold { return true }
+            }
+        }
+        return false
     }
 
     /// Where a `.git` file points (`gitdir: …`, relative to the folder it is in).

@@ -30,6 +30,25 @@ final class TranscriptCwdsTests: XCTestCase {
         XCTAssertEqual(TranscriptCwds.cwd(ofTranscriptAt: path), "/Users/demo/Code/shop")
     }
 
+    /// What started the session comes with its folder, from the same record: `claude -p` and
+    /// the Agent SDK are programs, a session typed in (or one too old to say) is not.
+    func testWhatStartedTheSessionIsReadWithItsFolder() throws {
+        func record(_ cwd: String, _ entrypoint: String?) -> String {
+            let field = entrypoint.map { #","entrypoint":"\#($0)""# } ?? ""
+            return #"{"type":"user","sessionId":"s","cwd":"\#(cwd)"\#(field),"message":{"role":"user","content":"hi"}}"#
+        }
+        let cases: [(String, String?, Bool)] = [("typed", "cli", false), ("print", "sdk-cli", true),
+                                                ("program", "sdk-ts", true), ("old", nil, false)]
+        for (name, entrypoint, automated) in cases {
+            let path = root.appendingPathComponent(name + ".jsonl").path
+            try transcript([record("/Users/demo/Code/" + name, entrypoint)], at: path)
+            let head = try XCTUnwrap(TranscriptCwds.head(ofTranscriptAt: path), name)
+            XCTAssertEqual(head.cwd, "/Users/demo/Code/" + name)
+            XCTAssertEqual(head.entrypoint, entrypoint, name)
+            XCTAssertEqual(TranscriptCwds.isAutomated(entrypoint: head.entrypoint), automated, name)
+        }
+    }
+
     /// A long first record — a snapshot of many files — is read past, a chunk at a time.
     func testALongRecordBeforeTheFirstTurnIsReadPast() throws {
         let path = root.appendingPathComponent("long.jsonl").path

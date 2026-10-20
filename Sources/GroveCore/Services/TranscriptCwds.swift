@@ -24,13 +24,26 @@ public enum TranscriptCwds {
     /// first `cwd` never changes, so the answer is kept for as long as the process runs;
     /// a nil is asked again once the file has changed.
     public static func cwd(ofTranscriptAt path: String) -> String? {
+        head(ofTranscriptAt: path)?.cwd
+    }
+
+    /// The `cwd` of one transcript and what started the session, from the same first record:
+    /// `entrypoint` is `cli` for a session someone typed in, `sdk-cli` for `claude -p`,
+    /// `sdk-ts` or `sdk-py` for a program on the Agent SDK. Kept as `cwd(ofTranscriptAt:)` is.
+    public static func head(ofTranscriptAt path: String) -> (cwd: String, entrypoint: String?)? {
         // A found one never changes: no need even to look at the file.
         if let known = cache.found(path) { return known }
         let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
         if cache.foundNone(path, modified: modified) { return nil }
-        let cwd = readCwd(path)
-        cache.store(path, cwd: cwd, modified: modified)
-        return cwd
+        let head = readHead(path)
+        cache.store(path, head: head, modified: modified)
+        return head
+    }
+
+    /// Whether the session in this transcript was started by a program, not typed in:
+    /// `claude -p` or the Agent SDK.
+    public static func isAutomated(entrypoint: String?) -> Bool {
+        entrypoint?.hasPrefix("sdk") ?? false
     }
 
     /// Every `cwd` the transcripts under `<configDir>/projects/*/` record — a shared
@@ -53,7 +66,9 @@ public enum TranscriptCwds {
 
     /// Reads the file a chunk at a time, looking at each complete line, until a record
     /// with a `cwd` turns up or `maxBytes` have been read.
-    static func readCwd(_ path: String) -> String? {
+    static func readCwd(_ path: String) -> String? { readHead(path)?.cwd }
+
+    static func readHead(_ path: String) -> (cwd: String, entrypoint: String?)? {
         guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? handle.close() }
         var buffer = Data()
@@ -64,44 +79,46 @@ public enum TranscriptCwds {
             buffer.append(data)
             var lineStart = buffer.startIndex
             while let newline = buffer[lineStart...].firstIndex(of: UInt8(ascii: "\n")) {
-                if let cwd = cwd(inRecord: Data(buffer[lineStart..<newline])) { return cwd }
+                if let head = head(inRecord: Data(buffer[lineStart..<newline])) { return head }
                 lineStart = buffer.index(after: newline)
             }
             buffer = Data(buffer[lineStart...])
         }
         // The last line of a file that ends without a newline, if it fit.
-        return read < maxBytes ? cwd(inRecord: buffer) : nil
+        return read < maxBytes ? head(inRecord: buffer) : nil
     }
 
-    static func cwd(inRecord line: Data) -> String? {
+    static func cwd(inRecord line: Data) -> String? { head(inRecord: line)?.cwd }
+
+    static func head(inRecord line: Data) -> (cwd: String, entrypoint: String?)? {
         guard line.range(of: Data(#""cwd""#.utf8)) != nil,
               let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
               let cwd = object["cwd"] as? String, cwd.hasPrefix("/")
         else { return nil }
-        return cwd
+        return (cwd, object["entrypoint"] as? String)
     }
 
     private static let cache = Cache()
 
     private final class Cache: @unchecked Sendable {
         private let lock = NSLock()
-        private var entries: [String: (cwd: String?, modified: Date?)] = [:]
+        private var entries: [String: (head: (cwd: String, entrypoint: String?)?, modified: Date?)] = [:]
 
-        /// The `cwd` found in this file before; it stands for good.
-        func found(_ path: String) -> String? {
-            lock.withLock { entries[path]?.cwd }
+        /// The head found in this file before; it stands for good.
+        func found(_ path: String) -> (cwd: String, entrypoint: String?)? {
+            lock.withLock { entries[path]?.head }
         }
 
         /// Whether this file had none the last time it was read, and has not changed since.
         func foundNone(_ path: String, modified: Date?) -> Bool {
             lock.withLock {
                 guard let entry = entries[path] else { return false }
-                return entry.cwd == nil && entry.modified == modified
+                return entry.head == nil && entry.modified == modified
             }
         }
 
-        func store(_ path: String, cwd: String?, modified: Date?) {
-            lock.withLock { entries[path] = (cwd, modified) }
+        func store(_ path: String, head: (cwd: String, entrypoint: String?)?, modified: Date?) {
+            lock.withLock { entries[path] = (head, modified) }
         }
     }
 }

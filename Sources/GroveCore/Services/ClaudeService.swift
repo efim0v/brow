@@ -249,8 +249,12 @@ public final class ClaudeService: @unchecked Sendable {
     /// (what `--resume` takes), its folder its first record's `cwd` (read from its head, once),
     /// its name, branch and model those of its end (`preview`). nil for a transcript with no
     /// `cwd` yet. Never the whole file.
+    /// A session a program started (`claude -p`, the Agent SDK: `TranscriptCwds.isAutomated`)
+    /// is no one's to resume or read through: nil, as for a transcript with no `cwd`.
     func session(at path: String, stamp: TranscriptStamp, account: String) -> ClaudeSession? {
-        guard path.hasSuffix(".jsonl"), let cwd = TranscriptCwds.cwd(ofTranscriptAt: path) else { return nil }
+        guard path.hasSuffix(".jsonl"), let head = TranscriptCwds.head(ofTranscriptAt: path),
+              !TranscriptCwds.isAutomated(entrypoint: head.entrypoint) else { return nil }
+        let cwd = head.cwd
         let id = String((path as NSString).lastPathComponent.dropLast(".jsonl".count))
         let preview = preview(path: path, stamp: stamp)
         return ClaudeSession(id: id, cwd: cwd, title: preview?.title, lastActivity: stamp.mtime,
@@ -330,7 +334,9 @@ public final class ClaudeService: @unchecked Sendable {
         let budget = limit * 4 + 8   // bounded: only the newest candidates get their end read
         for (index, cand) in candidates.enumerated() {
             // The head alone (cached for good) says whether a candidate counts.
-            guard let cwd = TranscriptCwds.cwd(ofTranscriptAt: cand.path), underRoot(cwd) else { continue }
+            guard let head = TranscriptCwds.head(ofTranscriptAt: cand.path), underRoot(head.cwd),
+                  !TranscriptCwds.isAutomated(entrypoint: head.entrypoint) else { continue }
+            let cwd = head.cwd
             let id = (cand.path as NSString).lastPathComponent
             guard counted.insert(cwd + "\u{0}" + id).inserted else { continue }
             total += 1

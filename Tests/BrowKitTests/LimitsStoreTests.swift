@@ -712,7 +712,7 @@ final class LimitsStoreTests: XCTestCase {
         XCTAssertEqual(store.rows[0].tokenStatus, "fresh · 20 min", "a session in use does not change a healthy token's line")
     }
 
-    /// What the owner lived with: a token three hours dead, a session open on it for days.
+    /// What a Mac lived with: a token three hours dead, a session open on it for days.
     /// The keeper runs, and the account comes back without a new sign-in.
     func testATokenThatExpiredWithASessionOpenIsRefreshed() async throws {
         let a = try makeAccount(".claude-accounts/a", org: "org-a", email: "a@x")

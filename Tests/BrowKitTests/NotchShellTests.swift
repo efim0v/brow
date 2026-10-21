@@ -214,7 +214,7 @@ final class NotchShellTests: XCTestCase {
         XCTAssertTrue(panel.model.expanded, "once it has, hover works again")
     }
 
-    /// The status item, Show Projects and a reopen open the panel pinned on their section.
+    /// Show Projects and a reopen open the panel pinned on their section.
     func testOpenPinnedOpensOnTheSectionAndPins() throws {
         let (panel, _) = controller(try store(), sections: [.projects])
         panel.openPinned(on: .projects)
@@ -226,7 +226,7 @@ final class NotchShellTests: XCTestCase {
     }
 
     /// With "Show Brow in the notch" off there is no strip and no hover, and the panel still
-    /// opens, pinned, from the menu bar, the Brow menu or a reopen.
+    /// opens, pinned, from the Brow menu or a reopen.
     func testWithTheNotchOffThePanelStillOpensPinned() async throws {
         let (panel, _) = controller(try store(), sections: [.projects], shown: false)
         XCTAssertFalse(panel.isShown)
@@ -382,17 +382,14 @@ final class NotchShellTests: XCTestCase {
     }
 
     /// A click in another of Brow's windows closes a pinned panel — but not one in a menu the
-    /// panel opened, nor on Brow's menu-bar item, whose own click opens or closes the panel.
+    /// panel opened.
     func testWhichOfBrowsOtherWindowsAClickClosesThePanelFrom() {
-        final class NSStatusBarWindowStandIn: NSWindow {}
         let settings = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
         let menu = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: true)
         menu.level = .popUpMenu
-        let item = NSStatusBarWindowStandIn(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: true)
-        XCTAssertFalse(NotchPanelController.isMenuWindow(settings) || NotchPanelController.isStatusItemWindow(settings))
+        XCTAssertFalse(NotchPanelController.isMenuWindow(settings))
         XCTAssertTrue(NotchPanelController.isMenuWindow(menu))
-        XCTAssertTrue(NotchPanelController.isStatusItemWindow(item))
-        XCTAssertFalse(NotchPanelController.isStatusItemWindow(nil))
+        XCTAssertFalse(NotchPanelController.isMenuWindow(nil))
     }
 
     // MARK: - The footer

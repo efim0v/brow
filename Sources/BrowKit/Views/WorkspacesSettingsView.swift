@@ -75,7 +75,7 @@ struct WorkspacesSettingsTab: View {
     @ViewBuilder private var status: some View {
         switch host.activation {
         case .on:
-            Label("On — it is the notch panel's Projects section, and Brow's menu-bar item opens it.",
+            Label("On — it is the notch panel's Projects section.",
                   systemImage: "checkmark.circle.fill")
                 .font(.caption).foregroundStyle(.secondary)
         case .paused where host.pause == .anotherBrow:

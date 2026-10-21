@@ -29,8 +29,8 @@ final class BrowMainMenuTests: XCTestCase {
         XCTAssertNil(quit.target, "nil target so the action reaches NSApp through the responder chain")
     }
 
-    /// The way to the notch panel's Projects from Settings' menu, whatever the menu bar
-    /// and the notch show. Nothing is called Workspaces' window any more: there is none.
+    /// The way to the notch panel's Projects from Settings' menu, whatever the notch
+    /// shows. Nothing is called Workspaces' window any more: there is none.
     func testMainMenuCarriesShowProjects() throws {
         let item = try XCTUnwrap(appMenu().items.first { $0.title == "Show Projects" })
         XCTAssertTrue(item.target is BrowAppController)

@@ -267,7 +267,6 @@ final class OneWindowRenderTests: XCTestCase {
         let appDir = try Fixture.tempDir("one-window-render").path
         let store = try MadeUpLimits.store(count: accounts, sameDay: sameDay, now: now, appDir: appDir) { settings in
             settings.workspaces.enabled = workspaces
-            settings.workspaces.showInMenuBar = false
         }
         let state = SnapshotMode.fixtureState()
         state.mayWrite = { false }

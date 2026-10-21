@@ -475,7 +475,6 @@ final class OneWindowSessionsRenderTests: XCTestCase {
                     let appDir = try Fixture.tempDir("one-window-heights").path
                     let store = try MadeUpLimits.store(count: count, sameDay: sameDay, now: now, appDir: appDir) { settings in
                         settings.workspaces.enabled = true
-                        settings.workspaces.showInMenuBar = false
                     }
                     let state = SnapshotMode.fixtureState()
                     state.mayWrite = { false }

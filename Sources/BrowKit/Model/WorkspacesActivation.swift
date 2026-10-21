@@ -3,15 +3,16 @@
 
 import Foundation
 
-/// The Workspaces part of Brow's own `config.json`: whether it runs and whether its
-/// menu-bar item shows (and 0.4's panel material, kept as it was written). Grove's own
+/// The Workspaces part of Brow's own `config.json`: whether it runs (and the menu-bar item
+/// and panel material of older builds, kept as they were written). Grove's own
 /// `config.json` is not touched by any of these.
 public struct WorkspacesSettings: Codable, Sendable, Equatable {
     /// The user's choice; nil until they make one, and Workspaces then follows whether
     /// a Grove config exists (`WorkspacesActivation`).
     public var enabled: Bool?
-    /// Settings › General › Show Workspaces in the menu bar: the item that opens the notch
-    /// panel on Projects.
+    /// Brow 0.4's Settings › General › Show Workspaces in the menu bar. Brow has no menu-bar
+    /// item since 0.5, so nothing reads it; kept so the settings an older Brow wrote read
+    /// back, and are written back, as they were.
     public var showInMenuBar: Bool = true
     /// The material of the Workspaces window Brow 0.4 had: `liquidGlass` or `visualEffect`.
     /// Nothing reads it since Workspaces moved into the notch panel; kept so the settings an

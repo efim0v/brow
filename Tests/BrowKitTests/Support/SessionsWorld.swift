@@ -43,7 +43,6 @@ struct SessionsWorld {
         let appDir = try Fixture.tempDir("one-window-sessions-world").path
         let store = try MadeUpLimits.store(count: options.accounts, now: renderNow, appDir: appDir) { settings in
             settings.workspaces.enabled = true
-            settings.workspaces.showInMenuBar = false
             if options.longNames {
                 settings.accounts["org-demo-work"]?.name = "Client — Northwind Enterprise"
             }

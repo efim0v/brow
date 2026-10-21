@@ -23,7 +23,6 @@ final class AgentsSectionTests: XCTestCase {
     private func makeHost(_ notch: FakeNotch) throws -> (WorkspacesHost, LimitsStore) {
         let store = try MadeUpLimits.store(count: 3, now: now, appDir: appDir) { settings in
             settings.workspaces.enabled = true
-            settings.workspaces.showInMenuBar = false
         }
         let host = WorkspacesHost(store: store, folders: folders,
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),

@@ -5,7 +5,7 @@
     swift run BrowApp --snapshot /tmp/brow-snap     # prints "snapshot: 9 files", exits
 
 Workspaces' screens as a window of their own draws them, without starting the app: no
-notch, no menu-bar item, no engine. Nine scenes, each at its route's adaptive size @2x,
+notch, no engine. Nine scenes, each at its route's adaptive size @2x,
 defined in `Sources/GroveAppKit/Snapshot/SnapshotMode.swift` (`SnapshotScene`):
 projects, root-workspaces, workspaces-expanded, create-sheet, graph, stats,
 settings (a project's settings), stats-settings, error-banner

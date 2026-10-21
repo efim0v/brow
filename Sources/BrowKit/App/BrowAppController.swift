@@ -302,8 +302,8 @@ final class BrowAppController: NSObject, NSApplicationDelegate, NSWindowDelegate
     @objc private func showProjectsMenuItem(_ sender: Any?) { workspaces?.showPanel() }
 
     /// What opening Brow again (Finder, Spotlight, `open -a Brow`) shows: the notch panel
-    /// pinned on Projects while Workspaces is wanted — the way in when macOS hides the
-    /// menu-bar item behind the notch, or the notch is off — and Settings otherwise.
+    /// pinned on Projects while Workspaces is wanted — the way in while the notch is off —
+    /// and Settings otherwise.
     enum ReopenTarget: Equatable { case projects, settings }
 
     static func reopenTarget(for activation: WorkspacesActivation) -> ReopenTarget {

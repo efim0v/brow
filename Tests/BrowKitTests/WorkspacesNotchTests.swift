@@ -8,8 +8,8 @@ import GroveCore
 
 /// Workspaces in the notch panel: the Projects section is there exactly while Workspaces is
 /// wanted, every way in opens the panel pinned on it, a hand-off closes it, and the pickers
-/// list Brow's accounts. The notch is a stand-in that records what it is asked; no window,
-/// no menu-bar item and no folder picker ever appears.
+/// list Brow's accounts. The notch is a stand-in that records what it is asked; no window
+/// and no folder picker ever appears.
 @MainActor
 final class WorkspacesNotchTests: XCTestCase {
     private var appDir: String!
@@ -21,11 +21,10 @@ final class WorkspacesNotchTests: XCTestCase {
         folders = .beside(configFile: try Fixture.tempDir("notch-host-grove").appendingPathComponent("config.json"))
     }
 
-    /// The made-up accounts as the notch shows them, Workspaces' menu-bar item off.
+    /// The made-up accounts as the notch shows them.
     private func makeStore(count: Int = 3, hidden: [String] = [], enabled: Bool? = nil) throws -> LimitsStore {
         try MadeUpLimits.store(count: count, now: now, appDir: appDir) { settings in
             settings.workspaces.enabled = enabled
-            settings.workspaces.showInMenuBar = false
             for account in MadeUpLimits.all where hidden.contains(account.name) {
                 settings.accounts[account.organization]?.hidden = true
             }
@@ -82,17 +81,6 @@ final class WorkspacesNotchTests: XCTestCase {
         host.setEnabled(true)
         host.showPanel()
         XCTAssertEqual(notch.opened, [.projects])
-    }
-
-    /// The menu-bar item opens Projects, and closes the panel when it already shows them.
-    func testTheStatusItemTogglesProjects() throws {
-        let notch = FakeNotch()
-        let host = makeHost(try makeStore(), notch: notch)
-        host.start()
-        host.statusItemClicked()
-        XCTAssertEqual(notch.opened, [.projects])
-        host.statusItemClicked()
-        XCTAssertEqual(notch.dismissals, [.escape])
     }
 
     /// Go, Resume, Start session and Show in Finder hand the user to something else: the panel

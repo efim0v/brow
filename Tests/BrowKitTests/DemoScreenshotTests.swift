@@ -38,15 +38,6 @@ final class DemoScreenshotTests: XCTestCase {
         try await renderAll(into: URL(fileURLWithPath: dir, isDirectory: true))
     }
 
-    /// The weekday on the menu bar's clock is the date's own: 17 October 2026 was a
-    /// Saturday, which an earlier render printed as a Friday.
-    func testTheMenuBarClockNamesTheRightWeekday() throws {
-        var components = DateComponents(year: 2026, month: 10, day: 17, hour: 9, minute: 41)
-        components.calendar = Calendar(identifier: .gregorian)
-        let date = try XCTUnwrap(components.date)
-        XCTAssertEqual(Self.menuBarClock(date), "Sat 17 Oct  09:41")
-    }
-
     /// The plans in Settings are the ones Workspaces' screenshots print.
     func testTheDemoPlansAreThePanelsOwn() {
         for account in DemoAccounts.all {
@@ -70,19 +61,10 @@ final class DemoScreenshotTests: XCTestCase {
 
     // MARK: - Fixture
 
-    /// The demo's clock: today at 09:41, in the time zone the render runs in. The menu
-    /// bar's clock and the panel's calendar are both drawn from it, so they agree on the
-    /// date and its weekday.
+    /// The demo's clock: today at 09:41, in the time zone the render runs in. The panel's
+    /// calendar is drawn from it.
     private static func demoNow() -> Date {
         Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date()
-    }
-
-    /// "Sat 17 Oct  09:41", the menu bar's date and time.
-    static func menuBarClock(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "EEE d MMM  HH:mm"
-        return formatter.string(from: date)
     }
 
     private final class DemoCredentials: CredentialsReading, @unchecked Sendable {
@@ -261,11 +243,6 @@ final class DemoScreenshotTests: XCTestCase {
         try renderOnDesktop(withCalendar.view(), canvas: CGSize(width: 640, height: 0),
                             to: out.appendingPathComponent("brow-panel-reset-calendar.png"))
 
-        // (4) The Workspaces item in the menu bar: Brow's mark, as a template image tinted
-        // by the bar.
-        try renderOnDesktop(menuBarItem(now: now), canvas: CGSize(width: 320, height: 60),
-                            to: out.appendingPathComponent("brow-menu-bar-item.png"))
-
         // (5) Settings: Accounts, where each card carries its Workspaces section, and
         // Workspaces. General and About only for review (see the type's comment).
         let flow = AddAccountFlow(store: store, home: DemoAccounts.home)
@@ -306,24 +283,6 @@ final class DemoScreenshotTests: XCTestCase {
         // (6) What Projects says while Grove.app keeps Workspaces paused.
         try renderWindowContent(WorkspacesNoticeView(notice: workspaces.groveRunningNotice).frame(width: 432),
                                 to: out.appendingPathComponent("workspaces-paused.png"))
-    }
-
-    /// A strip of menu bar with Brow's item among two stand-ins, the way the bar tints a
-    /// template image: dark on a light bar, in the ink drawn on cream, and the clock at the
-    /// demo's time.
-    @MainActor
-    private func menuBarItem(now: Date) -> some View {
-        let mark = BrowMark.templateImage(width: 22)
-        let ink = Color(red: 0x2A / 255, green: 0x22 / 255, blue: 0x18 / 255)
-        return HStack(spacing: 14) {
-            Spacer()
-            Image(systemName: "wifi").foregroundStyle(ink)
-            Image(nsImage: mark).renderingMode(.template).foregroundStyle(ink)
-            Image(systemName: "battery.75percent").foregroundStyle(ink)
-            Text(Self.menuBarClock(now)).font(.system(size: 13, weight: .medium)).foregroundStyle(ink)
-        }
-        .padding(.horizontal, 14)
-        .frame(width: 320, height: 33)
     }
 
     /// The pet at rest, content, at a fixed instant of a scripted timeline: the same picture on every

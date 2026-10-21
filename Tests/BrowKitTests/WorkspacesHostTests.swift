@@ -7,8 +7,7 @@ import GroveCore
 @testable import BrowKit
 
 /// Brow hosting Workspaces: nothing of the engine exists until it is wanted, and it pauses
-/// while Grove.app runs. No menu-bar item is ever put up here (the settings keep it off),
-/// so a test run never touches the bar.
+/// while Grove.app runs.
 @MainActor
 final class WorkspacesHostTests: XCTestCase {
     private var home: URL!
@@ -24,7 +23,6 @@ final class WorkspacesHostTests: XCTestCase {
     private func makeStore(enabled: Bool? = nil) throws -> LimitsStore {
         var settings = BrowSettings()
         settings.workspaces.enabled = enabled
-        settings.workspaces.showInMenuBar = false
         try BrowSettingsStore(directory: appDir).save(settings)
         let creds = SilentCreds()
         return LimitsStore(deps: .init(

@@ -81,7 +81,7 @@ public struct BrowSettings: Codable, Sendable, Equatable {
     public var notifyThresholds: [Int] = LimitWarnings.defaultLevels
     /// A second notice when a window Brow warned about resets.
     public var notifyResets: Bool = false
-    /// Whether Workspaces runs, its menu-bar item, its panel's material. Older builds
+    /// Whether Workspaces runs (and older builds' menu-bar item and panel material). Older builds
     /// ignore the key and drop it on their next save, and nothing else changes.
     public var workspaces: WorkspacesSettings = WorkspacesSettings()
 

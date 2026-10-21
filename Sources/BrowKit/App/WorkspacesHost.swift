@@ -8,8 +8,8 @@ import GroveCore
 
 /// Brow's side of Workspaces: whether the engine runs (`WorkspacesActivation`), the
 /// Grove-running guard, the lock that keeps the engine to one copy of Brow
-/// (`WorkspacesEngineLock`), the Projects section of the notch panel and the menu-bar
-/// item that opens it. GroveAppKit never imports BrowKit; this is where the two meet.
+/// (`WorkspacesEngineLock`) and the Projects section of the notch panel. GroveAppKit never
+/// imports BrowKit; this is where the two meet.
 ///
 /// Nothing of the engine runs until Workspaces is wanted: no account adoption, no
 /// status-line reconcile, no timer, and the notch has no Projects section. While it is
@@ -68,7 +68,6 @@ public final class WorkspacesHost: ObservableObject {
     private lazy var agentsSection = AgentsSection(host: self)
     /// Keeps the Agents switch's dot on what the reader saw, and its accounts on the notch's.
     private var agentsWatch: Set<AnyCancellable> = []
-    private lazy var statusItem = WorkspacesStatusItem { [weak self] in self?.statusItemClicked() }
     /// Keeps the running-apps watch alive while started.
     private var runningAppsWatch: AnyObject?
     /// Grove.app instances `quitGrove()` asked to quit, watched until they have.
@@ -152,7 +151,6 @@ public final class WorkspacesHost: ObservableObject {
         liveWatch = nil
         previewsWatch = nil
         clearBadges()
-        statusItem.hide()
         notch?.sections.unregister(.projects)
         notch?.sections.unregister(.agents)
         stopAgents()
@@ -246,7 +244,6 @@ public final class WorkspacesHost: ObservableObject {
             }
         }
         syncSection()
-        if next.isWanted && settings.showInMenuBar { statusItem.show() } else { statusItem.hide() }
         reloadDormantAccounts()
     }
 
@@ -652,8 +649,7 @@ public final class WorkspacesHost: ObservableObject {
     /// Whether the engine's launch work and background cadence are running.
     var isEngineRunning: Bool { engine?.isEngineRunning == true }
 
-    /// The notch panel, pinned on Projects: from the main menu, the menu-bar item and
-    /// reopening Brow. While Workspaces is off there is no Projects section: Settings ›
+    /// The notch panel, pinned on Projects: from the main menu and reopening Brow. While Workspaces is off there is no Projects section: Settings ›
     /// Workspaces opens instead, where it is turned on.
     public func showPanel() {
         // What it waits for may have gone without a word: another copy of Brow turning
@@ -664,15 +660,6 @@ public final class WorkspacesHost: ObservableObject {
             return
         }
         notch?.openPinned(on: .projects)
-    }
-
-    /// The menu-bar item: opens Projects, or closes the panel when it already shows them.
-    func statusItemClicked() {
-        if notch?.isShowing(.projects) == true {
-            notch?.dismiss(.escape)
-        } else {
-            showPanel()
-        }
     }
 
     /// "Add a folder…" and the + beside the search: the notch makes way for the system's

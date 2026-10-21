@@ -148,11 +148,6 @@ public struct SettingsView: View {
     private var general: some View {
         Form {
             LaunchAtLoginRow()
-            Section {
-                Toggle("Show Workspaces in the menu bar", isOn: $store.settings.workspaces.showInMenuBar)
-                Text("While Workspaces is on (Settings › Workspaces): it opens the notch panel on Projects. Off, Projects is still in the notch panel, and opening Brow again opens it.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             NotificationSettings(settings: $store.settings, notifier: notifier)
             Section {
                 Toggle("Show the reset calendar in the panel", isOn: $store.settings.showCalendar)
@@ -161,7 +156,7 @@ public struct SettingsView: View {
             }
             Section {
                 Toggle("Show Brow in the notch", isOn: $store.settings.showNotch)
-                Text("Off: Brow draws nothing at the top of the screen and no panel opens on hover. Limit warnings still arrive, and the panel still opens on Projects from the menu-bar item, the Brow menu and opening Brow again from Finder or Spotlight — or this window, while Workspaces is off.")
+                Text("Off: Brow draws nothing at the top of the screen and no panel opens on hover. Limit warnings still arrive, and the panel still opens on Projects from the Brow menu and opening Brow again from Finder or Spotlight — or this window, while Workspaces is off.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Toggle("Show readouts next to the notch", isOn: $store.settings.showEars)

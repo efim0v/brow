@@ -27,7 +27,7 @@
 <meta property="og:image:height" content="640">
 <meta property="og:image:alt" content="Brow: “Claude Code usage limits in the MacBook notch”, next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets.">
 <meta property="article:published_time" content="2026-10-13">
-<meta property="article:modified_time" content="2026-10-18">
+<meta property="article:modified_time" content="2026-10-21">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="How to run Claude Code across multiple repositories – Brow">
 <meta name="twitter:description" content="Two ways to give one Claude Code session several repositories: --add-dir for file access, or a workspace with a git worktree of each repo on one branch.">
@@ -47,8 +47,8 @@
       "mainEntityOfPage": "https://efimov.page/brow/multiple-repositories/",
       "inLanguage": "en",
       "datePublished": "2026-10-13",
-      "dateModified": "2026-10-18",
-      "image": ["https://efimov.page/brow/media/workspaces-new.webp"],
+      "dateModified": "2026-10-21",
+      "image": ["https://efimov.page/brow/media/panel-new-workspace-050.webp"],
       "author": { "@type": "Person", "name": "Artem Efimov", "url": "https://github.com/efim0v" },
       "about": { "@id": "https://efimov.page/brow/#app" }
     },
@@ -255,10 +255,10 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
       <div class="prose">
         <header>
           <h1>Run Claude Code across multiple repositories</h1>
-          <p class="byline">By <a href="https://github.com/efim0v">Artem Efimov</a>&nbsp;· Published <time datetime="2026-10-13">13 October 2026</time>&nbsp;· Updated <time datetime="2026-10-18">18 October 2026</time></p>
+          <p class="byline">By <a href="https://github.com/efim0v">Artem Efimov</a>&nbsp;· Published <time datetime="2026-10-13">13 October 2026</time>&nbsp;· Updated <time datetime="2026-10-21">21 October 2026</time></p>
           <p class="lead">Many products are split across repositories: a client, a server, the server’s configuration, an admin panel, a landing page, a handful of microservices. Merging them into one repository isn’t always sensible, if only because of who should have access to what.</p>
           <p>Claude Code starts in one directory, and by default it has access to the files there. Give it the other repositories and run a few sessions in parallel, and they start tripping over branches: one session checks out a branch in the server repository, and another, working on a different feature, is suddenly looking at the wrong code.</p>
-          <p>There are two ways to give one session several repositories: add them as extra directories, or start the session in a directory that holds a git worktree of each repository, all on the same branch. <a href="/brow/#workspaces">Workspaces</a>, the part of <a href="/brow/">Brow</a> that lives in the macOS menu bar, builds the second for you, and plain git can too.</p>
+          <p>There are two ways to give one session several repositories: add them as extra directories, or start the session in a directory that holds a git worktree of each repository, all on the same branch. <a href="/brow/#workspaces">Workspaces</a>, the part of <a href="/brow/">Brow</a> in its notch panel, builds the second for you, and plain git can too.</p>
         </header>
 
         <section id="add-dir" aria-labelledby="add-dir-title">
@@ -306,15 +306,15 @@ claude</code></pre>
           </ul>
 
           <h3 id="in-brow">In Brow</h3>
-          <p>A project in Workspaces is the folder that holds your repositories. Add it once: in <strong>Settings → Workspaces</strong>, turn Workspaces on and press <strong>Add project…</strong>, or press the button with stacked squares in the notch panel and choose <strong>Add project…</strong>, then pick the folder. Open the project from Brow’s item in the menu bar, the notch with two dots, and on its <strong>Workspaces</strong> tab press <strong>+ Workspace</strong>:</p>
+          <p>A project in Workspaces is the folder that holds your repositories. Add it once: in <strong>Settings → Workspaces</strong>, turn Workspaces on, press <strong>Add project…</strong> and pick the folder; the <strong>+</strong> beside the search on the notch panel’s Projects side does the same. Hover the notch, pick <strong>Projects</strong> on the switch at the top of the panel, open the project, and on its <strong>Workspaces</strong> tab press <strong>+ Workspace</strong>:</p>
           <ol>
             <li>Type a name. The branch comes from the project’s template, <code>feat/{name}</code> by default, and you can change it.</li>
             <li>Every repository is ticked; untick the ones the feature doesn’t touch. Each starts from its own base branch, detected from <code>origin/HEAD</code> or set in the project’s settings, and the <strong>from</strong> menu next to it picks another. <strong>Fork from</strong> can start them from another workspace’s branches instead.</li>
             <li>Press <strong>Create</strong>. Brow runs <code>git worktree add</code> in each repository, then links or copies the project’s seed files, such as <code>CLAUDE.md</code>, and runs the post-create hooks you set.</li>
-            <li>Press <strong>New Claude</strong> on the workspace. The launch sheet picks the account, with each account’s 5-hour and weekly use beside its name, the model and the effort, and opens Claude Code in the workspace directory, in cmux or Terminal.app.</li>
+            <li>Press <strong>New session</strong> on the workspace, or pick an account from its menu. The form that opens has each account with its 5-hour and weekly use, where the session opens, cmux or Terminal.app, the model and the effort, and <strong>Start session</strong> opens Claude Code in the workspace directory.</li>
           </ol>
           <figure class="window-shot">
-            <img src="../media/workspaces-new.webp" width="1080" height="722" loading="lazy" decoding="async" alt="The New Workspace form: the name loyalty-points, the branch feat/loyalty-points from the template feat/{name}, Fork from set to base branches, and five repositories ticked, each with its own base branch">
+            <img src="../media/panel-new-workspace-050.webp" width="1040" height="1016" loading="lazy" decoding="async" alt="The New Workspace form in Brow’s notch panel: the name loyalty-points, the branch feat/loyalty-points from the template feat/{name}, Fork from set to base branches, and three repositories ticked, each with its own base branch">
             <figcaption>Each repository starts from its own base branch. Screenshots show made-up demo data.</figcaption>
           </figure>
 
@@ -360,7 +360,7 @@ claude</code></pre>
             <li>Seed files: <code>CLAUDE.md</code> or any other file in the project folder, linked or copied to the workspace root or into each repository.</li>
             <li>A post-create hook per repository: a shell command that runs in its new worktree.</li>
             <li>When a creation fails partway, the app offers to roll back what that run made: its worktrees and the branches it created.</li>
-            <li>Each workspace’s Claude Code sessions, across accounts, shown as running, waiting or closed, and every account picker with that account’s 5-hour and weekly use, as Brow’s notch reads it.</li>
+            <li>Each workspace’s Claude Code sessions, across accounts, by their state and their last exchange, and every account picker with that account’s 5-hour and weekly use, as Brow’s notch reads it.</li>
           </ul>
         </section>
 
@@ -393,7 +393,7 @@ claude</code></pre>
                 <tr><th scope="row">Files outside git</th><td><code>.worktreeinclude</code> copies gitignored files such as <code>.env</code></td><td>Files you choose, such as <code>CLAUDE.md</code>, linked or copied to the workspace root or into each repository</td></tr>
                 <tr><th scope="row">Setup</th><td>Ask Claude, or run your setup yourself; a <code>WorktreeCreate</code> hook can replace creation</td><td>A post-create hook per repository</td></tr>
                 <tr><th scope="row">Cleanup</th><td>On exit, removes the worktree of an unnamed session if it is clean, and asks otherwise</td><td>Workspaces stay until you remove them with <code>git worktree remove</code>. If creating one fails, the app offers to roll back what that run created.</td></tr>
-                <tr><th scope="row">Accounts</th><td>—</td><td><strong>Resume as…</strong>, <strong>Migrate to…</strong> and <strong>Share</strong> move a session to another account</td></tr>
+                <tr><th scope="row">Accounts</th><td>—</td><td><strong>Resume as</strong>, <strong>Copy to account</strong> and <strong>Share with all accounts</strong> move a session to another account</td></tr>
               </tbody>
             </table>
           </div>
@@ -441,7 +441,7 @@ rmdir "$ws"</code></pre>
             <li><a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md">Workspaces in detail</a>, including <a href="https://github.com/efim0v/brow/blob/main/docs/workspaces.md#the-command-line-tool">the command-line tool</a></li>
             <li><a href="/brow/">Brow: Claude Code usage limits in the MacBook notch, and Workspaces</a></li>
           </ul>
-          <p class="small">Claude Code behavior on this page was checked on 13 October 2026 against Anthropic’s documentation: the <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a>, <a href="https://code.claude.com/docs/en/permissions#working-directories">working directories</a>, <a href="https://code.claude.com/docs/en/memory#load-from-additional-directories">CLAUDE.md in additional directories</a>, <a href="https://code.claude.com/docs/en/settings-reference#permissions-additionaldirectories"><code>permissions.additionalDirectories</code></a> and <a href="https://code.claude.com/docs/en/worktrees">worktrees</a>. git behavior is from the <a href="https://git-scm.com/docs/git-worktree">git-worktree manual</a> and was tried with git 2.54. Brow’s behavior is that of version 0.4.0.</p>
+          <p class="small">Claude Code behavior on this page was checked on 13 October 2026 against Anthropic’s documentation: the <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a>, <a href="https://code.claude.com/docs/en/permissions#working-directories">working directories</a>, <a href="https://code.claude.com/docs/en/memory#load-from-additional-directories">CLAUDE.md in additional directories</a>, <a href="https://code.claude.com/docs/en/settings-reference#permissions-additionaldirectories"><code>permissions.additionalDirectories</code></a> and <a href="https://code.claude.com/docs/en/worktrees">worktrees</a>. git behavior is from the <a href="https://git-scm.com/docs/git-worktree">git-worktree manual</a> and was tried with git 2.54. Brow’s behavior is that of version 0.5.0.</p>
         </section>
       </div>
     </div>

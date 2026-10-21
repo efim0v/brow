@@ -27,9 +27,9 @@
 将指针悬停在刘海上，所有账号的 5 小时限额和每周限额就会从刘海中展开。复制某个账号的启动命令，Claude Code 就会以该账号的身份启动。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-hero-v2.webp">
-  <img src="docs/media/brow-hero-v2.png" width="840" alt="5 小时限额数字上涨时 Glim 咬了一口；把指针移到刘海上，所有账号的限额展开，Glim 跳进面板；复制有余量账号的启动命令，Claude Code 以该账号启动">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v3.webp">
+  <img src="docs/media/brow-hero-v3.png" width="840" alt="5 小时限额数字上涨时 Glim 咬了一口；把指针移到刘海上，所有账号的限额展开，Glim 跳进面板；复制有余量账号的启动命令，Claude Code 以该账号启动">
 </picture></p>
 
 ### Glim：一只吃限额的宠物
@@ -37,9 +37,9 @@
 一个小家伙住在 5 小时限额的数字旁边。数字每上涨一次，它就咬一口；它身上的光就是它的饥饿程度。5 小时限额用完时，它吃饱睡着；每周限额用完时，它躲进摄像头后面的窝里，等重置后再出来。在 Settings → General → **Show the pet** 中可以关闭。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-glim-v1.webp">
-  <img src="docs/media/brow-glim-v1.png" width="840" alt="刘海旁的 Glim：5 小时限额数字上涨时吃了两次，5 小时限额到 100 % 时睡着，重置后醒来，每周限额到 100 % 时躲到摄像头后面，每周重置后又出来">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-glim-v2.webp">
+  <img src="docs/media/brow-glim-v2.png" width="840" alt="刘海旁的 Glim：5 小时限额数字上涨时吃了两次，5 小时限额到 100 % 时睡着，重置后醒来，每周限额到 100 % 时躲到摄像头后面，每周重置后又出来">
 </picture></p>
 
 ### 每个限额何时重置
@@ -47,9 +47,9 @@
 日历标出每个账号的每周重置日和订阅续费日。指向某一天，就能看到那天会恢复什么。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-calendar-v2.webp">
-  <img src="docs/media/brow-calendar-v2.png" width="840" alt="重置日历：指向某一天，可以看到哪个账号的每周限额在那天重置，或哪个订阅在那天续费">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v3.webp">
+  <img src="docs/media/brow-calendar-v3.png" width="840" alt="重置日历：指向某一天，可以看到哪个账号的每周限额在那天重置，或哪个订阅在那天续费">
 </picture></p>
 
 ### 一键重新登录
@@ -57,9 +57,9 @@
 某个账号的登录过期后，点击它旁边的钥匙，就会为该账号运行 `claude auth login`，并打开属于它的浏览器配置文件，其中已经登录了这个账号。其他账号的登录状态不受影响。
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-signin-v2.webp">
-  <img src="docs/media/brow-signin-v2.png" width="840" alt="登录过期：点一下钥匙，就会打开该账号专属且已登录的浏览器配置文件，Claude Code 随即重新登录">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v3.webp">
+  <img src="docs/media/brow-signin-v3.png" width="840" alt="登录过期：点一下钥匙，就会打开该账号专属且已登录的浏览器配置文件，Claude Code 随即重新登录">
 </picture></p>
 
 ### 所有仓库同一个分支

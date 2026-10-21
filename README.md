@@ -25,9 +25,9 @@ The notch is for looking, Workspaces is for working. Brow works with a single ac
 Hover the notch: every account's 5-hour and weekly limits open out of it. Copy an account's launch command and Claude Code starts as that account.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-hero-v2.webp">
-  <img src="docs/media/brow-hero-v2.png" width="840" alt="Glim takes a bite as the 5-hour number goes up; hovering the notch opens the limits of every account and Glim hops into the panel; the launch command of the account with room is copied and Claude Code starts as that account">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v3.webp">
+  <img src="docs/media/brow-hero-v3.png" width="840" alt="Glim takes a bite as the 5-hour number goes up; hovering the notch opens the limits of every account and Glim hops into the panel; the launch command of the account with room is copied and Claude Code starts as that account">
 </picture></p>
 
 ### Glim, a pet that eats your limits
@@ -35,9 +35,9 @@ Hover the notch: every account's 5-hour and weekly limits open out of it. Copy a
 A small creature lives beside the 5-hour readout. Each time the number goes up it takes a bite, and its glow is its hunger meter. At the 5-hour limit it falls asleep full, at the weekly limit it hides in its den behind the camera, and it comes back out at the reset. Settings → General → **Show the pet** turns it off.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-glim-v1.webp">
-  <img src="docs/media/brow-glim-v1.png" width="840" alt="Glim beside the notch eats twice as the 5-hour number goes up, falls asleep when the 5-hour limit reaches 100 %, wakes at the reset, hides behind the camera when the weekly limit reaches 100 % and comes back out at the weekly reset">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-glim-v2.webp">
+  <img src="docs/media/brow-glim-v2.png" width="840" alt="Glim beside the notch eats twice as the 5-hour number goes up, falls asleep when the 5-hour limit reaches 100 %, wakes at the reset, hides behind the camera when the weekly limit reaches 100 % and comes back out at the weekly reset">
 </picture></p>
 
 ### When each limit resets
@@ -45,9 +45,9 @@ A small creature lives beside the 5-hour readout. Each time the number goes up i
 The calendar marks every account's weekly resets and subscription renewals. Point at a day to see what frees up.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-calendar-v2.webp">
-  <img src="docs/media/brow-calendar-v2.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v3.webp">
+  <img src="docs/media/brow-calendar-v3.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
 </picture></p>
 
 ### Sign in again in one click
@@ -55,9 +55,9 @@ The calendar marks every account's weekly resets and subscription renewals. Poin
 When an account's sign-in expires, the key next to it starts `claude auth login` for that account and opens the browser profile that belongs to it, already signed in to that account. Other accounts stay signed in.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-signin-v2.webp">
-  <img src="docs/media/brow-signin-v2.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v3.webp">
+  <img src="docs/media/brow-signin-v3.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
 </picture></p>
 
 ### One branch across every repository

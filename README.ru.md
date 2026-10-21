@@ -27,9 +27,9 @@
 Наведите курсор на чёлку — из неё раскроются 5-часовые и недельные лимиты всех аккаунтов. Скопируйте команду запуска аккаунта, и Claude Code стартует под этим аккаунтом.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-hero-v2.webp">
-  <img src="docs/media/brow-hero-v2.png" width="840" alt="Глим откусывает кусочек, когда растёт число 5-часового лимита; при наведении на чёлку раскрываются лимиты всех аккаунтов, и Глим запрыгивает в панель; команда запуска аккаунта, у которого есть запас, копируется, и Claude Code запускается под этим аккаунтом">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v3.webp">
+  <img src="docs/media/brow-hero-v3.png" width="840" alt="Глим откусывает кусочек, когда растёт число 5-часового лимита; при наведении на чёлку раскрываются лимиты всех аккаунтов, и Глим запрыгивает в панель; команда запуска аккаунта, у которого есть запас, копируется, и Claude Code запускается под этим аккаунтом">
 </picture></p>
 
 ### Глим, питомец, который ест ваши лимиты
@@ -37,9 +37,9 @@
 Рядом с 5-часовым лимитом живёт маленький зверёк. Каждый раз, когда число растёт, он откусывает кусочек, а его свечение — это шкала голода. Когда 5-часовой лимит исчерпан, он засыпает сытым, когда исчерпан недельный, прячется в нору за камерой и выходит после сброса. Выключается в Настройках → General → **Show the pet**.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-glim-v1.webp">
-  <img src="docs/media/brow-glim-v1.png" width="840" alt="Глим рядом с чёлкой: дважды ест, пока растёт число 5-часового лимита, засыпает, когда лимит доходит до 100 %, просыпается после сброса, прячется за камерой, когда недельный лимит доходит до 100 %, и выходит после недельного сброса">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-glim-v2.webp">
+  <img src="docs/media/brow-glim-v2.png" width="840" alt="Глим рядом с чёлкой: дважды ест, пока растёт число 5-часового лимита, засыпает, когда лимит доходит до 100 %, просыпается после сброса, прячется за камерой, когда недельный лимит доходит до 100 %, и выходит после недельного сброса">
 </picture></p>
 
 ### Когда сбросится каждый лимит
@@ -47,9 +47,9 @@
 В календаре отмечены недельные сбросы и продления подписок всех аккаунтов. Наведите курсор на день, чтобы увидеть, что в этот день освободится.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-calendar-v2.webp">
-  <img src="docs/media/brow-calendar-v2.png" width="840" alt="Календарь сбросов: при наведении на день видно, у какого аккаунта в этот день сбрасывается недельный лимит или продлевается подписка">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v3.webp">
+  <img src="docs/media/brow-calendar-v3.png" width="840" alt="Календарь сбросов: при наведении на день видно, у какого аккаунта в этот день сбрасывается недельный лимит или продлевается подписка">
 </picture></p>
 
 ### Повторный вход в один клик
@@ -57,9 +57,9 @@
 Если у аккаунта истекла авторизация, нажмите на ключ рядом с ним: Brow запустит для этого аккаунта `claude auth login` и откроет его собственный профиль браузера, где вход в аккаунт уже выполнен. Остальные аккаунты остаются авторизованными.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-signin-v2.webp">
-  <img src="docs/media/brow-signin-v2.png" width="840" alt="Авторизация истекла: один клик по ключу открывает собственный профиль браузера этого аккаунта, где вход уже выполнен, и Claude Code снова входит в аккаунт">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v3.webp">
+  <img src="docs/media/brow-signin-v3.png" width="840" alt="Авторизация истекла: один клик по ключу открывает собственный профиль браузера этого аккаунта, где вход уже выполнен, и Claude Code снова входит в аккаунт">
 </picture></p>
 
 ### Одна ветка во всех репозиториях

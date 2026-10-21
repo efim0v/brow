@@ -51,7 +51,7 @@ Scripts/build-brow.sh                         # release build -> dist/Brow.app a
 To run what you built:
 
 - **A build you run is Brow for real.** It reads and writes the same `~/Library/Application Support/Brow` and, with Workspaces on, `~/Library/Application Support/Grove` as an installed copy. Workspaces runs in one copy at a time (the second waits for the first, see [troubleshooting](docs/troubleshooting.md#workspaces-says-it-is-open-in-another-brow)), but the notch runs in both, so quit the installed one first (**Quit Brow** in the ⚙ menu of its notch panel, or ⌘Q with its Settings window in front).
-- `Scripts/dev-run.sh` builds and runs the debug binary under its own identifier, `dev.artemefimov.brow.dev`, so rebuilds cannot disturb the installed app's menu-bar slot or permissions.
+- `Scripts/dev-run.sh` builds and runs the debug binary under its own identifier, `dev.artemefimov.brow.dev`, so rebuilds cannot disturb what macOS keeps for the installed app, its permissions included.
 - Both build scripts sign ad hoc unless `BROW_SIGN_IDENTITY` names a code-signing identity of yours, such as `Apple Development: Name (TEAMID)`. With an ad hoc signature macOS forgets Brow's Keychain and Automation permissions on every rebuild.
 - `swift run BrowApp --snapshot /tmp/brow-snap` renders the Workspaces screens to PNG from made-up data and exits without starting the app; see [`docs/snapshot-testing.md`](docs/snapshot-testing.md). `swift run brow --help` and `swift run brow doctor` run the command-line tool.
 - To watch the logs while you work:

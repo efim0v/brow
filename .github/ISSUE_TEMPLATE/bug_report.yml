@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. With a notch and menu-bar app, the Mac, the display and the accounts matter as much as the steps, so the form asks for each.
+        Thanks for reporting a bug. With an app that lives in the notch, the Mac, the display and the accounts matter as much as the steps, so the form asks for each.
 
         - Questions and setup help: [Discussions → Q&A](https://github.com/efim0v/brow/discussions/categories/q-a).
         - Security problems: never here. See [SECURITY.md](https://github.com/efim0v/brow/blob/main/SECURITY.md).
@@ -20,7 +20,7 @@ body:
       options:
         - "Notch and limits: the readouts, the panel, limit warnings, copy my week"
         - "Accounts and sign-in: adding an account, Sign in again, browser profiles, Keychain access"
-        - "Workspaces and sessions: projects, workspaces, Resume as…, Migrate to…, Share, Graph, Stats"
+        - "Workspaces and sessions: Projects, Agents, workspaces, Resume as, Copy to account, Share with all accounts, Graph, Stats"
         - Transcript safety net
         - Settings
         - brow command-line tool

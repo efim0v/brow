@@ -75,7 +75,7 @@ plays the rig's reels; `PET_FINAL_ONLY` and `PET_SHOWREEL_ONLY` pick some:
   chrome must respect the same flag.
 - AppKit-backed controls (e.g. `Picker(.segmented)`) render as a yellow error
   placeholder. Use pure-SwiftUI equivalents in snapshot-visible chrome, or render
-  in an offscreen window as the Settings and launch-sheet demos do.
+  in an offscreen window as the Settings demos do.
 - `ScrollView`/`List` content is NOT rendered offscreen. Screens that must be
   snapshot-verifiable should render their content unscrolled (plain stacks) or
   swap the container when `\.isSnapshotRender` is true.

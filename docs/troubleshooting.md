@@ -1,14 +1,15 @@
 # Troubleshooting
 
-## The Workspaces item is not in the menu bar
+## Where Projects opens
 
-On a MacBook with a notch, macOS hides the menu-bar items that do not fit beside it,
-and Brow's may be one of them. Projects is still in the notch panel itself (the switch
-at its top), and **Show Projects** in Brow's menu (the menu bar shows it while Brow's
-Settings window is in front) and opening Brow again from Finder, Spotlight or
-`open -a Brow` open the panel on it, pinned — with Settings › General › **Show Brow in
-the notch** off too. Settings › General › **Show Workspaces in the menu bar** turns the
-item off altogether. While Workspaces is off there is no item at all.
+Brow has no item in the menu bar. Workspaces is the Projects and Agents sides of the notch
+panel: hover the notch and pick **Projects** on the switch at the top of the panel. The
+switch is there while Workspaces is on; with it off the panel is the limits alone, and
+Settings › Workspaces turns it on. **Show Projects** in Brow's menu (the menu bar shows it
+while Brow's Settings window is in front) and opening Brow again from Finder, Spotlight or
+`open -a Brow` open the panel on Projects, pinned — with Settings › General › **Show Brow
+in the notch** off too. While Workspaces is off, **Show Projects** opens Settings ›
+Workspaces and opening Brow again opens Settings.
 
 ## Workspaces says Grove is still running
 

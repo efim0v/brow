@@ -2,11 +2,7 @@
 
 Workspaces is the part of Brow for **running parallel Claude Code sessions on a product split across several repositories**. Until Brow 0.4 it was a separate app, [Grove](https://github.com/efim0v/grove); it is now part of Brow, with its history.
 
-It is the **Projects** and **Agents** sides of the notch panel: while Workspaces is on, a switch at the top of the panel goes between **Limits**, **Projects** and **Agents**, in the same black under the notch. Brow's item in the menu bar (the notch with two dots), **Show Projects** in Brow's menu and opening Brow again open the panel on Projects, pinned. The limits tell you which account has room; Projects is where the work happens and where it moves to another account.
-
-<p align="center">
-  <img alt="Brow's item in the menu bar: the notch with two dots" src="screenshots/brow-menu-bar-item.png" width="320" />
-</p>
+It is the **Projects** and **Agents** sides of the notch panel: while Workspaces is on, a switch at the top of the panel goes between **Limits**, **Projects** and **Agents**, in the same black under the notch. Hover the notch and pick **Projects** or **Agents** there. **Show Projects** in Brow's menu (the menu bar shows it while Brow's Settings window is in front) and opening Brow again from Finder or Spotlight open the panel on Projects, pinned; with Settings → General → **Show Brow in the notch** off, those two are the way in. Brow has no item in the menu bar. The limits tell you which account has room; Projects is where the work happens and where it moves to another account.
 
 - [Turning it on](#turning-it-on)
 - [The problem](#the-problem)
@@ -24,10 +20,10 @@ It is the **Projects** and **Agents** sides of the notch panel: while Workspaces
 Workspaces is off until you use it. While it is off nothing of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper, which records each session under `<account>/grove/usage/`, until you turn capture off for that account in Settings → Accounts. To offer that switch, Settings reads Grove's `config.json` when there is one; turning capture off puts your own command back in the account's `settings.json` and records the change in Grove's config. Workspaces touches no other Claude Code file while it is off.
 
 - **Coming from Grove?** Brow finds Grove's `~/Library/Application Support/Grove/config.json` and turns Workspaces on by itself, with your projects, accounts and settings. While `Grove.app` is still running, Workspaces waits and offers **Quit Grove**: two copies of the engine would write the same files. Once Grove has quit you can delete it; take it out of **System Settings → General → Login Items** if you had added it there, and turn on **Launch at login** in Brow's Settings → General instead. Brow's notch then reads every account, Workspaces' included, which Grove never did, and Claude Code's clean-up removes the old transcripts Grove kept putting back: [Coming from Grove](../README.md#coming-from-grove) says what that means and how to keep them.
-- **New to it?** Open **Settings → Workspaces** and turn it on. Projects then appears in the notch panel; **Add a folder…** there, or **+** beside its search, adds a project.
+- **New to it?** Open **Settings → Workspaces** and turn it on. Projects and Agents then appear on the notch panel's switch; **Add a folder…** there, or **+** beside its search, adds a project.
 
 <p align="center">
-  <img alt="While Grove.app runs, Workspaces waits and offers Quit Grove" src="screenshots/workspaces-paused.png" width="420" />
+  <img alt="Projects in the notch panel while Grove.app runs: Grove is still running, with Quit Grove" src="screenshots/brow-panel-paused-050.png" width="420" />
 </p>
 
 Turning it on changes nothing in your Claude Code accounts by itself. Two things that do are separate choices:
@@ -36,7 +32,7 @@ Turning it on changes nothing in your Claude Code accounts by itself. Two things
 - **The transcript safety net**, in Settings → Workspaces. It starts off for a new setup; a Grove setup keeps the setting it had.
 
 <p align="center">
-  <img alt="Settings › Workspaces: the projects, where workspaces are made, and the transcript safety net with each account's retention" src="screenshots/brow-settings-workspaces.png" width="560" />
+  <img alt="Settings → Workspaces: the projects, message previews, where workspaces are made, and the transcript safety net with each account's retention" src="screenshots/brow-settings-workspaces-050.png" width="560" />
 </p>
 
 ## The problem
@@ -61,15 +57,14 @@ Claude Code is launched in the umbrella directory. It gets what is in effect a p
 Creating one takes a name and a click: Brow runs `git worktree add` in each repository, applies your branch template, seeds shared files such as `CLAUDE.md`, and runs post-create hooks. Workspaces can be stacked — forked from another workspace rather than from the base branch — and Brow derives that tree from git itself.
 
 <p align="center">
-  <img alt="A project's workspaces, one of them expanded" src="screenshots/workspaces-project.png" width="420" />
-  <img alt="The new workspace form" src="screenshots/workspaces-new.png" width="420" />
+  <img alt="A project's workspaces as a tree, one open with a worktree of each repository on its branch and its sessions" src="screenshots/brow-panel-project-050.png" width="420" />
+  <img alt="New Workspace: the name, the branch from the template, where it forks from, and each repository with its base branch" src="screenshots/brow-panel-new-workspace-050.png" width="420" />
 </p>
 
 A project is the directory that holds your repositories. Its own settings — default account, model and effort, branch template, base branches, seed files, hooks, `--dangerously-skip-permissions` — are in the notch panel, under the gear next to the project. The settings that are not any one project's — the projects list, where workspaces are made, the safety net — are in Settings → Workspaces.
 
 <p align="center">
-  <img alt="Projects and their recent sessions" src="screenshots/workspaces-projects.png" width="360" />
-  <img alt="A project's own settings" src="screenshots/workspaces-project-settings.png" width="420" />
+  <img alt="A project's own settings: its path, workspaces folder, branch template, seed files, default account, model and effort, and base branches" src="screenshots/brow-panel-project-settings-050.png" width="420" />
 </p>
 
 ## What runs and who talks to whom
@@ -78,9 +73,16 @@ A project is the directory that holds your repositories. Its own settings — de
 
 Folders where Claude Code runs that are no project yet are suggested at the top, with **Add**, or ✕ for "not now", which is remembered. **Other folders** lists the sessions outside every project by the folder around them, each folder with **Add as project**. A session that needs you in a folder that is no project yet is counted on the switch like any other, so the list says where it is: on the suggested folder's row, else on the Other folders row. The search finds sessions by their prompts, replies, titles and folders, closed ones included.
 
+Each session shows under one project, the one whose folder holds it most closely. A folder that keeps many repositories rather than being one project — right in your home folder, such as `~/Projects`, or with more than twelve repositories in it — is not suggested. Sessions a program started, with `claude -p` or the Agent SDK, are not listed. On a project's screen, loose worktrees that no session, process or cmux workspace uses count on one line, "N with no session", which lists them when you open it or a search finds them.
+
 How Brow knows: Claude Code keeps a small record for each running session in `<account>/sessions/<pid>.json`, its state included, and Brow asks the kernel whether that process still runs. For a session without a record it looks at the running `claude` processes — their command line, their working folder, and from their environment only `CLAUDE_CONFIG_DIR` — and gives each process one session, its newest in that folder. The previews come from the last 64 KB of each transcript, read again only when the file has changed. Settings → Workspaces → **Show message previews** shows titles instead, for sharing your screen.
 
 **Agents** draws who talks to whom among the Claude Code agents on this Mac: sessions on a row, joined by arcs when they message each other, and each session's subagents and agent-team members in a short tree under it. A message is a small light that runs from the sender to the receiver; the pair stays warm and cools to grey over ten minutes. A message waiting for your approval waits at the receiver, yellow. When more sessions talk than the row holds, the ones quiet the longest fold into "+N more" at its corner ("+N quiet" when they have said nothing for ten minutes); a long name ends in "…", whole in its tooltip. Under the picture, RECENT lists the last ten minutes. Click a session to keep its links lit, see its messages and go to it. With Reduce Motion on, nothing travels: the edge that carried a message glows instead. A session on another Mac that one here talks to shows with a globe and a dashed outline.
+
+<p align="center">
+  <img alt="Projects: suggested folders, then each project's sessions with their state, your newest prompt and Claude's newest line" src="screenshots/brow-panel-projects-050.png" width="420" />
+  <img alt="Agents: sessions joined by arcs, their subagents and a teammate under them, a message on its way, and the last ten minutes" src="screenshots/brow-panel-agents-050.png" width="420" />
+</p>
 
 It reads only what Claude Code already writes, and only while the panel is open and for half a minute after: the transcripts written in the last half hour, then what is added to them; the agent-team mailboxes under `<account>/teams/`; and the session records. Of a message it keeps the first line, in memory, for an hour at most. It never connects to a session's socket, never opens the inbox keys Claude Code keeps beside the records, and never joins a conversation.
 
@@ -98,8 +100,7 @@ Each session's menu (the ••• on its row, or a right-click) has every way t
 The accounts in every menu and picker are the notch's own: the accounts Settings → Accounts shows, in its order, under its names, and none it hides.
 
 <p align="center">
-  <img alt="A project's sessions, each with Go or Resume and its menu" src="screenshots/workspaces-sessions.png" width="420" />
-  <img alt="New session: each account with its 5-hour and weekly use" src="screenshots/workspaces-launch-sheet.png" width="340" />
+  <img alt="Resume with options: each account with its 5-hour and weekly use, where the session opens, the model and the effort" src="screenshots/brow-panel-resume-050.png" width="420" />
 </p>
 
 Each project has a default account, and every launch can pick its own account, model and effort. The model pickers offer Claude Code's aliases (`opus`, `sonnet`, `haiku`, always the newest of each), pinned versions, and **Other…** for any id.
@@ -110,8 +111,8 @@ Each project has a default account, and every launch can pick its own account, m
 - **Stats** — lines of code across the project: totals, language breakdown, and growth over time stacked by repository.
 
 <p align="center">
-  <img alt="Commit graph" src="screenshots/workspaces-graph.png" width="420" />
-  <img alt="Code statistics" src="screenshots/workspaces-stats.png" width="420" />
+  <img alt="Graph: a repository's commits with its branches, remotes and tags" src="screenshots/brow-panel-graph-050.png" width="420" />
+  <img alt="Stats: the project's lines of code, files and line kinds, and its lines over time" src="screenshots/brow-panel-stats-050.png" width="420" />
 </p>
 
 ## The command-line tool

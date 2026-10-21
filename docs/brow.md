@@ -1,9 +1,16 @@
 # The notch: behaviour in detail
 
 How the notch half of Brow works: the limits, and the panel they open into.
-Workspaces, which is the panel's Projects side, is in
+Workspaces, which is the panel's Projects and Agents sides, is in
 [`workspaces.md`](workspaces.md); how the two fit together, in
 [`architecture.md`](architecture.md).
+
+<p align="center">
+  <img alt="Collapsed: the 5-hour readout with Glim beside it on the left of the notch, the weekly readout on the right" src="screenshots/brow-notch-collapsed-050.png" width="640" />
+</p>
+<p align="center">
+  <img alt="The open panel with Workspaces off: Glim's row, the Overall line, three accounts with their limits and resets, the reset calendar, and the footer with share, pin, refresh and settings" src="screenshots/brow-panel-050.png" width="560" />
+</p>
 
 - Accounts are discovered from `~/.claude` and `~/.claude-accounts/*`; dirs that
   belong to the same organisation are shown once.
@@ -128,7 +135,7 @@ Workspaces, which is the panel's Projects side, is in
   Stuffed at −35 or below, Full to 0, Content to 35, Peckish to 65, Hungry to 90,
   Famished from 90, with 5 points of hysteresis on the way back (Stuffed until above
   −30, Famished until below 85). At an effective 5-hour aggregate of 99.5 % (the
-  readout's `100%`) it falls asleep until the window resets; at 99.5 % weekly it
+  readout's `100%`) it falls asleep, with a small smile, until the window resets; at 99.5 % weekly it
   hibernates in the den behind the camera until the weekly reset. A prompt written
   to an account's `history.jsonl` (watched, never read) makes it eager for 90 s.
   Moments: its intro, fed-day streaks (a day with 10 points eaten; two rest days

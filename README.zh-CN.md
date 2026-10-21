@@ -14,7 +14,7 @@
 一款 macOS 应用，面向同时用多个账号运行 [Claude Code](https://claude.com/claude-code) 的人。它做两件事：
 
 - **刘海显示每个账号的用量和限额**：5 小时限额、每周限额，以及各自的重置时间。只需点一下，就能在专属于某个账号的浏览器配置文件中登录这个账号。
-- **菜单栏里的 Workspaces 在拆分为多个仓库的产品上运行并行的 Claude Code 会话**：每个功能一个文件夹，里面是所有仓库在同一分支上的 git worktree；会话可以转移到仍有余量的账号上。
+- **同一个刘海面板里的 Workspaces 在拆分为多个仓库的产品上运行并行的 Claude Code 会话**：每个功能一个文件夹，里面是所有仓库在同一分支上的 git worktree；会话可以转移到仍有余量的账号上。
 
 刘海用来看，Workspaces 用来干活。只有一个账号也能用：Brow 会自动找到 `~/.claude` 并显示该账号的限额，而在你使用之前，Workspaces 一直处于关闭状态。
 
@@ -64,11 +64,20 @@
 
 ### 所有仓库同一个分支
 
-Workspaces 为多仓库产品的每个功能单独建一个文件夹，里面是每个仓库在同一分支上的 git worktree。Claude Code 在这个文件夹里启动，能看到整个产品；同时进行的十个功能就是十个文件夹，任何会话都无法切换另一个会话脚下的分支。
+Workspaces 为多仓库产品的每个功能单独建一个文件夹，里面是每个仓库在同一分支上的 git worktree。Claude Code 在这个文件夹里启动，能看到整个产品；同时进行的十个功能就是十个文件夹，任何会话都无法切换另一个会话脚下的分支。某个账号的限额用完时，会话的菜单可以让它在另一个账号下继续，每个账号选择器都会显示各个账号的限额。
 
 <p align="center">
-  <img alt="Workspaces：一个多仓库项目的工作区" src="docs/screenshots/workspaces-project.png" width="420" />
-  <img alt="Workspaces：各账号的会话，每个账号旁显示其限额" src="docs/screenshots/workspaces-sessions.png" width="420" />
+  <img alt="刘海面板中的一个项目：它的工作区以树状排列，其中一个已展开，里面是每个仓库在同一分支上的 worktree 和其中的 Claude Code 会话" src="docs/screenshots/brow-panel-project-050.png" width="420" />
+  <img alt="刘海面板中的 Resume with options：每个账号及其 5 小时和每周用量、会话在哪里打开、模型和 effort" src="docs/screenshots/brow-panel-resume-050.png" width="420" />
+</p>
+
+### 每个会话最后说了什么，谁在和谁对话
+
+Workspaces 开启时，刘海面板顶部有一个切换器：**Limits**、**Projects** 和 **Agents**。Projects 按状态和最后一轮对话显示每个 Claude Code 会话，需要你处理的排在最前，并建议 Claude Code 正在运行的文件夹。Agents 画出谁在和谁对话：你的会话、它们的子智能体和智能体团队，以及正在传递的消息。
+
+<p align="center">
+  <img alt="刘海面板中的 Projects：两个建议的文件夹，然后是每个项目的会话，显示状态、你最近的提示词和 Claude 最近的一行回复，需要你处理的排在最前" src="docs/screenshots/brow-panel-projects-050.png" width="420" />
+  <img alt="刘海面板中的 Agents：三个由弧线相连的会话，下面是它们的子智能体和一名团队成员，一条正在传递的消息，以及最近十分钟的消息" src="docs/screenshots/brow-panel-agents-050.png" width="420" />
 </p>
 
 所有演示和截图均使用虚构数据。
@@ -80,17 +89,17 @@ Workspaces 为多仓库产品的每个功能单独建一个文件夹，里面是
 - **所有账号一目了然**：每个账号显示 5 小时限额、每周限额，以及特定模型的每周限额（如有），均以已用百分比表示，并附上距离各自重置还剩多久。
 - **重置日历**：在月历上标出每周重置日和预计的订阅续费日，哪个账号什么时候恢复，一看便知。
 - **限额预警**：默认关闭。开启后，账号用到某项限额的 80% 和 95% 时，Brow 会发出 macOS 通知；每个阈值在限额重置前只提醒一次。
-- **Glim，一只吃限额的宠物**：一个小家伙住在刘海旁边，你的账号用掉什么，它就吃什么：5 小时限额的数字一上涨，它就咬一口。你在 Mac 前好几个小时都没用 Claude Code，它就会饿；你不在的时候，它从不变饿。5 小时限额用完时，它吃饱睡着，直到窗口重置；每周限额用完时，它冬眠到每周重置。默认开启；在 Settings → General → **Show the pet** 中可以关闭。
+- **Glim，一只吃限额的宠物**：一个小家伙住在刘海旁边，你的账号用掉什么，它就吃什么：5 小时限额的数字一上涨，它就咬一口。你在 Mac 前好几个小时都没用 Claude Code，它就会饿，再久就会饿坏，但总是满怀期待，从不难过；你不在的时候，它从不变饿。喂得太多，它会撑得圆滚滚。5 小时限额用完时，它吃饱睡着，嘴角带着一丝微笑，直到窗口重置；每周限额用完时，它冬眠到每周重置。默认开启；在 Settings → General → **Show the pet** 中可以关闭。
 - **复制“我的一周”**：一个按钮可以把各账号的限额复制成一张图片，直接粘贴到聊天或帖子里。除非你选择显示名称，图片上的账号只显示编号，也不会出现邮箱。
 - **复制启动命令**：一个按钮即可复制以该账号身份启动 Claude Code 的命令。
 - **在账号自己的浏览器里重新登录**：每个账号都有独立的浏览器配置文件，Cookie、历史记录和已保存的登录信息互不相通，登录一个账号绝不会影响另一个。第二个按钮可以直接打开这个配置文件。
 - **一键添加账号**：Brow 会创建账号文件夹，并打开 Anthropic 自己的登录流程。
-- **令牌保持有效**：空闲账号的令牌会在后台刷新，所以数字不会过时。正在被 Claude Code 会话使用的账号交给该会话，由它自己刷新令牌。
+- **令牌保持有效**：Brow 在后台为每个账号续期令牌，所以数字不会过时；账号中开着 Claude Code 会话时也是如此。正在工作的会话可以先自行续期。
 
-Workspaces 里：
+Workspaces 里，也就是同一个面板的 **Projects** 和 **Agents** 两侧（通过面板顶部的切换器；关闭 Workspaces 时，面板里只有限额）：
 
 - **每个功能一个工作区**：一个文件夹，里面是你选中的每个仓库的 git worktree，全部位于按你的模板命名的同一分支上。`CLAUDE.md` 等共享文件会自动放进去，每个仓库可以运行自己的创建后钩子，一个工作区还可以从另一个工作区分出来。
-- **跨账号的会话**：**Resume as…** 不复制任何东西，直接以另一个账号继续会话；**Migrate to…** 把会话完整复制过去，即使目标账号正在使用中也可以；**Share** 让所有已关联的账号都能看到它。每个账号选择器都会显示该账号的限额，名称与你在 Settings → Accounts 里给它起的名字一致。
+- **跨账号的会话**：每个会话都有一个菜单：**Resume as** 不复制任何东西，直接以另一个账号继续会话；**Copy to account** 把会话完整复制过去，即使目标账号正在使用中也可以；**Share with all accounts** 让所有已关联的账号都能看到它。菜单里的账号就是刘海里的账号，顺序相同，名称与你在 Settings → Accounts 里给它们起的名字一致，每个账号都附有其限额。
 - **每个会话最后说了什么，谁在和谁对话**：Projects 按状态和最后一轮对话显示每个会话，需要你处理的排在最前，并建议 Claude Code 正在运行的文件夹；**Agents** 实时画出你的会话、子智能体和智能体团队之间的消息往来。
 - **提交图和统计**：每个仓库的提交图，以及整个项目随时间变化的代码行数。
 - **命令行工具 `brow`**，包含 `scan`、`workspaces`、`sessions`、`create`、`graph` 和 `doctor` 命令，每个都支持 `--json`。
@@ -104,7 +113,7 @@ Workspaces 里：
 收起时，Brow 在刘海两侧显示两个数字：你的所有账号总体上用掉了多少 5 小时限额和每周限额。指针悬停时，它会展开成上面演示中的面板。这两个读数也可以放到刘海下方的横条里：
 
 <p align="center">
-  <img alt="刘海下方的读数" src="docs/screenshots/brow-notch-collapsed-below.png" width="640" />
+  <img alt="刘海下方的读数" src="docs/screenshots/brow-notch-collapsed-below-050.png" width="640" />
 </p>
 
 ## Brow 会在你的 Mac 上做什么
@@ -161,7 +170,7 @@ xattr -dr com.apple.quarantine /Applications/Brow.app
 
 如果 macOS 不让 Brow 读取某个账号的钥匙串项目，该账号会显示一把橙色钥匙，Settings → Accounts 中会把它的令牌标为 *Keychain access needed*：点击钥匙，或点击那里的 **Grant Keychain access**，然后选择**始终允许**。由于构建使用 ad hoc 签名，更新到新版本后，钥匙可能会再次出现。
 
-Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打开。在 Settings → General 中开启 **Launch at login**，即可在登录时自动启动 Brow。要开始使用 Workspaces，请打开 **Settings → Workspaces**，或者点击刘海面板上叠放方块的按钮，选择 **Add project…**。
+Brow 没有程序坞图标：它待在刘海里，设置和退出都从面板底部的 ⚙ 打开。在 Settings → General 中开启 **Launch at login**，即可在登录时自动启动 Brow。要开始使用 Workspaces，请打开 **Settings → Workspaces**，开启它并添加一个项目；之后面板里 **Limits** 旁边会出现 **Projects** 和 **Agents**。
 
 ## 从 Grove 迁移
 
@@ -170,7 +179,7 @@ Brow 没有程序坞图标：它待在刘海里，设置从面板上的 ⚙ 打�
 - **你的配置原样迁移**。Brow 会找到 `~/Library/Application Support/Grove/config.json`，并开启 Workspaces，带上你的项目、账号、已捕获的状态栏和安全网设置。没有任何文件被移动：状态栏包装脚本仍在 `Grove/bin` 中，每个已捕获账号的 `settings.json` 都指向那里。
 - **刘海会读取每个账号，包括 Workspaces 的账号**。Grove 从不读取钥匙串，也不访问 Anthropic；刘海会这样做，对象是它找到的每个账号，包括 Workspaces 知道的那些。它从钥匙串读取账号的登录信息（如果 macOS 不让读取某个账号的钥匙串项目，该账号会显示一把橙色钥匙：点击它，然后选择**始终允许**），向 Anthropic 的用量接口查询限额，并用 `claude doctor` 让空闲账号的令牌保持有效。如果这样不行，它会改为运行一次单轮 `claude -p` 请求，这会消耗该账号少量限额，并开启它的 5 小时窗口；可在 Settings → Accounts → **Allow `claude -p` fallback** 中关闭。其余内容见 [Brow 会在你的 Mac 上做什么](#brow-会在你的-mac-上做什么)。
 - **先退出 Grove.app**。它运行期间，Workspaces 会等待，并提供 **Quit Grove**，以免两者同时写同一批文件。然后删除 `Grove.app`（或运行 `brew uninstall --cask grove`）；如果你把它加入过登录项，请在那里移除，并改为在 Brow 中开启 **Launch at login**。
-- **东西都去了哪里**。菜单栏里的树变成了 Brow 的标志：带两个点的刘海。面板的设置页移到了 **Settings → Workspaces**；添加账号、共享会话和捕获状态栏移到了 **Settings → Accounts**，在那里用 Brow 的一键 **Sign in…** 添加账号。各项目自己的设置仍在面板中。
+- **东西都去了哪里**。Grove 的面板现在是刘海面板的 **Projects** 一侧：把指针悬停在刘海上，在顶部的切换器中选择 **Projects**。Brow 在菜单栏里没有图标；Brow 菜单中的 **Show Projects**，以及从访达或聚焦搜索再次打开 Brow，都会把面板打开到 Projects。面板的设置页移到了 **Settings → Workspaces**；添加账号、共享会话和捕获状态栏移到了 **Settings → Accounts**，在那里用 Brow 的一键 **Sign in…** 添加账号。各项目自己的设置仍跟着项目。项目的 **Claude** 标签页已经取消：它的功能都在每个会话自己的菜单里。
 - **命令行工具现在叫 `brow`**。`brow-cli.zip` 安装 `brow`，并以 `grove` 作为第二个名字，所以你的脚本无需修改即可继续使用。如果你通过 Homebrew 安装过 Grove 的命令行工具，请在 `brew install efim0v/tap/brow-cli` 之前先运行 `brew uninstall grove-cli`：两者都会安装 `grove`。
 - **转录安全网不再自行恢复转录**。以前它会自行恢复任何不到 90 天的转录，包括被 Claude Code 自己的清理删除的转录。现在它不会保留超过 Claude Code 保留期限的转录，消失的转录会列在 Settings → Workspaces 中，并附有 **Restore** 按钮。因此，Grove 过去反复恢复的、早于 `cleanupPeriodDays`（未设置时为 30 天）的转录，会在 Claude Code 下次清理时被删除，安全网也会删掉它们的副本。如果想保留较早的会话，请在迁移之前调高每个账号 `settings.json` 中的 `cleanupPeriodDays`。
 
@@ -194,15 +203,15 @@ Brow 自己的网络请求只发往两个 Anthropic 接口，不会发往别处�
 
 ### Brow 支持哪些 Mac？显示在哪里？
 
-macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于主显示器顶部。如果主显示器有刘海，两个读数会显示在刘海两侧（默认），或者显示在刘海下方的横条里：Settings → General → **Ears**。在同一标签页中关闭 **Show readouts next to the notch** 后，指针移到刘海之前不会绘制任何内容。如果主显示器没有刘海（例如外接显示器），Brow 会改为在屏幕顶部中央显示一个胶囊；关闭读数后，指针移到屏幕顶部中央之前不会绘制任何内容。如果你只用 Brow 的 Workspaces，可以关闭 **Show Brow in the notch**，这样它不会在屏幕顶部绘制任何内容，限额提醒仍会照常发送。
+macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于主显示器顶部。如果主显示器有刘海，两个读数会显示在刘海两侧（默认），或者显示在刘海下方的横条里：Settings → General → **Ears**。在同一标签页中关闭 **Show readouts next to the notch** 后，指针移到刘海之前不会绘制任何内容。如果主显示器没有刘海（例如外接显示器），Brow 会改为在屏幕顶部中央显示一个胶囊；关闭读数后，指针移到屏幕顶部中央之前不会绘制任何内容。如果你只用 Brow 的 Workspaces，可以关闭 **Show Brow in the notch**，这样它不会在屏幕顶部绘制任何内容，限额提醒仍会照常发送，Projects 的打开方式见[下一个问题](#如何打开-projects)。
 
 ### 宠物费电吗？
 
 它只在屏幕亮着、你在 Mac 前时才绘制：静止时每秒 30 帧，进食或移动的一两秒内每秒 60 到 120 帧；屏幕锁定或休眠、你离开满十分钟，或者宠物已关闭时，一帧也不画。它遵循“减弱动态效果”（Reduce Motion）设置。
 
-### 菜单栏里看不到 Brow 的图标。
+### 如何打开 Projects？
 
-在带刘海的 MacBook 上，macOS 会隐藏刘海旁放不下的菜单栏图标。这时 Workspaces 仍然可以通过刘海面板上叠放方块的按钮、Brow 菜单中的 **Show Workspaces**，以及从访达或聚焦搜索再次打开 Brow 来打开。Settings → General → **Show Workspaces in the menu bar** 可以完全关闭这个图标。
+把指针悬停在刘海上，在面板顶部的切换器中选择 **Projects**；Workspaces 开启时它就在那里。Brow 菜单中的 **Show Projects**（Brow 的设置窗口位于最前面时，菜单栏会显示这个菜单），以及从访达或聚焦搜索再次打开 Brow，都会直接把面板打开到 Projects 并将其固定。关闭 **Show Brow in the notch** 后，就只剩这两种方式。Brow 在菜单栏里没有图标。
 
 ### 为什么不用 Claude Code 自带的 worktree？
 
@@ -217,7 +226,7 @@ macOS 26 或更高版本；预编译版本仅支持 Apple 芯片。Brow 位于�
    ```
 
    对列出的每个文件，打开其 `statusLine.command` 指向的脚本：其中的 `GROVE_ORIG` 一行保存着你原来的命令。把这条命令填回去；如果 `GROVE_ORIG` 为空，就删除 `statusLine` 键。
-2. 如果开启过 **Launch at login**，先在 Settings → General 中关闭它。然后在 Brow 的设置窗口位于最前面时按 ⌘Q 退出 Brow，或者使用 Workspaces 面板中的 **Quit Brow**。
+2. 如果开启过 **Launch at login**，先在 Settings → General 中关闭它。然后用刘海面板底部 ⚙ 菜单中的 **Quit Brow** 退出 Brow，或者在 Brow 的设置窗口位于最前面时按 ⌘Q。
 3. 删除应用：运行 `brew uninstall --cask efim0v/tap/brow` 和 `brew uninstall efim0v/tap/brow-cli`，或者把 `Brow.app` 和 `brow` 工具移到废纸篓。
 4. 关闭 Brow 为各账号打开的浏览器窗口，然后删除 Brow 的文件：它的设置、缓存的读数、宠物的状态、各账号的浏览器配置文件（包括其中的 Cookie 和已保存的密码）、Workspaces 的文件夹（其配置、包装脚本、代码统计和请求节奏文件），以及 macOS 为 Brow 的网络请求保存的数据：
 
@@ -252,12 +261,12 @@ cp -R dist/Brow.app /Applications/
 | 路径 | 内容 |
 |---|---|
 | `Sources/GroveCore` | 账号、凭据、用量和令牌刷新；git、worktree、cmux、Claude Code 会话、共享存储、转录安全网、会话迁移、代码统计 |
-| `Sources/GroveAppKit` | Workspaces 面板及其状态 |
+| `Sources/GroveAppKit` | Workspaces 的各个界面及其状态 |
 | `Sources/BrowKit` | 刘海、限额、宠物、设置，以及 Brow 对 Workspaces 的承载 |
 | `Sources/BrowApp` | 入口 |
 | `Sources/brow-cli` | 命令行工具 `brow` |
 | `Resources` | 应用图标、按账号区分的浏览器路由脚本、Info.plist 模板 |
-| `Tests` | 约 1550 个测试 |
+| `Tests` | 约 1800 个测试 |
 | `docs` | [刘海详解](docs/brow.md)、[Workspaces](docs/workspaces.md)、[架构](docs/architecture.md)、[故障排除](docs/troubleshooting.md)（均为英文） |
 
 没有任何第三方依赖。模块名 `GroveCore` 和 `GroveAppKit` 来自 Grove，本仓库包含了它的历史。
@@ -266,8 +275,8 @@ cp -R dist/Brow.app /Applications/
 
 - `Scripts/test-in-empty-home.sh` 和 `Scripts/test-in-empty-home.sh -c release` 都应保持通过；`Scripts/check-warnings.sh` 不应发现新的警告。
 - `swift run BrowApp --snapshot /tmp/brow-snap` 无需启动应用即可把 Workspaces 的各个界面渲染成 PNG；见 [`docs/snapshot-testing.md`](docs/snapshot-testing.md)。
-- 本 README 中的截图用以下命令重新生成：
-  `DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests`。
+- 本 README 和 `docs` 中的截图用以下命令重新生成：
+  `DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" Scripts/test-in-empty-home.sh --filter DemoScreenshotTests`。
 - 刘海轮廓的调校常量位于 `Sources/BrowKit/Panel/NotchGeometry.swift`，需要对照实际的屏幕边框凭肉眼微调。
 
 ## 致谢

@@ -35,6 +35,19 @@ final class PetTextTests: XCTestCase {
                        "Hungry | Last meal 2 d ago")
     }
 
+    /// The two ends of the meter have words of their own, and the same detail lines as every mood.
+    func testTheEndsOfTheMeter() {
+        XCTAssertEqual(words(header(.awake(mood: .stuffed), lastMeal: 120, points: 9.2)), "Stuffed | Ate 9 % · 2 min ago")
+        XCTAssertEqual(words(header(.awake(mood: .stuffed), lastMeal: 1800, points: 9.2, pace: 0.4)),
+                       "Stuffed | Last meal 30 min ago · well fed this week")
+        XCTAssertEqual(words(header(.awake(mood: .famished), lastMeal: 5 * 3600 + 60, points: 3)), "Famished | Last meal 5 h ago")
+        XCTAssertEqual(words(header(.unsure(mood: .famished, newest: now.addingTimeInterval(-14 * 60)))),
+                       "Famished | No fresh numbers for 14 min")
+        // Eating, eager and asleep say what they always say, at either end.
+        XCTAssertEqual(words(header(.eating(points: 3))), "Eating | 3 % of the 5-hour limit")
+        XCTAssertEqual(words(header(.eager)), "Waiting for food | Claude Code is working")
+    }
+
     func testEagerAndEating() {
         XCTAssertEqual(words(header(.eager)), "Waiting for food | Claude Code is working")
         XCTAssertEqual(words(header(.eating(points: 3))), "Eating | 3 % of the 5-hour limit")
@@ -95,6 +108,14 @@ final class PetTextTests: XCTestCase {
         let asleep = PetStatus(situation: .asleep(wakesAt: now.addingTimeInterval(3600)), meter: 100)
         XCTAssertEqual(PetText.voiceOverValue(asleep, now: now, timeZone: utc, calendar: calendar),
                        "Asleep. 5-hour limit used up, wakes at 13:00. Hunger 100 percent.")
+        let stuffed = PetStatus(situation: .awake(mood: .stuffed), meter: 0, lastMeal: now.addingTimeInterval(-120),
+                                lastMealPoints: 9.2)
+        XCTAssertEqual(PetText.voiceOverValue(stuffed, now: now, timeZone: utc, calendar: calendar),
+                       "Stuffed. Ate 9 percent, 2 minutes ago. Hunger 0 percent.")
+        let famished = PetStatus(situation: .awake(mood: .famished), meter: 96, lastMeal: now.addingTimeInterval(-5 * 3600 - 60),
+                                 lastMealPoints: 3)
+        XCTAssertEqual(PetText.voiceOverValue(famished, now: now, timeZone: utc, calendar: calendar),
+                       "Famished. Last meal 5 hours ago. Hunger 96 percent.")
         XCTAssertEqual(PetText.label, "Pet")
         XCTAssertEqual(PetText.actionName, "Pet")
     }

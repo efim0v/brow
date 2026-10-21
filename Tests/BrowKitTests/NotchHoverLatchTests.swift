@@ -4,7 +4,7 @@
 import XCTest
 @testable import BrowKit
 
-/// The notch stays shut after its Workspaces button until the pointer has left the
+/// The notch stays shut after a close of the panel until the pointer has left the
 /// expanded panel's area once.
 final class NotchHoverLatchTests: XCTestCase {
     func testAnIdleLatchNeverHolds() {

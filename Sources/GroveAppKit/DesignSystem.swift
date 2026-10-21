@@ -136,3 +136,53 @@ struct SearchFieldChrome: ViewModifier {
         content.background(.white.opacity(0.07), in: Capsule())
     }
 }
+
+/// Where Workspaces' screens are drawn: a window of their own (the offscreen renders and
+/// `--snapshot`), or a section of Brow's notch panel, `width` wide, inside its black. In the
+/// notch the screens fill the section's room, draw no glass and no footer of their own, and
+/// push their forms instead of presenting sheets.
+public enum GroveHost: Equatable, Sendable {
+    case window
+    case notch(width: CGFloat)
+
+    public var isNotch: Bool {
+        if case .notch = self { return true }
+        return false
+    }
+}
+
+private struct GroveHostKey: EnvironmentKey {
+    static let defaultValue: GroveHost = .window
+}
+
+/// The one accent Workspaces' controls, links and glyphs are drawn in: Grove's blue in a
+/// window of its own, the host's own light in the notch (Brow's cream). Data colours — a
+/// chart's per-repo series, a graph's lanes — are not an accent and keep their own.
+private struct GroveAccentKey: EnvironmentKey {
+    static let defaultValue: Color = Palette.primary
+}
+
+/// Whether the screens are on the screen. A host that keeps them in its view tree while it
+/// is closed — Brow's notch, invisible until it opens again — says false then, and what
+/// moves on its own (a working session's arc, a message's light) stands still: a timeline
+/// left running there would draw at the display's rate with nobody to see it.
+private struct GroveIsShowingKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    public var groveHost: GroveHost {
+        get { self[GroveHostKey.self] }
+        set { self[GroveHostKey.self] = newValue }
+    }
+
+    public var groveIsShowing: Bool {
+        get { self[GroveIsShowingKey.self] }
+        set { self[GroveIsShowingKey.self] = newValue }
+    }
+
+    public var groveAccent: Color {
+        get { self[GroveAccentKey.self] }
+        set { self[GroveAccentKey.self] = newValue }
+    }
+}

@@ -17,24 +17,6 @@ public enum AgeBucket: Equatable {
     case unknown  // no fork-date data in any repo
 }
 
-// MARK: - Claude activity (LiveProcess.status -> badge category)
-
-public enum ClaudeActivity: Equatable {
-    case busy
-    case waiting
-    case idle
-
-    /// "busy" -> .busy, "waiting" -> .waiting, anything else ("idle", "shell",
-    /// unknown future values) -> .idle.
-    public init(status: String) {
-        switch status {
-        case "busy": self = .busy
-        case "waiting": self = .waiting
-        default: self = .idle
-        }
-    }
-}
-
 // MARK: - Badges
 
 public struct WorkspaceBadges: Equatable {
@@ -91,17 +73,17 @@ public func badges(for ws: FeatureWorkspace, now: Date) -> WorkspaceBadges {
     for process in ws.liveProcesses {
         let key = process.sessionId.isEmpty ? "pid:\(process.pid)" : process.sessionId
         guard seenLive.insert(key).inserted else { continue }
-        switch ClaudeActivity(status: process.status) {
-        case .busy: busyCount += 1
-        case .waiting: waitingCount += 1
-        case .idle: break
+        // The one mapping every screen uses: working counts as busy, a session stopped on
+        // the user (a permission, a question) as waiting.
+        switch SessionState.of(process) {
+        case .working: busyCount += 1
+        case .needsPermission, .asksYou: waitingCount += 1
+        case .yourTurn, .closed: break
         }
     }
 
-    // A session is RESUMABLE only if it has no live process — matched by id OR (for a
-    // fresh, empty-id process) by its canonicalized cwd. The shared id-or-cwd join
-    // keeps the /var↔/private/var spellings aligned, so a live fresh session is never
-    // miscounted as closed (a trailing-slash-only normalize missed that).
+    // A session is RESUMABLE only if no live process runs it (by its id: one process runs
+    // one session).
     let resumableCount = ws.sessions.filter {
         ws.liveProcesses.liveProcess(forSessionId: $0.id, cwd: $0.cwd) == nil
     }.count

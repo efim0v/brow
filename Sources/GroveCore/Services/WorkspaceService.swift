@@ -352,7 +352,6 @@ public struct WorkspaceService {
         var loose: [LooseWorktree] = []
         for member in looseMembers.sorted(by: { $0.entry.path < $1.entry.path }) {
             let base = baseByRepo[member.repo.path] ?? "main"
-            let meta = await git.meta(repoPath: member.repo.path, worktree: member.entry, relativeTo: base)
             let cwd = canonical(member.entry.path)
             let sessions = config.accounts
                 .flatMap { claude.sessions(for: cwd, account: $0) }
@@ -364,6 +363,11 @@ public struct WorkspaceService {
             // cmux matching for loose worktrees: exact directory equality (spec §2:
             // all Claude/cmux actions are available for loose worktrees too).
             let matched = cmuxList.filter { canonical($0.currentDirectory) == cwd }
+            // A worktree no session ran in and nothing runs in is one line of a count, not a
+            // row with its numbers: no git for it. A project can hold a hundred of them, and
+            // this runs on every refresh.
+            let quiet = sessions.isEmpty && live.isEmpty && matched.isEmpty
+            let meta = quiet ? nil : await git.meta(repoPath: member.repo.path, worktree: member.entry, relativeTo: base)
             loose.append(LooseWorktree(repo: member.repo, entry: member.entry, meta: meta,
                                        sessions: sessions, liveProcesses: live,
                                        cmuxWorkspaces: matched))

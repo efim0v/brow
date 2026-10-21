@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Brow shows the limits of every Claude Code account in the notch, signs each account in with one click, and runs parallel Claude Code sessions in workspaces of git worktrees (Workspaces, in the menu bar). To talk an idea through before filing it, use [Discussions → Ideas](https://github.com/efim0v/brow/discussions/categories/ideas).
+        Brow shows the limits of every Claude Code account in the notch, signs each account in with one click, and runs parallel Claude Code sessions in workspaces of git worktrees (Workspaces, in the same notch panel). To talk an idea through before filing it, use [Discussions → Ideas](https://github.com/efim0v/brow/discussions/categories/ideas).
 
   - type: dropdown
     id: component

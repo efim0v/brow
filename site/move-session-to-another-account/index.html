@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Continue a Claude Code session on another account – Brow</title>
-<meta name="description" content="Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as…, Migrate to… or Share in Brow.">
+<meta name="description" content="Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as, Copy to account or Share with all accounts in Brow.">
 <link rel="canonical" href="https://efimov.page/brow/move-session-to-another-account/">
 <meta name="robots" content="max-image-preview:large">
 <meta name="author" content="Artem Efimov">
@@ -20,17 +20,17 @@
 <meta property="og:locale" content="en_US">
 <meta property="og:url" content="https://efimov.page/brow/move-session-to-another-account/">
 <meta property="og:title" content="Continue a Claude Code session on another account – Brow">
-<meta property="og:description" content="Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as…, Migrate to… or Share in Brow.">
+<meta property="og:description" content="Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as, Copy to account or Share with all accounts in Brow.">
 <meta property="og:image" content="https://efimov.page/brow/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
 <meta property="og:image:alt" content="Brow: “Claude Code usage limits in the MacBook notch”, next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets.">
 <meta property="article:published_time" content="2026-10-13">
-<meta property="article:modified_time" content="2026-10-18">
+<meta property="article:modified_time" content="2026-10-21">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Continue a Claude Code session on another account – Brow">
-<meta name="twitter:description" content="Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as…, Migrate to… or Share in Brow.">
+<meta name="twitter:description" content="Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as, Copy to account or Share with all accounts in Brow.">
 <meta name="twitter:image" content="https://efimov.page/brow/og.png">
 <meta name="twitter:image:alt" content="Brow: “Claude Code usage limits in the MacBook notch”, next to Brow’s panel with the 5-hour and weekly limits of three Claude Code accounts, one with an Opus limit, and when each resets.">
 
@@ -42,13 +42,13 @@
       "@type": "TechArticle",
       "@id": "https://efimov.page/brow/move-session-to-another-account/#article",
       "headline": "Continue a Claude Code session on another account",
-      "description": "Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as…, Migrate to… or Share in Brow.",
+      "description": "Each Claude Code account has its own CLAUDE_CONFIG_DIR folder. Continue a session under another account with Resume as, Copy to account or Share with all accounts in Brow.",
       "url": "https://efimov.page/brow/move-session-to-another-account/",
       "mainEntityOfPage": "https://efimov.page/brow/move-session-to-another-account/",
       "inLanguage": "en",
       "datePublished": "2026-10-13",
-      "dateModified": "2026-10-18",
-      "image": ["https://efimov.page/brow/media/workspaces-sessions.webp", "https://efimov.page/brow/media/workspaces-accounts.webp"],
+      "dateModified": "2026-10-21",
+      "image": ["https://efimov.page/brow/media/panel-projects-050.webp", "https://efimov.page/brow/media/settings-shared-050.webp"],
       "author": { "@type": "Person", "name": "Artem Efimov", "url": "https://github.com/efim0v" },
       "about": { "@id": "https://efimov.page/brow/#app" }
     },
@@ -253,8 +253,8 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
       <div class="prose">
         <header>
           <h1>Continue a Claude Code session on another account</h1>
-          <p class="byline">By <a href="https://github.com/efim0v">Artem Efimov</a>&nbsp;· Published <time datetime="2026-10-13">13 October 2026</time>&nbsp;· Updated <time datetime="2026-10-18">18 October 2026</time></p>
-          <p class="lead">When one of your Claude accounts has used up its limit, a Claude Code session can carry on under another account, with its history. <a href="/brow/#workspaces">Workspaces</a>, the part of <a href="/brow/">Brow</a> in the macOS menu bar, has three ways to do it: <strong>Resume as…</strong>, <strong>Migrate to…</strong> and <strong>Share</strong>. Brow’s notch tells you which account still has room.</p>
+          <p class="byline">By <a href="https://github.com/efim0v">Artem Efimov</a>&nbsp;· Published <time datetime="2026-10-13">13 October 2026</time>&nbsp;· Updated <time datetime="2026-10-21">21 October 2026</time></p>
+          <p class="lead">When one of your Claude accounts has used up its limit, a Claude Code session can carry on under another account, with its history. <a href="/brow/#workspaces">Workspaces</a>, the part of <a href="/brow/">Brow</a> in its notch panel, has three ways to do it: <strong>Resume as</strong>, <strong>Copy to account</strong> and <strong>Share with all accounts</strong>. Brow’s notch tells you which account still has room.</p>
           <p>Switching models doesn’t help with a session or weekly limit: it covers every model, and Claude Code’s message says when it resets (<a href="https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit">Anthropic on usage limits</a>).</p>
         </header>
 
@@ -272,56 +272,58 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
 
         <section id="three-ways" aria-labelledby="three-ways-title">
           <h2 id="three-ways-title">Three ways to move a session in Brow</h2>
-          <p>Open Workspaces from Brow’s item in the menu bar, the notch with two dots, or from the button with stacked squares in the notch panel. On a project’s <strong>Claude</strong> tab, a session you can resume has a <strong>Resume</strong> button, which continues it under its own account. Beside it, the tray icon opens <strong>Migrate to…</strong> and the chevron opens <strong>Resume as…</strong>, each with a line for every other account and that account’s 5-hour and weekly use, such as <q>Resume as Work — 5h 78% · week 61%</q>. <strong>Share</strong> is the share icon beside a session of an account other than <code>~/.claude</code>, for example in an open workspace’s list of sessions on the <strong>Workspaces</strong> tab.</p>
+          <p>Hover the notch and pick <strong>Projects</strong> on the switch at the top of the panel. Each session there, and on a project’s screen, is a card. Under the pointer it shows <strong>Go</strong> while the session runs, or <strong>Resume</strong>, which continues it under its own account, and the session’s menu, the <strong>•••</strong>; a right-click opens the menu too. In the menu, <strong>Resume as</strong> and <strong>Copy to account</strong> each have a line for every other account with that account’s 5-hour and weekly use, such as Work with <q>5h 78% · week 61%</q>. <strong>Resume as</strong> is there while the session is not running. <strong>Share with all accounts</strong> is there for a session of an account other than <code>~/.claude</code>.</p>
           <figure class="window-shot">
-            <img src="../media/workspaces-sessions.webp" width="1200" height="1813" loading="lazy" decoding="async" alt="A project’s Claude tab with eight sessions, each with its status, workspace, branch and account. The first, busy, has a Go button; each of the others has a gear, Resume, a tray icon and a chevron.">
-            <figcaption>A project’s Claude tab. Screenshots show made-up demo data.</figcaption>
+            <img src="../media/panel-projects-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Projects in Brow’s notch panel: sessions as cards, each with its state, workspace and account, your newest prompt and Claude’s newest line; the working session under the pointer shows Go and its ••• menu button.">
+            <figcaption>Projects in the notch panel. Screenshots show made-up demo data.</figcaption>
           </figure>
           <dl class="terms">
             <div>
-              <dt>Resume as…</dt>
+              <dt>Resume as</dt>
               <dd>Continues the session under another account without copying it. Brow links the accounts involved to the shared store, which is the default account’s own <code>~/.claude</code>, and starts Claude Code under the account you picked, in the session’s own directory.</dd>
             </div>
             <div>
-              <dt>Migrate to…</dt>
+              <dt>Copy to account</dt>
               <dd>Copies the session into another account, without linking the two. It works while that account is in use, and the source stays as it was.</dd>
             </div>
             <div>
-              <dt>Share</dt>
+              <dt>Share with all accounts</dt>
               <dd>Moves a session of an account other than the default into the shared store, <code>~/.claude</code>. It starts nothing.</dd>
             </div>
           </dl>
 
-          <h3 id="resume-as">Resume as…</h3>
+          <h3 id="resume-as">Resume as</h3>
           <ol>
             <li>Exit Claude Code in the session, for example with <code>/exit</code>, so that only one process writes it (<a href="#one-writer">one writer per session</a>).</li>
-            <li>On the project’s <strong>Claude</strong> tab, open the chevron beside the session’s <strong>Resume</strong> and pick the account.</li>
+            <li>Open the session’s menu, the <strong>•••</strong> on its card or a right-click, choose <strong>Resume as</strong> and pick the account.</li>
             <li>Brow links the accounts if they aren’t linked yet, then opens the session in a new cmux workspace, in the session’s directory.</li>
           </ol>
           <p>What Brow runs there is equivalent to this, in the session’s directory, for the account in <code>~/.claude-accounts/work</code>:</p>
           <pre><code>CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude --resume &lt;session-id&gt;</code></pre>
           <p>For the default account it leaves <code>CLAUDE_CONFIG_DIR</code> out. It adds <code>--model</code> and <code>--effort</code> when the project or the account has a default, <code>--dangerously-skip-permissions</code> when the project has <strong>Skip permissions</strong> on, and <code>BROWSER=…</code> pointing at Brow’s browser router, so that a sign-in opens in that account’s own browser profile. It runs the <code>claude</code> set in <span class="nowrap">Settings → General</span> → <strong>Path to claude</strong>. Before it starts Claude Code in a folder other than <code>~/.claude</code>, it sets <code>hasCompletedOnboarding</code> in that folder’s <code>.claude.json</code>, so the session doesn’t open Claude Code’s first-run setup.</p>
-          <p><strong>Resume as…</strong> opens the session in cmux. For Terminal.app, press the gear beside the session instead: the launch sheet has <strong>Account</strong> and <strong>Open in</strong>, and another account chosen there goes through the same linking.</p>
-          <p><strong>Resume as…</strong> needs an account signed in at the default folder, <code>~/.claude</code>, because that folder is the shared store.</p>
+          <p><strong>Resume as</strong> opens the session in cmux. For Terminal.app, choose <strong>Resume with options…</strong> in the same menu instead: the form has the account, <strong>Open in</strong>, the model and the effort, and another account chosen there goes through the same linking.</p>
+          <p><strong>Resume as</strong> needs an account signed in at the default folder, <code>~/.claude</code>, because that folder is the shared store.</p>
 
-          <h3 id="migrate-to">Migrate to…</h3>
-          <p><strong>Migrate to…</strong> copies into the target account’s folder:</p>
+          <h3 id="copy-to-account">Copy to account</h3>
+          <p><strong>Copy to account</strong> copies into the target account’s folder:</p>
           <ul>
             <li>the transcript, <code>&lt;session-id&gt;.jsonl</code>, and the folder of the same name beside it, if there is one;</li>
             <li>the project’s auto memory, file by file, skipping files the target already has;</li>
             <li>the session’s entries in <code>file-history</code>, <code>tasks</code> and <code>session-env</code>.</li>
           </ul>
           <p>If the transcript is gone from the source account but the transcript safety net still holds a copy that Claude Code’s own retention would keep, it copies that one.</p>
-          <p>It also merges into the target the project’s entry in <code>.claude.json</code> (for the default account, <code>~/.claude.json</code>), a few <code>settings.json</code> keys such as enabled plugins, model and theme, and the source account’s plugins. Where the target already has a value or a file, the target’s stays. Brow writes those files under Claude Code’s own lock, and merges again if a file changes while it works. That is what lets it migrate into an account that is in use.</p>
-          <p><strong>Migrate to…</strong> starts nothing and doesn’t link the accounts. The copy is listed as a session of the target account: open <strong>Accounts</strong> at the bottom of the Workspaces panel, open that account’s sessions with the arrow after its session count, and press <strong>Resume</strong>. On the <strong>Claude</strong> tab the original and the copy share one row, and <strong>Resume as…</strong> from there links the two accounts.</p>
+          <p>It also merges into the target the project’s entry in <code>.claude.json</code> (for the default account, <code>~/.claude.json</code>), a few <code>settings.json</code> keys such as enabled plugins, model and theme, and the source account’s plugins. Where the target already has a value or a file, the target’s stays. Brow writes those files under Claude Code’s own lock, and merges again if a file changes while it works. That is what lets it copy into an account that is in use.</p>
+          <p><strong>Copy to account</strong> starts nothing and doesn’t link the accounts. To carry on in the copy and keep them apart, resume it as that account yourself, in the session’s directory; <strong>Copy session ID</strong> in the session’s menu copies the ID:</p>
+          <pre><code>CLAUDE_CONFIG_DIR=~/.claude-accounts/work claude --resume &lt;session-id&gt;</code></pre>
+          <p><strong>Resume as</strong> from Brow links the two accounts.</p>
 
-          <h3 id="share">Share</h3>
-          <p><strong>Share</strong> is for a session that belongs to an account other than <code>~/.claude</code>. It links that account to the shared store (<a href="#linking">what linking changes on disk</a>): the session’s project folder moves into <code>~/.claude</code> with the account’s other sessions from the same directory, and a link takes its place. From then on the default account sees those sessions too, and <strong>Resume as…</strong> opens this one under any other account without a copy. <strong>Share</strong> refuses a session that is running, and it starts nothing.</p>
+          <h3 id="share">Share with all accounts</h3>
+          <p><strong>Share with all accounts</strong> is for a session that belongs to an account other than <code>~/.claude</code>. It links that account to the shared store (<a href="#linking">what linking changes on disk</a>): the session’s project folder moves into <code>~/.claude</code> with the account’s other sessions from the same directory, and a link takes its place. From then on the default account sees those sessions too, and <strong>Resume as</strong> opens this one under any other account without a copy. <strong>Share with all accounts</strong> refuses a session that is running, and it starts nothing.</p>
         </section>
 
         <section id="linking" aria-labelledby="linking-title">
           <h2 id="linking-title">What linking changes on disk</h2>
-          <p>An account is linked the first time you use <strong>Resume as…</strong> or <strong>Share</strong> with it, or when you press <strong>Share sessions</strong> on its card in <span class="nowrap">Settings → Accounts</span>. Linking works per account, not per session:</p>
+          <p>An account is linked the first time you use <strong>Resume as</strong> or <strong>Share with all accounts</strong> with it, or when you press <strong>Share sessions</strong> on its card in <span class="nowrap">Settings → Accounts</span>. Linking works per account, not per session:</p>
           <table class="plain">
             <thead>
               <tr><th scope="col">In the account’s folder</th><th scope="col">After linking</th></tr>
@@ -334,10 +336,10 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
           </table>
           <p><strong>Share sessions</strong> links <code>file-history</code>, <code>tasks</code> and <code>session-env</code>. A <code>projects/&lt;project&gt;</code> folder becomes a link only when a session in it is resumed under another account or shared. The sign-in stays with each account: linking never moves or shares Claude Code’s credentials.</p>
           <p>Before a real folder becomes a link, Brow moves into <code>~/.claude</code> whatever <code>~/.claude</code> doesn’t have yet. Where both sides have an entry, <code>~/.claude</code> keeps its own, and the account’s copy goes to <code>grove-backup/</code> in the account’s folder.</p>
-          <p><code>~/.claude</code> itself is never a link: it is the store. The <strong>Accounts</strong> screen marks each linked account <strong>shared</strong>.</p>
-          <figure class="window-shot tall">
-            <img src="../media/workspaces-accounts.webp" width="1120" height="2651" loading="lazy" decoding="async" alt="The Accounts screen: Personal, Work and Team, each with its email, plan, sessions, and 5-hour and weekly use; Work and Team are marked shared, and Personal’s folder is ~/.claude.">
-            <figcaption>Personal is the default account, in <code>~/.claude</code>; Work and Team are linked to it.</figcaption>
+          <p><code>~/.claude</code> itself is never a link: it is the store. In <span class="nowrap">Settings → Accounts</span>, the card of each linked account says <strong>Shared with the default account</strong>, and the default account’s says <strong>The default account: the others share into it</strong>.</p>
+          <figure class="window-shot">
+            <img src="../media/settings-shared-050.webp" width="1228" height="1089" loading="lazy" decoding="async" alt="Work’s card in Settings → Accounts: its email, plan, folder ~/.claude-accounts/work, token and launch command, and under Workspaces, Share sessions: Shared with the default account.">
+            <figcaption>Work is linked to the default account, whose folder is <code>~/.claude</code>.</figcaption>
           </figure>
           <p>To see the links in an account’s folder:</p>
           <pre><code>ls -l ~/.claude-accounts/work ~/.claude-accounts/work/projects</code></pre>
@@ -347,8 +349,8 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
           <h2 id="one-writer-title">One writer per session</h2>
           <p>A session is one transcript. Claude Code’s documentation warns that if you resume the same session in two terminals without forking, messages from both interleave into one transcript (<a href="https://code.claude.com/docs/en/sessions#branch-a-session">Branch a session</a>). Brow refuses the moves that could do that across accounts:</p>
           <ul>
-            <li><strong>Resume as…</strong> checks whether the session is running under another account. If it finds it running, Brow starts nothing and asks you to close it first.</li>
-            <li><strong>Share</strong> refuses a session that is running, because linking moves its files.</li>
+            <li><strong>Resume as</strong> checks whether the session is running under another account. If it finds it running, Brow starts nothing and asks you to close it first.</li>
+            <li><strong>Share with all accounts</strong> refuses a session that is running, because linking moves its files.</li>
           </ul>
           <p>Both checks look among the running Claude Code processes for the session’s ID and for its directory, so a session that was started as a new one, rather than resumed, is caught too, and so is any other Claude Code running in that directory. Exit Claude Code in the session before you move it.</p>
         </section>
@@ -366,22 +368,22 @@ figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
           <p>In Brow, open <span class="nowrap">Settings → Accounts</span> and press <strong>Sign in…</strong>. Brow creates the next free folder, <code>~/.claude-accounts/account-1</code> and so on, and opens Anthropic’s own sign-in in Terminal. When Workspaces starts, it adds every signed-in folder it finds in <code>~/.claude-accounts</code>, alongside the default account in <code>~/.claude</code>, and calls each account by the name you gave it in Settings, or else its email. To set accounts up by hand, see <a href="/brow/multiple-claude-accounts/">Use multiple Claude Code accounts on one Mac</a>.</p>
 
           <h3 id="history">Does the session keep its history?</h3>
-          <p>Yes. <strong>Resume as…</strong> continues the same transcript through the shared store. <strong>Migrate to…</strong> copies it and leaves the original as it was. <strong>Share</strong> moves it into <code>~/.claude</code>, and the account reaches it through a link.</p>
+          <p>Yes. <strong>Resume as</strong> continues the same transcript through the shared store. <strong>Copy to account</strong> copies it and leaves the original as it was. <strong>Share with all accounts</strong> moves it into <code>~/.claude</code>, and the account reaches it through a link.</p>
 
           <h3 id="which-one">Which one should I use?</h3>
-          <p><strong>Resume as…</strong> to carry on now under another account, if you don’t mind the two accounts sharing session folders. <strong>Migrate to…</strong> to give an account its own copy and keep the accounts apart. <strong>Share</strong> to put a session of another account into the shared store without starting it yet.</p>
+          <p><strong>Resume as</strong> to carry on now under another account, if you don’t mind the two accounts sharing session folders. <strong>Copy to account</strong> to give an account its own copy and keep the accounts apart. <strong>Share with all accounts</strong> to put a session of another account into the shared store without starting it yet.</p>
 
           <h3 id="undo-linking">How do I undo linking?</h3>
-          <p>Linked accounts keep working without Brow, and Brow has no unlink button: the next <strong>Resume as…</strong> or <strong>Share</strong> with that account links it again. To give an account its own copies back, run this in the account’s folder while no Claude Code session uses the account. It replaces each link with a copy of the folder it points to.</p>
+          <p>Linked accounts keep working without Brow, and Brow has no unlink button: the next <strong>Resume as</strong> or <strong>Share with all accounts</strong> with that account links it again. To give an account its own copies back, run this in the account’s folder while no Claude Code session uses the account. It replaces each link with a copy of the folder it points to.</p>
           <pre><code>cd ~/.claude-accounts/work
 find file-history tasks session-env projects -maxdepth 1 -type l |
   while read -r link; do
     target=$(readlink "$link")
     rm "$link" &amp;&amp; cp -R "$target" "$link"
   done</code></pre>
-          <p><code>grove-backup/</code> in the account’s folder holds what linking set aside. Look through it before you delete it. Workspaces still counts the account as shared, so its Accounts screen reports the folders as not linked until the next <strong>Resume as…</strong> or <strong>Share</strong> with that account links them again.</p>
+          <p><code>grove-backup/</code> in the account’s folder holds what linking set aside. Look through it before you delete it. Brow still counts the account as shared, and its card in <span class="nowrap">Settings → Accounts</span> still says <strong>Shared with the default account</strong>, until the next <strong>Resume as</strong> or <strong>Share with all accounts</strong> with that account links its folders again.</p>
 
-          <p class="small">Brow is free and open source, for macOS 26 or later on Apple silicon: <a href="/brow/#install">install Brow</a>. Everything Workspaces changes in Claude Code’s folders is listed under <a href="https://github.com/efim0v/brow#what-brow-does-on-your-machine">What Brow does on your machine</a>. For the workspaces themselves, see <a href="/brow/multiple-repositories/">Run Claude Code across multiple repositories</a>. Claude Code behavior on this page was checked on 13 October 2026; Brow’s is that of version 0.4.0.</p>
+          <p class="small">Brow is free and open source, for macOS 26 or later on Apple silicon: <a href="/brow/#install">install Brow</a>. Everything Workspaces changes in Claude Code’s folders is listed under <a href="https://github.com/efim0v/brow#what-brow-does-on-your-machine">What Brow does on your machine</a>. For the workspaces themselves, see <a href="/brow/multiple-repositories/">Run Claude Code across multiple repositories</a>. Claude Code behavior on this page was checked on 13 October 2026; Brow’s is that of version 0.5.0.</p>
         </section>
       </div>
     </div>

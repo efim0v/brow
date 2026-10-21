@@ -46,31 +46,31 @@
       "@type": "SoftwareApplication",
       "@id": "https://efimov.page/brow/#app",
       "name": "Brow",
-      "description": "Бесплатное приложение для macOS с открытым кодом. Для каждого аккаунта Claude Code оно показывает в чёлке MacBook 5-часовой лимит, недельный лимит и недельный лимит отдельной модели, если такой есть: сколько процентов израсходовано и когда каждый лимит сбросится. Workspaces в строке меню выделяет каждой фиче проекта из нескольких репозиториев папку с git worktree на одной ветке и запускает в них параллельные сессии Claude Code.",
+      "description": "Бесплатное приложение для macOS с открытым кодом. Для каждого аккаунта Claude Code оно показывает в чёлке MacBook 5-часовой лимит, недельный лимит и недельный лимит отдельной модели, если такой есть: сколько процентов израсходовано и когда каждый лимит сбросится. Workspaces в той же панели чёлки выделяет каждой фиче проекта из нескольких репозиториев папку с git worktree на одной ветке, запускает в них параллельные сессии Claude Code и показывает, что последним сказала каждая сессия и какие агенты переписываются друг с другом.",
       "url": "https://efimov.page/brow/",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS 26 или новее",
       "processorRequirements": "Apple silicon (arm64)",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.4.0",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.4.0",
+      "softwareVersion": "0.5.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.5.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
       "license": "https://www.gnu.org/licenses/gpl-3.0.html",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "image": "https://efimov.page/brow/media/hero-still.webp",
+      "image": "https://efimov.page/brow/media/hero-still-050.webp",
       "screenshot": [
         {
           "@type": "ImageObject",
-          "url": "https://efimov.page/brow/media/hero-still.webp",
+          "url": "https://efimov.page/brow/media/hero-still-050.webp",
           "width": 1280,
           "height": 800,
           "caption": "Панель Brow под чёлкой MacBook: 5-часовые и недельные лимиты трёх аккаунтов Claude Code и время сброса каждого; у одного аккаунта есть ещё лимит Opus"
         },
         {
           "@type": "ImageObject",
-          "url": "https://efimov.page/brow/media/calendar-still.webp",
+          "url": "https://efimov.page/brow/media/calendar-still-050.webp",
           "width": 1280,
           "height": 800,
           "caption": "Календарь сбросов Brow: недельные сбросы и примерные даты продления подписок"
@@ -84,10 +84,24 @@
         },
         {
           "@type": "ImageObject",
-          "url": "https://efimov.page/brow/media/workspaces-project.webp",
-          "width": 1200,
-          "height": 1520,
-          "caption": "Workspaces: рабочие пространства проекта из нескольких репозиториев, каждое — папка с git worktree на одной ветке, и сессии Claude Code в них"
+          "url": "https://efimov.page/brow/media/panel-project-050.webp",
+          "width": 1040,
+          "height": 1416,
+          "caption": "Workspaces в панели чёлки Brow: рабочие пространства проекта из нескольких репозиториев, каждое — папка с git worktree на одной ветке; одно раскрыто, в нём сессии Claude Code"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efimov.page/brow/media/panel-projects-050.webp",
+          "width": 1040,
+          "height": 1416,
+          "caption": "Projects в панели чёлки Brow: каждая сессия Claude Code с её состоянием, вашим последним промптом и последней строкой Claude; сначала те, что ждут вас"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efimov.page/brow/media/panel-agents-050.webp",
+          "width": 1040,
+          "height": 1416,
+          "caption": "Agents в панели чёлки Brow: сессии Claude Code, их субагенты и команда агентов переписываются друг с другом вживую"
         }
       ],
       "featureList": [
@@ -99,11 +113,13 @@
         "Новый аккаунт в один клик",
         "Предупреждения о лимитах: уведомление macOS, когда аккаунт израсходует 80 % и 95 % лимита; по умолчанию выключены",
         "Картинка с лимитами всех аккаунтов, чтобы вставить её в чат или пост",
-        "Токены простаивающих аккаунтов обновляются в фоне",
+        "Токены всех аккаунтов обновляются в фоне, в том числе пока в аккаунте открыты сессии Claude Code",
         "Проверка лимитов каждые 30 секунд, после выхода из сна, при восстановлении сети и при наведении курсора",
         "Glim — питомец у чёлки, который ест то, что тратят ваши аккаунты; его свечение — шкала голода",
         "Workspaces: на каждую фичу — папка с git worktree каждого репозитория, все на одной ветке, для параллельных сессий Claude Code в нескольких репозиториях",
-        "Resume as…, Migrate to… и Share переносят сессию Claude Code на другой аккаунт, а при выборе аккаунта видны его лимиты",
+        "Resume as, Copy to account и Share with all accounts переносят сессию Claude Code на другой аккаунт, а при выборе аккаунта видны его лимиты",
+        "Projects: каждая сессия Claude Code по её состоянию и последнему обмену репликами, сначала то, что ждёт вас, а папки, где работает Claude Code, предлагаются как проекты",
+        "Agents: живая схема того, как сессии Claude Code, их субагенты и команды агентов на этом Mac переписываются друг с другом",
         "Утилита командной строки brow, второе имя — grove: scan, workspaces, sessions, create, graph и doctor"
       ],
       "softwareHelp": [
@@ -439,19 +455,19 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose">
         <h1 id="hero-title">Лимиты Claude&nbsp;Code всех ваших аккаунтов&nbsp;— в&nbsp;чёлке MacBook</h1>
-        <p class="lead">Brow&nbsp;— бесплатное приложение для macOS с&nbsp;открытым кодом. Для каждого аккаунта Claude&nbsp;Code он&nbsp;показывает <span class="nowrap">5-часовой</span> лимит, недельный лимит и&nbsp;недельный лимит отдельной модели, если такой есть: сколько процентов израсходовано и&nbsp;когда каждый лимит сбросится. Работает с&nbsp;одним аккаунтом (сам находит <code class="nowrap">~/.claude</code>) или с&nbsp;несколькими. А&nbsp;<a href="#workspaces">Workspaces</a> в&nbsp;строке меню запускает параллельные сессии Claude&nbsp;Code над продуктом из&nbsp;нескольких репозиториев. Интерфейс приложения&nbsp;— на&nbsp;английском.</p>
+        <p class="lead">Brow&nbsp;— бесплатное приложение для macOS с&nbsp;открытым кодом. Для каждого аккаунта Claude&nbsp;Code он&nbsp;показывает <span class="nowrap">5-часовой</span> лимит, недельный лимит и&nbsp;недельный лимит отдельной модели, если такой есть: сколько процентов израсходовано и&nbsp;когда каждый лимит сбросится. Работает с&nbsp;одним аккаунтом (сам находит <code class="nowrap">~/.claude</code>) или с&nbsp;несколькими. А&nbsp;<a href="#workspaces">Workspaces</a> в&nbsp;той&nbsp;же панели запускает параллельные сессии Claude&nbsp;Code над продуктом из&nbsp;нескольких репозиториев. Интерфейс приложения&nbsp;— на&nbsp;английском.</p>
         <p class="actions">
           <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">Скачать Brow</a>
           <a href="https://github.com/efim0v/brow">Исходный код на&nbsp;GitHub</a>
         </p>
         <p class="brew">Или через Homebrew: <code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.4.0,</span> <span><time datetime="2026-10-18">18&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
+      <p class="meta"><span>Бесплатно и&nbsp;с&nbsp;открытым кодом</span>&nbsp;· <span>macOS&nbsp;26 или новее</span>&nbsp;· <span>Apple&nbsp;silicon</span>&nbsp;· <span>Версия 0.5.0,</span> <span><time datetime="2026-10-21">21&nbsp;октября 2026&nbsp;г.</time> (<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">список изменений</a>)</span>&nbsp;· <a href="#install">Подробнее об&nbsp;установке</a></p>
 
       <figure class="hero-shot">
         <picture>
-          <source media="(prefers-reduced-motion: reduce)" srcset="../media/hero-still.webp" type="image/webp">
-          <img src="../media/hero.webp" width="1280" height="800" fetchpriority="high" alt="Глим откусывает кусочек, когда растёт число 5-часового лимита; при наведении на чёлку MacBook раскрывается панель Brow с 5-часовыми и недельными лимитами каждого аккаунта Claude Code, и Глим запрыгивает в её шапку; команда запуска аккаунта, у которого есть запас, копируется, и Claude Code запускается под этим аккаунтом">
+          <source media="(prefers-reduced-motion: reduce)" srcset="../media/hero-still-050.webp" type="image/webp">
+          <img src="../media/hero-050.webp" width="1280" height="800" fetchpriority="high" alt="Глим откусывает кусочек, когда растёт число 5-часового лимита; при наведении на чёлку MacBook раскрывается панель Brow с 5-часовыми и недельными лимитами каждого аккаунта Claude Code, и Глим запрыгивает в её шапку; команда запуска аккаунта, у которого есть запас, копируется, и Claude Code запускается под этим аккаунтом">
         </picture>
         <figcaption>Наведите курсор на&nbsp;чёлку&nbsp;— из&nbsp;неё раскроются <span class="nowrap">5-часовые</span> и&nbsp;недельные лимиты всех аккаунтов. Скопируйте команду запуска аккаунта, и&nbsp;Claude&nbsp;Code стартует под этим аккаунтом. <span class="demo-note">Во&nbsp;всех демо&nbsp;— выдуманные данные.</span></figcaption>
       </figure>
@@ -473,8 +489,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <figure>
           <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="../media/calendar-still.webp" type="image/webp">
-            <img src="../media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Календарь сбросов Brow: недельные сбросы и примерные даты продления подписок каждого аккаунта на сетке месяца; при наведении на день видно, какой лимит в этот день сбрасывается или какая подписка продлевается">
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/calendar-still-050.webp" type="image/webp">
+            <img src="../media/calendar-050.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Календарь сбросов Brow: недельные сбросы и примерные даты продления подписок каждого аккаунта на сетке месяца; при наведении на день видно, какой лимит в этот день сбрасывается или какая подписка продлевается">
           </picture>
         </figure>
       </div>
@@ -486,8 +502,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <figure>
           <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="../media/signin-still.webp" type="image/webp">
-            <img src="../media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Истекла авторизация в Claude Code: один клик запускает claude auth login для этого аккаунта и открывает его собственный профиль браузера, где вход в claude.ai уже выполнен">
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/signin-still-050.webp" type="image/webp">
+            <img src="../media/signin-050.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Истекла авторизация в Claude Code: один клик запускает claude auth login для этого аккаунта и открывает его собственный профиль браузера, где вход в claude.ai уже выполнен">
           </picture>
         </figure>
       </div>
@@ -499,7 +515,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>Показатели можно вынести и&nbsp;в&nbsp;полосу под чёлкой. На&nbsp;дисплее без чёлки Brow вместо них показывает капсулу.</p>
         </div>
         <figure>
-          <img src="../media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow в свёрнутом виде у чёлки MacBook: слева израсходовано 54&nbsp;% 5-часового лимита по всем аккаунтам и рядом сидит Глим, справа&nbsp;— 72&nbsp;% недельного">
+          <img src="../media/notch-050.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow в свёрнутом виде у чёлки MacBook: слева израсходовано 54&nbsp;% 5-часового лимита по всем аккаунтам и рядом сидит Глим, справа&nbsp;— 72&nbsp;% недельного">
         </figure>
       </div>
 
@@ -525,13 +541,13 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       <div class="tour-row">
         <div>
           <h3>Свечение&nbsp;— это его шкала голода</h3>
-          <p>Сытый Glim светится ярко, голодный&nbsp;— тускнеет. Если вы несколько часов за&nbsp;Mac, а&nbsp;Claude&nbsp;Code молчит, Glim проголодается, но&nbsp;и&nbsp;голодный он смотрит с&nbsp;надеждой, а&nbsp;не&nbsp;грустит.</p>
+          <p>Сытый Glim светится ярко, голодный&nbsp;— тускнеет. Если вы несколько часов за&nbsp;Mac, а&nbsp;Claude&nbsp;Code молчит, Glim проголодается, а&nbsp;потом изголодается, но&nbsp;и&nbsp;голодный он смотрит с&nbsp;надеждой, а&nbsp;не&nbsp;грустит. Если его перекормить, он наестся до&nbsp;отвала и&nbsp;погладит себя по&nbsp;животу.</p>
           <p>Отойдите от&nbsp;Mac на&nbsp;десять минут&nbsp;— и&nbsp;он задремлет. Пока вас нет, голод не&nbsp;растёт.</p>
         </div>
         <figure>
           <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="../media/glim-still.webp" type="image/webp">
-            <img src="../media/glim.webp" width="1280" height="305" loading="lazy" decoding="async" alt="Глим у чёлки MacBook дважды ест, пока растёт число 5-часового лимита, засыпает, когда лимит доходит до 100 %, просыпается после сброса, прячется за камерой, когда недельный лимит доходит до 100 %, и выходит после недельного сброса">
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/glim-still-050.webp" type="image/webp">
+            <img src="../media/glim-050.webp" width="1280" height="305" loading="lazy" decoding="async" alt="Глим у чёлки MacBook дважды ест, пока растёт число 5-часового лимита, засыпает, когда лимит доходит до 100 %, просыпается после сброса, прячется за камерой, когда недельный лимит доходит до 100 %, и выходит после недельного сброса">
           </picture>
         </figure>
       </div>
@@ -539,7 +555,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       <dl class="spec">
         <div>
           <dt>Исчерпанный лимит&nbsp;— повод поспать</dt>
-          <dd>Когда <span class="nowrap">5-часовой</span> лимит исчерпан, Glim засыпает сытым до&nbsp;сброса окна. Когда исчерпан недельный, он прячется в&nbsp;свою норку за&nbsp;камерой и&nbsp;выходит из&nbsp;неё при недельном сбросе.</dd>
+          <dd>Когда <span class="nowrap">5-часовой</span> лимит исчерпан, Glim засыпает сытым, с&nbsp;лёгкой улыбкой, до&nbsp;сброса окна. Когда исчерпан недельный, он прячется в&nbsp;свою норку за&nbsp;камерой и&nbsp;выходит из&nbsp;неё при недельном сбросе.</dd>
         </div>
         <div>
           <dt>Заходит в&nbsp;панель вместе с&nbsp;вами</dt>
@@ -591,7 +607,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Свежие токены</dt>
-          <dd>Токены простаивающих аккаунтов обновляются в&nbsp;фоне, так что цифры не&nbsp;устаревают. Аккаунт, в&nbsp;котором работает сессия Claude&nbsp;Code, Brow оставляет ей: такая сессия обновляет свой токен сама.</dd>
+          <dd>Brow обновляет токен каждого аккаунта в&nbsp;фоне, так что цифры не&nbsp;устаревают,&nbsp;— в&nbsp;том числе пока в&nbsp;этом аккаунте открыты сессии Claude&nbsp;Code. Первой продлить токен может работающая сессия.</dd>
         </div>
         <div>
           <dt>Проверка каждые 30&nbsp;секунд</dt>
@@ -746,7 +762,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose text">
         <h2 id="workspaces-title">Workspaces: параллельные сессии Claude&nbsp;Code в&nbsp;нескольких репозиториях</h2>
-        <p>Brow подсказывает, у&nbsp;какого аккаунта есть запас, а&nbsp;Workspaces переносит туда работу. Это вторая половина Brow, в&nbsp;строке меню: Grove, раньше отдельное приложение, теперь его часть.</p>
+        <p>Brow подсказывает, у&nbsp;какого аккаунта есть запас, а&nbsp;Workspaces переносит туда работу. Это стороны Projects и&nbsp;Agents панели чёлки, за&nbsp;переключателем вверху: Grove, раньше отдельное приложение, теперь часть Brow.</p>
         <p>Claude&nbsp;Code лучше всего работает, когда видит весь продукт в&nbsp;одной папке. Если продукт разнесён по&nbsp;нескольким репозиториям, параллельные сессии начинают спотыкаться о&nbsp;ветки: одна переключает ветку в&nbsp;репозитории сервера&nbsp;— и&nbsp;вторая, занятая другой фичей, вдруг видит не&nbsp;тот код. Workspaces выделяет каждой фиче свою папку, в&nbsp;которой лежит git worktree каждого выбранного вами репозитория, и&nbsp;все они на&nbsp;одной ветке. Claude&nbsp;Code запускается в&nbsp;этой папке и&nbsp;видит весь продукт, а&nbsp;ни&nbsp;одна сессия не&nbsp;может переключить ветку под другой.</p>
       </div>
 
@@ -757,25 +773,47 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>Вкладки Graph и&nbsp;Stats показывают граф коммитов каждого репозитория и&nbsp;число строк кода по&nbsp;всему проекту.</p>
         </div>
         <figure class="window-shot">
-          <img src="../media/workspaces-project.webp" width="1200" height="1520" loading="lazy" decoding="async" alt="Workspaces для проекта acme-shop: пять рабочих пространств в виде дерева; одно раскрыто, в нём worktree репозиториев web-client и api-server на ветке feat/checkout-redesign, две сессии Claude Code и кнопки New Claude, Resume, cmux и Child">
+          <img src="../media/panel-project-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Проект acme-shop в панели чёлки Brow: рабочие пространства в виде дерева; media-upload раскрыто, в нём worktree репозиториев acme_client и acme_server на ветке feat/media-upload, две сессии Claude Code и кнопки New session, Resume, cmux и Child">
         </figure>
       </div>
 
       <div class="tour-row">
         <div>
           <h3>Сессия переезжает на&nbsp;аккаунт с&nbsp;запасом</h3>
-          <p><strong>Resume as…</strong> продолжает сессию под другим аккаунтом без копирования. <strong>Migrate to…</strong> копирует её целиком, даже в&nbsp;аккаунт, которым сейчас пользуются. <strong>Share</strong> делает её видимой всем связанным аккаунтам.</p>
+          <p>У&nbsp;каждой сессии есть меню. <strong>Resume as</strong> продолжает сессию под другим аккаунтом без копирования. <strong>Copy to account</strong> копирует её целиком, даже в&nbsp;аккаунт, которым сейчас пользуются. <strong>Share with all accounts</strong> делает её видимой всем связанным аккаунтам.</p>
           <p>При выборе аккаунта видны его <span class="nowrap">5-часовой</span> и&nbsp;недельный расход, как их последний раз прочитала чёлка, и&nbsp;имя, которое вы дали аккаунту в&nbsp;<span class="nowrap">Settings → Accounts</span>.</p>
         </div>
-        <figure class="sheet-shot">
-          <img src="../media/workspaces-launch-sheet.webp" width="680" height="614" loading="lazy" decoding="async" alt="Окно запуска новой сессии Claude Code в checkout-redesign: открыть в cmux или Terminal, аккаунт Work, у которого израсходовано 78 % 5-часового и 61 % недельного лимита, модель opus и уровень effort high">
+        <figure class="window-shot">
+          <img src="../media/panel-resume-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Resume with options в панели чёлки Brow для сессии в checkout-promo-codes: Personal, Work и Team, у каждого его 5-часовой и недельный расход, у Work 78 % и 61 %; открыть в cmux или Terminal, модель, effort и Skip permission prompts">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Что последним сказала каждая сессия</h3>
+          <p><strong>Projects</strong> показывает каждую сессию Claude&nbsp;Code по&nbsp;её состоянию&nbsp;— ждёт разрешения, задаёт вопрос, работает, ваш ход&nbsp;— с&nbsp;вашим последним промптом и&nbsp;последней строкой Claude. То, что ждёт вас, идёт первым, а&nbsp;число на&nbsp;переключателе его считает. Папки, где работает Claude&nbsp;Code, но&nbsp;которые ещё не&nbsp;проекты, предлагается добавить как проекты.</p>
+          <p>Превью берутся из&nbsp;конца каждого транскрипта и&nbsp;не&nbsp;покидают ваш Mac. <span class="nowrap">Settings → Workspaces</span> → <strong>Show message previews</strong> выключает их, когда вы показываете экран.</p>
+        </div>
+        <figure class="window-shot">
+          <img src="../media/panel-projects-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Projects в панели чёлки Brow: две предложенные папки с кнопкой Add, затем сессии acme-shop — одна ждёт разрешения выполнить команду, одна задаёт вопрос, одна работает, у каждой ваш последний промпт и последняя строка Claude, — и сессия field-notes, которая задаёт вам вопрос">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>Кто с&nbsp;кем говорит</h3>
+          <p><strong>Agents</strong> рисует, как агенты Claude&nbsp;Code на&nbsp;этом Mac переписываются друг с&nbsp;другом: сессии, соединённые дугами, под каждой&nbsp;— её субагенты и&nbsp;участники команды, а&nbsp;каждое сообщение&nbsp;— огонёк, который бежит от&nbsp;отправителя к&nbsp;получателю. Под схемой&nbsp;— сообщения за&nbsp;последние десять минут.</p>
+          <p>Вкладка читает только то, что Claude&nbsp;Code и&nbsp;так пишет, только пока панель открыта, и&nbsp;никогда не&nbsp;вмешивается в&nbsp;разговор.</p>
+        </div>
+        <figure class="window-shot">
+          <img src="../media/panel-agents-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Agents в панели чёлки Brow: сессии harbor, atlas и quill, соединённые дугами, сообщение в пути от atlas к harbor, под сессиями субагенты probe, lumen и scout и участник команды reviewer, ниже сообщения за последние десять минут">
         </figure>
       </div>
 
       <dl class="spec">
         <div>
           <dt>Где его найти</dt>
-          <dd>Значок Brow в&nbsp;строке меню (чёлка с&nbsp;двумя точками) или кнопка со&nbsp;стопкой квадратов на&nbsp;панели чёлки. Workspaces выключен, пока вы им не&nbsp;воспользуетесь: откройте <span class="nowrap">Settings → Workspaces</span> или нажмите эту кнопку и&nbsp;выберите <strong>Add project…</strong>.</dd>
+          <dd>В&nbsp;панели чёлки: пока Workspaces включён, вверху есть переключатель <strong>Limits</strong>, <strong>Projects</strong> и&nbsp;<strong>Agents</strong>. Workspaces выключен, пока вы не&nbsp;включите его в&nbsp;<span class="nowrap">Settings → Workspaces</span> и&nbsp;не&nbsp;добавите проект. <strong>Show Projects</strong> в&nbsp;меню Brow и&nbsp;повторное открытие Brow из&nbsp;Finder или Spotlight открывают панель сразу на&nbsp;Projects.</dd>
         </div>
         <div>
           <dt>Утилита командной строки <code>brow</code></dt>
@@ -783,7 +821,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>cmux или Terminal.app</dt>
-          <dd>Сессии открываются в&nbsp;<a href="https://cmux.dev">cmux</a> (рекомендуется) или, через окно запуска, в&nbsp;Terminal.app. Рабочее пространство&nbsp;— обычная папка, так что Claude&nbsp;Code можно запустить в&nbsp;ней и&nbsp;из&nbsp;любого терминала.</dd>
+          <dd>Сессии открываются в&nbsp;<a href="https://cmux.dev">cmux</a> (рекомендуется) или, через форму New session и&nbsp;Resume with options, в&nbsp;Terminal.app. Рабочее пространство&nbsp;— обычная папка, так что Claude&nbsp;Code можно запустить в&nbsp;ней и&nbsp;из&nbsp;любого терминала.</dd>
         </div>
         <div>
           <dt>Если вы пользовались Grove</dt>
@@ -815,7 +853,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
             <h3>Найдите Brow в&nbsp;чёлке</h3>
             <p>Значка в&nbsp;Dock у&nbsp;Brow нет: наведите курсор на&nbsp;чёлку, и&nbsp;откроется панель. Кнопка ⚙ на&nbsp;панели открывает настройки, а&nbsp;чтобы Brow запускался при входе в&nbsp;систему, включите <strong>Launch at login</strong> в&nbsp;<span class="nowrap">Settings → General</span>.</p>
             <p>Если macOS не&nbsp;отдаёт Brow запись аккаунта из&nbsp;связки ключей, у&nbsp;этого аккаунта появляется оранжевый ключ. Нажмите на&nbsp;него и&nbsp;выберите <strong>Разрешать всегда</strong>.</p>
-            <p>Чтобы начать пользоваться Workspaces, откройте <span class="nowrap">Settings → Workspaces</span> или нажмите кнопку со&nbsp;стопкой квадратов на&nbsp;панели чёлки и&nbsp;выберите <strong>Add project…</strong>.</p>
+            <p>Чтобы начать пользоваться Workspaces, откройте <span class="nowrap">Settings → Workspaces</span>, включите его и&nbsp;добавьте проект. Тогда в&nbsp;панели рядом с&nbsp;<strong>Limits</strong> появятся <strong>Projects</strong> и&nbsp;<strong>Agents</strong>.</p>
           </li>
         </ol>
         <aside aria-label="Требования и проверка">
@@ -879,7 +917,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Workspaces&nbsp;— только когда вы его включите</dt>
-          <dd>Он правит <code>settings.json</code> аккаунта, только если включить для него перехват строки состояния, запускает git в&nbsp;ваших репозиториях, управляет cmux и&nbsp;ведёт страховку транскриптов, только если её включить. Полный список&nbsp;— в&nbsp;<a href="https://github.com/efim0v/brow/blob/main/README.ru.md#что-brow-делает-на-вашем-mac">README</a>.</dd>
+          <dd>Он правит <code>settings.json</code> аккаунта, только если включить для него перехват строки состояния, запускает git в&nbsp;ваших репозиториях, управляет cmux и&nbsp;ведёт страховку транскриптов, только если её включить. Чтобы показать, что работает, он читает записи сессий Claude&nbsp;Code, конец транскрипта каждой сессии и, пока панель открыта, сообщения, которые агенты шлют друг другу; ничего из&nbsp;этого не&nbsp;покидает ваш Mac. Полный список&nbsp;— в&nbsp;<a href="https://github.com/efim0v/brow/blob/main/README.ru.md#что-brow-делает-на-вашем-mac">README</a>.</dd>
         </div>
       </dl>
       <p class="small">Brow&nbsp;— независимый инструмент. Anthropic не&nbsp;имеет к&nbsp;нему отношения и&nbsp;не&nbsp;одобряла его.</p>
@@ -912,7 +950,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>Можно&nbsp;ли продолжить сессию Claude&nbsp;Code под другим аккаунтом?</h3>
-          <p>Да, в&nbsp;Workspaces. <strong>Resume as…</strong> продолжает её под другим аккаунтом, ничего не&nbsp;копируя, <strong>Migrate to…</strong> делает полную копию, а&nbsp;<strong>Share</strong> переносит её в&nbsp;общее хранилище, которое видят все связанные аккаунты. Brow не&nbsp;выполнит перенос, после которого в&nbsp;одну сессию писали&nbsp;бы два процесса. Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
+          <p>Да, в&nbsp;Workspaces. В&nbsp;меню сессии <strong>Resume as</strong> продолжает её под другим аккаунтом, ничего не&nbsp;копируя, <strong>Copy to account</strong> делает полную копию, а&nbsp;<strong>Share with all accounts</strong> переносит её в&nbsp;общее хранилище, которое видят все связанные аккаунты. Brow не&nbsp;выполнит перенос, после которого в&nbsp;одну сессию писали&nbsp;бы два процесса. Пошагово&nbsp;— в&nbsp;руководстве «<a href="/brow/move-session-to-another-account/">Как продолжить сессию Claude&nbsp;Code под другим аккаунтом</a>» (на&nbsp;английском).</p>
         </div>
         <div>
           <h3>Может&nbsp;ли Claude&nbsp;Code работать с&nbsp;несколькими репозиториями сразу?</h3>
@@ -921,15 +959,15 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Тратит&nbsp;ли Brow мои лимиты?</h3>
           <p>Только через запасное обновление токена, и&nbsp;его можно отключить. Чтение лимитов&nbsp;— это запрос к&nbsp;эндпоинту Anthropic с&nbsp;данными о&nbsp;расходе, а&nbsp;не&nbsp;к&nbsp;модели. Токен простаивающего аккаунта Brow обновляет через <code class="nowrap">claude doctor</code>, который к&nbsp;модели тоже не&nbsp;обращается.</p>
-          <p>Запасное обновление включено по&nbsp;умолчанию. Когда токену осталось жить 30&nbsp;минут или меньше, а&nbsp;<code class="nowrap">claude doctor</code> его не&nbsp;продлил, Brow выполняет запрос <code class="nowrap">claude -p</code> в&nbsp;один ход на&nbsp;Haiku. Это тратит крошечную долю лимита аккаунта и&nbsp;запускает его <span class="nowrap">5-часовое</span> окно. Такой запрос уходит не&nbsp;чаще раза в&nbsp;30&nbsp;минут на&nbsp;аккаунт. Выключить запасное обновление можно в&nbsp;<span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong>.</p>
+          <p>Запасное обновление включено по&nbsp;умолчанию. Когда <code class="nowrap">claude doctor</code> не&nbsp;продлил токен за&nbsp;последние 4½&nbsp;минуты его жизни, Brow выполняет запрос <code class="nowrap">claude -p</code> в&nbsp;один ход на&nbsp;Haiku. Это тратит крошечную долю лимита аккаунта и&nbsp;запускает его <span class="nowrap">5-часовое</span> окно. Такой запрос уходит не&nbsp;чаще раза в&nbsp;30&nbsp;минут на&nbsp;аккаунт. Выключить запасное обновление можно в&nbsp;<span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong>.</p>
         </div>
         <div>
           <h3>Brow&nbsp;— это приложение для строки меню? Работает&nbsp;ли он&nbsp;без чёлки?</h3>
-          <p>У&nbsp;Brow нет значка в&nbsp;Dock. Лимиты&nbsp;— вверху основного дисплея: на&nbsp;MacBook с&nbsp;чёлкой два показателя стоят по&nbsp;бокам от&nbsp;неё или в&nbsp;полосе под ней, на&nbsp;дисплее без чёлки, например на&nbsp;внешнем мониторе,&nbsp;— капсула вверху по&nbsp;центру. У&nbsp;Workspaces, когда вы его включите, есть значок в&nbsp;строке меню. Если Brow нужен вам только ради Workspaces, отображение в&nbsp;чёлке выключается в&nbsp;<span class="nowrap">Настройках → General</span>.</p>
+          <p>Нет. У&nbsp;Brow нет ни&nbsp;значка в&nbsp;Dock, ни&nbsp;значка в&nbsp;строке меню. Лимиты&nbsp;— вверху основного дисплея: на&nbsp;MacBook с&nbsp;чёлкой два показателя стоят по&nbsp;бокам от&nbsp;неё или в&nbsp;полосе под ней, на&nbsp;дисплее без чёлки, например на&nbsp;внешнем мониторе,&nbsp;— капсула вверху по&nbsp;центру. Workspaces, когда вы его включите, живёт в&nbsp;той&nbsp;же панели. Если Brow нужен вам только ради Workspaces, отображение в&nbsp;чёлке выключается в&nbsp;<span class="nowrap">Настройках → General</span>, а&nbsp;Projects тогда открывается из&nbsp;меню Brow или повторным открытием Brow.</p>
         </div>
         <div>
-          <h3>Почему я&nbsp;не&nbsp;вижу значка Brow в&nbsp;строке меню?</h3>
-          <p>На&nbsp;MacBook с&nbsp;чёлкой macOS прячет значки строки меню, которые не&nbsp;помещаются рядом с&nbsp;ней. Workspaces всё равно открывается кнопкой со&nbsp;стопкой квадратов на&nbsp;панели чёлки, пунктом <strong>Show Workspaces</strong> в&nbsp;меню Brow, пока на&nbsp;переднем плане его окно настроек, и&nbsp;повторным открытием Brow из&nbsp;Finder или Spotlight. <span class="nowrap">Settings → General</span> → <strong>Show Workspaces in the menu bar</strong> убирает значок совсем.</p>
+          <h3>Как открыть Projects?</h3>
+          <p>Наведите курсор на&nbsp;чёлку и&nbsp;выберите <strong>Projects</strong> в&nbsp;переключателе вверху панели; он&nbsp;там, пока Workspaces включён. Пункт <strong>Show Projects</strong> в&nbsp;меню Brow, которое строка меню показывает, пока на&nbsp;переднем плане его окно настроек, и&nbsp;повторное открытие Brow из&nbsp;Finder или Spotlight открывают панель сразу на&nbsp;Projects и&nbsp;закрепляют её. Если отображение в&nbsp;чёлке выключено в&nbsp;<span class="nowrap">Настройках → General</span>, остаются только эти два способа.</p>
         </div>
         <div>
           <h3>Есть&nbsp;ли в&nbsp;Brow уведомления?</h3>

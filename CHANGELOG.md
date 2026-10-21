@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-21
+
+Workspaces moves into the notch panel: one window for the limits, the projects and the agents, and no menu-bar item. Projects shows what each session said last and what needs you, Agents shows who talks to whom, Glim gets two new moods, and Brow refreshes tokens again while Claude Code sessions sit open.
+
+### Added
+
+- **Projects and Agents in the notch panel.** While Workspaces is on, a switch at the top of the panel goes between Limits, Projects and Agents, in the same black under the notch. Show Projects in Brow's menu and opening Brow again from Finder or Spotlight open the panel pinned on Projects. Pinned, the panel takes the keyboard, on any layout.
+- **What each session said last.** Projects shows each session by its state — *Needs permission* or *Asks you* in yellow when it waits on you, *Working*, *Your turn*, *Closed* — where it runs and as which account, your newest prompt and Claude's newest line. What needs you comes first. The yellow number on the Projects switch counts the sessions that need you, and an account's "N live" chip on Limits opens Projects narrowed to that account. Settings → Workspaces → **Show message previews** shows titles instead, for sharing your screen.
+- **Suggested projects.** Folders where Claude Code runs that are no project yet are suggested at the top of Projects, with **Add**, or ✕ for "not now", which is remembered. **Other folders** lists the sessions outside every project, each folder with **Add as project**.
+- **Agents**: who talks to whom among the Claude Code agents on this Mac, live. Sessions sit on a row, joined by arcs when they message each other, with their subagents and agent-team members in a short tree under each; a message is a small light that runs from the sender to the receiver, and RECENT lists the last ten minutes. It reads only what Claude Code already writes, only while the panel is open and for half a minute after, and keeps the first line of a message in memory for an hour at most.
+- Glim has two new moods at the ends of its hunger meter. Fed far past the brim it is Stuffed: round-bellied and blissful, it pats its belly, gives a thumbs-up and still takes another bite. After hours at the Mac with nothing used it is Famished: up on its toes and leaning toward the number, its tummy rumbling, hopeful and never sad. Asleep at the 5-hour limit, it now sleeps with a small smile.
+
+### Changed
+
+- Workspaces' accounts are Brow's: every picker and menu lists the accounts Settings → Accounts shows, in its order, under its names, with their limits, and a session Workspaces starts runs as the account it names. Workspaces' own Accounts screen is gone.
+- The panel has continuous bottom corners, a width for each of its screens and a footer that always fits, and it stops above the Dock.
+- A project's worktrees that no session ran in, such as the ones scripts and agents leave behind, fold into one line, "N with no session", opened by a click.
+- A session shows under one project only, the one whose folder holds it most closely. A folder inside a project, a folder that holds one, or a second project with the same name is not added.
+- Sessions a program started (`claude -p`, the Agent SDK) are not listed.
+- A folder that only holds projects — one right in your home folder, or one with more than 12 repositories — is not suggested as a project.
+- Projects reads the start and the last 64 KB of a transcript, never all of it, so long sessions don't slow it down.
+- The reset calendar keeps the same height every month.
+
+### Removed
+
+- Brow's menu-bar item, and Settings → General → Show Workspaces in the menu bar. The notch panel is the way in.
+- Workspaces' own window, with its Liquid Glass and Settings → Workspaces → panel material: its screens are the Projects side of the notch panel.
+
+### Fixed
+
+- Brow refreshes your tokens again while Claude Code sessions sit open in your accounts. 0.3.1 stopped refreshing the token of any account with a running `claude` process for its folder, however long that session had been idle, so that two refreshes at once could not leave the session with a dead token. That reasoning does not hold. Claude Code now takes a lock around each refresh and re-reads the token under it, so a refresh by Brow and one by a session no longer collide. And a session renews its token only when it sends a request in the token's last five minutes, so an idle session renews nothing. With sessions left open for days, nothing refreshed any token: eight hours after the last refresh each account read *Token in use by Claude Code*, then *Rate limited*, its bars went grey, and signing in again only started the eight hours over. Now a session gets the first go only while the token has more than two minutes left. After that, after Anthropic rejects the token, and when you press ⟳, Brow runs `claude doctor` whether or not a session holds the account. A session busy at that moment may see one rejected request, which Claude Code recovers from by itself. Brow notes each time in its log.
+- Brow runs `claude doctor` in a token's last 4½ minutes, when it can work. Claude Code renews a token only in its last five minutes, so the `claude doctor` Brow ran half an hour early did nothing, was counted as a failure, and was followed by `claude -p`, which spends a little limit and starts the account's 5-hour window.
+- Brow no longer takes the `grep`, `find` and `rg` that Claude Code runs from its own binary for sessions. One left behind in an old `tail -F | grep` kept its account "in use" for days.
+- Brow no longer sends a token past its expiry to Anthropic. The panel says *Token expired 12 min ago*, adding *— Claude Code hasn't refreshed it* while a session holds the account, instead of *Rate limited*.
+- The sign-in button turns orange only when the login is really dead: when `claude doctor` or `claude -p` says so (*Please run /login*, or *Failed to authenticate* from `claude -p`), when three attempts in a row did not renew the token, or when the account has no token. A token Anthropic rejected reads *Anthropic rejected the token* while Brow tries to refresh it.
+- When `claude doctor` or `claude -p` runs past its time limit, it gets nine seconds to exit before Brow kills it, not half a second. On its way out Claude Code cleans up, runs its SessionEnd hooks and only then waits up to two seconds for a token refresh in flight to be saved, and a kill in that wait could lose the renewed token.
+- No `claude` runs while the Mac is in a dark wake (Power Nap and the like): nobody is there, and the Mac can go back to sleep in the middle of a refresh.
+
 ## [0.4.0] - 2026-10-18
 
 Grove is now part of Brow. Its Workspaces engine — workspaces of git worktrees across several repositories, the Claude Code sessions in them and moving sessions between accounts — runs inside Brow, merged into this repository with its history. Grove's own changelog is in [`docs/history/grove-changelog.md`](docs/history/grove-changelog.md). The notch also gets a pet that eats what your accounts use.
@@ -113,7 +151,8 @@ First public release: the usage and rate limits of every Claude Code account, in
 - Background token refresh for idle accounts. If it stops working, Brow falls back to a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. The fallback is on by default; turn it off in Settings → Accounts.
 - A prebuilt `Brow.zip` for macOS 26 or later on Apple silicon, signed ad hoc and not notarized, with `SHA256SUMS.txt` to verify it.
 
-[Unreleased]: https://github.com/efim0v/brow/compare/0.4.0...HEAD
+[Unreleased]: https://github.com/efim0v/brow/compare/0.5.0...HEAD
+[0.5.0]: https://github.com/efim0v/brow/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/efim0v/brow/compare/0.3.1...0.4.0
 [0.3.1]: https://github.com/efim0v/brow/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/efim0v/brow/compare/0.2.3...0.3.0

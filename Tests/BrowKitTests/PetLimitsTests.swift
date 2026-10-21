@@ -312,7 +312,7 @@ final class PetLimitsTests: XCTestCase {
         pet.run(to: 80)
         // The new period's 100 points are a meal while it is still awake; the yawn waits for 51.
         XCTAssertEqual(played(pet, 0...80), ["asleep@0.0", "drowsy@20.0", "wake@21.0", "idle(content)@23.7",
-                                             "eat@31.0", "satisfied@33.4", "idle(full)@37.4",
+                                             "eat@31.0", "satisfied@33.4", "idle(stuffed)@37.4",
                                              "fallAsleep@51.0", "asleep@53.6"])
     }
 

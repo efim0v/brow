@@ -13,6 +13,8 @@ import GroveCore
 struct GraphScreen: View {
     @ObservedObject var state: AppState
     @Environment(\.isSnapshotRender) private var isSnapshotRender
+    @Environment(\.groveHost) private var host
+    @Environment(\.groveAccent) private var accent
 
     /// Geometry shared with GraphLanesCanvas: dot x = laneOrigin + lane*laneSpacing.
     static let rowHeight: CGFloat = 24
@@ -66,31 +68,41 @@ struct GraphScreen: View {
             Text("Repo")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            // Selected chip = translucent capsule fill; idle chips keep their
-            // faint fill. The SwiftUI GlassEffectContainer is gone — it crashes
-            // nested inside the AppKit NSGlassEffectView window substrate.
-            HStack(spacing: 6) {
-                ForEach(state.selectedSnapshot?.repos ?? [], id: \.path) { repo in
-                    let isSelected = repo.path == state.graphRepoPath
-                    Button {
-                        Task { await state.loadGraph(repoPath: repo.path) }
-                    } label: {
-                        Text(repo.dirName)
-                            .font(.caption.weight(isSelected ? .semibold : .regular))
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 3)
-                            .selectionCapsule(isOn: isSelected, idleOpacity: 0.04)
-                    }
-                    .buttonStyle(.plain)
-                }
+            // One row of chips that scrolls sideways and never wraps a name: a project
+            // with many repositories keeps its graph where it is.
+            if isSnapshotRender {
+                chips.fixedSize().frame(maxWidth: .infinity, alignment: .leading).clipped()
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) { chips }
             }
-            Spacer()
             Text("\(state.graphNodes.count) commits")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+                .fixedSize()
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, host.isNotch ? 0 : 12)
         .padding(.vertical, 8)
+    }
+
+    /// Selected chip = translucent capsule fill; idle chips keep their faint fill.
+    private var chips: some View {
+        HStack(spacing: 6) {
+            ForEach(state.selectedSnapshot?.repos ?? [], id: \.path) { repo in
+                let isSelected = repo.path == state.graphRepoPath
+                Button {
+                    Task { await state.loadGraph(repoPath: repo.path) }
+                } label: {
+                    Text(repo.dirName)
+                        .font(.caption.weight(isSelected ? .semibold : .regular))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 3)
+                        .selectionCapsule(isOn: isSelected, idleOpacity: 0.04)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     // MARK: - Graph body (plain VStack in snapshots: ScrollView content is
@@ -98,19 +110,11 @@ struct GraphScreen: View {
 
     @ViewBuilder private var graphBody: some View {
         let rows = graphRows
-        if isSnapshotRender {
+        FadingScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 rows
-                Spacer(minLength: 0)
             }
-        } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    rows
-                }
-                .padding(.bottom, 8)
-                .collapsesSearchOnScroll()
-            }
+            .padding(.bottom, 8)
         }
     }
 
@@ -193,7 +197,7 @@ struct GraphScreen: View {
                     Text("\(files.count) file\(files.count == 1 ? "" : "s")")
                         .font(.caption2).foregroundStyle(.secondary)
                     Spacer(minLength: 8)
-                    Text("+\(adds)").foregroundStyle(Palette.primary)
+                    Text("+\(adds)").foregroundStyle(accent)
                     Text("−\(dels)").foregroundStyle(Palette.negative)
                 }
                 .font(.caption2.weight(.semibold).monospacedDigit())
@@ -206,7 +210,7 @@ struct GraphScreen: View {
                                 if f.isBinary {
                                     Text("bin").foregroundStyle(.tertiary)
                                 } else {
-                                    Text("+\(f.additions)").foregroundStyle(Palette.primary)
+                                    Text("+\(f.additions)").foregroundStyle(accent)
                                     Text("−\(f.deletions)").foregroundStyle(Palette.negative)
                                 }
                             }
@@ -271,7 +275,7 @@ struct GraphScreen: View {
             if let snapshot = state.selectedSnapshot,
                let location = worktreeLocation(forBranch: branch, in: snapshot) {
                 Button("Open Claude in \(location.title)") {
-                    let account = state.config.accounts.first
+                    let account = state.defaultLaunchAccount
                         ?? AccountConfig(name: "default", configDir: "~/.claude")
                     Task {
                         await state.launchClaude(cwd: location.cwd, title: location.title,

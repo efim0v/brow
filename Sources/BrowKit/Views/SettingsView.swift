@@ -19,7 +19,7 @@ public enum SettingsPane: String, CaseIterable, Sendable {
         }
     }
 
-    /// Where the Workspaces panel's links land.
+    /// Where the links on Workspaces' screens land.
     public init(_ link: WorkspacesSettingsLink) {
         switch link {
         case .workspaces: self = .workspaces
@@ -148,11 +148,6 @@ public struct SettingsView: View {
     private var general: some View {
         Form {
             LaunchAtLoginRow()
-            Section {
-                Toggle("Show Workspaces in the menu bar", isOn: $store.settings.workspaces.showInMenuBar)
-                Text("While Workspaces is on (Settings › Workspaces). Off, it still opens from the button in the notch panel and when you open Brow again.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             NotificationSettings(settings: $store.settings, notifier: notifier)
             Section {
                 Toggle("Show the reset calendar in the panel", isOn: $store.settings.showCalendar)
@@ -161,7 +156,7 @@ public struct SettingsView: View {
             }
             Section {
                 Toggle("Show Brow in the notch", isOn: $store.settings.showNotch)
-                Text("Off: Brow draws nothing at the top of the screen and no panel opens there. Limit warnings still arrive, Workspaces still opens from its menu-bar item, and opening Brow again from Finder or Spotlight shows Workspaces or this window.")
+                Text("Off: Brow draws nothing at the top of the screen and no panel opens on hover. Limit warnings still arrive, and the panel still opens on Projects from the Brow menu and opening Brow again from Finder or Spotlight — or this window, while Workspaces is off.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Toggle("Show readouts next to the notch", isOn: $store.settings.showEars)

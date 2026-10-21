@@ -143,6 +143,10 @@ public struct PetBrain: Sendable {
     var quietUntil: TimeInterval?
     /// A boop waiting for a short action to end; true when it is the giggle.
     var queuedBoop: Bool?
+    /// The panel is open, and when a greeting is due in it; the last greeting, for its rate.
+    var panelOpen = false
+    var greetDue: TimeInterval?
+    var lastGreet: TimeInterval?
     /// Peeks so far, the index of the next peek's gap.
     var peeks = 0
 
@@ -357,7 +361,24 @@ extension PetBrain {
             guard let next = decide(at: t) else { break }
             commit(next, at: t)
         }
+        greet(at: t)
         refreshMeter(at: t)
+    }
+
+    /// The greeting the panel's opening made due, at its instant: a cue for the rig when the pet rests at an
+    /// end of the meter, Reduce Motion is off and no greeting came in the last `Greet.every`. The rig plays
+    /// it as a thumbs-up or a please, and lets it go if the mood has changed by then.
+    mutating func greet(at t: PetTime) {
+        guard let due = greetDue, t.mono >= due - 1e-9 else { return }
+        greetDue = nil
+        guard panelOpen, showPet, !motion.reduceMotion,
+              lastGreet.map({ t.mono - $0 >= PetTuning.Greet.every - 1e-9 }) ?? true else { return }
+        switch current?.behaviour {
+        case .idle(.stuffed)?, .idle(.famished)?: break
+        default: return
+        }
+        lastGreet = t.mono
+        cue(.greet, at: t)
     }
 
     /// Hunger since `clock` at the rate held since then, stopping where the person went away by
@@ -397,6 +418,7 @@ extension PetBrain {
         }
         if let eagerUntil { times.append(eagerUntil) }
         if let queuedPrompt { times.append(queuedPrompt + PetTuning.Eager.afterPrompt) }
+        if let greetDue { times.append(greetDue) }
         let wall = Date(timeIntervalSince1970: clock + offset)
         if let close = food.nextClose(after: wall) { times.append(mono(close)) }
         if let accounts, !accounts.isEmpty {
@@ -597,6 +619,9 @@ extension PetBrain {
             pointer(at: distance, time: t)
         case .boop:
             boop(at: t)
+        case .panel(let open):
+            panelOpen = open
+            greetDue = open ? t.mono + PetTuning.Greet.after : nil
         case .tick:
             break
         case .debugHunger(let value):
@@ -814,7 +839,7 @@ extension PetBrain {
             return change
         }
         if case .eat(let meal) = behaviour, done {
-            return .satisfied(meal.feast ? .feast : meal.size == .full ? .meal : .lick)
+            return .satisfied(satisfaction(after: meal))
         }
         guard from == .open || (from == .doze && targetPlace == .open) else {
             return done ? held(from, target: target) : nil
@@ -962,7 +987,17 @@ extension PetBrain {
         let quiet = sinceLastMeal(at: t).map { $0 >= P.fullMealAfter } ?? true
         let chews = points < P.twoChewsFrom ? 1 : points < P.threeChewsFrom ? 2 : P.maxChews
         return PetMeal(size: feast || (quiet && !flush) ? .full : .nibble, chews: chews, feast: feast,
-                       points: points, reduceMotion: motion.reduceMotion)
+                       points: points, reduceMotion: motion.reduceMotion, mood: mood)
+    }
+
+    /// What follows a meal that has just ended, its drop already on the meter: after a nibble a lick;
+    /// a full meal or a feast eaten famished, the grateful one; a feast its own; a full meal that leaves
+    /// it stuffed, the brim; any other full meal, the plain one.
+    func satisfaction(after meal: PetMeal) -> PetBehaviour.Satisfaction {
+        guard meal.size == .full || meal.feast else { return .lick }
+        if meal.mood == .famished { return .grateful }
+        if meal.feast { return .feast }
+        return mood == .stuffed ? .brim : .meal
     }
 
     func isSatisfied(_ behaviour: PetBehaviour) -> Bool {

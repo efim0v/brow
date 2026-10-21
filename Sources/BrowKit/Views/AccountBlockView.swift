@@ -15,19 +15,27 @@ public struct AccountBlockView: View {
     let claudePath: String
     /// Grant Brow access to this account's Keychain item — shown only while it is withheld.
     let onGrant: (() -> Void)?
+    /// Sessions running as this account now (Workspaces), and what its chip opens: Projects,
+    /// narrowed to the account. No chip at 0.
+    let live: Int
+    let onLive: (() -> Void)?
     @State private var copied = false
 
-    public init(row: AccountRow, now: Date, claudePath: String = "claude", onGrant: (() -> Void)? = nil) {
+    public init(row: AccountRow, now: Date, claudePath: String = "claude", onGrant: (() -> Void)? = nil,
+                live: Int = 0, onLive: (() -> Void)? = nil) {
         self.row = row
         self.now = now
         self.claudePath = claudePath
         self.onGrant = onGrant
+        self.live = live
+        self.onLive = onLive
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(row.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                if live > 0, let onLive { liveChip(onLive) }
                 Spacer()
                 Text(tag).font(.system(size: 10)).foregroundStyle(tagColor).lineLimit(1)
                 actions
@@ -75,12 +83,13 @@ public struct AccountBlockView: View {
             .buttonStyle(.plain)
             .help("Copy: \(command)")
             // Sign in again, in this account's own browser profile. Orange when the
-            // server has rejected the token — that is the moment this button exists for.
+            // login is dead (`LimitsStore.needsSignIn`) — the moment this button exists
+            // for. Not for a rejected token alone: a refresh usually fixes that one.
             Button {
                 AddAccountFlow.login(dir: row.account.configDir, claudePath: claudePath)
             } label: {
                 Image(systemName: "person.badge.key")
-                    .font(.system(size: 11)).foregroundStyle(needsLogin ? Color.orange : Color.secondary)
+                    .font(.system(size: 11)).foregroundStyle(row.needsSignIn ? Color.orange : Color.secondary)
                     .frame(width: 18, height: 18).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -99,9 +108,19 @@ public struct AccountBlockView: View {
         }
     }
 
-    private var needsLogin: Bool {
-        if case .error(let text) = row.status, text.contains("sign-in") { return true }
-        return row.tokenStatus.contains("revoked") || row.tokenStatus.contains("no token")
+    /// "2 live": the sessions running as this account; it opens them in Projects.
+    private func liveChip(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("\(live) live")
+                .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(NotchTheme.cream)
+                .padding(.horizontal, 6).frame(height: 16)
+                .background(Capsule().fill(NotchTheme.cream.opacity(0.14)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Show this account's sessions in Projects")
+        .accessibilityLabel("\(live) live session\(live == 1 ? "" : "s"). Show them in Projects")
     }
 
     private var tag: String {

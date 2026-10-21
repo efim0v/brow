@@ -30,7 +30,7 @@ final class AppStateSessionsTests: XCTestCase {
         state.config.accounts = [AccountConfig(name: "default", configDir: root.appendingPathComponent("x").path)]
         let row = ProjectSessionRow(sessionId: "s1", title: "T", cwd: "/ws/a", location: "a",
                                     accountName: "default", lastActivity: Date(),
-                                    status: .running, cmuxWorkspaceId: "ws-9")
+                                    state: .working, cmuxWorkspaceId: "ws-9")
         await state.openSession(row)
         XCTAssertNil(state.actionError)
         XCTAssertEqual(runner.calls(startingWith: "select-workspace").first?.args,
@@ -44,7 +44,7 @@ final class AppStateSessionsTests: XCTestCase {
         state.config.accounts = [AccountConfig(name: "work", configDir: root.appendingPathComponent("grove-work").path)]
         let row = ProjectSessionRow(sessionId: "abc", title: "T", cwd: "/ws/a", location: "a",
                                     accountName: "work", lastActivity: Date(),
-                                    status: .closed, cmuxWorkspaceId: nil)
+                                    state: .closed, cmuxWorkspaceId: nil)
         // A closed session now opens the launch sheet (no process spawned yet).
         await state.openSession(row)
         XCTAssertTrue(runner.calls(startingWith: "new-workspace").isEmpty)
@@ -173,7 +173,7 @@ final class AppStateSessionsTests: XCTestCase {
         let rows = try XCTUnwrap(state.recentSessionsByProject[project.id])
         XCTAssertEqual(rows.map(\.sessionId), ["sess-1"])
         XCTAssertEqual(rows.first?.title, "Demo work")
-        XCTAssertEqual(rows.first?.status, .closed)     // no live process in the fixture
+        XCTAssertEqual(rows.first?.state, .closed)     // no live process in the fixture
         XCTAssertNil(rows.first?.cmuxWorkspaceId)
     }
 }

@@ -17,7 +17,8 @@ final class OAuthProfileClientTests: XCTestCase {
         }
     }
     private struct Creds: CredentialsReading {
-        func token(configDir: String) -> ClaudeToken? { ClaudeToken(value: "t", expiresAt: nil) }
+        var expiresAt: Date?
+        func token(configDir: String) -> ClaudeToken? { ClaudeToken(value: "t", expiresAt: expiresAt) }
     }
 
     /// The shape the endpoint really returns (2026-09-18), trimmed to the organisation.
@@ -49,5 +50,19 @@ final class OAuthProfileClientTests: XCTestCase {
         f.status = 500
         do { _ = try await c.profile(configDir: "d"); XCTFail("500 must throw") }
         catch { XCTAssertEqual(error as? OAuthUsageError, .http(500)) }
+    }
+
+    /// A token past its own expiry is not sent here either, as it is not to the usage
+    /// endpoint: the endpoint can only refuse it. One still live goes out as before.
+    func testATokenPastItsExpiryIsNotSent() async throws {
+        let f = Fetcher()
+        f.body = sample
+        let died = Date(timeIntervalSince1970: 1_700_000_000)
+        let c = OAuthProfileClient(fetcher: f, userAgent: nil, credentials: Creds(expiresAt: died))
+        do { _ = try await c.profile(configDir: "d", now: died.addingTimeInterval(60)); XCTFail("an expired token must throw") }
+        catch { XCTAssertEqual(error as? OAuthUsageError, .expired(died)) }
+        XCTAssertEqual(f.calls, 0, "nothing goes out with a dead token")
+        _ = try await c.profile(configDir: "d", now: died.addingTimeInterval(-60))
+        XCTAssertEqual(f.calls, 1)
     }
 }

@@ -46,31 +46,31 @@
       "@type": "SoftwareApplication",
       "@id": "https://efimov.page/brow/#app",
       "name": "Brow",
-      "description": "一款免费开源的 macOS 应用，在 MacBook 刘海中以已用百分比显示每个 Claude Code 账号的 5 小时限额、每周限额和特定模型的每周限额（如有），并显示每项限额何时重置。菜单栏里的 Workspaces 为多仓库项目的每个功能创建一个文件夹，里面是同一分支上的 git worktree，并在其中运行并行的 Claude Code 会话。",
+      "description": "一款免费开源的 macOS 应用，在 MacBook 刘海中以已用百分比显示每个 Claude Code 账号的 5 小时限额、每周限额和特定模型的每周限额（如有），并显示每项限额何时重置。同一个刘海面板里的 Workspaces 为多仓库项目的每个功能创建一个文件夹，里面是同一分支上的 git worktree，在其中运行并行的 Claude Code 会话，并显示每个会话最后说了什么、哪些智能体在互相发消息。",
       "url": "https://efimov.page/brow/",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS 26 或更高版本",
       "processorRequirements": "Apple 芯片（arm64）",
       "softwareRequirements": "Claude Code",
-      "softwareVersion": "0.4.0",
-      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.4.0",
+      "softwareVersion": "0.5.0",
+      "releaseNotes": "https://github.com/efim0v/brow/releases/tag/0.5.0",
       "downloadUrl": "https://github.com/efim0v/brow/releases/latest/download/Brow.zip",
       "inLanguage": "en",
       "isAccessibleForFree": true,
       "license": "https://www.gnu.org/licenses/gpl-3.0.html",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "image": "https://efimov.page/brow/media/hero-still.webp",
+      "image": "https://efimov.page/brow/media/hero-still-050.webp",
       "screenshot": [
         {
           "@type": "ImageObject",
-          "url": "https://efimov.page/brow/media/hero-still.webp",
+          "url": "https://efimov.page/brow/media/hero-still-050.webp",
           "width": 1280,
           "height": 800,
           "caption": "MacBook 刘海下方的 Brow 面板：三个 Claude Code 账号的 5 小时限额和每周限额及各自何时重置，其中一个账号还有 Opus 限额"
         },
         {
           "@type": "ImageObject",
-          "url": "https://efimov.page/brow/media/calendar-still.webp",
+          "url": "https://efimov.page/brow/media/calendar-still-050.webp",
           "width": 1280,
           "height": 800,
           "caption": "Brow 的重置日历，标出每周重置日和预计的订阅续费日"
@@ -84,10 +84,24 @@
         },
         {
           "@type": "ImageObject",
-          "url": "https://efimov.page/brow/media/workspaces-project.webp",
-          "width": 1200,
-          "height": 1520,
-          "caption": "Workspaces：一个多仓库项目的各个工作区，每个工作区都是一个文件夹，里面是同一分支上的 git worktree，并附有其中的 Claude Code 会话"
+          "url": "https://efimov.page/brow/media/panel-project-050.webp",
+          "width": 1040,
+          "height": 1416,
+          "caption": "Brow 刘海面板中的 Workspaces：一个多仓库项目的各个工作区，每个工作区都是一个文件夹，里面是同一分支上的 git worktree；其中一个已展开，显示其中的 Claude Code 会话"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efimov.page/brow/media/panel-projects-050.webp",
+          "width": 1040,
+          "height": 1416,
+          "caption": "Brow 刘海面板中的 Projects：每个 Claude Code 会话及其状态、你最近的提示词和 Claude 最近的一行回复，需要你处理的排在最前"
+        },
+        {
+          "@type": "ImageObject",
+          "url": "https://efimov.page/brow/media/panel-agents-050.webp",
+          "width": 1040,
+          "height": 1416,
+          "caption": "Brow 刘海面板中的 Agents：Claude Code 会话、它们的子智能体和一个智能体团队之间实时的消息往来"
         }
       ],
       "featureList": [
@@ -99,11 +113,13 @@
         "一键添加账号",
         "限额预警：账号用到某项限额的 80% 和 95% 时发出 macOS 通知，默认关闭",
         "把所有账号的限额复制成一张图片，可直接粘贴到聊天或帖子里",
-        "空闲账号的令牌在后台保持有效",
+        "所有账号的令牌都在后台保持有效，账号中开着 Claude Code 会话时也是如此",
         "每 30 秒检查一次限额，Mac 唤醒、网络恢复和指针悬停时也会检查",
         "Glim：刘海旁的一只小宠物，你的账号用掉多少额度，它就吃掉多少；它的光就是它的饥饿条",
         "Workspaces：每个功能一个文件夹，里面是每个仓库在同一分支上的 git worktree，用于在多个仓库上运行并行的 Claude Code 会话",
-        "Resume as…、Migrate to… 和 Share 把 Claude Code 会话转移到另一个账号，每个账号选择器都会显示该账号的限额",
+        "Resume as、Copy to account 和 Share with all accounts 把 Claude Code 会话转移到另一个账号，每个账号选择器都会显示该账号的限额",
+        "Projects：按状态和最后一轮对话显示每个 Claude Code 会话，需要你处理的排在最前，并把 Claude Code 正在运行的文件夹建议为项目",
+        "Agents：实时画出这台 Mac 上的 Claude Code 会话、子智能体和智能体团队之间的消息往来",
         "命令行工具 brow，第二个名字是 grove：scan、workspaces、sessions、create、graph 和 doctor"
       ],
       "softwareHelp": [
@@ -447,19 +463,19 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose">
         <h1 id="hero-title">所有 Claude&nbsp;Code 账号的额度，都在&nbsp;MacBook 刘海里</h1>
-        <p class="lead">Brow 是一款免费开源的 macOS 应用，用来查看 Claude Code 的用量限额：以已用百分比显示每个账号的 5&nbsp;小时限额、每周限额和特定模型的每周限额（如有），并显示每项限额何时重置。只有一个账号也能用（Brow 会自动找到 <code class="nowrap">~/.claude</code>），也支持多个账号。菜单栏里的 <a href="#workspaces">Workspaces</a> 则在拆分为多个仓库的产品上运行并行的 Claude Code 会话。应用界面为英文。</p>
+        <p class="lead">Brow 是一款免费开源的 macOS 应用，用来查看 Claude Code 的用量限额：以已用百分比显示每个账号的 5&nbsp;小时限额、每周限额和特定模型的每周限额（如有），并显示每项限额何时重置。只有一个账号也能用（Brow 会自动找到 <code class="nowrap">~/.claude</code>），也支持多个账号。同一个面板里的 <a href="#workspaces">Workspaces</a> 则在拆分为多个仓库的产品上运行并行的 Claude Code 会话。应用界面为英文。</p>
         <p class="actions">
           <a class="button" href="https://github.com/efim0v/brow/releases/latest/download/Brow.zip">下载 Brow</a>
           <a href="https://github.com/efim0v/brow">GitHub 上的源代码</a>
         </p>
         <p class="brew">或者用 Homebrew 安装：<code class="select-all nowrap">brew install --cask efim0v/tap/brow</code></p>
       </div>
-      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.4.0，</span><span><time datetime="2026-10-18">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;18&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
+      <p class="meta"><span>免费开源</span>&nbsp;· <span>macOS 26 或更高版本</span>&nbsp;· <span>Apple 芯片</span>&nbsp;· <span>版本 0.5.0，</span><span><time datetime="2026-10-21">2026&nbsp;年&nbsp;10&nbsp;月&nbsp;21&nbsp;日</time>发布（<a href="https://github.com/efim0v/brow/blob/main/CHANGELOG.md">更新日志</a>）</span>&nbsp;· <a href="#install">安装说明</a></p>
 
       <figure class="hero-shot">
         <picture>
-          <source media="(prefers-reduced-motion: reduce)" srcset="../media/hero-still.webp" type="image/webp">
-          <img src="../media/hero.webp" width="1280" height="800" fetchpriority="high" alt="5 小时限额数字上涨时 Glim 咬了一口；将指针悬停在 MacBook 刘海上，会展开 Brow 的面板，显示每个 Claude Code 账号的 5 小时限额和每周限额，Glim 跳进面板顶部；复制还有余量的账号的启动命令后，Claude Code 以该账号的身份启动">
+          <source media="(prefers-reduced-motion: reduce)" srcset="../media/hero-still-050.webp" type="image/webp">
+          <img src="../media/hero-050.webp" width="1280" height="800" fetchpriority="high" alt="5 小时限额数字上涨时 Glim 咬了一口；将指针悬停在 MacBook 刘海上，会展开 Brow 的面板，显示每个 Claude Code 账号的 5 小时限额和每周限额，Glim 跳进面板顶部；复制还有余量的账号的启动命令后，Claude Code 以该账号的身份启动">
         </picture>
         <figcaption>将指针悬停在刘海上，所有账号的 5&nbsp;小时限额和每周限额就会从刘海中展开。复制某个账号的启动命令，Claude Code 就会以该账号的身份启动。<span class="demo-note">所有演示均使用虚构数据。</span></figcaption>
       </figure>
@@ -481,8 +497,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <figure>
           <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="../media/calendar-still.webp" type="image/webp">
-            <img src="../media/calendar.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Brow 的重置日历：月历上标出每个账号的每周重置日和预计的订阅续费日；指向某一天，即可看到哪项限额在这天重置，或哪个订阅在这天续费">
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/calendar-still-050.webp" type="image/webp">
+            <img src="../media/calendar-050.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Brow 的重置日历：月历上标出每个账号的每周重置日和预计的订阅续费日；指向某一天，即可看到哪项限额在这天重置，或哪个订阅在这天续费">
           </picture>
         </figure>
       </div>
@@ -494,8 +510,8 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <figure>
           <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="../media/signin-still.webp" type="image/webp">
-            <img src="../media/signin.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Claude Code 登录过期：点一下就会为该账号运行 claude auth login，并打开它自己的浏览器配置文件，其中已登录 claude.ai">
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/signin-still-050.webp" type="image/webp">
+            <img src="../media/signin-050.webp" width="1280" height="800" loading="lazy" decoding="async" alt="Claude Code 登录过期：点一下就会为该账号运行 claude auth login，并打开它自己的浏览器配置文件，其中已登录 claude.ai">
           </picture>
         </figure>
       </div>
@@ -507,7 +523,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>这两个读数也可以放到刘海下方的横条里。在没有刘海的显示器上，Brow 改为显示一个胶囊。</p>
         </div>
         <figure>
-          <img src="../media/notch.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow 收起在 MacBook 刘海两侧：左边是所有账号的 5 小时限额合计已用 54%，旁边是 Glim，右边是每周限额已用 72%">
+          <img src="../media/notch-050.webp" width="1280" height="240" loading="lazy" decoding="async" alt="Brow 收起在 MacBook 刘海两侧：左边是所有账号的 5 小时限额合计已用 54%，旁边是 Glim，右边是每周限额已用 72%">
         </figure>
       </div>
 
@@ -533,13 +549,13 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       <div class="tour-row">
         <div>
           <h3>它的光就是它的饥饿条</h3>
-          <p>吃饱时，Glim 亮亮的；饿了，光就暗下来。你在 Mac 前好几个小时都没用 Claude Code，它就会饿，但饿着的 Glim 只会满怀期待，从不难过。</p>
+          <p>吃饱时，Glim 亮亮的；饿了，光就暗下来。你在 Mac 前好几个小时都没用 Claude Code，它就会饿，再久就会饿坏，但饿着的 Glim 只会满怀期待，从不难过。喂得太多，它会撑得圆滚滚，拍拍自己的肚子。</p>
           <p>你离开 Mac 十分钟，它就会打起瞌睡；你不在的时候，它从不变饿。</p>
         </div>
         <figure>
           <picture>
-            <source media="(prefers-reduced-motion: reduce)" srcset="../media/glim-still.webp" type="image/webp">
-            <img src="../media/glim.webp" width="1280" height="305" loading="lazy" decoding="async" alt="MacBook 刘海旁的 Glim：5 小时限额数字上涨时吃了两次，5 小时限额到 100 % 时睡着，重置后醒来，每周限额到 100 % 时躲到摄像头后面，每周重置后又出来">
+            <source media="(prefers-reduced-motion: reduce)" srcset="../media/glim-still-050.webp" type="image/webp">
+            <img src="../media/glim-050.webp" width="1280" height="305" loading="lazy" decoding="async" alt="MacBook 刘海旁的 Glim：5 小时限额数字上涨时吃了两次，5 小时限额到 100 % 时睡着，重置后醒来，每周限额到 100 % 时躲到摄像头后面，每周重置后又出来">
           </picture>
         </figure>
       </div>
@@ -547,7 +563,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
       <dl class="spec">
         <div>
           <dt>限额用完，就睡一觉</dt>
-          <dd>5&nbsp;小时限额用完时，Glim 吃饱睡着，直到窗口重置。每周限额用完时，它躲进摄像头后面的小窝里冬眠，到每周重置时再出来。</dd>
+          <dd>5&nbsp;小时限额用完时，Glim 吃饱睡着，嘴角带着一丝微笑，直到窗口重置。每周限额用完时，它躲进摄像头后面的小窝里冬眠，到每周重置时再出来。</dd>
         </div>
         <div>
           <dt>跟着你进入面板</dt>
@@ -599,7 +615,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>令牌保持有效</dt>
-          <dd>空闲账号的令牌会在后台刷新，所以数字不会过时。正在被 Claude Code 会话使用的账号交给该会话，由它自己刷新令牌。</dd>
+          <dd>Brow 在后台为每个账号续期令牌，所以数字不会过时；账号中开着 Claude Code 会话时也是如此。正在工作的会话可以先自行续期。</dd>
         </div>
         <div>
           <dt>每 30&nbsp;秒检查一次</dt>
@@ -754,7 +770,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
     <div class="wrap">
       <div class="prose text">
         <h2 id="workspaces-title">Workspaces：在多个仓库上运行并行的 Claude&nbsp;Code 会话</h2>
-        <p>Brow 告诉你哪个账号还有余量，Workspaces 把工作挪过去。它是 Brow 位于菜单栏的那一半：原本是独立应用的 Grove，现在已是 Brow 的一部分。</p>
+        <p>Brow 告诉你哪个账号还有余量，Workspaces 把工作挪过去。它是刘海面板中的 Projects 和 Agents 两侧，通过面板顶部的切换器打开：原本是独立应用的 Grove，现在已是 Brow 的一部分。</p>
         <p>当 Claude Code 能在一个文件夹里看到整个产品时，它的效果最好。而产品一旦拆分在多个仓库中，并行的会话就会在分支上互相绊脚：一个会话在服务端仓库里切换了分支，另一个正在开发别的功能的会话，看到的代码就突然不对了。Workspaces 为每个功能准备一个文件夹，里面放着你选中的每个仓库的 git worktree，全部处于同一个分支。Claude Code 在这个文件夹中启动，能看到整个产品，任何会话都切换不了另一个会话脚下的分支。</p>
       </div>
 
@@ -765,25 +781,47 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
           <p>Graph 和 Stats 两个标签页显示每个仓库的提交图，以及整个项目的代码行数。</p>
         </div>
         <figure class="window-shot">
-          <img src="../media/workspaces-project.webp" width="1200" height="1520" loading="lazy" decoding="async" alt="acme-shop 项目的 Workspaces 界面：五个工作区排成一棵树，其中一个已展开，显示 web-client 和 api-server 在 feat/checkout-redesign 分支上的 worktree、两个 Claude Code 会话，以及 New Claude、Resume、cmux 和 Child 按钮">
+          <img src="../media/panel-project-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Brow 刘海面板中的 acme-shop 项目：各个工作区排成一棵树，media-upload 已展开，显示 acme_client 和 acme_server 在 feat/media-upload 分支上的 worktree、两个 Claude Code 会话，以及 New session、Resume、cmux 和 Child 按钮">
         </figure>
       </div>
 
       <div class="tour-row">
         <div>
           <h3>把会话挪到还有余量的账号</h3>
-          <p><strong>Resume as…</strong> 不复制任何东西，直接以另一个账号继续会话；<strong>Migrate to…</strong> 把会话完整复制过去，即使目标账号正在使用中也可以；<strong>Share</strong> 让所有已关联的账号都能看到它。</p>
+          <p>每个会话都有一个菜单。<strong>Resume as</strong> 不复制任何东西，直接以另一个账号继续会话；<strong>Copy to account</strong> 把会话完整复制过去，即使目标账号正在使用中也可以；<strong>Share with all accounts</strong> 让所有已关联的账号都能看到它。</p>
           <p>每个账号选择器都会显示该账号最近一次在刘海中读到的 5&nbsp;小时和每周用量，名称与你在 <span class="nowrap">Settings → Accounts</span> 里给它起的名字一致。</p>
         </div>
-        <figure class="sheet-shot">
-          <img src="../media/workspaces-launch-sheet.webp" width="680" height="614" loading="lazy" decoding="async" alt="在 checkout-redesign 中新建 Claude Code 会话的启动面板：可选在 cmux 或 Terminal 中打开，账号 Work 的 5 小时限额已用 78%、每周限额已用 61%，模型为 opus，effort 为 high">
+        <figure class="window-shot">
+          <img src="../media/panel-resume-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Brow 刘海面板中为 checkout-promo-codes 里的会话打开的 Resume with options：Personal、Work 和 Team 各自的 5 小时和每周用量，Work 为 78% 和 61%；可选在 cmux 或 Terminal 中打开，以及模型、effort 和 Skip permission prompts">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>每个会话最后说了什么</h3>
+          <p><strong>Projects</strong> 按状态列出每个 Claude Code 会话，例如等待权限、向你提问、正在工作或轮到你，并显示你最近的提示词和 Claude 最近的一行回复。需要你处理的排在最前，切换器上的数字就是它们的数量。Claude Code 正在运行、但还不是项目的文件夹，会被建议添加为项目。</p>
+          <p>预览取自每份转录的末尾，不会离开你的 Mac。<span class="nowrap">Settings → Workspaces</span> → <strong>Show message previews</strong> 可以在你共享屏幕时关闭预览。</p>
+        </div>
+        <figure class="window-shot">
+          <img src="../media/panel-projects-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Brow 刘海面板中的 Projects：两个带 Add 按钮的建议文件夹，然后是 acme-shop 的会话：一个等待权限运行命令，一个在提问，一个正在工作，每个都显示你最近的提示词和 Claude 最近的一行回复；还有 field-notes 中一个向你提问的会话">
+        </figure>
+      </div>
+
+      <div class="tour-row">
+        <div>
+          <h3>谁在和谁对话</h3>
+          <p><strong>Agents</strong> 画出这台 Mac 上的 Claude Code 智能体之间的消息往来：会话之间以弧线相连，每个会话下面是它的子智能体和智能体团队成员，每条消息都是一道从发送方跑向接收方的光。图下列出最近十分钟的消息。</p>
+          <p>它只读取 Claude Code 本来就会写下的内容，只在面板打开时读取，从不加入任何对话。</p>
+        </div>
+        <figure class="window-shot">
+          <img src="../media/panel-agents-050.webp" width="1040" height="1416" loading="lazy" decoding="async" alt="Brow 刘海面板中的 Agents：harbor、atlas 和 quill 三个会话以弧线相连，一条消息正从 atlas 发往 harbor，会话下面是子智能体 probe、lumen 和 scout 以及团队成员 reviewer，再往下是最近十分钟的消息">
         </figure>
       </div>
 
       <dl class="spec">
         <div>
           <dt>在哪里打开</dt>
-          <dd>菜单栏里 Brow 的图标（带两个点的刘海），或刘海面板上叠放方块的按钮。在你使用之前，Workspaces 一直处于关闭状态：打开 <span class="nowrap">Settings → Workspaces</span>，或者点击那个按钮并选择 <strong>Add project…</strong>。</dd>
+          <dd>在刘海面板里：Workspaces 开启时，面板顶部有一个切换器，可在 <strong>Limits</strong>、<strong>Projects</strong> 和 <strong>Agents</strong> 之间切换。在你于 <span class="nowrap">Settings → Workspaces</span> 中开启它并添加项目之前，Workspaces 一直处于关闭状态。Brow 菜单中的 <strong>Show Projects</strong>，以及从访达或聚焦搜索再次打开 Brow，都会直接把面板打开到 Projects。</dd>
         </div>
         <div>
           <dt>命令行工具 <code>brow</code></dt>
@@ -791,7 +829,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>cmux 或 Terminal.app</dt>
-          <dd>会话在 <a href="https://cmux.dev">cmux</a>（推荐）中打开，也可以通过启动面板在 Terminal.app 中打开。工作区就是一个普通文件夹，所以你也可以从任何终端在里面启动 Claude Code。</dd>
+          <dd>会话在 <a href="https://cmux.dev">cmux</a>（推荐）中打开，也可以通过 New session 和 Resume with options 表单在 Terminal.app 中打开。工作区就是一个普通文件夹，所以你也可以从任何终端在里面启动 Claude Code。</dd>
         </div>
         <div>
           <dt>从 Grove 迁移</dt>
@@ -823,7 +861,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
             <h3>在刘海里找到它</h3>
             <p>Brow 没有程序坞图标：把指针悬停在刘海上即可打开面板。面板上的 ⚙ 用来打开 Settings，<strong>Launch at login</strong>（登录时启动）在 Settings → General 中。</p>
             <p>如果 macOS 不让 Brow 读取某个账号的钥匙串项目，该账号会显示一把橙色钥匙。点击它，然后选择<strong>始终允许</strong>（Always Allow）。</p>
-            <p>要开始使用 Workspaces，请打开 <span class="nowrap">Settings → Workspaces</span>，或者点击刘海面板上叠放方块的按钮，选择 <strong>Add project…</strong>。</p>
+            <p>要开始使用 Workspaces，请打开 <span class="nowrap">Settings → Workspaces</span>，开启它并添加一个项目。之后面板里 <strong>Limits</strong> 旁边会出现 <strong>Projects</strong> 和 <strong>Agents</strong>。</p>
           </li>
         </ol>
         <aside aria-label="系统要求与下载校验">
@@ -887,7 +925,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <dt>Workspaces：只在你开启后才运行</dt>
-          <dd>只有为某个账号开启状态栏捕获后，它才会修改该账号的 <code>settings.json</code>；它会在你的仓库中运行 git、控制 cmux，并且只有在你开启后才会保留转录安全网。完整列表见 <a href="https://github.com/efim0v/brow/blob/main/README.zh-CN.md#brow-会在你的-mac-上做什么">README</a>。</dd>
+          <dd>只有为某个账号开启状态栏捕获后，它才会修改该账号的 <code>settings.json</code>；它会在你的仓库中运行 git、控制 cmux，并且只有在你开启后才会保留转录安全网。为了显示正在运行的内容，它会读取 Claude Code 的会话记录、每个会话转录的末尾，以及在面板打开时智能体之间互发的消息；这些内容都不会离开你的 Mac。完整列表见 <a href="https://github.com/efim0v/brow/blob/main/README.zh-CN.md#brow-会在你的-mac-上做什么">README</a>。</dd>
         </div>
       </dl>
       <p class="small">Brow 是一个独立工具，与 Anthropic 没有关联，也未获 Anthropic 认可。</p>
@@ -920,7 +958,7 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         </div>
         <div>
           <h3>切换账号后，能继续同一个 Claude&nbsp;Code 会话吗？</h3>
-          <p>能，用 Workspaces。<strong>Resume as…</strong> 以另一个账号继续会话，不复制任何内容；<strong>Migrate to…</strong> 把会话完整复制过去；<strong>Share</strong> 把会话移入共享存储，每个关联账号都能看到。如果某次迁移会让一个会话同时有两个写入方，Brow 会拒绝执行。详见指南《<a href="/brow/move-session-to-another-account/">切换账号后继续同一个 Claude Code 会话</a>》<span class="nowrap">（英文）</span>。</p>
+          <p>能，用 Workspaces。在会话的菜单中，<strong>Resume as</strong> 以另一个账号继续会话，不复制任何内容；<strong>Copy to account</strong> 把会话完整复制过去；<strong>Share with all accounts</strong> 把会话移入共享存储，每个关联账号都能看到。如果某次迁移会让一个会话同时有两个写入方，Brow 会拒绝执行。详见指南《<a href="/brow/move-session-to-another-account/">切换账号后继续同一个 Claude Code 会话</a>》<span class="nowrap">（英文）</span>。</p>
         </div>
         <div>
           <h3>Claude&nbsp;Code 能同时处理多个仓库吗？</h3>
@@ -929,15 +967,15 @@ figcaption { max-width: 40rem; margin-top: 12px; color: var(--muted); font-size:
         <div>
           <h3>Brow 会消耗额度吗？</h3>
           <p>只有备用令牌刷新会消耗，而且可以关闭。读取限额是向 Anthropic 的用量接口发请求，而不是调用模型。空闲账号的令牌通过 <code class="nowrap">claude doctor</code> 保持有效，它也不会调用模型。</p>
-          <p>备用刷新默认开启。当令牌的剩余有效期不超过 30&nbsp;分钟，而 <code class="nowrap">claude doctor</code> 没能续期时，Brow 会用 Haiku 运行一次单轮 <code class="nowrap">claude -p</code> 请求。这会消耗该账号极少的额度，并开启它的 5&nbsp;小时窗口。对每个账号，它最多每 30&nbsp;分钟运行一次。在 <span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong> 中可以将其关闭。</p>
+          <p>备用刷新默认开启。当 <code class="nowrap">claude doctor</code> 在令牌最后 4.5&nbsp;分钟内没能为它续期时，Brow 会用 Haiku 运行一次单轮 <code class="nowrap">claude -p</code> 请求。这会消耗该账号极少的额度，并开启它的 5&nbsp;小时窗口。对每个账号，它最多每 30&nbsp;分钟运行一次。在 <span class="nowrap">Settings → Accounts</span> → <strong>Allow <code class="nowrap">claude -p</code> fallback</strong> 中可以将其关闭。</p>
         </div>
         <div>
           <h3>Brow 是菜单栏应用吗？没有刘海的屏幕能用吗？</h3>
-          <p>Brow 没有程序坞图标。限额显示在主显示器顶部：在带刘海的 MacBook 上，两个读数显示在刘海两侧或刘海下方的横条里；在没有刘海的显示器上（例如外接显示器），Brow 会在屏幕顶部中央显示一个胶囊。开启 Workspaces 后，它会在菜单栏中有一个图标。如果你只用 Brow 的 Workspaces，可以在 <span class="nowrap">Settings → General</span> 中关闭刘海显示。</p>
+          <p>不是。Brow 既没有程序坞图标，也没有菜单栏图标。限额显示在主显示器顶部：在带刘海的 MacBook 上，两个读数显示在刘海两侧或刘海下方的横条里；在没有刘海的显示器上（例如外接显示器），Brow 会在屏幕顶部中央显示一个胶囊。开启 Workspaces 后，它也在同一个面板里。如果你只用 Brow 的 Workspaces，可以在 <span class="nowrap">Settings → General</span> 中关闭刘海显示，这时 Projects 从 Brow 菜单或再次打开 Brow 来打开。</p>
         </div>
         <div>
-          <h3>菜单栏里为什么看不到 Brow 的图标？</h3>
-          <p>在带刘海的 MacBook 上，macOS 会隐藏刘海旁放不下的菜单栏图标。这时 Workspaces 仍然可以通过刘海面板上叠放方块的按钮打开，也可以在 Brow 的设置窗口位于前台时，从 Brow 菜单中的 <strong>Show Workspaces</strong> 打开，或者从访达或聚焦搜索再次打开 Brow。<span class="nowrap">Settings → General</span> → <strong>Show Workspaces in the menu bar</strong> 可以完全关闭这个图标。</p>
+          <h3>如何打开 Projects？</h3>
+          <p>把指针悬停在刘海上，在面板顶部的切换器中选择 <strong>Projects</strong>；Workspaces 开启时它就在那里。Brow 菜单中的 <strong>Show Projects</strong>（Brow 的设置窗口位于前台时，菜单栏会显示这个菜单），以及从访达或聚焦搜索再次打开 Brow，都会直接把面板打开到 Projects 并将其固定。在 <span class="nowrap">Settings → General</span> 中关闭刘海显示后，就只剩这两种方式。</p>
         </div>
         <div>
           <h3>Brow 会发通知吗？</h3>

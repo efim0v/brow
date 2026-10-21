@@ -8,16 +8,14 @@ import GroveCore
 
 /// Brow's side of Workspaces: whether the engine runs (`WorkspacesActivation`), the
 /// Grove-running guard, the lock that keeps the engine to one copy of Brow
-/// (`WorkspacesEngineLock`), the menu-bar item and the panel. GroveAppKit never imports
-/// BrowKit; this is where the two meet.
+/// (`WorkspacesEngineLock`) and the Projects section of the notch panel. GroveAppKit never
+/// imports BrowKit; this is where the two meet.
 ///
 /// Nothing of the engine runs until Workspaces is wanted: no account adoption, no
-/// status-line reconcile, no timer. While it is off, Grove's config is still read for
-/// a status line Workspaces captured, which Claude Code keeps running through the
-/// wrapper (`dormantAccounts`), and changed only to give one back or to take out such
-/// an account whose folder is gone (`withoutEngine`). The introduction the notch's
-/// Workspaces button shows meanwhile sits on a state whose engine never starts, until
-/// the user adds a project.
+/// status-line reconcile, no timer, and the notch has no Projects section. While it is
+/// off, Grove's config is still read for a status line Workspaces captured, which Claude
+/// Code keeps running through the wrapper (`dormantAccounts`), and changed only to give
+/// one back or to take out such an account whose folder is gone (`withoutEngine`).
 @MainActor
 public final class WorkspacesHost: ObservableObject {
     @Published public private(set) var activation: WorkspacesActivation = .off
@@ -38,26 +36,38 @@ public final class WorkspacesHost: ObservableObject {
     /// while it is off it decides nothing, but Grove.app still writes the files a change
     /// from Settings would (`dormantChangeBlock`).
     @Published public private(set) var groveRunning = false
-    /// Folders picked as projects in the introduction while Workspaces could not take
-    /// them — paused, with Grove.app or another copy of Brow writing the same config —
-    /// added once it runs. Not kept past a quit of Brow.
+    /// Folders picked as projects while Workspaces could not take them — paused, with
+    /// Grove.app or another copy of Brow writing the same config — added once it runs.
+    /// Not kept past a quit of Brow.
     @Published public private(set) var pendingProjects: [String] = []
-    /// Told when the panel is ordered in or out (the notch latches its hover meanwhile).
-    public var onPanelVisibilityChange: ((Bool) -> Void)?
-    /// Opens Brow's Settings window where the panel asks for it: the footer's gear
-    /// (Workspaces), the Accounts screen's link (Accounts).
+    /// Opens Brow's Settings window where the screens ask for it: a project's gear goes
+    /// to Workspaces, an account's link to Accounts.
     public var openSettings: ((WorkspacesSettingsLink) -> Void)?
+    /// The notch panel: where the Projects section lives, and what closes on a hand-off.
+    public weak var notch: NotchPresenting? {
+        didSet { syncSection() }
+    }
 
     public let folders: WorkspacesFolders
     private let store: LimitsStore
     private let groveGuard: GroveAppGuard
     private let groveConfigExists: () -> Bool
-    private let groveDefaults: () -> UserDefaults?
     private let watchRunningApps: RunningAppsWatch
+    /// The look at the Claude Code processes that run (`ProcessTable.claudeCodeFolders`): what
+    /// finds sessions that keep no record and the folders to suggest. nil reads none — what
+    /// every test and offscreen render gets, so none of them looks at the Mac's processes.
+    private let runningClaude: (@Sendable () -> [RunningClaude])?
     /// Held while this copy of Brow runs the engine; another copy that runs it first
     /// keeps this one paused.
     private let engineLock: WorkspacesEngineLock
-    private var controller: WorkspacesMenuBarController?
+    private var engine: WorkspacesEngine?
+    private lazy var section = ProjectsSection(host: self)
+    /// Who talks to whom among the agents of Brow's accounts: the Agents section's reader,
+    /// watching only while the panel is open (and half a minute after).
+    public let agents: AgentsObserver
+    private lazy var agentsSection = AgentsSection(host: self)
+    /// Keeps the Agents switch's dot on what the reader saw, and its accounts on the notch's.
+    private var agentsWatch: Set<AnyCancellable> = []
     /// Keeps the running-apps watch alive while started.
     private var runningAppsWatch: AnyObject?
     /// Grove.app instances `quitGrove()` asked to quit, watched until they have.
@@ -65,6 +75,17 @@ public final class WorkspacesHost: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     /// Keeps the notch's scan in step with the folders Workspaces knows.
     private var accountsWatch: AnyCancellable?
+    /// Keeps the pickers on the notch's accounts.
+    private var storeWatch: AnyCancellable?
+    /// Keeps the switch's "needs you" count and the "N live" chips on what runs.
+    private var liveWatch: AnyCancellable?
+    /// Keeps the rows' previews on or off as Settings has them.
+    private var previewsWatch: AnyCancellable?
+    /// Brings the panel back for an error that follows a hand-off.
+    private var errorWatch: AnyCancellable?
+    /// When the panel last handed the user off: an error the engine reports right after
+    /// brings the panel back to show it.
+    private var lastHandOff: Date?
     private var started = false
 
     /// Starts telling `onChange` about every app that launches or quits, for as long as
@@ -86,14 +107,17 @@ public final class WorkspacesHost: ObservableObject {
                     NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
                 }),
                 groveConfigExists: (() -> Bool)? = nil,
-                groveDefaults: @escaping () -> UserDefaults? = { UserDefaults(suiteName: GroveAppGuard.bundleIdentifiers[0]) },
-                watchRunningApps: RunningAppsWatch? = nil) {
+                watchRunningApps: RunningAppsWatch? = nil,
+                runningClaude: (@Sendable () -> [RunningClaude])? = nil,
+                readsAgents: Bool = false) {
         self.store = store
+        // Tests and renders read no agents: the app asks for it.
+        self.agents = AgentsObserver(reads: readsAgents)
         self.folders = folders
         self.groveGuard = groveGuard
+        self.runningClaude = runningClaude
         let configPath = folders.configFile.path
         self.groveConfigExists = groveConfigExists ?? { FileManager.default.fileExists(atPath: configPath) }
-        self.groveDefaults = groveDefaults
         self.watchRunningApps = watchRunningApps ?? Self.watchWorkspaceApps
         self.engineLock = WorkspacesEngineLock(folders: folders)
     }
@@ -120,8 +144,16 @@ public final class WorkspacesHost: ObservableObject {
         runningAppsWatch = nil
         quitting.removeAll()
         cancellables.removeAll()
-        controller?.stop()
-        controller = nil
+        engine?.stopEngine()
+        engine = nil
+        storeWatch = nil
+        errorWatch = nil
+        liveWatch = nil
+        previewsWatch = nil
+        clearBadges()
+        notch?.sections.unregister(.projects)
+        notch?.sections.unregister(.agents)
+        stopAgents()
         engineLock.release()
         started = false
     }
@@ -166,34 +198,36 @@ public final class WorkspacesHost: ObservableObject {
         pause = waitsFor
         switch next {
         case .off:
-            controller?.stop()
-            controller = nil
+            engine?.stopEngine()
+            engine = nil
             state = nil
             accountsWatch = nil
+            storeWatch = nil
+            errorWatch = nil
+            liveWatch = nil
+            previewsWatch = nil
+            clearBadges()
             store.runtimeExtraDirs = []
             pendingProjects = []
         case .paused:
-            let controller = ensureController()
-            controller.stopEngine()
-            controller.notice = waitsFor == .anotherBrow ? anotherBrowNotice : groveRunningNotice
-            controller.showsStatusItem = settings.showInMenuBar
-            controller.start()
+            ensureEngine().stopEngine()
         case .on:
             recordFirstRunOnce()
             // Coming from paused or off, read Grove's config afresh: Grove.app may have
             // written it while Workspaces waited, and a state loaded before that would
             // save its old copy over it.
-            if previous != .on, let stale = controller {
-                stale.stop()
-                controller = nil
+            if previous != .on, let stale = engine {
+                stale.stopEngine()
+                engine = nil
                 state = nil
                 accountsWatch = nil
+                storeWatch = nil
+                errorWatch = nil
+                liveWatch = nil
+                previewsWatch = nil
             }
-            let controller = ensureController()
-            controller.notice = nil
-            controller.showsStatusItem = settings.showInMenuBar
-            controller.start()
-            controller.startEngine()
+            let engine = ensureEngine()
+            engine.startEngine()
             // The projects picked while it waited, now that nothing else writes the config.
             if let state, !pendingProjects.isEmpty {
                 let paths = pendingProjects
@@ -209,9 +243,82 @@ public final class WorkspacesHost: ObservableObject {
                     .sink { [weak store = self.store] dirs in store?.runtimeExtraDirs = dirs }
             }
         }
-        // The store's, not the argument's: importing Grove's material just changed it.
-        WindowSubstrateStyle.current = WindowSubstrateStyle(stored: store.settings.workspaces.panelMaterial)
+        syncSection()
         reloadDormantAccounts()
+    }
+
+    /// The notch has Projects and Agents sections exactly while Workspaces is wanted.
+    private func syncSection() {
+        guard let notch else { return }
+        if activation.isWanted {
+            notch.sections.register(.projects, section)
+            notch.sections.register(.agents, agentsSection)
+            notch.badges.openAccount = { [weak self] dir in self?.openAccount(configDir: dir) }
+            watchAgents()
+        } else {
+            notch.sections.unregister(.projects)
+            notch.sections.unregister(.agents)
+            notch.badges.openAccount = nil
+            stopAgents()
+        }
+    }
+
+    // MARK: - Agents
+
+    /// The notch's visible accounts as the Agents tab watches them: each with its alias
+    /// folders, named and coloured as Limits shows it.
+    func agentsAccounts() -> [AgentsAccount] {
+        store.rows.enumerated().map { index, row in
+            AgentsAccount(name: row.name, dot: NotchTheme.account(index),
+                          configDirs: [row.account.configDir] + row.account.aliasDirs)
+        }
+    }
+
+    /// Feeds the reader the notch's accounts, keeps them in step, and puts what it saw
+    /// on the switch.
+    private func watchAgents() {
+        agents.setAccounts(agentsAccounts())
+        agents.place = { [weak self] cwd in self?.state?.placeDescription(ofCwd: cwd) }
+        guard agentsWatch.isEmpty else { return }
+        // `@Published` fires in willSet: the new value is the argument.
+        agents.$isLive
+            .removeDuplicates()
+            .sink { [weak self] live in
+                MainActor.assumeIsolated {
+                    guard let badges = self?.notch?.badges, badges.agentsActive != live else { return }
+                    badges.agentsActive = live
+                }
+            }
+            .store(in: &agentsWatch)
+        store.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.agents.setAccounts(self.agentsAccounts())
+                }
+            }
+            .store(in: &agentsWatch)
+    }
+
+    private func stopAgents() {
+        agentsWatch.removeAll()
+        agents.stop()
+        if let badges = notch?.badges, badges.agentsActive { badges.agentsActive = false }
+    }
+
+    /// "Go to session" on the Agents tab: as Go on a session row — its cmux workspace, else
+    /// a resume — as the Workspaces account whose folders it runs in.
+    func goToSession(_ node: AgentNode) {
+        guard let state, activation == .on, let sessionId = node.sessionId,
+              let cwd = node.cwd ?? node.live?.cwd else { return }
+        let dirs = Set((agents.account(key: node.account)?.configDirs ?? []).map(NotchBadges.key))
+        let account = state.config.accounts.first { !dirs.isDisjoint(with: $0.allConfigDirs.map(NotchBadges.key)) }
+            ?? state.defaultLaunchAccount
+        guard let account else { return }
+        SessionMenu.primary(SessionRef(sessionId: sessionId, cwd: cwd, accountName: account.name, title: node.name,
+                                       isLive: node.live != nil, lastActivity: Date()),
+                            state: state)
     }
 
     // MARK: - Status lines captured while Workspaces is not on
@@ -334,8 +441,8 @@ public final class WorkspacesHost: ObservableObject {
         for account in dormantCaptures { releaseStatusLine(account) }
     }
 
-    private func ensureController() -> WorkspacesMenuBarController {
-        if let controller { return controller }
+    private func ensureEngine() -> WorkspacesEngine {
+        if let engine { return engine }
         let state = AppState(folders: folders)
         // Brow asks before it edits an account's settings.json: capture is turned on
         // per account, in Settings › Accounts, or kept where Grove had it on.
@@ -345,32 +452,157 @@ public final class WorkspacesHost: ObservableObject {
         state.mayWrite = { [groveGuard] in !groveGuard.isGroveRunning }
         // The pickers show each account's limits, from the notch's own readings.
         state.limitsProvider = store
-        state.onPanelMaterialChange = { [weak self] style in self?.setPanelMaterial(style) }
         // Sessions launch with Brow's own router and Brow's Path to claude, like every
-        // sign-in Brow starts.
+        // sign-in Brow starts, and as the account they say: `env -u CLAUDE_CONFIG_DIR` for
+        // the default one, whatever the shell they run in exports.
         state.browserRouter = AddAccountFlow.browserHelperPath ?? state.browserRouter
         state.claudePath = { [weak store = self.store] in store.flatMap { $0.settings.claudePath ?? $0.claudeDetected } }
+        // Outside the app bundle (a development build) the router is the installed Brow's.
+        state.launchEnvironment = { [weak state] dir in
+            AddAccountFlow.environmentPrefix(dir: dir, browser: state?.browserRouter)
+        }
         state.openSettings = { [weak self] link in
-            self?.hidePanel()
+            self?.notch?.dismiss(.settings)
             self?.openSettings?(link)
         }
+        // Go, Resume, Start session, Show in Finder: the user is somewhere else now.
+        state.onHandOff = { [weak self] in
+            self?.lastHandOff = Date()
+            self?.notch?.dismiss(.handOff)
+        }
+        state.addFolder = { [weak self] in self?.addFolder() }
+        state.hostAccounts = hostAccounts()
+        // The sessions that keep no record of their own, and the folders to suggest: Brow's
+        // look at the kernel's process table, which the engine never takes itself.
+        state.runningClaude = runningClaude
+        state.showsMessagePreviews = store.settings.workspaces.showMessagePreviews
         self.state = state
-        let controller = WorkspacesMenuBarController(
-            state: state, icon: BrowMark.templateImage(), fallbackTitle: "Brow",
-            accessibilityLabel: "Brow Workspaces", showsStatusItem: store.settings.workspaces.showInMenuBar)
-        controller.onVisibilityChange = { [weak self] visible in self?.onPanelVisibilityChange?(visible) }
+        watchStore(state)
+        watchLive(state)
+        // An error right after a hand-off — cmux would not start, say — brings the panel
+        // back, where the error is shown with its fix.
+        errorWatch = state.$actionError
+            .compactMap { $0 }
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, let at = self.lastHandOff, Date().timeIntervalSince(at) < 15 else { return }
+                    self.lastHandOff = nil
+                    self.notch?.openPinned(on: .projects)
+                }
+            }
+        let engine = WorkspacesEngine(state: state)
         // Every background tick re-checks for Grove.app first: a tick that finds it pauses
         // Workspaces instead of running.
-        controller.tickGate = { [weak self] in
+        engine.tickGate = { [weak self] in
             guard let self else { return false }
             self.refreshIfChanged()
             return self.activation == .on
         }
-        self.controller = controller
-        return controller
+        self.engine = engine
+        return engine
+    }
+
+    // MARK: - Brow's accounts in the pickers
+
+    /// The notch's visible accounts, in its order, with its names, plans and colours.
+    func hostAccounts() -> [HostAccount] {
+        store.rows.enumerated().map { index, row in
+            HostAccount(name: row.name, plan: row.account.tier.map(PanelText.tierLabel), email: row.account.email,
+                        configDirs: [row.account.configDir] + row.account.aliasDirs,
+                        dot: NotchTheme.account(index))
+        }
+    }
+
+    /// Keeps the pickers on the notch's accounts: a renamed, hidden, added or reordered
+    /// account shows in them at once, and an account Grove does not know yet is adopted.
+    private func watchStore(_ state: AppState) {
+        storeWatch = store.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak state] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let state else { return }
+                    let accounts = self.hostAccounts()
+                    guard accounts != state.hostAccounts else { return }
+                    state.hostAccounts = accounts
+                    if self.activation == .on { state.adoptHostAccounts() }
+                }
+            }
+    }
+
+    // MARK: - The switch's marks and the chips
+
+    /// Keeps the switch's "needs you" count and each account's "N live" chip on what runs,
+    /// and the rows' previews on what Settings says.
+    private func watchLive(_ state: AppState) {
+        liveWatch = state.$liveSessions
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak state] live in
+                MainActor.assumeIsolated {
+                    guard let self, let state else { return }
+                    self.syncBadges(live: live, state: state)
+                }
+            }
+        previewsWatch = store.$settings
+            .map(\.workspaces.showMessagePreviews)
+            .removeDuplicates()
+            .sink { [weak state] on in
+                MainActor.assumeIsolated { if state?.showsMessagePreviews != on { state?.showsMessagePreviews = on } }
+            }
+        notch?.badges.openAccount = { [weak self] dir in self?.openAccount(configDir: dir) }
+    }
+
+    /// The count of sessions that need the user, and each Brow account's live sessions by its
+    /// config folder.
+    func syncBadges(live: [LiveProcess], state: AppState) {
+        guard let badges = notch?.badges else { return }
+        let needsYou = live.filter { !$0.isAutomated && SessionState.of($0).needsYou }.count
+        if badges.projectsNeedYou != needsYou { badges.projectsNeedYou = needsYou }
+        var byAccount: [String: Int] = [:]
+        for process in live where !process.isAutomated && !process.accountName.isEmpty {
+            byAccount[process.accountName, default: 0] += 1
+        }
+        var byDir: [String: Int] = [:]
+        for row in store.rows {
+            let dirs = Set(([row.account.configDir] + row.account.aliasDirs).map(NotchBadges.key))
+            let count = state.config.accounts
+                .filter { !dirs.isDisjoint(with: $0.allConfigDirs.map(NotchBadges.key)) }
+                .reduce(0) { $0 + (byAccount[$1.name] ?? 0) }
+            if count > 0 { byDir[NotchBadges.key(row.account.configDir)] = count }
+        }
+        if badges.liveByConfigDir != byDir { badges.liveByConfigDir = byDir }
+    }
+
+    private func clearBadges() {
+        guard let badges = notch?.badges else { return }
+        if badges.projectsNeedYou != 0 { badges.projectsNeedYou = 0 }
+        if !badges.liveByConfigDir.isEmpty { badges.liveByConfigDir = [:] }
+    }
+
+    /// An account's "N live" chip: Projects, narrowed to that account.
+    func openAccount(configDir: String) {
+        guard let state, activation == .on else { return }
+        let key = NotchBadges.key(configDir)
+        let row = store.rows.first { NotchBadges.key($0.account.configDir) == key }
+        let dirs = Set(([configDir] + (row?.account.aliasDirs ?? [])).map(NotchBadges.key))
+        guard let account = state.config.accounts.first(where: { !dirs.isDisjoint(with: $0.allConfigDirs.map(NotchBadges.key)) })
+        else { return }
+        state.filter(account: account.name)
+        state.searchQuery = ""
+        if state.route != .projects { state.open(.projects) }
+        notch?.openPinned(on: .projects)
     }
 
     // MARK: - What the user can do
+
+    /// Settings › Workspaces › Show message previews: rows show the newest prompt and
+    /// Claude's newest line, or only the title.
+    public var showsMessagePreviews: Bool {
+        get { store.settings.workspaces.showMessagePreviews }
+        set {
+            objectWillChange.send()
+            store.settings.workspaces.showMessagePreviews = newValue
+        }
+    }
 
     /// Turns Workspaces on or off in Brow's own settings.
     public func setEnabled(_ on: Bool) {
@@ -398,7 +630,7 @@ public final class WorkspacesHost: ObservableObject {
 
     /// One background tick of the engine, as its timer runs it; for tests.
     func backgroundTick() async {
-        await controller?.runBackgroundTick()
+        await engine?.runBackgroundTick()
     }
 
     /// Offscreen renders and tests: this state and activation, nothing started.
@@ -407,90 +639,49 @@ public final class WorkspacesHost: ObservableObject {
         self.activation = activation
         self.dormantAccounts = dormant
         isPreview = true
+        state?.hostAccounts = hostAccounts()
+        syncSection()
     }
 
     /// A preview's accounts are its own: nothing is read from disk for it.
     private var isPreview = false
 
-    public var isPanelVisible: Bool { controller?.isPanelVisible == true }
-
     /// Whether the engine's launch work and background cadence are running.
-    var isEngineRunning: Bool { controller?.isEngineRunning == true }
+    var isEngineRunning: Bool { engine?.isEngineRunning == true }
 
-    /// The panel: Workspaces when it runs, the reason it is paused, or — while it is
-    /// off — the introduction, from which a project can be added.
+    /// The notch panel, pinned on Projects: from the main menu and reopening Brow. While Workspaces is off there is no Projects section: Settings ›
+    /// Workspaces opens instead, where it is turned on.
     public func showPanel() {
         // What it waits for may have gone without a word: another copy of Brow turning
         // Workspaces off quits no app.
         refreshIfChanged()
-        switch activation {
-        case .on, .paused:
-            ensureController().show()
-        case .off:
-            let controller = ensureController()
-            controller.showsStatusItem = false
-            controller.notice = introductionNotice
-            controller.start()
-            controller.show()
+        guard activation.isWanted else {
+            openSettings?(.workspaces)
+            return
+        }
+        notch?.openPinned(on: .projects)
+    }
+
+    /// "Add a folder…" and the + beside the search: the notch makes way for the system's
+    /// folder picker, then opens on Projects again with the folder added.
+    func addFolder() {
+        guard let notch else { return }
+        notch.runOutsideNotch(reopeningOn: .projects) { [weak self] in
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.prompt = "Add Project"
+            panel.message = "Pick the folder that contains your repositories."
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            self?.addProjectFolder(url.path)
         }
     }
 
-    public func togglePanel() {
-        if isPanelVisible { controller?.hide() } else { showPanel() }
-    }
-
-    public func hidePanel() { controller?.hide() }
-
-    // MARK: - Notices
-    // Internal, not private: the README's screenshots render them.
-
-    var groveRunningNotice: WorkspacesNotice {
-        WorkspacesNotice(
-            symbol: "pause.circle",
-            title: "Grove is still running",
-            message: "Grove is now part of Brow, and Workspaces runs your Grove projects. It stays paused while Grove.app is open, so the two never edit the same files at once." + pendingNote,
-            primary: .init("Quit Grove") { [weak self] in self?.quitGrove() })
-    }
-
-    var anotherBrowNotice: WorkspacesNotice {
-        WorkspacesNotice(
-            symbol: "pause.circle",
-            title: "Workspaces is open in another Brow",
-            message: "Another copy of Brow, a second install or a development build, is running Workspaces on the same projects. Workspaces runs in one copy at a time, so the two never edit the same files at once; it starts here when that copy quits." + pendingNote,
-            primary: .init("Try Again") { [weak self] in self?.refresh() })
-    }
-
-    var introductionNotice: WorkspacesNotice {
-        WorkspacesNotice(
-            symbol: "square.stack.3d.up",
-            title: "Workspaces",
-            message: "Give each feature of a multi-repo project its own folder of git worktrees, and run parallel Claude Code sessions in them. Move a session to the account that still has room.",
-            primary: .init("Add project…") { [weak self] in self?.addProjectFromIntroduction() },
-            secondary: .init("Learn more") {
-                if let url = URL(string: "https://github.com/efim0v/brow/blob/main/docs/workspaces.md") {
-                    NSWorkspace.shared.open(url)
-                }
-            })
-    }
-
-    private func addProjectFromIntroduction() {
-        hidePanel()
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Add Project"
-        panel.message = "Pick the folder that contains your repositories."
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        addProject(fromIntroduction: url.path)
-        showPanel()
-    }
-
-    /// Turns Workspaces on with `path` as its project. Added at once only while the
-    /// engine runs: paused, the config is another app's to write, so the folder waits in
+    /// Turns Workspaces on with `path` as a project. Added at once only while the engine
+    /// runs: paused, the config is another app's to write, so the folder waits in
     /// `pendingProjects` — the paused notice names it — and is added when Workspaces starts.
-    func addProject(fromIntroduction path: String) {
+    func addProjectFolder(_ path: String) {
         setEnabled(true)
         if activation == .on, let state {
             state.addProject(at: path)
@@ -498,6 +689,30 @@ public final class WorkspacesHost: ObservableObject {
             pendingProjects.append(path)
             refresh()   // the notice now names it
         }
+    }
+
+    // MARK: - Notices
+    // Internal, not private: the README's screenshots render them.
+
+    /// What the Projects section shows while Workspaces waits.
+    var pausedNotice: WorkspacesNotice {
+        pause == .anotherBrow ? anotherBrowNotice : groveRunningNotice
+    }
+
+    var groveRunningNotice: WorkspacesNotice {
+        WorkspacesNotice(
+            symbol: "pause.circle",
+            title: "Grove is still running",
+            message: "Grove is part of Brow now, and your Grove projects open here. They stay paused while Grove.app is open, so the two never edit the same files at once." + pendingNote,
+            primary: .init("Quit Grove") { [weak self] in self?.quitGrove() })
+    }
+
+    var anotherBrowNotice: WorkspacesNotice {
+        WorkspacesNotice(
+            symbol: "pause.circle",
+            title: "Projects are open in another Brow",
+            message: "Another copy of Brow, a second install or a development build, is running Workspaces on the same projects. They open in one copy at a time, so the two never edit the same files at once; here, when that copy quits." + pendingNote,
+            primary: .init("Try Again") { [weak self] in self?.refresh() })
     }
 
     /// " “shop” is added when Workspaces starts.", after a paused notice's message.
@@ -519,28 +734,9 @@ public final class WorkspacesHost: ObservableObject {
     }
 
     /// The first time Workspaces runs in Brow, before the engine writes anything: whether
-    /// the setup is Grove's, and Grove.app's panel material, which it kept in its own
-    /// defaults. Once each: the material's flag is set whether or not Grove had one.
+    /// the setup is Grove's.
     private func recordFirstRunOnce() {
-        var settings = store.settings
-        if settings.workspaces.groveSetup == nil {
-            settings.workspaces.groveSetup = groveConfigExists()
-        }
-        if !settings.workspaces.importedGroveMaterial {
-            if settings.workspaces.panelMaterial == nil,
-               let raw = groveDefaults()?.string(forKey: WindowSubstrateStyle.groveDefaultsKey),
-               WindowSubstrateStyle(rawValue: raw) != nil {
-                settings.workspaces.panelMaterial = raw
-            }
-            settings.workspaces.importedGroveMaterial = true
-        }
-        if settings != store.settings { store.settings = settings }
-    }
-
-    // MARK: - Panel material
-
-    /// Settings › Workspaces writes the material here.
-    public func setPanelMaterial(_ style: WindowSubstrateStyle) {
-        store.settings.workspaces.panelMaterial = style.rawValue
+        guard store.settings.workspaces.groveSetup == nil else { return }
+        store.settings.workspaces.groveSetup = groveConfigExists()
     }
 }

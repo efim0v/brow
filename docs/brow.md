@@ -1,38 +1,73 @@
 # The notch: behaviour in detail
 
-How the notch half of Brow works. Workspaces, the menu-bar half, is in
+How the notch half of Brow works: the limits, and the panel they open into.
+Workspaces, which is the panel's Projects and Agents sides, is in
 [`workspaces.md`](workspaces.md); how the two fit together, in
 [`architecture.md`](architecture.md).
+
+<p align="center">
+  <img alt="Collapsed: the 5-hour readout with Glim beside it on the left of the notch, the weekly readout on the right" src="screenshots/brow-notch-collapsed-050.png" width="640" />
+</p>
+<p align="center">
+  <img alt="The open panel with Workspaces off: Glim's row, the Overall line, three accounts with their limits and resets, the reset calendar, and the footer with share, pin, refresh and settings" src="screenshots/brow-panel-050.png" width="560" />
+</p>
 
 - Accounts are discovered from `~/.claude` and `~/.claude-accounts/*`; dirs that
   belong to the same organisation are shown once.
 - If macOS asks for access to Claude Code's Keychain item, choose "Always Allow".
   An account whose item is withheld shows a key: press it to grant access.
-- Idle accounts' tokens are kept fresh by running `claude doctor` in that
-  account (no model call). If that ever stops working, the `claude -p` fallback
-  (Settings → Accounts, **on by default**) spends a little limit and starts the
-  account's 5-hour window. It is never used after a 401/403 or a `doctor` that
-  timed out — neither is evidence the token itself can be fixed — and it is
-  dropped for good after three ineffective rounds.
-- An account Claude Code is using is left to Claude Code: Brow runs neither
-  `claude doctor` nor `claude -p` in it, whether the token is about to expire or
-  Anthropic has rejected it. A running session refreshes its own token, and the
-  refresh token changes on every refresh, so two refreshes at about the same
-  time leave one side with a dead token and the session asks you to `/login`.
-  "Using" means a running `claude` process whose `CLAUDE_CONFIG_DIR` is that
-  account's folder (not set means `~/.claude`), however long it has sat idle, or
-  a prompt typed in that account in the last 15 minutes (going by when its
-  `history.jsonl` was last written). While Brow waits, the account's token line
-  in Settings reads *in use by Claude Code, waiting for it to refresh*. If the token has already expired,
-  the panel says *Token in use by Claude Code* instead of asking you to sign in,
-  and the numbers come back once the session refreshes it (as soon as you use
-  it) or you close it. Brow checks only when a refresh is due or Anthropic has
-  rejected the token. It reads the process list: the command line of each
-  `claude`, node, bun or deno process, to tell which ones are Claude Code, and
-  from a Claude Code process's environment only `CLAUDE_CONFIG_DIR`. A session
-  still counts after an update has deleted the binary it was started from. It
-  also reads the modification time of `history.jsonl`. It reads no file's
-  contents and nothing from the Keychain for this, and starts no process.
+- Tokens are kept fresh by running `claude doctor` in the account (no model
+  call) in the token's last 4½ minutes: Claude Code renews a token only in its
+  last five, so an earlier `doctor` would change nothing. If that ever stops
+  working, the `claude -p` fallback (Settings → Accounts, **on by default**)
+  spends a little limit and starts the account's 5-hour window. It is never used
+  after a 401/403 for a token that had not yet expired, after a `doctor` that
+  timed out — neither is evidence the token itself can be fixed — or when `claude
+  doctor` says the login is dead, and it is dropped for good after three
+  ineffective rounds. A token past its expiry is not sent, so nothing refused it:
+  it gets `doctor` and then `-p` like a token that is due. A `doctor` or `-p`
+  that runs past its time limit gets nine seconds after SIGTERM before it is
+  killed: on its way out Claude Code cleans up, runs its SessionEnd hooks and
+  only then waits up to two seconds for a refresh in flight to be saved, within
+  a deadline of its own of 8½ seconds. Nothing is run while the Mac is in a dark
+  wake (between going to sleep and waking up, with the display asleep).
+- A Claude Code session open in an account gets the first go at renewing its
+  token: a session at work renews it with its next request in the token's last
+  five minutes. While the token has more than two minutes left, Brow waits, and
+  the account's token line in Settings reads *in use by Claude Code, waiting for
+  it to refresh*. After that, after Anthropic rejects the token, and when you
+  press ⟳, Brow runs `claude doctor` whoever holds the account. An idle session
+  renews nothing, and Claude Code takes a lock around every refresh and re-reads
+  the token under it, so a refresh by Brow no longer races the session's. That
+  race was the reason 0.3.1 left such accounts alone however long the session had
+  sat idle, which in the end meant their tokens were not refreshed at all. A
+  session busy at that moment may see one rejected request, which Claude Code
+  recovers from by itself. Brow logs each time it waits for a session or runs
+  `doctor` past one. "Open" means a running `claude` process whose
+  `CLAUDE_CONFIG_DIR` is that account's folder (not set means `~/.claude`), or a
+  prompt typed in that account in the last 15 minutes (going by when its
+  `history.jsonl` was last written). The `grep`, `find` and `rg` Claude Code
+  runs from its own binary are not sessions. Brow checks only when a refresh is
+  due or Anthropic has rejected the token. It reads the process list: the
+  command line of each `claude`, node, bun or deno process, to tell which ones
+  are Claude Code, and from a Claude Code process's environment only
+  `CLAUDE_CONFIG_DIR`. A session still counts after an update has deleted the
+  binary it was started from. It also reads the modification time of
+  `history.jsonl`. It reads no file's contents and nothing from the Keychain for
+  this, and starts no process.
+  With Workspaces on, Projects also reads each Claude Code process's working
+  folder (where the session runs, and the folders it suggests as projects) and
+  the end of each session's transcript (the last 64 KB, for its preview), and
+  the Agents tab reads the transcripts, team mailboxes and session records it
+  draws — never a session's socket or the inbox keys beside the records.
+  [Workspaces](workspaces.md#what-runs-and-who-talks-to-whom) has the details.
+- A token past its expiry is not sent to Anthropic: the panel says *Token expired
+  12 min ago*, and adds *— Claude Code hasn't refreshed it* while a session holds
+  the account. A token Anthropic rejected reads *Anthropic rejected the token*.
+  The account's sign-in button turns orange only when the login is dead: `claude
+  doctor` or `claude -p` said so (*Please run /login*, or, from `claude -p`,
+  *Failed to authenticate*), three attempts in a row did not renew the token, or
+  the account has no token.
 - The usage endpoint is rate-limited server-side (measured: a small token bucket
   refilled at roughly one request per 100 s, `retry-after: 0`, and 429s that do
   not extend the window). Brow paces itself to it: background polls that arrive
@@ -44,12 +79,23 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   Claude Code as that account (`CLAUDE_CONFIG_DIR='…' claude`), sign in again, and
   open that account's browser profile. The launch command also sits in each
   account's Settings card.
-- The button with stacked squares in the panel's footer opens Workspaces: the
-  notch closes and stays closed until the pointer has left it, and the Workspaces
-  panel opens under its menu-bar item (or at the screen's top-right corner when
-  macOS hides the item behind the notch). While Workspaces is off it opens an
-  introduction, from which a project can be added.
-- The share button in the panel's footer copies "my week": a picture (1200 × 630,
+- The open panel is one window for everything: while Workspaces is on, a switch at
+  its top goes between **Limits**, **Projects** and **Agents** (⌘1, ⌘2, ⌘3), and the
+  outline never moves between them. It is as tall as the limits laid out — the pet's row, the
+  Overall line, every account and the month — at least 480 pt with Projects, and
+  never taller than the screen above the Dock: past that the accounts and the month
+  scroll under the Overall line, which stays. The month always takes six weeks, and
+  the day beside it shows three accounts at most, then "+N more on this day", so
+  nothing hovered can make it taller. The bottom corners are Apple's continuous
+  corners, 24 pt on the panel and 14 pt on the strip.
+- Hovered, the panel opens and closes with the pointer, on the section it was last
+  closed on if that was less than 15 minutes ago. Any click inside pins it: it then
+  takes the keyboard without making Brow the active app, ignores the pointer
+  leaving, and closes on Esc, a click outside, the pin, or when a session it opened
+  takes over. After any close it stays shut until the pointer has left it once.
+- The footer is the same on every section: what the section's numbers are and how
+  fresh, the pin, ⟳, and ⚙ with Settings and **Quit Brow**.
+- The share button in the footer on Limits copies "my week": a picture (1200 × 630,
   or 1080 × 1080 per Settings → General → Usage image) of the visible accounts'
   limits and when they reset: up to four accounts, with any more counted. A
   reading more than 3 min old is grey, as in the panel, and carries its age.
@@ -86,9 +132,10 @@ How the notch half of Brow works. Workspaces, the menu-bar half, is in
   hunger runs from −50 to 100 (a new pet starts at 30): +20 an hour while you are at
   the Mac, it is awake and a reading is under 10 min old, slower when the week is
   ahead of an even pace and stopped 30 points ahead; −6 for each point it eats.
-  Full at 0 or below, Content to 35, Peckish to 65, Hungry from 65, with 5 points of
-  hysteresis on the way back. At an effective 5-hour aggregate of 99.5 % (the
-  readout's `100%`) it falls asleep until the window resets; at 99.5 % weekly it
+  Stuffed at −35 or below, Full to 0, Content to 35, Peckish to 65, Hungry to 90,
+  Famished from 90, with 5 points of hysteresis on the way back (Stuffed until above
+  −30, Famished until below 85). At an effective 5-hour aggregate of 99.5 % (the
+  readout's `100%`) it falls asleep, with a small smile, until the window resets; at 99.5 % weekly it
   hibernates in the den behind the camera until the weekly reset. A prompt written
   to an account's `history.jsonl` (watched, never read) makes it eager for 90 s.
   Moments: its intro, fed-day streaks (a day with 10 points eaten; two rest days

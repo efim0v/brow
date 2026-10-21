@@ -3,6 +3,7 @@
 
 import XCTest
 import SwiftUI
+import GroveAppKit
 import GroveCore
 @testable import BrowKit
 
@@ -77,9 +78,9 @@ final class PanelRefreshGateTests: XCTestCase {
         await forced.value
     }
 
-    /// The Workspaces button joins the footer LEFT of share, so the ⟳ the test above
-    /// measures is drawn exactly where it was, pixel for pixel.
-    func testTheWorkspacesButtonLeavesTheRefreshButtonWhereItIs() async throws {
+    /// A section's own footer button (Limits' share) sits LEFT of the pin, so ⟳ is drawn
+    /// in the same place on every section, pixel for pixel.
+    func testTheRefreshButtonIsInTheSamePlaceWithOrWithoutTheSectionsOwnButton() async throws {
         let dir = try makeAccount()
         let creds = Creds(); creds.expiry[dir] = t0.addingTimeInterval(3600)
         let fetcher = Fetcher()
@@ -87,18 +88,33 @@ final class PanelRefreshGateTests: XCTestCase {
         let store = makeStore(fetcher: fetcher, creds: creds)
         await store.refresh(force: false)
         clock.date = t0.addingTimeInterval(60)
-        let without = try button(of: render(store))
-        let with = try button(of: render(store, onWorkspaces: {}))
+        let clock = PanelClock(now: { [clock] in clock.date })
+        func footer(_ accessory: AnyView) throws -> NSBitmapImageRep {
+            let view = NotchFooter(status: AnyView(Text("Updated just now")), accessory: accessory,
+                                   refresh: AnyView(LimitsRefreshButton(store: store, action: {})),
+                                   pinned: false, showsKeys: false, onPin: {}, onSettings: {}, onQuit: {})
+                .snapshotRender()
+                .padding(.horizontal, PanelView.padding)
+                .frame(width: NotchGeometry.expandedWidth + 2 * NotchGeometry.flare)
+                .foregroundStyle(.white)
+                .background(Color.black)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 1
+            return NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+        }
+        let without = try button(of: footer(AnyView(EmptyView())))
+        let with = try button(of: footer(AnyView(LimitsShareButton(store: store, clock: clock))))
         XCTAssertGreaterThan(without, 0)
         XCTAssertEqual(with, without, accuracy: 0.002)
     }
 
     // MARK: the button's own pixels
 
-    /// Mean ink in the 20 × 20 pt box the ⟳ button occupies, measured from the panel's
-    /// bottom-right corner: bottom padding 14, then the ⚙ (20 pt), then 8 pt of spacing.
-    /// Reading a box rather than the whole image keeps the assertion clear of the footer
-    /// text, which legitimately changes as the data ages.
+    /// Mean ink in the 20 × 20 pt box the ⟳ button's glyph occupies, measured from the panel's
+    /// bottom-right corner: 8 pt of black under the 33 pt footer row, the glyph centred in it;
+    /// right of it the ⚙'s 24 pt hit area, 2 pt of spacing and its own 2 pt of margin, inside
+    /// the panel's 14 pt padding. Reading a box rather than the whole image keeps the assertion
+    /// clear of the footer text, which legitimately changes as the data ages.
     private func button(of rep: NSBitmapImageRep) throws -> Double {
         let x0 = rep.pixelsWide - 62, y0 = rep.pixelsHigh - 34
         try XCTSkipIf(x0 < 0 || y0 < 0, "the panel rendered smaller than its own footer")
@@ -112,10 +128,11 @@ final class PanelRefreshGateTests: XCTestCase {
         return total / 400
     }
 
-    private func render(_ store: LimitsStore, onWorkspaces: (() -> Void)? = nil) throws -> NSBitmapImageRep {
+    private func render(_ store: LimitsStore) throws -> NSBitmapImageRep {
         let view = PanelView(store: store, clock: PanelClock(now: { [clock] in clock.date }),
                              topInset: 40, flare: NotchGeometry.flare,
-                             onSettings: {}, onRefresh: {}, onWorkspaces: onWorkspaces)
+                             onSettings: {}, onRefresh: {})
+            .snapshotRender()
             .frame(width: NotchGeometry.expandedWidth + 2 * NotchGeometry.flare)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1

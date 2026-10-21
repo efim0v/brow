@@ -2,24 +2,53 @@
 
 ## How to render
 
-    swift run BrowApp --snapshot /tmp/brow-snap     # prints "snapshot: 11 files", exits
+    swift run BrowApp --snapshot /tmp/brow-snap     # prints "snapshot: 9 files", exits
 
-The Workspaces panel's screens, without starting the app: no notch, no menu-bar item,
-no engine. Eleven scenes, each at its route's adaptive panel size @2x, defined in
-`Sources/GroveAppKit/Snapshot/SnapshotMode.swift` (`SnapshotScene`):
+Workspaces' screens as a window of their own draws them, without starting the app: no
+notch, no engine. Nine scenes, each at its route's adaptive size @2x,
+defined in `Sources/GroveAppKit/Snapshot/SnapshotMode.swift` (`SnapshotScene`):
 projects, root-workspaces, workspaces-expanded, create-sheet, graph, stats,
-sessions, accounts, settings (a project's settings), stats-settings, error-banner
+settings (a project's settings), stats-settings, error-banner
 (the RootView actionError strip over the projects route).
 The state comes from `SnapshotMode.fixtureState()` — fully synthetic
 (no git, no disk scanning, no real config, and every folder it could write sits in a
 temp dir beside its config file); see the coverage matrix in that file.
 Ages are relative to render-time `Date()`, so badge buckets stay truthful.
 
-The notch, the Settings window and the README's pictures are rendered by the two
-`DemoScreenshotTests` instead, from one set of made-up accounts (`Tests/DemoFixture`)
-so the notch's and Workspaces' pictures agree:
+The pictures in the README, the docs and on the website — the notch, the panel on Limits,
+Projects and Agents with the screens Workspaces pushes in it, and the Settings window — are
+rendered by `DemoScreenshotTests` instead, from one set of made-up accounts
+(`Tests/DemoFixture`) and the made-up world of the review renders (`SessionsWorld`), so the
+pictures agree:
 
-    DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
+    DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" Scripts/test-in-empty-home.sh --filter DemoScreenshotTests
+
+The one window — the notch panel with Limits and Projects, the screens Workspaces pushes
+in it, its menus, notices and corners — is rendered for review by `OneWindowRenderTests`,
+through the real `NotchPanelController` at the frames it computes (`ONE_WINDOW_BEFORE_PNG`
+adds a 0.4.0 render of the clipped panel to the before/after picture):
+
+    ONE_WINDOW_RENDERS_DIR=/tmp/one-window Scripts/test-in-empty-home.sh --filter OneWindowRenderTests
+
+The sessions as previews, the suggestions, the account chips and the Agents tab — live,
+in flight, busy, quiet, empty, a session picked, Reduce Motion and Increase Contrast —
+are rendered the same way by `OneWindowSessionsRenderTests`, from made-up projects and
+sessions and `AgentsSnapshot`'s made-up agents; the host's reader reads nothing:
+
+    ONE_WINDOW_RENDERS_DIR=/tmp/one-window Scripts/test-in-empty-home.sh --filter OneWindowSessionsRenderTests
+
+`ONE_WINDOW_REVIEW_DIR` adds the states a review walks through from the same made-up world
+(`SessionsWorld`): a display without a notch, one account and eight, the readouts below the
+notch or off, long names everywhere, a session's menu and Delete in its card, Resume with
+options, the keyboard, the strip opening into each section, and Limits at every height on a
+13", a 14" and a 16" MacBook:
+
+    ONE_WINDOW_REVIEW_DIR=/tmp/one-window-review Scripts/test-in-empty-home.sh --filter OneWindowSessionsRenderTests
+
+Offscreen, `FadingScrollView` draws its content clipped to the room it is given, scrolled
+by `renderScrollOffset` (never past the end), with its fades, and its indicator only when
+scrolled, as macOS shows it: ImageRenderer draws no `ScrollView`. Views with AppKit-backed controls check `isSnapshotRender` (set with
+`.snapshotRender()`) and draw lookalikes.
 
 They draw the pet at rest. Its own renders go to a folder outside the repository:
 `PetFinalRenderTests` films and stills it through Brow's real views (the strip in
@@ -46,7 +75,7 @@ plays the rig's reels; `PET_FINAL_ONLY` and `PET_SHOWREEL_ONLY` pick some:
   chrome must respect the same flag.
 - AppKit-backed controls (e.g. `Picker(.segmented)`) render as a yellow error
   placeholder. Use pure-SwiftUI equivalents in snapshot-visible chrome, or render
-  in an offscreen window as the Settings and launch-sheet demos do.
+  in an offscreen window as the Settings demos do.
 - `ScrollView`/`List` content is NOT rendered offscreen. Screens that must be
   snapshot-verifiable should render their content unscrolled (plain stacks) or
   swap the container when `\.isSnapshotRender` is true.

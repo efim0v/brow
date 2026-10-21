@@ -1,19 +1,21 @@
 # Troubleshooting
 
-## The Workspaces item is not in the menu bar
+## Where Projects opens
 
-On a MacBook with a notch, macOS hides the menu-bar items that do not fit beside it,
-and Brow's may be one of them. Workspaces still opens from the stacked-squares button
-in the notch panel's footer, from **Show Workspaces** in Brow's menu (the menu bar
-shows it while Brow's Settings window is in front), and when you open Brow again from
-Finder, Spotlight or `open -a Brow`. Settings › General › **Show Workspaces in the menu bar** turns the
-item off altogether. While Workspaces is off there is no item at all.
+Brow has no item in the menu bar. Workspaces is the Projects and Agents sides of the notch
+panel: hover the notch and pick **Projects** on the switch at the top of the panel. The
+switch is there while Workspaces is on; with it off the panel is the limits alone, and
+Settings › Workspaces turns it on. **Show Projects** in Brow's menu (the menu bar shows it
+while Brow's Settings window is in front) and opening Brow again from Finder, Spotlight or
+`open -a Brow` open the panel on Projects, pinned — with Settings › General › **Show Brow
+in the notch** off too. While Workspaces is off, **Show Projects** opens Settings ›
+Workspaces and opening Brow again opens Settings.
 
 ## Workspaces says Grove is still running
 
 Workspaces stays paused while `Grove.app` (`dev.artemefimov.grove3`, or the older
 `dev.artemefimov.grove`) runs: the two would write the same `config.json` and run the
-transcript safety net twice. Press **Quit Grove**, or quit it from its own panel; Brow
+transcript safety net twice. Press **Quit Grove** in Projects, or quit it from its own panel; Brow
 starts Workspaces as soon as Grove has quit. If Grove starts at login, remove it from
 System Settings › General › Login Items.
 

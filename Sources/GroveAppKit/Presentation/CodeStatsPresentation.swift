@@ -791,11 +791,11 @@ public func shortDayDateText(_ date: Date) -> String {
 /// A distinct color for the repo at `index` of `count` repos in the stacked chart's
 /// legend + bars, spread across the brand `Palette.heat` ramp (blue → yellow → pink) so
 /// adjacent repos are visibly different and every color stays readable on the dark cards.
-/// A single repo gets `Palette.primary` (no spread). The mapping is pure and stable for a
+/// A single repo gets `single`, the screen's accent (no spread). The mapping is pure and stable for a
 /// given (index, count), so a repo keeps its color across days and matches its per-repo
 /// block when callers feed a stable ordering (e.g. sorted-by-name, as `repoCells` does).
-func repoColor(index: Int, count: Int) -> Color {
-    guard count > 1 else { return Palette.primary }
+func repoColor(index: Int, count: Int, single: Color = Palette.primary) -> Color {
+    guard count > 1 else { return single }
     let clamped = min(max(index, 0), count - 1)
     return Palette.heat(Double(clamped) / Double(count - 1))
 }

@@ -57,7 +57,8 @@ final class PetBrainTests: XCTestCase {
             "idle(content)@0.00", "perk(prompt)@4.00", "eager@4.50",
             "eat(full,3)@5.00", "satisfied(meal)@6.98", "idle(content)@9.98", "idle(hungry)@10.00",
             "eat(feast,3)@60.00", "fallAsleep@62.38", "asleep@64.98",
-            "wake@200.00", "idle(full)@202.70",
+            // It slept the window's feast off with its hunger clock stopped: it wakes stuffed, and happy.
+            "wake@200.00", "idle(stuffed)@202.70",
         ])
         XCTAssertEqual(pet.brain.timeline.cues.first, PetCue(t: 3, kind: .notice))
         // The meter: 30, the 3 points (18) land at the swallow, the feast's drop at its swallow.
@@ -161,7 +162,7 @@ final class PetBrainTests: XCTestCase {
         let celebrations = brain.timeline.segments.filter { $0.behaviour == .celebrate(.streak(days: 3)) }
         XCTAssertEqual(celebrations.map(\.start), [23.88])
         XCTAssertTrue(brain.pendingCelebrations.isEmpty)
-        XCTAssertEqual(brain.timeline.segments.last?.behaviour, .idle(.full), "twelve points: a feast")
+        XCTAssertEqual(brain.timeline.segments.last?.behaviour, .idle(.stuffed), "twelve points: a feast, 30 → −42")
     }
 
     // MARK: - Meals

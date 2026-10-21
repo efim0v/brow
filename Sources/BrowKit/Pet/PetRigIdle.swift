@@ -123,8 +123,8 @@ enum PetRigIdle {
                                    small: false, rare: false)
         case .eager: p = Profile(amplitude: 0.6, breath: 1, blinks: true, glances: false, small: true, rare: false)
         case .unsureIdle: p = Profile(amplitude: 0.7, breath: 1, blinks: true, glances: false, small: false, rare: false)
-        case .satisfied(.meal), .satisfied(.feast): p = Profile(amplitude: 0.4, breath: 1, blinks: false, glances: false,
-                                                                 small: false, rare: false)
+        case .satisfied(.meal), .satisfied(.feast), .satisfied(.brim), .satisfied(.grateful):
+            p = Profile(amplitude: 0.4, breath: 1, blinks: false, glances: false, small: false, rare: false)
         case .asleep, .hibernating, .stirring, .rollOver: p = Profile(amplitude: 0, breath: 1, blinks: false, glances: false,
                                                            small: false, rare: false)
         case .drowsy: p = Profile(amplitude: 0.15, breath: 1, blinks: false, glances: false, small: false, rare: false)
@@ -164,13 +164,15 @@ enum PetRigIdle {
         1 + PetTuning.Idle.blinkRateSpread * (2 * PetNoise.hash(seed, PetRigChannel.blinkRate, 0) - 1)
     }
 
-    /// How open the eyes are under the blink schedule at `t`. 12 % of blinks are double.
-    static func blinkOpen(at t: Double, seed: UInt64) -> Double {
+    /// How open the eyes are under the blink schedule at `t`. 12 % of blinks are double. A blink whose start
+    /// `skip` names is left out whole.
+    static func blinkOpen(at t: Double, seed: UInt64, skip: (Double) -> Bool = { _ in false }) -> Double {
         let rate = blinkRate(seed: seed)
         let local = t / rate
         var open = 1.0
         for (k, at) in blinks.recent(at: local, lookBack: 0.6 / rate, seed: seed) {
             let start = at * rate
+            if skip(start) { continue }
             open = min(open, IdleBlink.shape(t - start))
             if PetNoise.hash(seed, PetRigChannel.blinkDouble, k) < PetTuning.Idle.doubleBlinkShare {
                 open = min(open, IdleBlink.shape(t - start - 0.24))
@@ -198,12 +200,13 @@ enum PetRigIdle {
         let t = scene.t, seed = scene.seed, s = scene.s
         let a = profile.amplitude * posture.drift
 
-        // Breath: squash and girth, the light rising and falling with it.
+        // Breath: squash and girth, the light rising and falling with it, and a round belly with them.
         let b = breath(posture, t: t, seed: seed) * profile.breath
         body.squash += posture.breathAmp * b
         body.girth += 0.35 * posture.breathAmp * b
         body.fullness += 0.012 * b
         body.glow += 0.05 * b
+        body.belly += body.belly * 4 * posture.breathAmp * b
 
         // Sway, weight shift and appendage drift: three cycles of 7.3, 11.9 and 5.3 s, which never line up.
         typealias I = PetTuning.Idle
@@ -226,11 +229,19 @@ enum PetRigIdle {
         body.armL += a * 0.12 * PetDrift.drift(t, period: 2.6, seed: seed, channel: PetRigChannel.driftArmL)
         body.armR += a * 0.12 * PetDrift.drift(t, period: 2.8, seed: seed, channel: PetRigChannel.driftArmR)
 
-        // Blinks.
+        // Stuffed, eyes shut in bliss open now and then. A face that opens and shuts its eyes moves nothing
+        // across the screen: Reduce Motion keeps it.
+        PetRigMoodBeats.bliss(&body, posture: posture, beat: beat, scene: scene)
+
+        // Blinks. Eyes shut in a happy arc have nothing to blink. Half shut, a lid with a slant reads as a
+        // side-eye: the slant goes with the lid, so the frames in the middle of a blink are level.
         if profile.blinks {
-            let open = blinkOpen(at: t, seed: seed)
-            body.lidL *= open
-            body.lidR *= open
+            let open = blinkOpen(at: t, seed: seed) { PetRigMoodBeats.holdsTheBlink(at: $0, beat: beat, scene: scene) }
+            let depth = 1 - PetCurve.ramp(body.happy, PetCanvas.happyBand.lowerBound, PetCanvas.happyBand.upperBound)
+            let lid = 1 - (1 - open) * depth
+            body.lidL *= lid
+            body.lidR *= lid
+            body.lidSlant *= lid * lid
         }
         if case .drowsy = beat.behaviour {
             // Drowsy: slow, heavy blinks every 3 to 5 s, and a yawn at once and every 40 s.
@@ -250,13 +261,14 @@ enum PetRigIdle {
             }
         }
 
-        // The glutton's small habits, the rare idles, the hungry tummy.
+        // The glutton's small habits, the rare idles, the hungry tummy, and the beats of the ends of the meter.
         if profile.small { smallIdle(&body, beat: beat, scene: scene) }
         if profile.rare { rareIdle(&body, beat: beat, scene: scene) }
+        PetRigMoodBeats.apply(&body, beat: beat, scene: scene)
         if case .idle(let mood) = beat.behaviour, mood == .peckish || mood == .hungry {
             rumble(&body, beat: beat, scene: scene)
         }
-        if case .settled(let mood) = beat.behaviour, mood == .hungry {
+        if case .settled(let mood) = beat.behaviour, mood == .hungry || mood == .famished {
             rumble(&body, beat: beat, scene: scene)
         }
 
@@ -277,11 +289,23 @@ enum PetRigIdle {
 
     enum Small: CaseIterable { case lick, browFlick, squish, sigh, shuffle }
 
-    /// Which small habit the k-th one is. Eager only licks its lips, and hungry never sighs: it licks.
+    /// How long a small habit plays.
+    static func smallLength(_ kind: Small) -> Double {
+        switch kind {
+        case .lick: return 1.2
+        case .browFlick: return 0.3
+        case .squish: return 0.7
+        case .sigh: return 1.0
+        case .shuffle: return 1.2
+        }
+    }
+
+    /// Which small habit the k-th one is. Eager only licks its lips, and hungry and famished never sigh:
+    /// they lick.
     static func smallKind(_ k: Int, seed: UInt64, behaviour: PetBehaviour) -> Small {
         if case .eager = behaviour { return .lick }
         let kind = Small.allCases[Int(PetNoise.hash(seed, PetRigChannel.smallKind, k) * Double(Small.allCases.count))]
-        if case .idle(.hungry) = behaviour, kind == .sigh { return .lick }
+        if case .idle(let mood) = behaviour, mood == .hungry || mood == .famished, kind == .sigh { return .lick }
         return kind
     }
 
@@ -290,9 +314,17 @@ enum PetRigIdle {
     static func smallIdle(_ p: inout PetBody, beat: PetRigBeat, scene: PetRigPoser) {
         let t = scene.t, seed = scene.seed
         let dir = scene.foodSide
+        let mood = PetRigMoodBeats.extreme(beat.behaviour)
         for (k, at) in smalls.recent(at: t, lookBack: 1.4, seed: seed) where at > beat.start + 1 {
             let tau = t - at
-            switch smallKind(k, seed: seed, behaviour: beat.behaviour) {
+            let kind = smallKind(k, seed: seed, behaviour: beat.behaviour)
+            // At an end of the meter some habits are beats of their own (`PetRigMoodBeats`), and the others
+            // play only when no other gesture is: one at a time.
+            if let mood {
+                if PetRigMoodBeats.small(kind, mood: mood) != nil { continue }
+                if !PetRigMoodBeats.keeps(.small(k), at: at, beat: beat, scene: scene) { continue }
+            }
+            switch kind {
             case .lick:
                 // The nibble's lick at half its pace, the head turning less.
                 PetRigActions.lick(&p, e: tau / 2, dir: dir, turn: 0.16)
@@ -300,8 +332,9 @@ enum PetRigIdle {
                 p.browLiftL += 0.9 * PetCurve.envelope(tau, 0, 0.1, 0.12, 0.26)
                 p.browLiftR += 0.85 * PetCurve.envelope(tau, 0.01, 0.11, 0.13, 0.27)
             case .squish:
+                // The squint goes all the way to the happy arcs: held part way, the eye shows two drawings.
                 p.squash -= 0.04 * PetCurve.envelope(tau, 0, 0.16, 0.2, 0.44)
-                p.happy = max(p.happy, 0.7 * PetCurve.envelope(tau, 0.04, 0.16, 0.5, 0.7))
+                p.happy = max(p.happy, 0.8 * PetCurve.envelope(tau, 0.04, 0.16, 0.5, 0.7))
                 p.smile += 0.3 * PetCurve.envelope(tau, 0.04, 0.16, 0.5, 0.7)
             case .sigh:
                 p.squash += 0.03 * PetCurve.envelope(tau, 0, 0.35, 0.36, 1.0, up: PetEase.inOutSine, down: PetEase.inOutSine)
@@ -328,12 +361,19 @@ enum PetRigIdle {
 
     static let pounceShare = 1.0 / 12
 
-    /// The rare idle that started last, if it is still playing.
+    /// The rare idle that started last, if it is still playing. At an end of the meter some rare idles are
+    /// beats of their own (`PetRigMoodBeats`), and the others play only when no other gesture is.
     static func rare(beat: PetRigBeat, scene: PetRigPoser) -> (kind: Rare, at: Double, k: Int)? {
         guard profile(beat.behaviour, reduceMotion: scene.motion.reduceMotion).rare else { return nil }
+        let mood = PetRigMoodBeats.extreme(beat.behaviour)
         for (k, at) in rares.recent(at: scene.t, lookBack: 4, seed: scene.seed).reversed() where at > beat.start + 2 {
             let kind = rareKind(k, seed: scene.seed)
-            if scene.t - at < length(kind) { return (kind, at, k) }
+            guard scene.t - at < length(kind) else { continue }
+            if let mood {
+                if PetRigMoodBeats.rare(kind, mood: mood) != nil { continue }
+                if !PetRigMoodBeats.keeps(.rare(k), at: at, beat: beat, scene: scene) { continue }
+            }
+            return (kind, at, k)
         }
         return nil
     }
@@ -342,16 +382,51 @@ enum PetRigIdle {
     /// ambient motion may move at 30 fps, so the layer draws them in the fast class.
     static let pounceFast = 0.3..<1.6
 
-    /// The fast window of the pounce playing in `segment` at `t`, or of the next one to come in it: the
-    /// controller raises the frame rate for exactly this long. nil where no rare idle plays, or none is a
-    /// pounce in the next hour and a half.
-    static func fastWindow(after t: Double, segment: PetSegment, seed: UInt64, reduceMotion: Bool) -> Range<Double>? {
+    /// The fast window of the leap playing in `segment` at `t`, or of the next one to come in it: the
+    /// pounce's, or at an end of the meter the thumbs-up's rise and the hiccup's hop. The controller
+    /// raises the frame rate for exactly this long. nil where no rare idle plays, or none leaps in the next
+    /// hour and a half.
+    static func fastWindow(after t: Double, segment: PetSegment, previous: PetSegment? = nil, cues: [PetCue] = [],
+                           seed: UInt64, reduceMotion: Bool) -> Range<Double>? {
+        // The leaps the gestures playing around `t` hold: a greeting, or one carried over from the mood before.
+        let longest = PetRigMoodBeats.longest
+        let near = PetRigMoodBeats.gestures(in: segment, previous: previous, at: t + longest, lookBack: 2 * longest + 2,
+                                            seed: seed, reduceMotion: reduceMotion, cues: cues)
+            .compactMap { g -> Range<Double>? in
+                guard case .beat(let b) = g.item, let fast = PetRigMoodBeats.fast(b) else { return nil }
+                return (g.at + fast.lowerBound)..<(g.at + fast.upperBound)
+            }
+            .filter { $0.upperBound > t }
+        let next = rareFastWindow(after: t, segment: segment, previous: previous, seed: seed, reduceMotion: reduceMotion)
+        return (near + [next].compactMap { $0 }).min { $0.lowerBound < $1.lowerBound }
+    }
+
+    /// The fast window of the rare idle playing in `segment` at `t`, or of the next one to come.
+    static func rareFastWindow(after t: Double, segment: PetSegment, previous: PetSegment?, seed: UInt64,
+                               reduceMotion: Bool) -> Range<Double>? {
         guard profile(segment.behaviour, reduceMotion: reduceMotion).rare else { return nil }
-        let first = Int(floor((max(t, segment.start) - pounceFast.upperBound) / rares.period)) - 1
+        let mood = PetRigMoodBeats.extreme(segment.behaviour)
+        let first = Int(floor((max(t, segment.start) - 3) / rares.period)) - 1
         for k in first...(first + 64) {
             let at = rares.time(k, seed: seed)
-            guard at > segment.start + 2, rareKind(k, seed: seed) == .pounce else { continue }
-            let window = (at + pounceFast.lowerBound)..<(at + pounceFast.upperBound)
+            guard at > segment.start + 2 else { continue }
+            let kind = rareKind(k, seed: seed)
+            let fast: Range<Double>?
+            if let mood {
+                if let b = PetRigMoodBeats.rare(kind, mood: mood) {
+                    fast = PetRigMoodBeats.fast(b)
+                } else {
+                    fast = kind == .pounce ? pounceFast : nil
+                }
+                // A leap at an end of the meter plays only when no other gesture was due as it came.
+                guard fast != nil, PetRigMoodBeats.gestures(in: segment, previous: previous, at: at, lookBack: 0.01, seed: seed,
+                                                            reduceMotion: reduceMotion).contains(where: { $0.at == at })
+                else { continue }
+            } else {
+                fast = kind == .pounce ? pounceFast : nil
+            }
+            guard let fast else { continue }
+            let window = (at + fast.lowerBound)..<(at + fast.upperBound)
             if window.upperBound > t { return window }
         }
         return nil
@@ -383,13 +458,18 @@ enum PetRigIdle {
             let up = PetCurve.envelope(tau, 0, 0.65, 1.15, 1.8)
             p.armR += 1.5 * up + 0.12 * sin(2 * .pi * 3.5 * tau) * PetCurve.envelope(tau, 0.55, 0.7, 1.05, 1.2)
             p.tilt += 0.05 * up
-            p.happy = max(p.happy, 0.8 * up)
+            // A happy squint while it rubs, shut and opened on the eyes' own quick clock.
+            p.happy = max(p.happy, 0.8 * PetRigMoodBeats.eyes(tau, open: 0.35, close: 1.2))
             p.smile += 0.2 * up
         case .mote:
-            // A dust mote drifts past: the eyes follow it (the particle is `PetRigParticles.mote`).
+            // A dust mote drifts past: the eyes follow it (the particle is `PetRigParticles.mote`). Stuffed,
+            // they open out of their bliss to do it, on their own quick clock.
             let m = mote(at: tau, seed: scene.seed, k: r.k, scene: scene)
             PetRigGaze.lookToward(&p, m, weight: PetCurve.envelope(tau, 0.2, 0.5, 2.6, 3.0), scene: scene)
             p.browLiftL += 0.4 * PetCurve.envelope(tau, 0.3, 0.5, 1.5, 1.8)
+            if PetRigMoodBeats.extreme(beat.behaviour) == .stuffed {
+                p.happy = PetCurve.mix(p.happy, PetRigMoodBeats.blissOpenHappy, PetRigMoodBeats.eyes(tau, open: 0, close: 2.8))
+            }
         case .pounce:
             pounce(&p, tau: tau, scene: scene)
         }
@@ -455,18 +535,28 @@ enum PetRigIdle {
     }
 
     /// Peckish and hungry, a tummy rumble every 40 to 70 s: a shiver of the outline, a look down at the
-    /// belly, and back to the number, hopeful.
+    /// belly, and back to the number, hopeful. Famished and settled, the same at half its strength on the
+    /// famished tummy's schedule: the grumble's pat and lick are more than the quiet hours' 10 fps can draw.
     static func rumble(_ p: inout PetBody, beat: PetRigBeat, scene: PetRigPoser) {
-        for (_, at) in rumbles.recent(at: scene.t, lookBack: 1.2, seed: scene.seed) where at > beat.start + 1.5 {
+        let famished = beat.behaviour == .settled(.famished)
+        let k = famished ? 0.5 : 1.0
+        for at in rumbleTimes(beat: beat, scene: scene, lookBack: 1.2) {
             let tau = scene.t - at
             // The shiver is the outline's own ripple; the clench under it is slow enough for 30 fps.
-            p.tremor += 0.8 * PetCurve.ring(tau, 0, frequency: 15, decay: 0.09)
-            p.squash -= 0.02 * PetCurve.envelope(tau, 0, 0.06, 0.1, 0.22)
-            p.lookY -= 0.7 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
-            p.nod -= 0.15 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
-            p.browLiftL += 0.3 * PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6)
-            p.mouthWide = PetCurve.mix(p.mouthWide, 0.45, PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6))
+            p.tremor += k * 0.8 * PetCurve.ring(tau, 0, frequency: 15, decay: 0.09)
+            p.squash -= k * 0.02 * PetCurve.envelope(tau, 0, 0.06, 0.1, 0.22)
+            p.lookY -= k * 0.7 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
+            p.nod -= k * 0.15 * PetCurve.envelope(tau, 0.05, 0.15, 0.45, 0.65)
+            p.browLiftL += k * 0.3 * PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6)
+            p.mouthWide = PetCurve.mix(p.mouthWide, 0.45, k * PetCurve.envelope(tau, 0.05, 0.12, 0.4, 0.6))
         }
+    }
+
+    /// The rumbles that started in the last `lookBack` seconds: famished and settled on the famished tummy's
+    /// schedule, every 25 to 43 s; otherwise every 40 to 70 s.
+    static func rumbleTimes(beat: PetRigBeat, scene: PetRigPoser, lookBack: Double) -> [Double] {
+        let schedule = beat.behaviour == .settled(.famished) ? PetRigMoodBeats.grumbles : rumbles
+        return schedule.recent(at: scene.t, lookBack: lookBack, seed: scene.seed).map(\.at).filter { $0 > beat.start + 1.5 }
     }
 
     /// The last rumble's start, if one is on: the rumble lines are drawn from it.
@@ -476,8 +566,11 @@ enum PetRigIdle {
         case .idle(let m), .settled(let m): mood = m
         default: mood = nil
         }
-        guard let m = mood, m == .hungry || (m == .peckish && isIdle(beat)) else { return nil }
-        return rumbles.recent(at: scene.t, lookBack: 0.4, seed: scene.seed).last { $0.at > beat.start + 1.5 }?.at
+        // Famished at rest grumbles instead, and draws its own lines (`PetRigMoodBeats.particles`).
+        guard let m = mood, m == .hungry || (m == .famished && !isIdle(beat)) || (m == .peckish && isIdle(beat)) else {
+            return nil
+        }
+        return rumbleTimes(beat: beat, scene: scene, lookBack: 0.4).last
     }
 
     static func isIdle(_ beat: PetRigBeat) -> Bool { if case .idle = beat.behaviour { return true }; return false }
@@ -521,6 +614,7 @@ enum PetRigIdle {
             out.append(PetRigSource(kind: .pounce, start: r.at, scale: scene.s, foodSide: pounceSide(scene),
                                     jellyHz: posture.jellyHz, jellyZeta: posture.jellyZeta))
         }
+        out += PetRigMoodBeats.sources(beat: beat, scene: scene, posture: posture)
         return out
     }
 }

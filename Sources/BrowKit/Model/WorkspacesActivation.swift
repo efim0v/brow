@@ -3,35 +3,44 @@
 
 import Foundation
 
-/// The Workspaces part of Brow's own `config.json`: whether it runs, whether its
-/// menu-bar item shows, and the panel's material. Grove's own `config.json` is not
-/// touched by any of these.
+/// The Workspaces part of Brow's own `config.json`: whether it runs (and the menu-bar item
+/// and panel material of older builds, kept as they were written). Grove's own
+/// `config.json` is not touched by any of these.
 public struct WorkspacesSettings: Codable, Sendable, Equatable {
     /// The user's choice; nil until they make one, and Workspaces then follows whether
     /// a Grove config exists (`WorkspacesActivation`).
     public var enabled: Bool?
-    /// Settings › General › Show Workspaces in the menu bar.
+    /// Brow 0.4's Settings › General › Show Workspaces in the menu bar. Brow has no menu-bar
+    /// item since 0.5, so nothing reads it; kept so the settings an older Brow wrote read
+    /// back, and are written back, as they were.
     public var showInMenuBar: Bool = true
-    /// `liquidGlass` or `visualEffect`; nil means Liquid Glass.
+    /// The material of the Workspaces window Brow 0.4 had: `liquidGlass` or `visualEffect`.
+    /// Nothing reads it since Workspaces moved into the notch panel; kept so the settings an
+    /// older Brow wrote read back, and are written back, as they were.
     public var panelMaterial: String?
-    /// Grove's own material setting has been looked at, and copied if there was one.
-    /// Once only: a later change in Grove.app is not Brow's.
+    /// Brow 0.4 copied Grove's own material setting once. Kept for the same reason.
     public var importedGroveMaterial: Bool = false
     /// Whether the setup Workspaces first ran on was Grove's: its `config.json` was there
     /// before Brow's engine ever ran. nil until Workspaces first runs, which is when it is
     /// recorded — afterwards the file exists either way. Settings words itself by it.
     public var groveSetup: Bool?
+    /// Session rows show the newest prompt and Claude's newest line; off, only the
+    /// session's title — for sharing the screen.
+    public var showMessagePreviews: Bool = true
 
     public init(enabled: Bool? = nil, showInMenuBar: Bool = true, panelMaterial: String? = nil,
-                importedGroveMaterial: Bool = false, groveSetup: Bool? = nil) {
+                importedGroveMaterial: Bool = false, groveSetup: Bool? = nil, showMessagePreviews: Bool = true) {
         self.enabled = enabled
         self.showInMenuBar = showInMenuBar
         self.panelMaterial = panelMaterial
         self.importedGroveMaterial = importedGroveMaterial
         self.groveSetup = groveSetup
+        self.showMessagePreviews = showMessagePreviews
     }
 
-    enum CodingKeys: String, CodingKey { case enabled, showInMenuBar, panelMaterial, importedGroveMaterial, groveSetup }
+    enum CodingKeys: String, CodingKey {
+        case enabled, showInMenuBar, panelMaterial, importedGroveMaterial, groveSetup, showMessagePreviews
+    }
 
     /// Field by field: one bad value costs that field, never the others (brow#7).
     public init(from decoder: Decoder) throws {
@@ -48,6 +57,7 @@ public struct WorkspacesSettings: Codable, Sendable, Equatable {
         panelMaterial = field(.panelMaterial, String.self)
         importedGroveMaterial = field(.importedGroveMaterial, Bool.self) ?? false
         groveSetup = field(.groveSetup, Bool.self)
+        showMessagePreviews = field(.showMessagePreviews, Bool.self) ?? true
     }
 }
 

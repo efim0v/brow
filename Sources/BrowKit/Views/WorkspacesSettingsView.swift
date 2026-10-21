@@ -7,9 +7,9 @@ import GroveCore
 import SwiftUI
 
 /// Settings › Workspaces: on or off, and — while it runs — the settings that are not
-/// any one project's: the projects themselves, the folder new workspaces go in, the
-/// transcript safety net and the panel's material. A project's own settings stay in
-/// the panel, next to the project, where its scan and branch lists are.
+/// any one project's: the projects themselves, the folder new workspaces go in and the
+/// transcript safety net. A project's own settings stay in the notch panel, next to the
+/// project, where its scan and branch lists are.
 struct WorkspacesSettingsTab: View {
     @ObservedObject var host: WorkspacesHost
 
@@ -37,7 +37,7 @@ struct WorkspacesSettingsTab: View {
     /// What Workspaces is and does, in the words that are true for this Mac: a setup
     /// Grove made carries on as Grove had it, a new one starts with nothing turned on.
     static func explanation(activation: WorkspacesActivation, groveSetup: Bool) -> String {
-        var text = "Workspaces gives each feature of a multi-repo project its own folder of git worktrees and runs Claude Code sessions in them, from Brow's menu-bar item."
+        var text = "Workspaces gives each feature of a multi-repo project its own folder of git worktrees and runs Claude Code sessions in them, from the Projects section of the notch panel."
         if activation == .off {
             text += " Off, none of it runs, with one exception: an account whose status line it captured keeps going through Brow's wrapper until you turn capture off for it under Accounts."
         }
@@ -75,7 +75,7 @@ struct WorkspacesSettingsTab: View {
     @ViewBuilder private var status: some View {
         switch host.activation {
         case .on:
-            Label("On — Brow's menu-bar item opens it, and so does the button in the notch panel.",
+            Label("On — it is the notch panel's Projects section.",
                   systemImage: "checkmark.circle.fill")
                 .font(.caption).foregroundStyle(.secondary)
         case .paused where host.pause == .anotherBrow:
@@ -105,7 +105,6 @@ struct WorkspacesSettingsTab: View {
 struct WorkspacesEngineSettings: View {
     @ObservedObject var state: AppState
     let host: WorkspacesHost
-    @State private var material = WindowSubstrateStyle.current
     /// What the last change made here could not do.
     @State private var failure: String?
 
@@ -131,6 +130,14 @@ struct WorkspacesEngineSettings: View {
                 }
             }
             Button("Add project…", action: addProject)
+        }
+        Section {
+            Toggle("Show message previews", isOn: Binding(get: { host.showsMessagePreviews },
+                                                          set: { host.showsMessagePreviews = $0 }))
+        } footer: {
+            Text("A session's row shows the last thing asked and the last line Claude wrote. Off, it shows the session's title only — for sharing your screen.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         Section {
             // The label in the form's own font; only the value, a path, is monospaced.
@@ -167,15 +174,6 @@ struct WorkspacesEngineSettings: View {
         .task {
             if state.config.transcriptMirror.enabled { await state.reconcileTranscripts() }
             else { await state.refreshTranscriptRetention() }
-        }
-        Section("Panel") {
-            Picker("Material", selection: Binding(get: { material }, set: { style in
-                material = style
-                host.setPanelMaterial(style)
-            })) {
-                ForEach(WindowSubstrateStyle.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
         }
     }
 

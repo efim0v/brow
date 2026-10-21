@@ -81,6 +81,9 @@ enum PetRigChannel {
     static let tiltAt = PetNoise.Channel(0x211)
     static let drowsyBlink = PetNoise.Channel(0x212)
     static let side = PetNoise.Channel(0x213)
+    static let blissAt = PetNoise.Channel(0x214)
+    static let blissHold = PetNoise.Channel(0x215)
+    static let grumbleAt = PetNoise.Channel(0x216)
     // Drift, first octaves (0x240 to 0x27F); their second octaves are 0x2C0 to 0x2FF.
     static let driftTurn = PetNoise.Channel(0x240)
     static let driftNod = PetNoise.Channel(0x241)
@@ -130,9 +133,18 @@ struct PetRigPoser {
         body.x = Double(zone.anchor.x)
         body.floorY = Double(zone.anchor.y)
         body.size = s
-        body.fullness = PetRigMeter.fullness(timeline.meter, segments: segments, at: t, reduceMotion: motion.reduceMotion)
+        let meter = PetRigMeter.eased(timeline.meter, segments: segments, at: t, reduceMotion: motion.reduceMotion)
+        body.fullness = PetRigMeter.light(meter)
+        // The belly is the meter's, whatever the pet is doing, but for curling up: the loaf asleep, in the
+        // den and on the pill keeps its shape.
+        body.belly = PetRigMeter.belly(meter) * (1 - PetEase.clamp01(body.curl))
         body.flash = PetRigMeter.flare(timeline.meter, segments: segments, at: t, reduceMotion: motion.reduceMotion)
         body.wavePhase = t * 2 * .pi * 1.3
+        // The mood's lean toward the food or back from it, the step toward it, and the nub that reaches
+        // for it, on whichever side the food is.
+        body.lean += posture.foodLean * foodSide
+        body.x += posture.foodStep * s * foodSide
+        if foodSide < 0 { body.armL += posture.foodArm } else { body.armR += posture.foodArm }
         PetRigActions.place(&body, beat: beat, scene: self)
         PetRigActions.apply(&body, beat: beat, scene: self)
         PetRigActions.fadeCut(&body, beat: beat, scene: self)
@@ -271,13 +283,13 @@ enum PetRigTimeline {
     static func posture(_ segments: [PetSegment], index: Int?, at t: Double, scene: PetRigPoser, depth: Int = 0) -> PetPosture {
         guard let i = index else { return PetRigActions.posture(.idle(.content), elapsed: .infinity, scene: scene) }
         let segment = segments[i]
-        let own = PetRigActions.posture(segment.behaviour, elapsed: t - segment.start, scene: scene)
+        let own = PetRigActions.posture(segment.behaviour, elapsed: t - segment.start, scene: scene, start: segment.start)
         guard i > 0, depth < 4 else { return own }
         let blend = PetRigActions.blendIn(segment.behaviour, after: segments[i - 1].behaviour)
         let u = (t - segment.start) / blend
         guard u < 1 else { return own }
         let from = posture(segments, index: i - 1, at: segment.start, scene: scene, depth: depth + 1)
-        return PetPosture.mixed(from, own, PetEase.smoother(u))
+        return PetPosture.blended(from, own, elapsed: t - segment.start, over: blend)
     }
 }
 
@@ -300,6 +312,12 @@ enum PetRigMeter {
     /// at H = 100. A meal's drop (keyed at its swallow) is eased in as the swallowed light splashes into
     /// the belly, rather than cut; any other jump eases over 0.6 s; Reduce Motion takes it at once.
     static func fullness(_ keys: [PetMeterKey], segments: [PetSegment], at t: Double, reduceMotion: Bool) -> Double {
+        light(eased(keys, segments: segments, at: t, reduceMotion: reduceMotion))
+    }
+
+    /// The meter as the body holds it at `t`: a meal's drop eased in at its splash, any other jump over
+    /// 0.6 s, Reduce Motion's at once. The light and the belly both follow it.
+    static func eased(_ keys: [PetMeterKey], segments: [PetSegment], at t: Double, reduceMotion: Bool) -> Double {
         var h = value(keys, at: t)
         if !reduceMotion, let jump = lastJump(keys, at: t) {
             let food = jump.delta < 0
@@ -308,7 +326,14 @@ enum PetRigMeter {
             let u = (t - jump.t - delay) / duration
             if u < 1 { h -= jump.delta * (1 - (food ? PetEase.outCubic(u) : PetEase.smooth(u))) }
         }
-        return light(h)
+        return h
+    }
+
+    /// A round belly past the brim: none above −26, 0.59 at −35 where the pet becomes stuffed, full from
+    /// −42. It follows the meter rather than the mood, so the bite that makes the pet stuffed rounds it as
+    /// the light splashes in, and it goes down by itself as hunger returns.
+    static func belly(_ h: Double) -> Double {
+        PetEase.smooth((-26 - h) / 16)
     }
 
     /// From a meal's swallow to the moment its light lands in the belly. The meal is the `eat` whose

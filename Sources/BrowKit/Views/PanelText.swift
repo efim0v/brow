@@ -34,7 +34,7 @@ public enum PanelText {
 
     /// One account's tag: tier, then the age of what is still on screen, then why the
     /// last fetch failed. A failed fetch keeps its snapshot, so it keeps its age too —
-    /// `Max 20x · 3 d ago · sign-in expired`, never a bare error over stale bars.
+    /// `Max 20x · 3 d ago · Anthropic rejected the token`, never a bare error over stale bars.
     public static func accountTag(tier: String?, snapshot: LimitSnapshot?,
                                   status: AccountStatus, now: Date) -> String {
         accountTag(tier: tier, snapshot: snapshot, status: status, renewsAt: nil, now: now)

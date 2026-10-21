@@ -335,29 +335,83 @@ final class PetZoneSweepTests: XCTestCase {
         let meals: [PetMeal] = [
             PetReelScript.meal(.full, chews: 3), PetReelScript.meal(.full, chews: 1), PetReelScript.meal(.nibble, chews: 2),
             PetReelScript.meal(.full, chews: 3, feast: true, points: 9), PetReelScript.meal(.full, chews: 2, reduceMotion: true),
+            PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed),
+            PetMeal(size: .nibble, chews: 2, feast: false, points: 1, reduceMotion: false, mood: .stuffed),
+            PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .famished),
+            PetMeal(size: .full, chews: 3, feast: true, points: 9, reduceMotion: false, mood: .famished),
         ]
         var out: [PetBehaviour] = [.intro(noAccounts: false), .intro(noAccounts: true)]
         for mood in PetMood.allCases { out += [.idle(mood), .settled(mood), .unsureIdle(mood)] }
         out += [.perk(.prompt), .perk(.freshData), .eager]
         out += meals.map { .eat($0) }
-        out += [.satisfied(.meal), .satisfied(.feast), .satisfied(.lick), .boop(giggle: false), .boop(giggle: true),
+        out += [.satisfied(.meal), .satisfied(.feast), .satisfied(.lick), .satisfied(.brim), .satisfied(.grateful),
+                .boop(giggle: false), .boop(giggle: true),
                 .celebrate(.streak(days: 7)), .celebrate(.goodWeek), .freshWindow, .fallAsleep, .asleep, .drowsy, .wake,
                 .rollOver, .enterDen(retreat: false), .enterDen(retreat: true), .hibernating, .stirring, .leaveDen(stretch: true),
                 .leaveDen(stretch: false), .denWait, .peek, .dozeIn, .doze, .welcomeBack]
         return out
     }
 
+    /// Every behaviour from `script(for:)`, and then again where the meter makes them different: the awake
+    /// ones at the stuffed end with the round belly at its fullest, and a feast that falls short of stuffed.
+    static var cases: [(name: String, behaviour: PetBehaviour, script: PetReelScript)] {
+        var out = behaviours.map { ("\($0)", $0, script(for: $0)) }
+        let stuffedToo: [PetBehaviour] = [.perk(.prompt), .eager, .boop(giggle: false), .boop(giggle: true),
+                                          .celebrate(.streak(days: 7)), .celebrate(.goodWeek), .freshWindow, .welcomeBack,
+                                          .satisfied(.lick)]
+        for behaviour in stuffedToo {
+            var script = script(for: behaviour)
+            script.timeline.meter = [PetMeterKey(t: 0, value: -48, rate: 0)]
+            out.append(("\(behaviour), stuffed", behaviour, script))
+        }
+        let feast = PetReelScript.meal(.full, chews: 3, feast: true, points: 9)
+        var short = PetReelScript([(0, .idle(.content)), (5 - feast.duration, .eat(feast)), (5, .satisfied(.feast))], hunger: 40)
+        short.meter(5 - feast.duration + feast.swallowStart, -14)
+        out.append(("satisfied(feast), short of stuffed", .satisfied(.feast), short))
+        return out
+    }
+
     /// A behaviour at t = 5 after what the brain plays before it, so it starts from the pose it really
-    /// starts from: a wake from sleep, a peek from the den, a satisfied after a meal.
+    /// starts from: a wake from sleep, a peek from the den, a satisfied after a meal. The ends of the meter
+    /// at the meter they live at: stuffed with its round belly at its fullest.
     static func script(for behaviour: PetBehaviour) -> PetReelScript {
+        switch behaviour {
+        case .idle(.stuffed), .settled(.stuffed), .unsureIdle(.stuffed):
+            return PetReelScript([(0, .idle(.content)), (5, behaviour)], hunger: -46)
+        case .idle(.famished), .settled(.famished), .unsureIdle(.famished):
+            return PetReelScript([(0, .idle(.hungry)), (5, behaviour)], hunger: 96)
+        case .eat(let m) where m.mood == .stuffed:
+            var script = PetReelScript([(0, .idle(.stuffed)), (5, behaviour)], hunger: -40)
+            script.meter(5 + m.swallowStart, -50)
+            return script
+        case .eat(let m) where m.mood == .famished:
+            var script = PetReelScript([(0, .idle(.famished)), (5, behaviour)], hunger: 96)
+            script.meter(5 + m.swallowStart, 96 - 6 * m.points)
+            return script
+        case .satisfied(.grateful):
+            let meal = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .famished)
+            var script = PetReelScript([(0, .idle(.famished)), (5 - meal.duration, .eat(meal)), (5, behaviour)], hunger: 96)
+            script.meter(5 - meal.duration + meal.swallowStart, 78)
+            return script
+        case .satisfied(.brim):
+            let more = PetMeal(size: .full, chews: 3, feast: false, points: 3, reduceMotion: false, mood: .stuffed)
+            var script = PetReelScript([(0, .idle(.stuffed)), (5 - more.duration, .eat(more)), (5, behaviour)], hunger: -40)
+            script.meter(5 - more.duration + more.swallowStart, -50)
+            return script
+        case .satisfied(.feast):
+            // The feast that makes it stuffed: the feast's girth on the fullest belly, and a thumbs-up.
+            let feast = PetReelScript.meal(.full, chews: 3, feast: true, points: 9)
+            var script = PetReelScript([(0, .idle(.content)), (5 - feast.duration, .eat(feast)), (5, behaviour)])
+            script.meter(5 - feast.duration + feast.swallowStart, -50)
+            return script
+        default:
+            break
+        }
         let meal = PetReelScript.meal(.full, chews: 3)
         let before: [(Double, PetBehaviour)]
         switch behaviour {
         case .intro: before = []
         case .satisfied(.meal): before = [(0, .idle(.content)), (5 - meal.duration, .eat(meal))]
-        case .satisfied(.feast):
-            let feast = PetReelScript.meal(.full, chews: 3, feast: true, points: 9)
-            before = [(0, .idle(.content)), (5 - feast.duration, .eat(feast))]
         case .satisfied(.lick):
             let nibble = PetReelScript.meal(.nibble, chews: 1)
             before = [(0, .idle(.content)), (5 - nibble.duration, .eat(nibble))]
@@ -410,8 +464,8 @@ final class PetZoneSweepTests: XCTestCase {
         let open = Self.full ? 60.0 : 8.0
         var failures: [String] = []
         for place in Self.places {
-            for behaviour in Self.behaviours {
-                var script = Self.script(for: behaviour)
+            for (name, behaviour, base) in Self.cases {
+                var script = base
                 if place.zone.kind == .panel { script.dock = [PetDockChange(t: 0, kind: .expand)] }
                 let rig = PetRig()
                 let length = behaviour.duration ?? open
@@ -436,13 +490,13 @@ final class PetZoneSweepTests: XCTestCase {
                     if over > 0.01, over > (worst?.0 ?? 0) { worst = (over, String(format: "%.3f s", t - 5)) }
                     // The extremes.
                     if p.curl < 0.01 {
-                        if p.squash < PetTuning.Zone.minimumSquash - 1e-9 { failures.append("\(place.name) \(behaviour) squash \(p.squash) at \(t - 5)") }
+                        if p.squash < PetTuning.Zone.minimumSquash - 1e-9 { failures.append("\(place.name) \(name) squash \(p.squash) at \(t - 5)") }
                     }
-                    if p.squash > Double(place.zone.maxStretch) + 1e-9 { failures.append("\(place.name) \(behaviour) stretch \(p.squash) at \(t - 5)") }
+                    if p.squash > Double(place.zone.maxStretch) + 1e-9 { failures.append("\(place.name) \(name) stretch \(p.squash) at \(t - 5)") }
                     let lean = abs(atan(p.lean) + p.tilt) * 180 / .pi
-                    if lean > PetTuning.Zone.maxLeanDegrees + 1e-6 { failures.append("\(place.name) \(behaviour) lean \(lean)° at \(t - 5)") }
+                    if lean > PetTuning.Zone.maxLeanDegrees + 1e-6 { failures.append("\(place.name) \(name) lean \(lean)° at \(t - 5)") }
                 }
-                if let worst { failures.append("\(place.name) \(behaviour): \(String(format: "%.2f", worst.0)) pt out at \(worst.1)") }
+                if let worst { failures.append("\(place.name) \(name): \(String(format: "%.2f", worst.0)) pt out at \(worst.1)") }
             }
         }
         XCTAssertTrue(failures.isEmpty, failures.prefix(40).joined(separator: "\n"))

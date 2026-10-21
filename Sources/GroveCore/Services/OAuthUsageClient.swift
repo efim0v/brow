@@ -137,6 +137,9 @@ public struct OAuthUsage: Sendable, Equatable, Codable {
 
 public enum OAuthUsageError: Error, Equatable {
     case noCredentials
+    /// The token is past its own expiry (the date), so it was not sent: the endpoint can
+    /// only refuse it, and a dead token sent with every poll earns a 429 besides.
+    case expired(Date)
     case tooManyRequests        // 429
     case backoff                // suppressed retry inside the backoff window
     case http(Int)
@@ -305,6 +308,14 @@ public actor OAuthUsageClient {
             return entry.value
         }
 
+        // 1b. A token past its own expiry is not sent. The endpoint can only answer 401,
+        //     the 401 retry below doubles every poll, and a dead token sent every 30 s is
+        //     what turned "rejected" into "rate limited". Ahead of the backoff and the
+        //     pacing, so that what the caller hears is the dead token, not the wait.
+        if let expiredAt = expiredToken(configDir: configDir, now: now) {
+            throw OAuthUsageError.expired(expiredAt)
+        }
+
         // 2. Inside a backoff window → suppress without calling the fetcher. A
         //    background poll that holds a reading is answered with that reading — being
         //    told to wait is not an error about the account, and a "rate limited" tag on
@@ -335,10 +346,12 @@ public actor OAuthUsageClient {
         var data = Data()
         var status = 0
         for attempt in 0...1 {
-            guard let token = credentials.accessToken(configDir: configDir) else {
+            guard let token = credentials.token(configDir: configDir) else {
                 throw OAuthUsageError.noCredentials
             }
-            (data, status) = try await fetcher.fetch(makeRequest(token: token))
+            // The re-read after a 401 can be a dead token too.
+            if let expiresAt = token.expiresAt, expiresAt <= now { throw OAuthUsageError.expired(expiresAt) }
+            (data, status) = try await fetcher.fetch(makeRequest(token: token.value))
             guard status == 401 || status == 403, attempt == 0 else { break }
             // The bearer was refused: it is stale or revoked. Force the next read past
             // any in-memory cache so the retry carries the current credential.
@@ -388,6 +401,13 @@ public actor OAuthUsageClient {
         pacing[pacingKey(configDir)] = (lastSuccessAt: now, level: max(0, level - 1), levelAt: now)
         publishLedger(configDir: configDir)
         return usage
+    }
+
+    /// When the token `usage` would send for `configDir` expired, if it has: nil while it
+    /// is live, when it states no expiry, and when there is none to read.
+    public func expiredToken(configDir: String, now: Date) -> Date? {
+        guard let expiresAt = credentials.token(configDir: configDir)?.expiresAt, expiresAt <= now else { return nil }
+        return expiresAt
     }
 
     /// Budget for ONE usage request. `URLRequest`'s default is 60 s and `usage` makes up

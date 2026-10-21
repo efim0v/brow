@@ -172,6 +172,34 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertLessThanOrEqual(f.expanded.maxX, 500)
     }
 
+    // MARK: the open panel's height
+
+    /// The 14": 982 pt tall, the Dock taking the bottom 70. The panel stops 12 pt above it.
+    func testTheHeightCapStopsAboveTheDock() {
+        let screen = ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+                                   topLeftArea: nil, topRightArea: nil, menuBarHeight: 33,
+                                   visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 879))
+        XCTAssertEqual(NotchGeometry.heightCap(for: screen), 900)
+        // A Dock on the side, or hidden: the screen's own bottom edge.
+        let noDock = ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+                                   topLeftArea: nil, topRightArea: nil, menuBarHeight: 33,
+                                   visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 949))
+        XCTAssertEqual(NotchGeometry.heightCap(for: noDock), 970)
+        // No visible frame reported: the whole screen.
+        XCTAssertEqual(NotchGeometry.heightCap(for: notched), 970)
+    }
+
+    /// The content's own height, at least the floor, at most the cap.
+    func testThePanelHeightIsTheContentsBetweenTheFloorAndTheCap() {
+        let screen = ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+                                   topLeftArea: nil, topRightArea: nil, menuBarHeight: 33,
+                                   visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 879))
+        XCTAssertEqual(NotchGeometry.panelHeight(natural: 612.2, floor: nil, screen: screen), 613)
+        XCTAssertEqual(NotchGeometry.panelHeight(natural: 400, floor: 480, screen: screen), 480)
+        XCTAssertEqual(NotchGeometry.panelHeight(natural: 400, floor: nil, screen: screen), 400)
+        XCTAssertEqual(NotchGeometry.panelHeight(natural: 1400, floor: 480, screen: screen), 900)
+    }
+
     func testScreenOriginOffsetIsRespected() {
         let second = ScreenMetrics(frame: CGRect(x: 1512, y: 200, width: 1920, height: 1080),
                                    topLeftArea: nil, topRightArea: nil, menuBarHeight: 24)

@@ -6,32 +6,23 @@ import GroveAppKit
 import GroveCore
 @testable import BrowKit
 
-/// Brow hosting Workspaces: nothing of the engine exists until it is wanted, it pauses
-/// while Grove.app runs, and Grove's panel material comes along once. No menu-bar item is
-/// ever put up here (the settings keep it off), so a test run never touches the bar.
+/// Brow hosting Workspaces: nothing of the engine exists until it is wanted, and it pauses
+/// while Grove.app runs.
 @MainActor
 final class WorkspacesHostTests: XCTestCase {
     private var home: URL!
     private var appDir: String!
     private var folders: WorkspacesFolders!
-    private var defaultsSuite: String!
 
     override func setUpWithError() throws {
         home = try Fixture.tempDir("host-home")
         appDir = try Fixture.tempDir("host-app").path
         folders = .beside(configFile: try Fixture.tempDir("host-grove").appendingPathComponent("config.json"))
-        defaultsSuite = "brow-tests-grove-\(UUID().uuidString)"
-    }
-
-    override func tearDown() {
-        UserDefaults().removePersistentDomain(forName: defaultsSuite)
-        super.tearDown()
     }
 
     private func makeStore(enabled: Bool? = nil) throws -> LimitsStore {
         var settings = BrowSettings()
         settings.workspaces.enabled = enabled
-        settings.workspaces.showInMenuBar = false
         try BrowSettingsStore(directory: appDir).save(settings)
         let creds = SilentCreds()
         return LimitsStore(deps: .init(
@@ -45,16 +36,12 @@ final class WorkspacesHostTests: XCTestCase {
             now: { Date() }))
     }
 
-    private func makeHost(_ store: LimitsStore, groveConfig: Bool, groveRunning: Bool,
-                          groveMaterial: String? = nil) -> WorkspacesHost {
-        let suite = defaultsSuite!
-        if let groveMaterial { UserDefaults(suiteName: suite)?.set(groveMaterial, forKey: WindowSubstrateStyle.groveDefaultsKey) }
+    private func makeHost(_ store: LimitsStore, groveConfig: Bool, groveRunning: Bool) -> WorkspacesHost {
         let host = WorkspacesHost(store: store, folders: folders,
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: {
                                       groveRunning ? ["dev.artemefimov.grove3"] : ["dev.artemefimov.brow"]
                                   }),
-                                  groveConfigExists: { groveConfig },
-                                  groveDefaults: { UserDefaults(suiteName: suite) })
+                                  groveConfigExists: { groveConfig })
         addTeardownBlock { @MainActor in host.stop() }
         return host
     }
@@ -95,7 +82,7 @@ final class WorkspacesHostTests: XCTestCase {
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: {
                                       running.grove ? ["dev.artemefimov.grove3"] : []
                                   }),
-                                  groveConfigExists: { true }, groveDefaults: { nil })
+                                  groveConfigExists: { true })
         addTeardownBlock { @MainActor in host.stop() }
         host.start()
         XCTAssertEqual(host.activation, .paused)
@@ -122,7 +109,7 @@ final class WorkspacesHostTests: XCTestCase {
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: {
                                       apps.grove ? ["dev.artemefimov.grove3"] : ["dev.artemefimov.brow"]
                                   }),
-                                  groveConfigExists: { groveConfig }, groveDefaults: { nil },
+                                  groveConfigExists: { groveConfig },
                                   watchRunningApps: { onChange in
                                       apps.onChange = onChange
                                       let token = NSObject()
@@ -193,11 +180,10 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: folders.configFile.path))
     }
 
-    // MARK: - A project added from the introduction
+    // MARK: - A folder added as a project
 
-    /// Add project… in the introduction while Grove.app runs: Workspaces turns on but is
-    /// paused, so the folder waits — nothing writes Grove's config under Grove — and is
-    /// added when Workspaces starts.
+    /// A folder added while Grove.app runs: Workspaces turns on but is paused, so the folder
+    /// waits — nothing writes Grove's config under Grove — and is added when Workspaces starts.
     func testAProjectAddedWhileGroveRunsWaitsUntilWorkspacesStarts() throws {
         let apps = RunningApps()
         apps.grove = true
@@ -205,7 +191,7 @@ final class WorkspacesHostTests: XCTestCase {
         host.start()
         XCTAssertEqual(host.activation, .off, "a new setup: off until asked")
 
-        host.addProject(fromIntroduction: "/Users/demo/Code/shop")
+        host.addProjectFolder("/Users/demo/Code/shop")
         XCTAssertEqual(host.activation, .paused)
         XCTAssertEqual(host.pendingProjects, ["/Users/demo/Code/shop"])
         XCTAssertEqual(host.state?.config.projects ?? [], [], "not added to the paused state")
@@ -228,14 +214,14 @@ final class WorkspacesHostTests: XCTestCase {
         let apps = RunningApps()
         let host = makeWatchedHost(apps, store: try makeStore(), groveConfig: false)
         host.start()
-        host.addProject(fromIntroduction: "/Users/demo/Code/notes")
+        host.addProjectFolder("/Users/demo/Code/notes")
         XCTAssertEqual(host.activation, .on)
         XCTAssertEqual(host.state?.config.projects.map(\.path), ["/Users/demo/Code/notes"])
         XCTAssertTrue(host.pendingProjects.isEmpty)
 
         apps.grove = true
         apps.onChange?()
-        host.addProject(fromIntroduction: "/Users/demo/Code/later")
+        host.addProjectFolder("/Users/demo/Code/later")
         XCTAssertEqual(host.pendingProjects, ["/Users/demo/Code/later"])
         host.setEnabled(false)
         XCTAssertTrue(host.pendingProjects.isEmpty, "off: the user changed their mind")
@@ -527,22 +513,6 @@ final class WorkspacesHostTests: XCTestCase {
         XCTAssertEqual(host.activation, .on)
     }
 
-    /// Grove.app's panel material comes along the first time Workspaces runs, once.
-    func testGrovesPanelMaterialIsCopiedOnce() throws {
-        let store = try makeStore()
-        let host = makeHost(store, groveConfig: true, groveRunning: false, groveMaterial: "visualEffect")
-        host.start()
-        XCTAssertEqual(store.settings.workspaces.panelMaterial, "visualEffect")
-        XCTAssertTrue(store.settings.workspaces.importedGroveMaterial)
-        XCTAssertEqual(WindowSubstrateStyle.current, .visualEffect)
-
-        // A later choice in Brow is not overwritten by Grove's.
-        host.setPanelMaterial(.liquidGlass)
-        host.refresh()
-        XCTAssertEqual(store.settings.workspaces.panelMaterial, "liquidGlass")
-        WindowSubstrateStyle.current = .liquidGlass
-    }
-
     /// Whether the setup is Grove's is recorded the first time Workspaces runs — before
     /// the engine writes a config of its own — and Settings words itself by it.
     func testWhetherTheSetupIsGrovesIsRecordedOnTheFirstRun() throws {
@@ -558,7 +528,7 @@ final class WorkspacesHostTests: XCTestCase {
         let config = Flag()
         let host = WorkspacesHost(store: fresh, folders: folders,
                                   groveGuard: GroveAppGuard(runningBundleIdentifiers: { [] }),
-                                  groveConfigExists: { config.on }, groveDefaults: { nil })
+                                  groveConfigExists: { config.on })
         addTeardownBlock { @MainActor in host.stop() }
         host.start()
         XCTAssertNil(fresh.settings.workspaces.groveSetup, "not run yet")
@@ -573,13 +543,13 @@ final class WorkspacesHostTests: XCTestCase {
 
     private final class Flag: @unchecked Sendable { var on = false }
 
-    /// Off, nothing is copied either: a Brow-only user's config.json is not written.
-    func testOffCopiesNothing() throws {
+    /// Off, nothing is recorded or written: a Brow-only user's config.json does not appear.
+    func testOffRecordsAndWritesNothing() throws {
         let store = try makeStore()
-        let host = makeHost(store, groveConfig: false, groveRunning: false, groveMaterial: "visualEffect")
+        let host = makeHost(store, groveConfig: false, groveRunning: false)
         host.start()
-        XCTAssertNil(store.settings.workspaces.panelMaterial)
-        XCTAssertFalse(store.settings.workspaces.importedGroveMaterial)
+        XCTAssertNil(store.settings.workspaces.groveSetup)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folders.configFile.path))
     }
 
     // MARK: - fixture

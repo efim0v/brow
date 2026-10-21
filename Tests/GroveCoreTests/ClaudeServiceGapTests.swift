@@ -141,6 +141,20 @@ final class ClaudeServiceGapTests: XCTestCase {
         XCTAssertTrue(cmd.contains("--model 'm'"))
         XCTAssertTrue(cmd.contains("--effort 'high'"))
     }
+
+    /// A host's own environment replaces the variables built here: Brow removes
+    /// `CLAUDE_CONFIG_DIR` for the default account, so a shell that exports another account
+    /// cannot make the session run as that one.
+    func testLaunchCommandStartsWithTheHostsEnvironment() {
+        let defaultAcc = AccountConfig(name: "default", configDir: "~/.claude")
+        let cmd = ClaudeService.launchCommand(account: defaultAcc, resume: "id", browser: "/x/brow-browser",
+                                              claude: "/opt/c/claude",
+                                              environment: "env -u CLAUDE_CONFIG_DIR BROWSER='/x/brow-browser'")
+        XCTAssertEqual(cmd, "env -u CLAUDE_CONFIG_DIR BROWSER='/x/brow-browser' '/opt/c/claude' --resume 'id'")
+        let blank = ClaudeService.launchCommand(account: AccountConfig(name: "w", configDir: "/tmp/w"),
+                                                claude: "/opt/c/claude", environment: "  ")
+        XCTAssertEqual(blank, "CLAUDE_CONFIG_DIR='/tmp/w' '/opt/c/claude'", "a blank one is none")
+    }
 }
 
 final class GroveErrorTests: XCTestCase {

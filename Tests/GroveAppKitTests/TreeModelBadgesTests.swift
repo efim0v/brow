@@ -35,16 +35,6 @@ final class TreeModelBadgesTests: XCTestCase {
         XCTAssertEqual(relativeAge(Fix.now.addingTimeInterval(-Fix.days(35)), now: Fix.now), "5w")
     }
 
-    // MARK: - ClaudeActivity
-
-    func testActivityMapsBusyAndWaitingEverythingElseIdle() {
-        XCTAssertEqual(ClaudeActivity(status: "busy"), .busy)
-        XCTAssertEqual(ClaudeActivity(status: "waiting"), .waiting)
-        XCTAssertEqual(ClaudeActivity(status: "idle"), .idle)
-        XCTAssertEqual(ClaudeActivity(status: "shell"), .idle)
-        XCTAssertEqual(ClaudeActivity(status: "some-future-status"), .idle)
-    }
-
     // MARK: - badges(for:now:)
 
     func testAgeDaysIsMaxCreatedAgeAcrossRepos() {
@@ -122,17 +112,32 @@ final class TreeModelBadgesTests: XCTestCase {
         XCTAssertEqual(result.resumableCount, 1)
     }
 
-    func testFreshSessionExcludedFromResumableByCwd() {
-        // A fresh live process (empty sessionId) at a session's cwd means that
-        // session is running — NOT resumable. A different session elsewhere stays resumable.
+    func testAProcessWithoutASessionRunsNoneOfTheListedOnes() {
+        // A live process whose session could not be told (it has written nothing yet)
+        // counts as busy in its workspace, but stands for none of the sessions listed
+        // there: they stay resumable.
         let ws = Fix.workspace(
             name: "w",
-            sessions: [Fix.session(id: "fresh", cwd: "/ws/feature"),
+            sessions: [Fix.session(id: "earlier", cwd: "/ws/feature"),
                        Fix.session(id: "closed", cwd: "/ws/other")],
             live: [Fix.live(pid: 5, sessionId: "", status: "busy", cwd: "/ws/feature")])
         let r = badges(for: ws, now: Fix.now)
         XCTAssertEqual(r.busyCount, 1)
-        XCTAssertEqual(r.resumableCount, 1)   // only "closed" is resumable
+        XCTAssertEqual(r.resumableCount, 2)
+    }
+
+    func testAWaitingSessionCountsOnlyWhenItWaitsOnTheUser() {
+        let ws = Fix.workspace(
+            name: "w", sessions: [Fix.session(id: "a"), Fix.session(id: "b"), Fix.session(id: "c")],
+            live: [LiveProcess(pid: 1, sessionId: "a", cwd: "/ws/x", status: "waiting", accountName: "",
+                               waitingFor: "permission prompt"),
+                   LiveProcess(pid: 2, sessionId: "b", cwd: "/ws/x", status: "waiting", accountName: "",
+                               waitingFor: "input needed"),
+                   LiveProcess(pid: 3, sessionId: "c", cwd: "/ws/x", status: "idle", accountName: "")])
+        let r = badges(for: ws, now: Fix.now)
+        XCTAssertEqual(r.waitingCount, 2)
+        XCTAssertEqual(r.busyCount, 0)
+        XCTAssertEqual(r.resumableCount, 0)
     }
 
     func testSessionSharingWorktreeWithLiveOneStaysResumable() {

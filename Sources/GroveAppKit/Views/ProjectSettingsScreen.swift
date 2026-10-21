@@ -17,6 +17,8 @@ import GroveCore
 /// case without a second template layer.
 struct ProjectSettingsScreen: View {
     @ObservedObject var state: AppState
+    @Environment(\.groveAccent) private var accent
+    @Environment(\.groveHost) private var host
     let projectID: UUID
     @Environment(\.isSnapshotRender) private var isSnapshotRender
 
@@ -42,14 +44,10 @@ struct ProjectSettingsScreen: View {
         VStack(alignment: .leading, spacing: 6) {
             header
             if let project {
-                if isSnapshotRender {
+                FadingScrollView {
                     form(project)
-                        .padding(12)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                } else {
-                    ScrollView {
-                        form(project).padding(12)
-                    }
+                        .padding(host.isNotch ? EdgeInsets(top: 2, leading: 0, bottom: 10, trailing: 0)
+                                              : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
                 }
             } else {
                 Text("This project is no longer configured.")
@@ -165,21 +163,22 @@ struct ProjectSettingsScreen: View {
 
     // MARK: - Default Claude account (per project)
 
-    /// "New Claude" single-click launches on this account (spec: per-project
-    /// default); "none" = nil = first configured account. The account menus
-    /// everywhere still list all accounts.
+    /// "New session" single-click launches on this account (spec: per-project
+    /// default); "none" = nil = the first account the pickers offer. Like every picker it
+    /// lists the host's accounts (`AppState.accounts`): a default naming an account only
+    /// Grove's config knows reads as none, which is what a launch does with it.
     private func defaultAccountRow(_ project: ProjectConfig) -> some View {
         LabeledRow(label: "Default Claude account") {
             if isSnapshotRender {
                 // Picker(.menu) renders as a yellow placeholder offscreen.
                 SnapshotPickerLookalike(text: currentProject(project).defaultAccount
-                                            .map(state.displayName(forAccountNamed:)) ?? "none",
+                                            .flatMap { state.workspacesAccount(named: $0)?.name } ?? "none",
                                         monospaced: false)
             } else {
                 Picker("", selection: defaultAccountBinding(project)) {
                     Text("none").tag(String?.none)
-                    ForEach(state.config.accounts, id: \.name) { account in
-                        Text(state.displayName(for: account)).tag(String?.some(account.name))
+                    ForEach(state.accounts) { account in
+                        Text(account.name).tag(String?.some(account.config.name))
                     }
                 }
                 .pickerStyle(.menu)
@@ -187,7 +186,7 @@ struct ProjectSettingsScreen: View {
                 .controlSize(.small)
                 .fixedSize()
             }
-            Text("single-click New Claude uses it")
+            Text("single-click New session uses it")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -195,7 +194,8 @@ struct ProjectSettingsScreen: View {
 
     private func defaultAccountBinding(_ project: ProjectConfig) -> Binding<String?> {
         Binding(
-            get: { currentProject(project).defaultAccount },
+            // Only an account the picker lists can be its selection.
+            get: { currentProject(project).defaultAccount.flatMap { state.workspacesAccount(named: $0)?.config.name } },
             set: { value in
                 var current = currentProject(project)
                 current.defaultAccount = value
@@ -372,7 +372,7 @@ struct ProjectSettingsScreen: View {
         HStack(spacing: 8) {
             // Validity dot: green = ready to run, neutral = can't run yet.
             Circle()
-                .fill(status.isReady ? Palette.primary : Palette.neutral)
+                .fill(status.isReady ? accent : Palette.neutral)
                 .frame(width: 7, height: 7)
                 .help(status.reason ?? "Ready — runs on the next fork")
             Image(systemName: hook.systemImage)
@@ -390,7 +390,7 @@ struct ProjectSettingsScreen: View {
             if installed {
                 Label("Added", systemImage: "checkmark.circle.fill")
                     .labelStyle(.iconOnly)
-                    .foregroundStyle(Palette.primary)
+                    .foregroundStyle(accent)
                     .help("Installed — copies on every new fork")
                 Button {
                     var updated = currentProject(project)
@@ -407,7 +407,7 @@ struct ProjectSettingsScreen: View {
                     state.updateProject(updated)
                 } label: {
                     Image(systemName: "plus.circle")
-                        .foregroundStyle(status.isReady ? Palette.primary : .secondary)
+                        .foregroundStyle(status.isReady ? accent : .secondary)
                 }
                 .buttonStyle(.plain)
                 .disabled(!status.isReady)

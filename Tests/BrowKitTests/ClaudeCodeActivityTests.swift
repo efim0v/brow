@@ -124,6 +124,30 @@ final class ClaudeCodeActivityTests: XCTestCase {
             arguments: args(["/Users/u/.local/bin/claude", "--chrome-native-host"])))
     }
 
+    /// The native binary runs itself as other tools: `rg` (its bundled ripgrep), and
+    /// `ugrep` and `bfs` as its Bash tool's `grep` and `find`. Those are greps, not
+    /// sessions — and one left in an old `tail -F | grep` pipeline lived for days with
+    /// its session's CLAUDE_CONFIG_DIR, holding the account against every refresh.
+    func testTheCLIsOwnHelpersAreNotSessions() {
+        let binary = "/Users/u/.local/share/claude/versions/2.1.302"
+        for helper in ["ugrep", "rg", "bfs", "apply-seccomp"] {
+            XCTAssertFalse(ClaudeCodeMatcher.isClaudeCode(
+                executable: binary, arguments: args([helper, "-G", "--hidden", "pattern"], exec: binary)), helper)
+            XCTAssertFalse(ClaudeCodeMatcher.isClaudeCode(
+                executable: binary, arguments: args([helper, "pattern"], exec: "/Users/u/.local/bin/claude")),
+                           "\(helper), started through the claude link")
+            XCTAssertFalse(ClaudeCodeMatcher.isClaudeCode(
+                executable: "2.1.302", arguments: args([helper], exec: binary)),
+                           "\(helper), after an update deleted the file")
+        }
+        XCTAssertTrue(ClaudeCodeMatcher.isClaudeCode(
+            executable: binary, arguments: args(["claude", "--resume"], exec: binary)),
+                      "the session that runs them still counts")
+        XCTAssertTrue(ClaudeCodeMatcher.isClaudeCode(
+            executable: binary, arguments: args(["/Users/u/.local/bin/claude", "-p", "grep for rg"], exec: binary)),
+                      "only argv[0] names a helper")
+    }
+
     /// An update can delete the binary a running session was started from (`brew
     /// upgrade`, an editor extension update, the native installer's clean-up). The
     /// kernel then has no path for the process, only its short name: the file name it
@@ -300,8 +324,10 @@ final class ClaudeCodeActivityTests: XCTestCase {
     /// A real process under the name `claude`, with the environment the test chooses:
     /// this test runner itself, started through a symlink called `claude` and running
     /// only `ClaudeCodeStandIn`, which sleeps. (System binaries such as `/bin/sleep`
-    /// will not do: the kernel withholds a platform binary's environment.)
-    private func spawnStandIn(configDir: String?, cwd: URL? = nil) throws -> Process {
+    /// will not do: the kernel withholds a platform binary's environment.) With `argv0`
+    /// it is started the way Claude Code's Bash tool starts its `grep`: `exec -a` in
+    /// front of the same link.
+    private func spawnStandIn(configDir: String?, cwd: URL? = nil, argv0: String? = nil) throws -> Process {
         let runner = try XCTUnwrap(ProcessTable.executablePath(of: getpid()))
         let bin = home.appendingPathComponent("bin")
         let link = bin.appendingPathComponent("claude")
@@ -313,9 +339,15 @@ final class ClaudeCodeActivityTests: XCTestCase {
         env["CLAUDE_CONFIG_DIR"] = configDir
         env[ClaudeCodeStandIn.sleepVariable] = "30"
         let process = Process()
-        process.executableURL = link
-        process.arguments = ["-XCTest", "BrowKitTests.ClaudeCodeStandIn/testStandInForAClaudeCodeSession",
-                             Bundle(for: ClaudeCodeStandIn.self).bundlePath]
+        let standIn = ["-XCTest", "BrowKitTests.ClaudeCodeStandIn/testStandInForAClaudeCodeSession",
+                       Bundle(for: ClaudeCodeStandIn.self).bundlePath]
+        if let argv0 {
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", #"exec -a "$0" "$@""#, argv0, link.path] + standIn
+        } else {
+            process.executableURL = link
+            process.arguments = standIn
+        }
         process.environment = env
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -351,6 +383,27 @@ final class ClaudeCodeActivityTests: XCTestCase {
         XCTAssertEqual(activity.use(configDir: home.path + "/.claude", now: Date()),
                        .process(pid: withoutDir.processIdentifier), "no variable: the default dir")
         XCTAssertNil(activity.use(configDir: home.path + "/.claude-accounts/b", now: Date()))
+    }
+
+    /// The real table, with a helper started as the Bash tool's shell starts its `grep`:
+    /// under the name `ugrep`, through the `claude` link, with the session's variable.
+    func testAHelperStartedUnderAnotherNameIsLeftOut() throws {
+        let a = home.path + "/.claude-accounts/a"
+        let runner = try XCTUnwrap(ProcessTable.executablePath(of: getpid()))
+        let helper = try spawnStandIn(configDir: a, argv0: "ugrep")
+        let session = try spawnStandIn(configDir: a)
+        // `bash` has to have replaced itself before the table can say anything about it.
+        let deadline = Date().addingTimeInterval(10)
+        while ProcessTable.executablePath(of: helper.processIdentifier) != runner, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        let arguments = try XCTUnwrap(ProcessTable.arguments(of: helper.processIdentifier))
+        XCTAssertEqual(arguments.argv.first, "ugrep", "the name it was started under is what the kernel keeps")
+        XCTAssertEqual(arguments.claudeConfigDir, a, "and it carries its session's account")
+
+        let table = Self.liveTable(excludingChildrenOf: -1)
+        XCTAssertTrue(table.contains(ClaudeCodeProcess(pid: session.processIdentifier, configDir: a)))
+        XCTAssertFalse(table.contains { $0.pid == helper.processIdentifier }, "a grep is not a session")
     }
 
     /// `claude doctor` and `claude -p` that Brow runs itself are its own children, and

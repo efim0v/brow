@@ -12,7 +12,7 @@ Website: [efimov.page/brow](https://efimov.page/brow/)
 A macOS app for people who run [Claude Code](https://claude.com/claude-code) on several accounts at once. It does two things:
 
 - **The notch shows the usage and rate limits of every account**: the 5-hour limit, the weekly limit, and when each resets. One click signs you in to an account in a browser profile that belongs to that account alone.
-- **Workspaces, in the menu bar, runs parallel Claude Code sessions on a product split across several repositories**: one folder of git worktrees per feature, all on one branch, and a session moves to the account that still has room.
+- **Workspaces, in the same notch panel, runs parallel Claude Code sessions on a product split across several repositories**: one folder of git worktrees per feature, all on one branch, and a session moves to the account that still has room.
 
 The notch is for looking, Workspaces is for working. Brow works with a single account too: it picks up `~/.claude` by itself and shows that account's limits, and Workspaces stays off until you use it.
 
@@ -25,9 +25,9 @@ The notch is for looking, Workspaces is for working. Brow works with a single ac
 Hover the notch: every account's 5-hour and weekly limits open out of it. Copy an account's launch command and Claude Code starts as that account.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-hero-v2.webp">
-  <img src="docs/media/brow-hero-v2.png" width="840" alt="Glim takes a bite as the 5-hour number goes up; hovering the notch opens the limits of every account and Glim hops into the panel; the launch command of the account with room is copied and Claude Code starts as that account">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-hero-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-hero-v3.webp">
+  <img src="docs/media/brow-hero-v3.png" width="840" alt="Glim takes a bite as the 5-hour number goes up; hovering the notch opens the limits of every account and Glim hops into the panel; the launch command of the account with room is copied and Claude Code starts as that account">
 </picture></p>
 
 ### Glim, a pet that eats your limits
@@ -35,9 +35,9 @@ Hover the notch: every account's 5-hour and weekly limits open out of it. Copy a
 A small creature lives beside the 5-hour readout. Each time the number goes up it takes a bite, and its glow is its hunger meter. At the 5-hour limit it falls asleep full, at the weekly limit it hides in its den behind the camera, and it comes back out at the reset. Settings → General → **Show the pet** turns it off.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v1.png">
-  <source type="image/webp" srcset="docs/media/brow-glim-v1.webp">
-  <img src="docs/media/brow-glim-v1.png" width="840" alt="Glim beside the notch eats twice as the 5-hour number goes up, falls asleep when the 5-hour limit reaches 100 %, wakes at the reset, hides behind the camera when the weekly limit reaches 100 % and comes back out at the weekly reset">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-glim-v2.png">
+  <source type="image/webp" srcset="docs/media/brow-glim-v2.webp">
+  <img src="docs/media/brow-glim-v2.png" width="840" alt="Glim beside the notch eats twice as the 5-hour number goes up, falls asleep when the 5-hour limit reaches 100 %, wakes at the reset, hides behind the camera when the weekly limit reaches 100 % and comes back out at the weekly reset">
 </picture></p>
 
 ### When each limit resets
@@ -45,9 +45,9 @@ A small creature lives beside the 5-hour readout. Each time the number goes up i
 The calendar marks every account's weekly resets and subscription renewals. Point at a day to see what frees up.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-calendar-v2.webp">
-  <img src="docs/media/brow-calendar-v2.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-calendar-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-calendar-v3.webp">
+  <img src="docs/media/brow-calendar-v3.png" width="840" alt="The reset calendar: pointing at a day shows which account's weekly limit resets or which subscription renews">
 </picture></p>
 
 ### Sign in again in one click
@@ -55,18 +55,27 @@ The calendar marks every account's weekly resets and subscription renewals. Poin
 When an account's sign-in expires, the key next to it starts `claude auth login` for that account and opens the browser profile that belongs to it, already signed in to that account. Other accounts stay signed in.
 
 <p align="center"><picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v2.png">
-  <source type="image/webp" srcset="docs/media/brow-signin-v2.webp">
-  <img src="docs/media/brow-signin-v2.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/media/brow-signin-v3.png">
+  <source type="image/webp" srcset="docs/media/brow-signin-v3.webp">
+  <img src="docs/media/brow-signin-v3.png" width="840" alt="An expired sign-in: one click on the key opens that account's own browser profile, already signed in, and Claude Code logs in again">
 </picture></p>
 
 ### One branch across every repository
 
-Workspaces gives each feature of a multi-repo product its own folder, with a git worktree of each repository on the same branch. Claude Code starts there and sees the whole product; ten features in flight are ten folders, and no session can change another's branch.
+Workspaces gives each feature of a multi-repo product its own folder, with a git worktree of each repository on the same branch. Claude Code starts there and sees the whole product; ten features in flight are ten folders, and no session can change another's branch. When an account runs out, a session's menu continues it under another one, and every account picker shows each account's limits.
 
 <p align="center">
-  <img alt="Workspaces: the workspaces of a multi-repo project" src="docs/screenshots/workspaces-project.png" width="420" />
-  <img alt="Workspaces: sessions across accounts, each with its limits" src="docs/screenshots/workspaces-sessions.png" width="420" />
+  <img alt="A project in the notch panel: its workspaces as a tree, one open with a worktree of each repository on the same branch and the Claude Code sessions in it" src="docs/screenshots/brow-panel-project-050.png" width="420" />
+  <img alt="Resume with options in the notch panel: each account with its 5-hour and weekly use, where the session opens, the model and the effort" src="docs/screenshots/brow-panel-resume-050.png" width="420" />
+</p>
+
+### What each session said last, and who talks to whom
+
+While Workspaces is on, a switch at the top of the notch panel goes between **Limits**, **Projects** and **Agents**. Projects shows every Claude Code session by its state and its last exchange, what needs you first, and suggests the folders where Claude Code runs. Agents draws who talks to whom: your sessions, their subagents and agent teams, and the messages on their way.
+
+<p align="center">
+  <img alt="Projects in the notch panel: two suggested folders, then each project's sessions with their state, your newest prompt and Claude's newest line, the ones that need you first" src="docs/screenshots/brow-panel-projects-050.png" width="420" />
+  <img alt="Agents in the notch panel: three sessions joined by arcs, their subagents and a teammate under them, a message on its way, and the messages of the last ten minutes" src="docs/screenshots/brow-panel-agents-050.png" width="420" />
 </p>
 
 All demos and screenshots show made-up demo data.
@@ -78,17 +87,18 @@ In the notch:
 - **Every account at a glance.** For each account: the 5-hour limit, the weekly limit and any model-specific weekly limit, as percent used, with the time until each resets.
 - **A reset calendar.** Weekly resets and estimated subscription renewals on a month grid, so you can see which account frees up when.
 - **Limit warnings.** Off by default. Turn them on and Brow posts a macOS notification when an account passes 80 % and 95 % of a limit, once per level until it resets.
-- **Glim, a pet that eats your limits.** A small creature lives beside the notch and eats what your accounts use: when the 5-hour number goes up, it takes a bite. Hours at the Mac without Claude Code make it hungry; it never gets hungry while you are away. When the 5-hour limit is used up it falls asleep full until the window resets, and when the weekly limit is used up it hibernates until the weekly reset. On by default; Settings → General → **Show the pet** turns it off.
+- **Glim, a pet that eats your limits.** A small creature lives beside the notch and eats what your accounts use: when the 5-hour number goes up, it takes a bite. Hours at the Mac without Claude Code make it hungry, then famished, hopeful and never sad; it never gets hungry while you are away. Fed far past the brim, it is stuffed. When the 5-hour limit is used up it falls asleep full, with a small smile, until the window resets, and when the weekly limit is used up it hibernates until the weekly reset. On by default; Settings → General → **Show the pet** turns it off.
 - **Copy my week.** One button copies a picture of your limits, ready to paste into a chat or a post. Accounts are numbered unless you choose to show their names, and emails never appear.
 - **Copy the launch command.** One button copies the command that starts Claude Code as that account.
 - **Sign in again, in that account's own browser.** Each account gets a separate browser profile — its own cookies, history and saved logins — so signing in to one never disturbs another. A second button opens that profile directly.
 - **Add an account in one click.** Brow creates the account folder and opens Anthropic's own sign-in flow.
-- **Tokens kept fresh.** Idle accounts are refreshed in the background, so the numbers do not go stale. An account a Claude Code session is using is left to that session, which refreshes its own token.
+- **Tokens kept fresh.** Brow renews each account's token in the background, so the numbers do not go stale, also while Claude Code sessions sit open in that account. A session at work gets the first go.
 
-In Workspaces:
+In Workspaces, the **Projects** and **Agents** sides of the same panel (the switch at its top; with Workspaces off the panel is the limits alone):
 
 - **A workspace per feature.** One folder holding a git worktree of each repository you pick, all on one branch from your template. Shared files such as `CLAUDE.md` are seeded, each repository can run a post-create hook, and a workspace can fork from another one.
-- **Sessions across accounts.** **Resume as…** continues a session under another account without copying, **Migrate to…** copies it in full, even into an account that is in use, and **Share** makes it visible to every linked account. Every account picker shows that account's limits, under the name you gave it in Settings → Accounts.
+- **Sessions across accounts.** Every session has a menu: **Resume as** continues it under another account without copying, **Copy to account** copies it in full, even into an account that is in use, and **Share with all accounts** makes it visible to every linked account. The accounts are the notch's own, in its order and under the names you gave them in Settings → Accounts, each with its limits.
+- **What each session said last, and who talks to whom.** Projects shows every session by its state and its last exchange, what needs you first, and suggests the folders where Claude Code runs; **Agents** draws your sessions, subagents and agent teams messaging each other, live.
 - **Graph and statistics.** The commit graph of each repository, and lines of code across the project over time.
 - **The `brow` command-line tool**, with `scan`, `workspaces`, `sessions`, `create`, `graph` and `doctor`, each with `--json`.
 
@@ -101,7 +111,7 @@ Separate browser profiles need Google Chrome, Chromium, Brave or Edge. Without o
 Collapsed, Brow shows two numbers beside the notch: how much of the 5-hour limit and of the weekly limit is used across your accounts. Hover and it opens into the panel above. The readouts can also sit in a strip below the notch:
 
 <p align="center">
-  <img alt="Readouts below the notch" src="docs/screenshots/brow-notch-collapsed-below.png" width="640" />
+  <img alt="Readouts below the notch" src="docs/screenshots/brow-notch-collapsed-below-050.png" width="640" />
 </p>
 
 ## What Brow does on your machine
@@ -109,7 +119,7 @@ Collapsed, Brow shows two numbers beside the notch: how much of the 5-hour limit
 Worth knowing before you run it. The notch:
 
 - **Brow reads Claude Code's sign-in token from the macOS Keychain** and uses it only to call Anthropic's usage and profile endpoints. Those endpoints are not a documented public API and may change. No token is written to disk or logged, and nothing is sent anywhere else. If macOS withholds an account's token, that account shows a key; pressing it asks macOS for access.
-- **Brow looks at your running Claude Code processes** when an account's token is due for a refresh or has been rejected, so that it never refreshes a token a session is using. It reads the command line of `claude`, node, bun and deno processes to tell which ones are Claude Code, takes nothing from their environment but `CLAUDE_CONFIG_DIR`, and checks when each account last saved a prompt (`history.jsonl`). The [FAQ](#does-brow-refresh-a-token-claude-code-is-using) says why.
+- **Brow looks at your running Claude Code processes** when an account's token is due for a refresh or has been rejected, to give a session at work the first go at renewing it. It reads the command line of `claude`, node, bun and deno processes to tell which ones are Claude Code, takes nothing from their environment but `CLAUDE_CONFIG_DIR`, and checks when each account last saved a prompt (`history.jsonl`). The [FAQ](#does-brow-refresh-a-token-claude-code-is-using) says why.
 - **The fallback token refresh is on by default.** If the normal refresh stops working Brow runs a tiny `claude -p` request, which spends a little limit and starts that account's 5-hour window. Turn it off in Settings → Accounts; the [FAQ](#does-brow-use-up-my-limits) says exactly when it runs.
 - **Each account's browser profile is a separate directory** under `~/Library/Application Support/Brow/browser-profiles/`. Brow sets the profile's name and allows third-party cookies in it so that sign-in works.
 - **Signing in opens Terminal** with `claude auth login`; macOS asks once for permission to control Terminal.
@@ -124,6 +134,8 @@ Workspaces, only once you turn it on (or Brow finds Grove's settings):
 - **It runs git in your repositories**: `git worktree add` and a branch per repository when you create a workspace, and the post-create hooks you configured. It never deletes a worktree or a branch on its own.
 - **It drives cmux**: through cmux's socket, with the password from `~/.config/cmux/cmux.json` when cmux asks for one, and through AppleScript, which macOS asks you to allow once.
 - **`--dangerously-skip-permissions` only when you ask**, per project or per launch.
+- **It reads which folders Claude Code runs in, and how each session's conversation ends.** When the panel opens, and every few seconds while the Projects list is in view, Brow reads the session records Claude Code keeps in each account's `sessions/` folder and looks at the running `claude` processes: their command line, their working folder, and from their environment only `CLAUDE_CONFIG_DIR`. That gives each session its state, and the folders Claude runs in that are no project yet are offered as suggestions. For the previews it reads the last 64 KB of a session's transcript: your newest prompt and Claude's newest line. Settings → Workspaces → **Show message previews** turns them off. None of it is written anywhere or sent anywhere.
+- **The Agents tab reads what Claude Code writes when agents message each other**, only while the panel is open and for half a minute after it closes: the transcripts written in the last half hour, the agent-team mailboxes under each account's `teams/`, and the session records. Of a message it keeps the first line, in memory, for an hour at most. It never connects to a session's socket, never opens the inbox keys beside the records, and never joins a conversation.
 
 [Uninstall](#uninstall) shows how to reverse all of it.
 
@@ -156,7 +168,7 @@ The `brow` tool from `brow-cli.zip` carries the same flag when you download it i
 
 If macOS withholds an account's Keychain item from Brow, that account shows an orange key and Settings → Accounts lists its token as *Keychain access needed*: press the key, or **Grant Keychain access** there, and choose **Always Allow**. Because the build is signed ad hoc, the key can come back after you update to a newer build.
 
-Brow has no Dock icon: it lives in the notch, and its settings open from the ⚙ in the panel. Turn on **Launch at login** in Settings → General to start it when you log in. To start using Workspaces, open **Settings → Workspaces**, or press the stacked-squares button in the notch panel and choose **Add project…**.
+Brow has no Dock icon: it lives in the notch, and its settings and Quit open from the ⚙ at the bottom of the panel. Turn on **Launch at login** in Settings → General to start it when you log in. To start using Workspaces, open **Settings → Workspaces**, turn it on and add a project; the panel then has **Projects** and **Agents** beside **Limits**.
 
 ## Coming from Grove
 
@@ -165,7 +177,7 @@ Grove's Workspaces engine is part of Brow from 0.4.0, merged with its history; t
 - **Your setup comes along untouched.** Brow finds `~/Library/Application Support/Grove/config.json` and turns Workspaces on with your projects, accounts, captured status lines and safety-net settings. Nothing moves: the status-line wrappers stay in `Grove/bin`, where every captured account's `settings.json` points.
 - **The notch reads every account, Workspaces' too.** Grove never read the Keychain or called Anthropic; the notch does, for every account it finds, the ones Workspaces knows included. It reads each account's sign-in from the Keychain (an account whose item macOS withholds shows an orange key: press it and choose **Always Allow**), asks Anthropic's usage endpoint for its limits, and keeps idle accounts' tokens fresh with `claude doctor`. If that fails, it falls back to a one-turn `claude -p` request, which spends a little of that account's limit and starts its 5-hour window; Settings → Accounts → **Allow `claude -p` fallback** turns that off. [What Brow does on your machine](#what-brow-does-on-your-machine) has the rest.
 - **Quit Grove.app first.** While it runs, Workspaces waits and offers **Quit Grove**, so the two never write the same files. Then delete `Grove.app` (or `brew uninstall --cask grove`), and if you had added it to Login Items, remove it there and turn on **Launch at login** in Brow instead.
-- **Where things went.** The tree in the menu bar is now Brow's mark, the notch with two dots. The panel's settings screen moved to **Settings → Workspaces**; adding, sharing and capturing accounts moved to **Settings → Accounts**, where adding an account is Brow's one-click **Sign in…**. Per-project settings stay in the panel.
+- **Where things went.** Grove's panel is the **Projects** side of the notch panel: hover the notch and pick **Projects** on the switch at its top. Brow has no item in the menu bar; **Show Projects** in Brow's menu and opening Brow again from Finder or Spotlight open the panel on Projects. The panel's settings screen moved to **Settings → Workspaces**; adding, sharing and capturing accounts moved to **Settings → Accounts**, where adding an account is Brow's one-click **Sign in…**. Per-project settings stay with the project. The project's **Claude** tab is gone: what it did is on each session's own menu.
 - **The command-line tool is `brow`.** `brow-cli.zip` installs `brow` with `grove` as a second name, so your scripts keep working unchanged. If you installed Grove's tool with Homebrew, run `brew uninstall grove-cli` before `brew install efim0v/tap/brow-cli`: both install a `grove`.
 - **The transcript safety net no longer puts transcripts back by itself.** It used to restore any transcript under 90 days old on its own, including ones Claude Code's own clean-up had removed. Now it keeps nothing past Claude Code's retention, and Settings → Workspaces lists the transcripts that vanished, with **Restore**. So the transcripts older than `cleanupPeriodDays` (30 days unless you set it) that Grove kept putting back go at Claude Code's next clean-up, and the safety net drops its copies of them. To keep older sessions, raise `cleanupPeriodDays` in each account's `settings.json` before you switch.
 
@@ -175,11 +187,11 @@ Grove's Workspaces engine is part of Brow from 0.4.0, merged with its history; t
 
 Only through the fallback token refresh, and you can turn that off. Reading the limits is a request to Anthropic's usage endpoint, not to a model, and an idle account's token is kept fresh with `claude doctor`, which makes no model call.
 
-The fallback is on by default. When an account's token has 30 minutes or less left and `claude doctor` did not renew it, Brow runs a one-turn `claude -p` request on Haiku in that account. That spends a sliver of the account's limit and starts its 5-hour window. Brow skips it when Anthropic has rejected the token or `claude doctor` timed out or could not start, runs it at most once every 30 minutes per account, and stops using it for an account after three attempts in a row that did not help. Settings → Accounts → **Allow `claude -p` fallback** turns it off.
+The fallback is on by default. When `claude doctor` did not renew an account's token in the token's last 4½ minutes, Brow runs a one-turn `claude -p` request on Haiku in that account. That spends a sliver of the account's limit and starts its 5-hour window. Brow skips it when Anthropic has rejected the token, when `claude doctor` timed out or could not start, or when it said the login is dead. Brow runs it at most once every 30 minutes per account, and stops using it for an account after three attempts in a row that did not help. Settings → Accounts → **Allow `claude -p` fallback** turns it off.
 
 ### Does Brow refresh a token Claude Code is using?
 
-No. Claude Code renews its token with a refresh token that changes on every renewal, so two renewals at about the same time can leave a session with a dead token and a request to run `/login`. Brow leaves alone any account with a running `claude` process for its folder (no `CLAUDE_CONFIG_DIR` means `~/.claude`), however long that session has sat idle, and any account with a prompt typed in the last 15 minutes. The session renews the token itself. Until it does, Settings → Accounts lists the token as *in use by Claude Code, waiting for it to refresh*. If the token has already expired, the panel shows *Token in use by Claude Code* instead of asking you to sign in, and the numbers come back once you use that session again or close it.
+Only when the session will not. A session renews its own token when it sends a request in the token's last five minutes, so one you are using gets there before Brow. While the token has more than two minutes left, Brow leaves any account with a running `claude` process for its folder (no `CLAUDE_CONFIG_DIR` means `~/.claude`), or with a prompt typed in the last 15 minutes, to that session, and Settings → Accounts lists the token as *in use by Claude Code, waiting for it to refresh*. After that, after Anthropic rejects the token, and when you press ⟳, Brow runs `claude doctor` in that account itself: an idle session renews nothing. Claude Code takes a lock around each renewal and re-reads the token under it, so a renewal by Brow and one by the session do not collide. A session busy at that very moment may see one rejected request, which it recovers from by itself. Brow 0.3.1 left such accounts alone however long the session had sat idle, and their tokens ran out.
 
 ### Where does Brow read my token, and does anything leave my Mac?
 
@@ -189,15 +201,15 @@ Brow's own network requests go to two Anthropic endpoints and nowhere else: `api
 
 ### Which Macs does it run on, and where does it sit?
 
-macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead, and with the readouts off, nothing until the pointer reaches the top centre. If you use Brow for Workspaces only, turn off **Show Brow in the notch** and it draws nothing at the top of the screen at all; limit warnings still arrive.
+macOS 26 or later; the prebuilt app is Apple silicon only. Brow sits at the top of the main display. If that display has a notch, the two readouts sit beside it (the default) or in a strip below it: Settings → General → **Ears**. Turn off **Show readouts next to the notch** in the same tab and nothing is drawn until the pointer reaches the notch. When the main display has no notch, an external display for instance, Brow shows a pill at the top centre instead, and with the readouts off, nothing until the pointer reaches the top centre. If you use Brow for Workspaces only, turn off **Show Brow in the notch** and it draws nothing at the top of the screen at all; limit warnings still arrive, and Projects opens as [the next answer](#how-do-i-open-projects) says.
 
 ### Does the pet cost battery?
 
 It draws only while the screen is on and you are at the Mac: 30 frames a second at rest, 60 to 120 for a second or two while it eats or moves, and nothing when the screen is locked or asleep, when you have been away for ten minutes, or when the pet is off. It follows Reduce Motion.
 
-### I don't see Brow's item in the menu bar.
+### How do I open Projects?
 
-On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside it. Workspaces still opens from the stacked-squares button in the notch panel, from **Show Workspaces** in Brow's menu, and when you open Brow again from Finder or Spotlight. Settings → General → **Show Workspaces in the menu bar** turns the item off altogether.
+Hover the notch and pick **Projects** on the switch at the top of the panel; it is there while Workspaces is on. **Show Projects** in Brow's menu, which the menu bar shows while Brow's Settings window is in front, and opening Brow again from Finder or Spotlight open the panel on Projects, pinned. With **Show Brow in the notch** off, those two are the way in. Brow has no item in the menu bar.
 
 ### Why not Claude Code's built-in worktrees?
 
@@ -212,7 +224,7 @@ On a MacBook with a notch, macOS hides the menu-bar items that don't fit beside 
    ```
 
    For each file it lists, open the script that file's `statusLine.command` names: its `GROVE_ORIG` line holds the command you had before. Put that command back, or delete the `statusLine` key if `GROVE_ORIG` is empty.
-2. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with ⌘Q while its Settings window is in front, or with **Quit Brow** in the Workspaces panel.
+2. If you turned on **Launch at login**, turn it off in Settings → General. Then quit Brow with **Quit Brow** in the ⚙ menu at the bottom of the notch panel, or with ⌘Q while its Settings window is in front.
 3. Delete the app: `brew uninstall --cask efim0v/tap/brow` and `brew uninstall efim0v/tap/brow-cli`, or move `Brow.app` and the `brow` tool to the Trash.
 4. Close any browser window Brow opened for an account, then delete Brow's files: its settings, cached readings, the pet's state and per-account browser profiles (cookies and saved passwords included), Workspaces' folder (its config, the wrapper scripts, code statistics and the request-pacing file), and what macOS stored for Brow's network requests:
 
@@ -247,12 +259,12 @@ The app is signed ad hoc by default. macOS then forgets the Keychain and Automat
 | Path | What it is |
 |---|---|
 | `Sources/GroveCore` | Accounts, credentials, usage and token refresh; git, worktrees, cmux, Claude Code sessions, the shared store, the transcript safety net, migration, code statistics |
-| `Sources/GroveAppKit` | The Workspaces panel and its state |
+| `Sources/GroveAppKit` | Workspaces' screens and their state |
 | `Sources/BrowKit` | The notch, the limits, the pet, Settings, and Brow's side of Workspaces |
 | `Sources/BrowApp` | Entry point |
 | `Sources/brow-cli` | The `brow` command-line tool |
 | `Resources` | The app icon, the per-account browser router, the Info.plist template |
-| `Tests` | About 1,550 tests |
+| `Tests` | About 1,800 tests |
 | `docs` | [The notch in detail](docs/brow.md), [Workspaces](docs/workspaces.md), [architecture](docs/architecture.md), [troubleshooting](docs/troubleshooting.md) |
 
 There are no third-party dependencies. The module names `GroveCore` and `GroveAppKit` come from Grove, whose history this repository includes.
@@ -261,8 +273,8 @@ There are no third-party dependencies. The module names `GroveCore` and `GroveAp
 
 - `Scripts/test-in-empty-home.sh` and `Scripts/test-in-empty-home.sh -c release` should both stay green; `Scripts/check-warnings.sh` should find no new warnings.
 - `swift run BrowApp --snapshot /tmp/brow-snap` renders the Workspaces screens to PNG without starting the app; see [`docs/snapshot-testing.md`](docs/snapshot-testing.md).
-- The screenshots in this README are regenerated with
-  `DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests`.
+- The screenshots in this README and in `docs` are regenerated with
+  `DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" Scripts/test-in-empty-home.sh --filter DemoScreenshotTests`.
 - The notch outline's tuning constants are in `Sources/BrowKit/Panel/NotchGeometry.swift`; they are meant to be tuned by eye against the physical bezel.
 
 ## Credits

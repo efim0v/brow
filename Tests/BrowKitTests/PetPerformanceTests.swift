@@ -38,6 +38,9 @@ final class PetPerformanceTests: XCTestCase {
         play(.eat(nibble)); play(.satisfied(.lick)); play(.idle(.peckish), 25); play(.idle(.hungry), 30)
         play(.eat(feast)); play(.satisfied(.feast)); play(.idle(.full), 20)
         play(.boop(giggle: false)); play(.idle(.full), 5); play(.boop(giggle: true)); play(.idle(.full), 10)
+        // The two ends of the meter, with their beats, at the meter they live at (keyed below).
+        let ends = t
+        play(.idle(.stuffed), 30); play(.idle(.famished), 30)
         play(.celebrate(.streak(days: 7))); play(.idle(.content), 10); play(.celebrate(.goodWeek)); play(.idle(.content), 10)
         play(.freshWindow); play(.settled(.content), 30); play(.dozeIn); play(.doze, 20); play(.welcomeBack)
         play(.idle(.content), 10); play(.unsureIdle(.content), 30); play(.perk(.freshData)); play(.idle(.content), 10)
@@ -50,6 +53,12 @@ final class PetPerformanceTests: XCTestCase {
         for (start, b) in plan { if case .eat(let meal) = b { script.meter(start + meal.swallowStart, 10) } }
         script.meter(80, 10, rate: 0.6)
         script.meter(140, 0, rate: 0.005)
+        script.meter(ends, -46)
+        script.meter(ends + 30, 96)
+        // The panel opened at each end: a thumbs-up, then please.
+        script.cue(ends + 4, .greet)
+        script.cue(ends + 34, .greet)
+        script.meter(ends + 60, 0.5, rate: 0.005)
         // The pointer passes the strip twice, and hovers the panel once.
         script.pointerPath([(9.5, -40, 140), (10.5, 60, 60), (12.5, 110, 50), (14, 300, 160)])
         script.cue(10.4, .notice)

@@ -45,7 +45,7 @@ final class SnapshotModeTests: XCTestCase {
     func testScenesHaveContractFileNames() {
         XCTAssertEqual(SnapshotMode.SnapshotScene.allCases.map(\.fileName),
                        ["projects.png", "root-workspaces.png", "workspaces-expanded.png",
-                        "create-sheet.png", "graph.png", "stats.png", "sessions.png", "accounts.png",
+                        "create-sheet.png", "graph.png", "stats.png",
                         "settings.png", "stats-settings.png", "error-banner.png"])
     }
 
@@ -66,10 +66,6 @@ final class SnapshotModeTests: XCTestCase {
         XCTAssertEqual(state(.graph).selectedTab, .graph)
         XCTAssertEqual(state(.stats).route, .project(projectID))
         XCTAssertEqual(state(.stats).selectedTab, .stats)
-        XCTAssertEqual(state(.sessions).route, .project(projectID))
-        XCTAssertEqual(state(.sessions).selectedTab, .sessions)
-        XCTAssertEqual(state(.accounts).route, .accounts)
-        XCTAssertFalse(state(.accounts).snapshotsByAccount.isEmpty, "accounts must carry capture snapshots")
         XCTAssertEqual(state(.settings).route, .projectSettings(projectID))
 
         // stats-settings routes to the new top-level page; the fixture seeds the
@@ -101,9 +97,7 @@ final class SnapshotModeTests: XCTestCase {
         XCTAssertEqual(SnapshotMode.SnapshotScene.workspacesExpanded.size, CGSize(width: 600, height: 540))
         XCTAssertEqual(SnapshotMode.SnapshotScene.graph.size, CGSize(width: 600, height: 540))
         XCTAssertEqual(SnapshotMode.SnapshotScene.stats.size, CGSize(width: 600, height: 540))
-        XCTAssertEqual(SnapshotMode.SnapshotScene.sessions.size, CGSize(width: 600, height: 540))
         XCTAssertEqual(SnapshotMode.SnapshotScene.createSheet.size, CGSize(width: 540, height: 560))
-        XCTAssertEqual(SnapshotMode.SnapshotScene.accounts.size, CGSize(width: 560, height: 480))
         XCTAssertEqual(SnapshotMode.SnapshotScene.settings.size, CGSize(width: 560, height: 560))
         XCTAssertEqual(SnapshotMode.SnapshotScene.statsSettings.size, CGSize(width: 560, height: 560))
         // projects frame + vertical allowance for the banner stacked above it.
@@ -166,42 +160,20 @@ final class SnapshotModeTests: XCTestCase {
         XCTAssertEqual(mp?.cmuxWorkspaces.first?.id, "ws-101")
     }
 
-    /// Locks what sessions.png must render: a busy live row mapped to Go (its
-    /// cwd is listed by a cmux workspace), a waiting live row, resumables, and
-    /// both accounts represented (spec §5 variety).
+    /// The fixture's live sessions read through the one mapping: a busy one working, a
+    /// waiting one stopped on the user, the rest closed — every one by its own id.
     @MainActor
-    func testFixtureSessionRowsCoverStatusAndActionVariety() {
+    func testFixtureSessionsReadThroughTheOneMapping() {
         let snapshot = SnapshotMode.fixtureState().selectedSnapshot!
-        let rows = buildSessionRows(snapshot: snapshot, cmuxMap: [:])
-        let byId = Dictionary(uniqueKeysWithValues: rows.map { ($0.sessionId, $0) })
-
-        // busy live, mapped to Go via the media-pipeline cmux workspace cwd,
-        // with a runtime (startedAt set in the fixture).
-        XCTAssertEqual(byId["s-mp-1"]?.liveStatus, .busy)
-        XCTAssertEqual(byId["s-mp-1"]?.action, .go)
-        XCTAssertNotNil(byId["s-mp-1"]?.startedAt)
-        XCTAssertEqual(byId["s-mp-1"]?.location, "media-pipeline")
-        XCTAssertEqual(byId["s-mp-1"]?.accountName, "default")
-
-        // waiting live, no cmux workspace -> Resume, also has a runtime.
-        XCTAssertEqual(byId["s-mu-1"]?.liveStatus, .waiting)
-        XCTAssertEqual(byId["s-mu-1"]?.action, .resume)
-        XCTAssertNotNil(byId["s-mu-1"]?.startedAt)
-        XCTAssertEqual(byId["s-mu-1"]?.accountName, "work")
-
-        // resumables (no live process).
-        XCTAssertNil(byId["s-mu-2"]?.liveStatus)
-        XCTAssertEqual(byId["s-mu-2"]?.action, .resume)
-        XCTAssertNil(byId["s-ff-1"]?.liveStatus)
-
-        // loose worktree session location derives from the worktree leaf.
-        XCTAssertEqual(byId["s-gc-1"]?.location, "group-chats")
-
-        // Both accounts present in the table.
-        XCTAssertEqual(Set(rows.map(\.accountName)), ["default", "work"])
-        // Live first (busy before waiting), resumables after.
-        XCTAssertEqual(Array(rows.prefix(2).map(\.sessionId)), ["s-mp-1", "s-mu-1"])
-        XCTAssertTrue(rows.dropFirst(2).allSatisfy { $0.liveStatus == nil })
+        func state(_ id: String) -> SessionState {
+            let live = (snapshot.workspaces.flatMap(\.liveProcesses) + snapshot.loose.flatMap(\.liveProcesses))
+            return SessionState.of(live.liveProcess(forSessionId: id, cwd: ""))
+        }
+        XCTAssertEqual(state("s-mp-1"), .working)
+        XCTAssertEqual(state("s-mu-1"), .asksYou)
+        XCTAssertEqual(state("s-mu-2"), .closed)
+        XCTAssertEqual(state("s-ff-1"), .closed)
+        XCTAssertEqual(state("s-gc-1"), .closed)
     }
 
     @MainActor
@@ -222,14 +194,6 @@ final class SnapshotModeTests: XCTestCase {
                       date: $0.date, refs: $0.refs, subject: $0.subject)
         }
         XCTAssertEqual(layoutLanes(raw).map(\.lane), nodes.map(\.lane))
-    }
-
-    func testFixtureIdentityOnlyForDefaultAccount() {
-        let identity = SnapshotMode.fixtureIdentity(AccountConfig(name: "default", configDir: "~/.claude"))
-        XCTAssertEqual(identity?.email, "artem@example.com")
-        XCTAssertEqual(identity?.tier, "max_20x")
-        XCTAssertNil(SnapshotMode.fixtureIdentity(AccountConfig(name: "work",
-                                                                configDir: "~/.claude-accounts/work")))
     }
 
     @MainActor

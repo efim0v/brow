@@ -19,8 +19,8 @@ extension EnvironmentValues {
     }
 }
 
-/// Headless UI harness: `BrowApp --snapshot <outDir>` renders the Workspaces panel
-/// with a synthetic fixture state into PNGs and exits without ever starting
+/// Headless UI harness: `BrowApp --snapshot <outDir>` renders Workspaces' screens, as a
+/// window of their own draws them, with a synthetic fixture state into PNGs and exits without ever starting
 /// NSApplication. Rich fixture (4 workspaces incl. one stacked child, all four
 /// age buckets, busy/waiting/resumable mixes, 2 loose worktrees); every scene
 /// renders RootView with the scene's ROUTE set (the panel is a state machine
@@ -45,8 +45,6 @@ public enum SnapshotMode {
         case createSheet = "create-sheet"
         case graph = "graph"
         case stats = "stats"
-        case sessions = "sessions"
-        case accounts = "accounts"
         case settings = "settings"
         case statsSettings = "stats-settings"
         case errorBanner = "error-banner"
@@ -59,10 +57,9 @@ public enum SnapshotMode {
         var size: CGSize {
             switch self {
             case .projects: return CGSize(width: 460, height: 520)
-            case .rootWorkspaces, .workspacesExpanded, .graph, .stats, .sessions:
+            case .rootWorkspaces, .workspacesExpanded, .graph, .stats:
                 return CGSize(width: 600, height: 540)
             case .createSheet: return CGSize(width: 540, height: 560)
-            case .accounts: return CGSize(width: 560, height: 480)
             case .settings, .statsSettings: return CGSize(width: 560, height: 560)
             case .errorBanner: return CGSize(width: 460, height: 584)
             }
@@ -164,11 +161,11 @@ public enum SnapshotMode {
             ProjectSessionRow(sessionId: "s-mp-1", title: "media pipeline retries",
                               cwd: wsRoot + "/media-pipeline", location: "media-pipeline",
                               accountName: "default", lastActivity: now.addingTimeInterval(-900),
-                              status: .running, cmuxWorkspaceId: "ws-101"),
+                              state: .working, cmuxWorkspaceId: "ws-101"),
             ProjectSessionRow(sessionId: "s-mu-1", title: "upload endpoint",
                               cwd: wsRoot + "/media-upload", location: "media-upload",
                               accountName: "work", lastActivity: now.addingTimeInterval(-120),
-                              status: .waiting, cmuxWorkspaceId: nil),
+                              state: .yourTurn, cmuxWorkspaceId: nil),
         ]]
         return state
     }
@@ -221,6 +218,15 @@ public enum SnapshotMode {
             sevenDay: CapturedWindow(usedPercentage: 60, resetsAt: reset(4 * 86_400)),
             sevenDaySonnet: CapturedWindow(usedPercentage: 35, resetsAt: reset(4 * 86_400)))
         return ["default": [defaultSnap] + hist, "work": [workSnap]]
+    }
+
+    /// How a fixture session's conversation ends: a reply, a pending tool call, or a question.
+    static func fixturePreview(_ prompt: String, reply: String? = nil, tool: (name: String, input: String)? = nil,
+                               question: String? = nil) -> SessionPreview {
+        let turn: SessionPreview.Turn = tool != nil || question != nil ? .tool : .answered
+        return SessionPreview(prompt: prompt, reply: reply, tool: question != nil ? "AskUserQuestion" : tool?.name,
+                              title: nil, turn: turn, at: nil, pendingInput: tool?.input, question: question,
+                              replyIsCurrent: reply != nil)
     }
 
     /// Ages are relative to `now` (real clock at render time) because the
@@ -276,7 +282,9 @@ public enum SnapshotMode {
                               title: "Implement media pipeline",
                               lastActivity: now.addingTimeInterval(-900),
                               accountName: "default",
-                              gitBranch: "feat/media-pipeline"),
+                              gitBranch: "feat/media-pipeline",
+                              preview: fixturePreview("wire the upload progress events into the pipeline",
+                                                      tool: ("Bash", "swift test --filter Pipeline"))),
             ],
             liveProcesses: [
                 LiveProcess(pid: 4242, sessionId: "s-mp-1", cwd: mpUmbrella,
@@ -325,12 +333,16 @@ public enum SnapshotMode {
                               title: "Multipart upload endpoint",
                               lastActivity: now.addingTimeInterval(-120),
                               accountName: "work",
-                              gitBranch: "feat/media-upload"),
+                              gitBranch: "feat/media-upload",
+                              preview: fixturePreview("accept multipart on /media and stream it to disk",
+                                                      question: "Keep the 25 MB limit, or raise it for video?")),
                 ClaudeSession(id: "s-mu-2", cwd: muUmbrella,
                               title: "Client retry UX",
                               lastActivity: day(1),
                               accountName: "default",
-                              gitBranch: "feat/media-upload"),
+                              gitBranch: "feat/media-upload",
+                              preview: fixturePreview("show a retry button when an upload fails",
+                                                      reply: "The retry button shows under a failed upload; 4 tests.")),
             ],
             liveProcesses: [
                 LiveProcess(pid: 4343, sessionId: "s-mu-1", cwd: muUmbrella,
@@ -364,12 +376,16 @@ public enum SnapshotMode {
                               title: "Folder sharing follow-ups",
                               lastActivity: day(20),
                               accountName: "default",
-                              gitBranch: "feat/folders-followup"),
+                              gitBranch: "feat/folders-followup",
+                              preview: fixturePreview("let a shared folder be renamed by its owner only",
+                                                      reply: "Only the owner sees Rename now; the others get a tooltip.")),
                 ClaudeSession(id: "s-ff-2", cwd: ffUmbrella,
                               title: "Migration dry-run",
                               lastActivity: day(21),
                               accountName: "work",
-                              gitBranch: "feat/folders-followup"),
+                              gitBranch: "feat/folders-followup",
+                              preview: fixturePreview("dry-run the folder migration on a copy of staging",
+                                                      reply: "Dry run done: 1,204 folders, 3 with duplicate names.")),
             ],
             liveProcesses: [],
             cmuxWorkspaces: []
@@ -410,7 +426,9 @@ public enum SnapshotMode {
                               title: "Group chats",
                               lastActivity: day(9),
                               accountName: "default",
-                              gitBranch: "feature/group-chats"),
+                              gitBranch: "feature/group-chats",
+                              preview: fixturePreview("add read receipts to group chats",
+                                                      reply: "Read receipts show under the last message each member saw.")),
             ],
             liveProcesses: [],
             cmuxWorkspaces: []
@@ -599,18 +617,6 @@ public enum SnapshotMode {
         ]
     }
 
-    // MARK: - Identity fixture (consumed by AccountsScreen in Task 22)
-
-    /// Deterministic identities for accounts.png: "default" is logged in,
-    /// every other account renders the not-logged-in row.
-    static func fixtureIdentity(_ account: AccountConfig) -> AccountIdentity? {
-        guard account.name == "default" else { return nil }
-        return AccountIdentity(email: "artem@example.com",
-                               organization: "Personal",
-                               tier: "max_20x",
-                               organizationRateLimitTier: "default_claude_max_20x")
-    }
-
     // MARK: - Rendering
 
     @MainActor
@@ -649,11 +655,6 @@ public enum SnapshotMode {
             // manual (non-Charts) fallback offscreen.
             state.selectedTab = .stats
             state.route = .project(projectID)
-        case .sessions:
-            state.selectedTab = .sessions
-            state.route = .project(projectID)
-        case .accounts:
-            state.route = .accounts
         case .settings:
             state.route = .projectSettings(projectID)
         case .statsSettings:
@@ -713,9 +714,6 @@ public enum SnapshotMode {
         .frame(width: size.width, height: size.height)
         .environment(\.colorScheme, .dark)
         .environment(\.isSnapshotRender, true)
-        // Identity from the fixture, NEVER from ~/.claude.json: offscreen
-        // renders must not read the user's real Claude config.
-        .environment(\.claudeIdentityProvider, { SnapshotMode.fixtureIdentity($0) })
 
         let renderer = ImageRenderer(content: wrapped)
         renderer.scale = 2

@@ -64,11 +64,64 @@ final class NotchShapeTests: XCTestCase {
         XCTAssertEqual(NotchShape(topFlare: 2, bottomRadius: 3).bottomRadius, 3)
     }
 
+    /// The squircle is the default; the old quadratic corner is kept only to compare.
+    func testBottomCornersAreContinuousByDefault() {
+        XCTAssertTrue(NotchShape().continuousCorners)
+        XCTAssertFalse(NotchShape(continuousCorners: false).continuousCorners)
+    }
+
+    /// The flares are drawn beside the body, not over it: both sides of the edge they
+    /// share are black, so no hairline of bezel shows between them.
+    func testTheFlaresMeetTheBodyWithoutASeam() {
+        let shape = NotchShape(topFlare: 6, bottomRadius: NotchGeometry.expandedBottomRadius)
+        let path = shape.path(in: CGRect(x: 0, y: 0, width: 472, height: 300))
+        for y in stride(from: CGFloat(0.5), through: 5, by: 0.5) {
+            XCTAssertTrue(path.contains(CGPoint(x: 5.99, y: y)), "left flare at y \(y)")
+            XCTAssertTrue(path.contains(CGPoint(x: 6.01, y: y)), "left body at y \(y)")
+            XCTAssertTrue(path.contains(CGPoint(x: 466.01, y: y)), "right flare at y \(y)")
+            XCTAssertTrue(path.contains(CGPoint(x: 465.99, y: y)), "right body at y \(y)")
+        }
+    }
+
+    /// The quadratic corner hugs the corner (its control point sits on it), which is what
+    /// read as a plain, sharp radius; the continuous one of the same radius takes the
+    /// corner away more gently. 9 pt above the bottom, the quadratic edge is 1.8 pt in from
+    /// the side and the continuous one 2.9 pt.
+    func testTheContinuousCornerIsSofterThanTheQuadraticOne() {
+        let rect = CGRect(x: 0, y: 0, width: 472, height: 300)
+        let continuous = NotchShape(topFlare: 6, bottomRadius: 18).path(in: rect)
+        let quadratic = NotchShape(topFlare: 6, bottomRadius: 18, continuousCorners: false).path(in: rect)
+        let point = CGPoint(x: 6 + 2.4, y: rect.maxY - 9)
+        XCTAssertTrue(quadratic.contains(point))
+        XCTAssertFalse(continuous.contains(point))
+    }
+
     /// The path honours the rect it is handed, not a zero origin.
     func testPathHonoursANonZeroOrigin() {
         let offset = CGRect(x: 100, y: 50, width: 200, height: 40)
         let bounds = NotchShape().path(in: offset).boundingRect
         XCTAssertEqual(bounds.minX, 100, accuracy: 0.001)
         XCTAssertEqual(bounds.minY, 50, accuracy: 0.001)
+    }
+
+    /// On a display without a notch the outline is the pill's rounded rectangle collapsed,
+    /// and opens into a panel square at the top — it hangs from the screen's edge — with
+    /// continuous 24 pt corners at the bottom.
+    @MainActor
+    func testWithoutANotchThePillOpensIntoSquareTopAndContinuousBottomCorners() {
+        let frames = NotchGeometry.frames(for: MadeUpLimits.externalScreen, expandedHeight: 400)
+        XCTAssertFalse(frames.hasNotch)
+        let panel = CGRect(origin: .zero, size: frames.expanded.size)
+        let open = NotchRootView.outline(frames: frames, progress: 1).path(in: panel)
+        XCTAssertTrue(open.contains(CGPoint(x: 0.5, y: 0.5)), "square at the top")
+        XCTAssertTrue(open.contains(CGPoint(x: panel.maxX - 0.5, y: 0.5)))
+        XCTAssertFalse(open.contains(CGPoint(x: 2, y: panel.maxY - 2)), "rounded at the bottom")
+        XCTAssertTrue(open.contains(CGPoint(x: 24, y: panel.maxY - 0.5)), "where the 24 pt corner has ended")
+
+        let pill = CGRect(origin: .zero, size: frames.collapsed.size)
+        let closed = NotchRootView.outline(frames: frames, progress: 0).path(in: pill)
+        XCTAssertFalse(closed.contains(CGPoint(x: 1, y: 1)), "the pill is round at the top too")
+        XCTAssertFalse(closed.contains(CGPoint(x: 1, y: pill.maxY - 1)))
+        XCTAssertTrue(closed.contains(CGPoint(x: pill.midX, y: pill.midY)))
     }
 }

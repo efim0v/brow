@@ -15,11 +15,13 @@ The state comes from `SnapshotMode.fixtureState()` — fully synthetic
 temp dir beside its config file); see the coverage matrix in that file.
 Ages are relative to render-time `Date()`, so badge buckets stay truthful.
 
-The notch, the Settings window and the README's pictures are rendered by the two
-`DemoScreenshotTests` instead, from one set of made-up accounts (`Tests/DemoFixture`)
-so the notch's and Workspaces' pictures agree:
+The pictures in the README, the docs and on the website — the notch, the panel on Limits,
+Projects and Agents with the screens Workspaces pushes in it, and the Settings window — are
+rendered by `DemoScreenshotTests` instead, from one set of made-up accounts
+(`Tests/DemoFixture`) and the made-up world of the review renders (`SessionsWorld`), so the
+pictures agree:
 
-    DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
+    DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" Scripts/test-in-empty-home.sh --filter DemoScreenshotTests
 
 The one window — the notch panel with Limits and Projects, the screens Workspaces pushes
 in it, its menus, notices and corners — is rendered for review by `OneWindowRenderTests`,

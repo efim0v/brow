@@ -5,19 +5,19 @@ import AppKit
 import SwiftUI
 import XCTest
 import DemoFixture
-import GroveAppKit
+@testable import GroveAppKit
 import GroveCore
 @testable import BrowKit
 
-/// README screenshots for Brow, rendered from FICTIONAL accounts — `DemoAccounts`, the
-/// ones Workspaces' screenshots show too, so the pictures agree. Nothing real is read:
+/// The README's, the docs' and the website's screenshots, rendered from FICTIONAL accounts —
+/// `DemoAccounts`, the same three everywhere, so the pictures agree. Nothing real is read:
 /// the accounts are handed to the store as a scan would find them, in a home folder that
 /// does not exist, the "Keychain" is a canned reader, the app-support directory is a
 /// temp dir, and no refresh cycle ever runs (no network, no `claude`).
 ///
 /// Skipped unless `DEMO_SCREENSHOTS_DIR` is set:
 ///
-///     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" swift test --filter DemoScreenshotTests
+///     DEMO_SCREENSHOTS_DIR="$PWD/docs/screenshots" Scripts/test-in-empty-home.sh --filter DemoScreenshotTests
 ///
 /// With `BROW_REVIEW_DIR` set as well, Settings' General and About tabs go there, for
 /// review only: outside an app bundle General says the browser router is missing and
@@ -25,10 +25,13 @@ import GroveCore
 ///
 /// The notch and the panel are the real `EarsView` and `NotchPanelController`'s own outline
 /// (`NotchRender`) through ImageRenderer; the strip of "desktop" behind them is a stand-in. The pet is the real layer posed from a
-/// scripted state at a fixed instant (`demoPet`), so the images are reproducible. Settings is
-/// the real `SettingsView` in an offscreen window (its `TabView`/`Form` are AppKit-backed
-/// and do not survive ImageRenderer), one image per tab, with Workspaces hosted on a fixture
-/// state.
+/// scripted state at a fixed instant (`demoPet`), so the images are reproducible. The panel's
+/// Projects and Agents sides draw `SessionsWorld`, the made-up projects, sessions and agents the
+/// one window's review renders draw. Settings is the real `SettingsView` in an offscreen window
+/// (its `TabView`/`Form` are AppKit-backed and do not survive ImageRenderer), one image per tab,
+/// with Workspaces hosted on a fixture state.
+///
+/// A picture that changes gets a new file name: GitHub and browsers cache an image by its name.
 final class DemoScreenshotTests: XCTestCase {
 
     func testRenderBrowDemoScreenshots() async throws {
@@ -225,31 +228,30 @@ final class DemoScreenshotTests: XCTestCase {
                                                                            expanded: false))
             model.ears = AnyView(EarsView(aggregate: store.aggregate, frames: frames, drawsBackground: false)
                 .frame(width: frames.collapsed.width, height: frames.collapsed.height))
-            try renderOnDesktop(NotchRootView(model: model), canvas: CGSize(width: 640, height: 120),
+            try renderOnDesktop(NotchRootView(model: model), canvas: CGSize(width: 640, height: 84),
                                 to: out.appendingPathComponent(placement == .beside
-                                                               ? "brow-notch-collapsed.png"
-                                                               : "brow-notch-collapsed-below.png"))
+                                                               ? "brow-notch-collapsed-050.png"
+                                                               : "brow-notch-collapsed-below-050.png"))
         }
 
-        // (2) + (3) Expanded: without the calendar, then the default panel with it, the pet in
-        // its header. Drawn as the app clips it: the controller's own outline at the height it
-        // measures, so a footer the panel cut off would be cut off here too.
-        store.settings.showCalendar = false
-        let plain = try NotchRender.open(store: store, clock: clock, screen: screen)
-        try renderOnDesktop(plain.view(), canvas: CGSize(width: 640, height: 0),
-                            to: out.appendingPathComponent("brow-panel.png"))
+        // (2) Expanded, with Workspaces off: the limits alone, the calendar on as it is by
+        // default, the pet in its header. Drawn as the app clips it: the controller's own outline
+        // at the height it measures, so a footer the panel cut off would be cut off here too.
         store.settings.showCalendar = true
-        let withCalendar = try NotchRender.open(store: store, clock: clock, screen: screen)
-        try renderOnDesktop(withCalendar.view(), canvas: CGSize(width: 640, height: 0),
-                            to: out.appendingPathComponent("brow-panel-reset-calendar.png"))
+        let limits = try NotchRender.open(store: store, clock: clock, screen: screen)
+        try renderOnDesktop(limits.view(), canvas: CGSize(width: 640, height: 0),
+                            to: out.appendingPathComponent("brow-panel-050.png"))
 
-        // (5) Settings: Accounts, where each card carries its Workspaces section, and
+        // (3) The panel with Workspaces on: Projects, Agents and the screens Workspaces pushes.
+        try await renderTheOneWindow(into: out, now: now)
+
+        // (4) Settings: Accounts, where each card carries its Workspaces section, and
         // Workspaces. General and About only for review (see the type's comment).
         let flow = AddAccountFlow(store: store, home: DemoAccounts.home)
         let workspaces = makeWorkspaces(store: store, appDir: appDir)
         let navigation = SettingsNavigation()
         var panes: [(SettingsPane, URL)] = [(.accounts, out.appendingPathComponent("brow-settings-accounts.png")),
-                                            (.workspaces, out.appendingPathComponent("brow-settings-workspaces.png"))]
+                                            (.workspaces, out.appendingPathComponent("brow-settings-workspaces-050.png"))]
         if let review = ProcessInfo.processInfo.environment["BROW_REVIEW_DIR"], !review.isEmpty {
             let reviewDir = URL(fileURLWithPath: review, isDirectory: true)
             try fm.createDirectory(at: reviewDir, withIntermediateDirectories: true)
@@ -279,11 +281,128 @@ final class DemoScreenshotTests: XCTestCase {
                                    to: URL(fileURLWithPath: review, isDirectory: true).appendingPathComponent(name))
             }
         }
-
-        // (6) What Projects says while Grove.app keeps Workspaces paused.
-        try renderWindowContent(WorkspacesNoticeView(notice: workspaces.groveRunningNotice).frame(width: 432),
-                                to: out.appendingPathComponent("workspaces-paused.png"))
     }
+
+    /// The notch panel with Workspaces on, from the made-up world the one window's review renders
+    /// draw (`SessionsWorld`): the Projects list and the Agents tab, a project with a workspace
+    /// open, the screens pushed over it, and what Projects says while Grove.app runs.
+    ///
+    /// The panel is as tall as the Limits side laid out. Lists hang in the default panel, the
+    /// calendar on; short screens in the panel without the calendar, at its 480 pt floor, so
+    /// they are not drawn over a long run of empty black.
+    @MainActor
+    private func renderTheOneWindow(into out: URL, now: Date) async throws {
+        // The hosts hold their notch weakly: everything a render draws is kept until it is written.
+        var kept: [AnyObject] = []
+        func world(short: Bool = false) throws -> SessionsWorld {
+            var options = SessionsWorld.Options()
+            if short { options.settings = { $0.showCalendar = false } }
+            let world = try SessionsWorld.make(now: now, options)
+            kept.append(world.host)
+            return world
+        }
+        func notch(_ world: SessionsWorld, on tab: NotchTab, pinned: Bool = false, badges: Bool = true) throws -> NotchRender {
+            let render = try NotchRender.open(store: world.store, clock: PanelClock(now: { now }), tab: tab,
+                                              screen: MadeUpLimits.screen14, host: world.host, pinned: pinned)
+            if badges { world.host.syncBadges(live: world.state.liveSessions, state: world.state) }
+            kept.append(render.controller)
+            return render
+        }
+        let canvas = CGSize(width: 520, height: 0)
+        func draw<V: View>(_ view: V, _ name: String) throws {
+            try renderOnDesktop(view, canvas: canvas, to: out.appendingPathComponent(name))
+        }
+
+        // Projects: suggested folders, each project's sessions by their last exchange, what
+        // needs you first; the pointer over a working session shows Go and its menu.
+        do {
+            let world = try world()
+            try draw(try notch(world, on: .projects).view().environment(\.renderHoveredSession, "s-checkout"),
+                      "brow-panel-projects-050.png")
+        }
+
+        // Agents: sessions joined by arcs, their subagents and a teammate under them, a message
+        // on its way, and the last ten minutes listed.
+        do {
+            let world = try world()
+            world.showAgents(now: now) { AgentsSnapshot.live($0, now: now) }
+            try draw(try notch(world, on: .agents).view(), "brow-panel-agents-050.png")
+        }
+
+        // A project: its workspaces as a tree, one open with a worktree of each repository on
+        // the workspace's branch and the sessions in it, the pointer over one.
+        do {
+            let world = try world()
+            world.state.route = .project(world.shopID)
+            world.state.selectedTab = .workspaces
+            try draw(try notch(world, on: .projects).view()
+                        .environment(\.snapshotExpandedWorkspaces, ["media-upload"])
+                        .environment(\.renderScrollOffset, Self.workspaceScroll)
+                        .environment(\.renderHoveredSession, "s-mu-1"),
+                      "brow-panel-project-050.png")
+        }
+
+        // Resume with options…: Brow's accounts in Brow's order, each with its limits.
+        do {
+            let world = try world()
+            world.state.route = .project(world.shopID)
+            let row = try XCTUnwrap(world.state.recentSessionsByProject[world.shopID]?.first { $0.sessionId == "s-promo" })
+            world.state.beginResume(row)
+            try draw(try notch(world, on: .projects, pinned: true).view(), "brow-panel-resume-050.png")
+        }
+
+        // A project's own settings, pushed over the project.
+        do {
+            let world = try world()
+            world.state.route = .projectSettings(world.shopID)
+            try draw(try notch(world, on: .projects, pinned: true).view(), "brow-panel-project-settings-050.png")
+        }
+
+        // New workspace, pushed over the project: a short form, in the short panel.
+        do {
+            let world = try world(short: true)
+            world.state.createPrefill = CreatePrefill(name: "loyalty-points")
+            world.state.route = .createWorkspace(world.shopID)
+            try draw(try notch(world, on: .projects, pinned: true).view(), "brow-panel-new-workspace-050.png")
+        }
+
+        // The project's Graph tab, in the short panel.
+        do {
+            let world = try world(short: true)
+            world.state.route = .project(world.shopID)
+            world.state.selectedTab = .graph
+            try draw(try notch(world, on: .projects).view(), "brow-panel-graph-050.png")
+        }
+
+        // The project's Stats tab. Its `.task` starts a scan of the fixture's made-up path when it
+        // is drawn, which would put a spinner beside the files and, once done, empty numbers. A scan
+        // already under way makes the tab's own wait for it instead: one is started and left to
+        // wait off the main actor while the tab is drawn from the fixture's numbers.
+        do {
+            let world = try world()
+            world.state.route = .project(world.shopID)
+            world.state.selectedTab = .stats
+            let scan = Task { await world.state.refreshCodeStats(projectID: world.shopID) }
+            for _ in 0..<100 where !world.state.isStatsScanning { await Task.yield() }
+            XCTAssertTrue(world.state.isStatsScanning, "the stand-in scan did not start")
+            world.state.isStatsScanning = false
+            try draw(try notch(world, on: .projects).view(), "brow-panel-stats-050.png")
+            await scan.value
+        }
+
+        // What Projects says while Grove.app keeps Workspaces paused: nothing of the engine runs,
+        // so no session is counted on the switch.
+        do {
+            let world = try world(short: true)
+            world.host.preview(state: world.state, activation: .paused)
+            try draw(try notch(world, on: .projects, badges: false).view(), "brow-panel-paused-050.png")
+        }
+        _ = kept
+    }
+
+    /// How far the project's screen is scrolled for its picture: past the project folder's
+    /// sessions, to the workspaces' tree with the open one.
+    private static let workspaceScroll: CGFloat = 250
 
     /// The pet at rest, content, at a fixed instant of a scripted timeline: the same picture on every
     /// run. In the panel it has landed in the header's stage.
@@ -359,14 +478,6 @@ final class DemoScreenshotTests: XCTestCase {
                                    "no scroll view in the settings form")
         let target = try XCTUnwrap(scroll.documentView)
         try snapshot(target, in: window, to: url)
-    }
-
-    /// A plain view (no scroll view) in an offscreen window, drawn @2x on the window's
-    /// background — real buttons and all.
-    @MainActor
-    private func renderWindowContent<V: View>(_ view: V, to url: URL) throws {
-        let (window, host) = offscreenWindow(view.padding(10), title: "")
-        try snapshot(host, in: window, to: url)
     }
 
     @MainActor
